@@ -8,7 +8,7 @@ import { briefing } from "./briefing";
 import { getConversation, recordConversation } from "./conversations";
 import { deleteItem, editItem, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility } from "./corrections";
 import { whatsDue } from "./due";
-import { FreundebuchError } from "./errors";
+import { FreundebuchError, InvalidInputError } from "./errors";
 import { BriefingJson, Day, DueItemJson, IntervalJson, NewConversationJson, PersonId, PersonJson, RecordedJson, Visibility } from "./http/schemas";
 import { setCheckInInterval } from "./intervals";
 import { logger } from "./log";
@@ -24,7 +24,7 @@ Pass the ramble verbatim as transcript, never a summary.
 Before recording, look for sensitive content: health, relationship trouble, money, anything said in confidence or "between us". If you find any, ask the user whether it should be private. Default to shared otherwise. When only part is sensitive, mark only those items private and keep that part out of the summary.
 Resolve every person with find_person first. When more than one candidate fits, or a new name resembles an existing person, ask the user which one; never guess and never create a duplicate.
 After recording, read back in one or two sentences what you filed.
-When a briefing has suggested_interval, offer it to the user and save it with set_interval once they agree.`;
+When a briefing has suggestedInterval, offer it to the user and save it with set_interval once they agree.`;
 
 // A tool result: the body as structured content and, for clients that only read text, as JSON text. The body goes through the
 // tool's output schema first, which drops every field the schema doesn't name: what leaves is only what was declared.
@@ -71,6 +71,27 @@ const TranscriptJson = z.object({
   transcript: z.string().nullable().describe("Null when the other user recorded it and it is private to them"),
 });
 
+// relate and correct take one of several argument shapes. A tool's input schema must be one flat object (the Anthropic API
+// refuses a oneOf/anyOf/allOf at its root, and hosts then drop the tool), so the schema the client sees has every field optional
+// beside the kind or action, and the handler checks the exact shape with a discriminated union.
+function args<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
+  const r = schema.safeParse(value);
+  if (!r.success) throw new InvalidInputError(r.error.issues.map((i) => `${i.path.join(".") || "arguments"}: ${i.message}`).join("; "));
+  return r.data;
+}
+
+const RELATE_KINDS = ["relationship", "group"] as const;
+const RelateInput = z.object({
+  kind: z.enum(RELATE_KINDS).describe("`relationship` takes from, to, type and an optional note; `group` takes name and members"),
+  from: PersonId.optional().describe("relationship: the person who is `type` of `to`"),
+  to: PersonId.optional().describe("relationship: the other person"),
+  type: z.enum(RELATIONSHIP_TYPES).optional().describe("relationship: `from` is `type` of `to`; with `parent`, from is the parent of to"),
+  note: z.string().optional().describe("relationship: an optional note"),
+  name: z.string().optional().describe("group: the group's name, e.g. Uni or Climbing"),
+  members: z.array(PersonId).optional().describe("group: the ids of the people to add, at least one"),
+  visibility: Visibility,
+});
+
 const RelateArgs = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("relationship"),
@@ -82,6 +103,21 @@ const RelateArgs = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("group"), name: z.string().describe("The group's name, e.g. Uni or Climbing"), members: z.array(PersonId).min(1), visibility: Visibility }),
 ]);
+
+const CORRECT_ACTIONS = ["done", "outdated", "edit", "visibility", "delete", "rename", "merge"] as const;
+const CorrectInput = z.object({
+  action: z
+    .enum(CORRECT_ACTIONS)
+    .describe(
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded, a conversation with its items (table, id). rename: rename a person (id, name). merge: merge the duplicate drop into the person id (id, drop)",
+    ),
+  table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
+  id: z.string().describe("The item's id as a briefing shows it; for rename and merge, a person's id (merge: the person to keep)"),
+  patch: z.record(z.string(), z.unknown()).optional().describe("edit: new values for the item's own fields"),
+  visibility: Visibility.optional().describe("visibility: who may see the item from now on"),
+  name: z.string().optional().describe("rename: the person's new name"),
+  drop: PersonId.optional().describe("merge: the duplicate person; it is deleted"),
+});
 
 const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("done"), table: z.enum(["promises", "exchanges"]), id: ItemId }).describe("Mark a promise done or an exchange settled"),
@@ -102,9 +138,10 @@ function server(v: Viewer): McpServer {
     "record_conversation",
     {
       description:
-        "File a conversation the user told you about: the verbatim ramble as transcript, a short summary, who was involved and what was learned, all at once. Use it after every ramble about meeting, calling or messaging someone. visibility is required: decide it as the instructions say.",
+        "File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, and ask the user when a name fits more than one person or resembles an existing one. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary.",
       inputSchema: NewConversation,
       outputSchema: Recorded,
+      annotations: { destructiveHint: false },
     },
     guard(async (c) => ok(Recorded, await recordConversation(v, c))),
   );
@@ -152,18 +189,20 @@ function server(v: Viewer): McpServer {
     "relate",
     {
       description:
-        "Record how two people are related, or put people in a group, when the user mentions it outside of a conversation to file. Pass person ids from find_person. visibility is required: decide it as for record_conversation.",
-      inputSchema: RelateArgs,
+        "Record how two people are related, or put people in a group, when the user mentions it outside of a conversation to file; pass person ids from find_person. If it is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling.",
+      inputSchema: RelateInput,
       outputSchema: RelatedJson,
+      annotations: { destructiveHint: false },
     },
-    guard(async (a) =>
-      ok(
+    guard(async (input) => {
+      const a = args(RelateArgs, input);
+      return ok(
         RelatedJson,
         a.kind === "relationship"
           ? await addRelationship(v, { from: a.from, to: a.to, type: a.type, note: a.note, visibility: a.visibility })
           : await addToGroup(v, { name: a.name, members: a.members, visibility: a.visibility }),
-      ),
-    ),
+      );
+    }),
   );
 
   s.registerTool(
@@ -177,7 +216,7 @@ function server(v: Viewer): McpServer {
         confirmed: z.boolean().default(true).describe("Whether the user agreed to it; false only for an interval you set without asking"),
       }),
       outputSchema: SetIntervalJson,
-      annotations: { idempotentHint: true },
+      annotations: { destructiveHint: false, idempotentHint: true },
     },
     guard(async ({ personId, days, confirmed }) => {
       await setCheckInInterval(v, personId, days, confirmed);
@@ -190,11 +229,12 @@ function server(v: Viewer): McpServer {
     {
       description:
         "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person or merge a duplicate. Use it when the user says something is done, no longer true or wrong.",
-      inputSchema: CorrectArgs,
+      inputSchema: CorrectInput,
       outputSchema: CorrectedJson,
       annotations: { destructiveHint: true },
     },
-    guard(async (a) => {
+    guard(async (input) => {
+      const a = args(CorrectArgs, input);
       switch (a.action) {
         case "done":
           await markDone(v, a.table, a.id);

@@ -85,12 +85,25 @@ describe("protocol", () => {
     ]);
     for (const t of tools) {
       expect(t.annotations?.readOnlyHint === true, t.name).toBe(["find_person", "briefing", "whats_due", "get_transcript"].includes(t.name));
-      expect(t.annotations?.destructiveHint === true, t.name).toBe(t.name === "correct");
+      // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: only correct is.
+      const writes = ["record_conversation", "relate", "set_interval"].includes(t.name);
+      expect(t.annotations?.destructiveHint, t.name).toBe(t.name === "correct" ? true : writes ? false : undefined);
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");
+      // The Anthropic API refuses a tool whose input schema combines schemas at its root.
+      expect(t.inputSchema.type, t.name).toBe("object");
+      for (const k of ["oneOf", "anyOf", "allOf"]) expect(t.inputSchema, t.name).not.toHaveProperty(k);
     }
     const find = tools.find((t: { name: string }) => t.name === "find_person");
     expect(find.description).toContain("always call this before referring to a person by id");
+    // Not every client passes the server instructions on, so the ask-first rules are in the descriptions too.
+    const description = (name: string) => tools.find((t: { name: string }) => t.name === name).description;
+    for (const phrase of ["resolve every person with find_person", "ask the user when a name fits more than one person or resembles an existing one", "keep it out of the summary"])
+      expect(description("record_conversation")).toContain(phrase);
+    for (const name of ["record_conversation", "relate"]) {
+      expect(description(name), name).toContain("health, relationship trouble, money, anything said in confidence");
+      expect(description(name), name).toContain("ask the user whether it should be private before calling");
+    }
   });
 
   test("server/discover carries the instructions", async () => {
@@ -99,6 +112,7 @@ describe("protocol", () => {
     const text = JSON.stringify(await res.json());
     expect(text).toContain(V);
     expect(text).toContain("Pass the ramble verbatim as transcript, never a summary.");
+    expect(text).toContain("When a briefing has suggestedInterval, offer it to the user");
   });
 
   test("initialize is refused with 400", async () => {
@@ -184,6 +198,9 @@ describe("tools", () => {
     expect(group.structuredContent).toEqual({ added: 2 });
     expect((await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna], visibility: "shared" })).structuredContent).toEqual({ added: 0 });
     expect((await call(s.a, "relate", { kind: "relationship", from: s.anna, to: s.anna, type: "friend", visibility: "shared" })).isError).toBe(true);
+    // The flat schema lets any field through; the handler checks the shape of the kind.
+    expect(await call(s.a, "relate", { kind: "relationship", from: s.anna, type: "friend", visibility: "shared" })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^to: /) }] });
+    expect(await call(s.a, "relate", { kind: "group", name: "Uni", visibility: "shared" })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^members: /) }] });
   });
 
   test("correct maps each action to its correction", async () => {
@@ -201,6 +218,7 @@ describe("tools", () => {
     expect(await call(s.a, "correct", { action: "merge", id: s.anna, drop: s.tom })).toMatchObject(ok);
     expect(await d.selectFrom("persons").select("id").where("id", "=", s.tom).execute()).toEqual([]);
     expect((await call(s.a, "correct", { action: "done", table: "facts", id: marathon })).isError).toBe(true);
+    expect(await call(s.a, "correct", { action: "merge", id: s.anna })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^drop: /) }] });
   });
 
   test("an unexpected failure is logged, and the client only gets 'internal error'", async () => {
