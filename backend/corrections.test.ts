@@ -1,13 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
-import {
-  deleteItem,
-  editItem,
-  markDone,
-  markOutdated,
-  mergePeople,
-  renamePerson,
-  setVisibility,
-} from "./corrections";
+import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility } from "./corrections";
+import { briefing } from "./briefing";
 import { getConversation, recordConversation } from "./conversations";
 import { db } from "./db/testing";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
@@ -30,26 +23,16 @@ async function lunch() {
     transcript: "Lunch. In confidence: she is looking for a new flat.",
     visibility: "shared",
     people: [{ id: s.anna, present: true }],
-    facts: [
-      { person: 0, text: "flat hunting", category: "home", private: true },
-    ],
+    facts: [{ person: 0, text: "flat hunting", category: "home", private: true }],
     promises: [
       { person: 0, text: "send the recipe", byMe: true },
       { person: 0, text: "keep the secret", byMe: true, private: true },
     ],
-    exchanges: [
-      { person: 0, kind: "lent", direction: "to_them", text: "book" },
-    ],
+    exchanges: [{ person: 0, kind: "lent", direction: "to_them", text: "book" }],
   });
   const d = await db();
   const id = async (t: "facts" | "promises" | "exchanges", text: string) =>
-    (
-      await d
-        .selectFrom(t)
-        .select("id")
-        .where("text", "=", text)
-        .executeTakeFirstOrThrow()
-    ).id;
+    (await d.selectFrom(t).select("id").where("text", "=", text).executeTakeFirstOrThrow()).id;
   return {
     conversation: r.conversationId,
     privateFact: await id("facts", "flat hunting"),
@@ -59,31 +42,14 @@ async function lunch() {
   };
 }
 
-const factId = async (text: string) =>
-  (
-    await (
-      await db()
-    )
-      .selectFrom("facts")
-      .select("id")
-      .where("text", "=", text)
-      .executeTakeFirstOrThrow()
-  ).id;
+const factId = async (text: string) => (await (await db()).selectFrom("facts").select("id").where("text", "=", text).executeTakeFirstOrThrow()).id;
 
 test("the partner can't delete, edit or change the visibility of my visible item: forbidden", async () => {
   const id = await factId("new job");
-  await expect(deleteItem(s.b, "facts", id)).rejects.toBeInstanceOf(
-    ForbiddenError,
-  );
-  await expect(
-    editItem(s.b, "facts", id, { text: "x" }),
-  ).rejects.toBeInstanceOf(ForbiddenError);
-  await expect(
-    setVisibility(s.b, "facts", id, "private"),
-  ).rejects.toBeInstanceOf(ForbiddenError);
-  await expect(
-    deleteItem(s.b, "conversations", s.dinner),
-  ).rejects.toBeInstanceOf(ForbiddenError);
+  await expect(deleteItem(s.b, "facts", id)).rejects.toBeInstanceOf(ForbiddenError);
+  await expect(editItem(s.b, "facts", id, { text: "x" })).rejects.toBeInstanceOf(ForbiddenError);
+  await expect(setVisibility(s.b, "facts", id, "private")).rejects.toBeInstanceOf(ForbiddenError);
+  await expect(deleteItem(s.b, "conversations", s.dinner)).rejects.toBeInstanceOf(ForbiddenError);
 });
 
 test("acting on my private item is not_found for the partner, whatever the action", async () => {
@@ -101,9 +67,7 @@ test("acting on my private item is not_found for the partner, whatever the actio
 });
 
 test("an unknown id is not_found", async () => {
-  await expect(deleteItem(s.a, "facts", "nope")).rejects.toBeInstanceOf(
-    NotFoundError,
-  );
+  await expect(deleteItem(s.a, "facts", "nope")).rejects.toBeInstanceOf(NotFoundError);
   await expect(markOutdated(s.a, "nope")).rejects.toBeInstanceOf(NotFoundError);
 });
 
@@ -113,23 +77,15 @@ test("either user may mark a shared promise done, a shared fact outdated and a s
   await markDone(s.b, "exchanges", l.exchange);
   await markOutdated(s.b, await factId("new job"));
   const c = await getConversation(s.b, l.conversation);
-  expect(c.promises.map((p) => [p.text, p.done])).toEqual([
-    ["send the recipe", true],
-  ]);
+  expect(c.promises.map((p) => [p.text, p.done])).toEqual([["send the recipe", true]]);
   expect(c.exchanges[0].settled).toBe(true);
-  expect((await getConversation(s.b, s.dinner)).facts[0].status).toBe(
-    "outdated",
-  );
+  expect((await getConversation(s.b, s.dinner)).facts[0].status).toBe("outdated");
 });
 
 test("the recorder may mark their own private promise done", async () => {
   const l = await lunch();
   await markDone(s.a, "promises", l.privatePromise);
-  expect(
-    (await getConversation(s.a, l.conversation)).promises.find(
-      (p) => p.id === l.privatePromise,
-    )?.done,
-  ).toBe(true);
+  expect((await getConversation(s.a, l.conversation)).promises.find((p) => p.id === l.privatePromise)?.done).toBe(true);
 });
 
 test("the recorder edits an item and bad values are invalid_input", async () => {
@@ -139,82 +95,47 @@ test("the recorder edits an item and bad values are invalid_input", async () => 
     due: "2026-11-01",
     byMe: false,
   });
-  const p = (await getConversation(s.a, l.conversation)).promises.find(
-    (x) => x.id === l.sharedPromise,
-  )!;
-  expect([p.text, p.due, p.byMe]).toEqual([
-    "send the cake recipe",
-    "2026-11-01",
-    false,
-  ]);
+  const p = (await getConversation(s.a, l.conversation)).promises.find((x) => x.id === l.sharedPromise)!;
+  expect([p.text, p.due, p.byMe]).toEqual(["send the cake recipe", "2026-11-01", false]);
   await editItem(s.a, "conversations", l.conversation, {
     summary: "Lunch, better summary",
   });
-  expect((await getConversation(s.a, l.conversation)).summary).toBe(
-    "Lunch, better summary",
-  );
-  await expect(
-    editItem(s.a, "promises", l.sharedPromise, { due: "tomorrow" }),
-  ).rejects.toBeInstanceOf(InvalidInputError);
-  await expect(
-    editItem(s.a, "promises", l.sharedPromise, { person_id: "x" }),
-  ).rejects.toBeInstanceOf(InvalidInputError);
-  await expect(
-    editItem(s.a, "facts", l.privateFact, { category: "nonsense" }),
-  ).rejects.toBeInstanceOf(InvalidInputError);
-  await expect(
-    editItem(s.a, "facts", l.privateFact, {}),
-  ).rejects.toBeInstanceOf(InvalidInputError);
+  expect((await getConversation(s.a, l.conversation)).summary).toBe("Lunch, better summary");
+  await expect(editItem(s.a, "promises", l.sharedPromise, { due: "tomorrow" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(editItem(s.a, "promises", l.sharedPromise, { person_id: "x" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(editItem(s.a, "facts", l.privateFact, { category: "nonsense" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(editItem(s.a, "facts", l.privateFact, {})).rejects.toBeInstanceOf(InvalidInputError);
 });
 
 test("making an item shared recomputes the transcript rule; a private conversation keeps its transcript hidden", async () => {
   const l = await lunch();
   const transcriptPrivate = async (id: string) =>
-    (
-      await (
-        await db()
-      )
-        .selectFrom("conversations")
-        .select("transcript_private")
-        .where("id", "=", id)
-        .executeTakeFirstOrThrow()
-    ).transcript_private;
+    (await (await db()).selectFrom("conversations").select("transcript_private").where("id", "=", id).executeTakeFirstOrThrow()).transcript_private;
   expect(await transcriptPrivate(l.conversation)).toBe(1);
   await setVisibility(s.a, "promises", l.privatePromise, "shared");
   expect(await transcriptPrivate(l.conversation)).toBe(1); // the private fact remains
   await setVisibility(s.a, "facts", l.privateFact, "shared");
   expect(await transcriptPrivate(l.conversation)).toBe(0);
-  expect((await getConversation(s.b, l.conversation)).transcript).toContain(
-    "new flat",
-  );
+  expect((await getConversation(s.b, l.conversation)).transcript).toContain("new flat");
   await setVisibility(s.a, "exchanges", l.exchange, "private");
   expect(await transcriptPrivate(l.conversation)).toBe(1);
   expect((await getConversation(s.b, l.conversation)).transcript).toBeNull();
 
-  // The coffee is private: sharing its fact changes nothing for B.
+  // The coffee is private: its items can't be shared on their own, and B's briefing never shows them.
   const coffeeFact = await factId("thinking about quitting");
-  await setVisibility(s.a, "facts", coffeeFact, "shared");
+  await expect(setVisibility(s.a, "facts", coffeeFact, "shared")).rejects.toBeInstanceOf(InvalidInputError);
   expect(await transcriptPrivate(s.coffee)).toBe(1);
-  await expect(getConversation(s.b, s.coffee)).rejects.toBeInstanceOf(
-    NotFoundError,
-  );
+  expect(JSON.stringify(await briefing(s.b, s.lena))).not.toContain("quitting");
+  await expect(getConversation(s.b, s.coffee)).rejects.toBeInstanceOf(NotFoundError);
 });
 
 test("a conversation set to private hides it and its items from the partner and hides the transcript", async () => {
   await setVisibility(s.a, "conversations", s.dinner, "private");
-  await expect(getConversation(s.b, s.dinner)).rejects.toBeInstanceOf(
-    NotFoundError,
-  );
+  await expect(getConversation(s.b, s.dinner)).rejects.toBeInstanceOf(NotFoundError);
   const d = await db();
-  const rows = await d
-    .selectFrom("facts")
-    .select("visibility")
-    .where("conversation_id", "=", s.dinner)
-    .execute();
+  const rows = await d.selectFrom("facts").select("visibility").where("conversation_id", "=", s.dinner).execute();
   expect(rows.every((r) => r.visibility === "private")).toBe(true);
-  expect(
-    (await getConversation(s.a, s.dinner)).facts.map((f) => f.visibility),
-  ).toEqual(["private", "private"]);
+  expect((await getConversation(s.a, s.dinner)).facts.map((f) => f.visibility)).toEqual(["private", "private"]);
 });
 
 test("setting a conversation back to shared does not flip its private items or reveal the transcript", async () => {
@@ -228,39 +149,19 @@ test("setting a conversation back to shared does not flip its private items or r
 test("deleting a conversation deletes its items and participants; deleting an item leaves the rest", async () => {
   const l = await lunch();
   await deleteItem(s.a, "promises", l.sharedPromise);
-  expect(
-    (await getConversation(s.a, l.conversation)).promises.map((p) => p.text),
-  ).toEqual(["keep the secret"]);
+  expect((await getConversation(s.a, l.conversation)).promises.map((p) => p.text)).toEqual(["keep the secret"]);
   await deleteItem(s.a, "conversations", l.conversation);
   const d = await db();
-  await expect(getConversation(s.a, l.conversation)).rejects.toBeInstanceOf(
-    NotFoundError,
-  );
-  expect(
-    await d
-      .selectFrom("facts")
-      .select("id")
-      .where("conversation_id", "=", l.conversation)
-      .execute(),
-  ).toEqual([]);
-  expect(
-    await d
-      .selectFrom("participants")
-      .select("person_id")
-      .where("conversation_id", "=", l.conversation)
-      .execute(),
-  ).toEqual([]);
+  await expect(getConversation(s.a, l.conversation)).rejects.toBeInstanceOf(NotFoundError);
+  expect(await d.selectFrom("facts").select("id").where("conversation_id", "=", l.conversation).execute()).toEqual([]);
+  expect(await d.selectFrom("participants").select("person_id").where("conversation_id", "=", l.conversation).execute()).toEqual([]);
 });
 
 test("renamePerson changes the name for everyone; a blank name is invalid", async () => {
   await renamePerson(s.b, s.anna, "Anna Schmidt");
   expect((await getPerson(s.a, s.anna)).name).toBe("Anna Schmidt");
-  await expect(renamePerson(s.b, s.anna, "  ")).rejects.toBeInstanceOf(
-    InvalidInputError,
-  );
-  await expect(renamePerson(s.b, "nope", "X")).rejects.toBeInstanceOf(
-    NotFoundError,
-  );
+  await expect(renamePerson(s.b, s.anna, "  ")).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(renamePerson(s.b, "nope", "X")).rejects.toBeInstanceOf(NotFoundError);
 });
 
 async function duplicateAnna() {
@@ -270,9 +171,7 @@ async function duplicateAnna() {
     summary: "Call with A. Schmidt.",
     transcript: "Call.",
     visibility: "shared",
-    people: [
-      { name: "Anna Schmidt", aliases: ["Annie", "Anna"], present: true },
-    ],
+    people: [{ name: "Anna Schmidt", aliases: ["Annie", "Anna"], present: true }],
     facts: [
       { person: 0, text: "dup private", category: "other", private: true },
       { person: 0, text: "dup shared", category: "other" },
@@ -295,15 +194,8 @@ test("mergePeople moves items and keeps their visibility", async () => {
   const { dup, conversation } = await duplicateAnna();
   await mergePeople(s.b, s.anna, dup);
   const d = await db();
-  expect(
-    await d.selectFrom("persons").select("id").where("id", "=", dup).execute(),
-  ).toEqual([]);
-  const facts = await d
-    .selectFrom("facts")
-    .select(["text", "visibility", "person_id"])
-    .where("text", "like", "dup%")
-    .orderBy("text")
-    .execute();
+  expect(await d.selectFrom("persons").select("id").where("id", "=", dup).execute()).toEqual([]);
+  const facts = await d.selectFrom("facts").select(["text", "visibility", "person_id"]).where("text", "like", "dup%").orderBy("text").execute();
   expect(facts).toEqual([
     { text: "dup private", visibility: "private", person_id: s.anna },
     { text: "dup shared", visibility: "shared", person_id: s.anna },
@@ -311,9 +203,7 @@ test("mergePeople moves items and keeps their visibility", async () => {
   const forB = await getConversation(s.b, conversation);
   expect(forB.facts.map((f) => f.text)).toEqual(["dup shared"]);
   expect(forB.dates).toEqual([]);
-  expect(forB.participants.map((p) => p.id).sort()).toEqual(
-    [s.anna, s.a.personId].sort(),
-  );
+  expect(forB.participants.map((p) => p.id).sort()).toEqual([s.anna, s.a.personId].sort());
   const p = await getPerson(s.b, s.anna);
   expect(p.aliases.sort()).toEqual(["Anna Schmidt", "Annie"]);
 });
@@ -322,10 +212,7 @@ test("mergePeople handles colliding aliases, participants, memberships and the r
   const { dup } = await duplicateAnna();
   const d = await db();
   // The same group membership for both, by the same recorder; and one conversation with both of them.
-  await d
-    .insertInto("groups")
-    .values({ id: "g2", name: "Book club" })
-    .execute();
+  await d.insertInto("groups").values({ id: "g2", name: "Book club" }).execute();
   for (const p of [s.anna, dup])
     await d
       .insertInto("group_members")
@@ -359,23 +246,11 @@ test("mergePeople handles colliding aliases, participants, memberships and the r
   });
   await mergePeople(s.a, s.anna, dup);
   expect(
-    (
-      await d
-        .selectFrom("participants")
-        .select("person_id")
-        .where("conversation_id", "=", both.conversationId)
-        .execute()
-    )
+    (await d.selectFrom("participants").select("person_id").where("conversation_id", "=", both.conversationId).execute())
       .map((r) => r.person_id)
       .sort(),
   ).toEqual([s.a.personId, s.anna].sort());
-  expect(
-    await d
-      .selectFrom("relationships")
-      .select("id")
-      .where("conversation_id", "=", both.conversationId)
-      .execute(),
-  ).toEqual([]);
+  expect(await d.selectFrom("relationships").select("id").where("conversation_id", "=", both.conversationId).execute()).toEqual([]);
   const members = await d
     .selectFrom("group_members")
     .select(["group_id", "person_id", "recorded_by", "visibility"])
@@ -383,24 +258,11 @@ test("mergePeople handles colliding aliases, participants, memberships and the r
     .execute();
   expect(members).toHaveLength(2);
   expect(members.every((m) => m.person_id === s.anna)).toBe(true);
-  expect(
-    await d
-      .selectFrom("group_members")
-      .select("person_id")
-      .where("person_id", "=", dup)
-      .execute(),
-  ).toEqual([]);
-  expect(
-    (
-      await d
-        .selectFrom("aliases")
-        .select("norm")
-        .where("person_id", "=", s.anna)
-        .execute()
-    )
-      .map((r) => r.norm)
-      .sort(),
-  ).toEqual(["anna schmidt", "annie"]);
+  expect(await d.selectFrom("group_members").select("person_id").where("person_id", "=", dup).execute()).toEqual([]);
+  expect((await d.selectFrom("aliases").select("norm").where("person_id", "=", s.anna).execute()).map((r) => r.norm).sort()).toEqual([
+    "anna schmidt",
+    "annie",
+  ]);
 });
 
 test("mergePeople keeps the confirmed interval, otherwise the smaller one, per user", async () => {
@@ -419,14 +281,8 @@ test("mergePeople keeps the confirmed interval, otherwise the smaller one, per u
     .where("person_id", "=", s.anna)
     .execute();
   const by = (u: string) => rows.find((r) => r.user_id === u);
-  expect([
-    by(s.a.userId)?.interval_days,
-    by(s.a.userId)?.interval_confirmed,
-  ]).toEqual([56, 1]);
-  expect([
-    by(s.b.userId)?.interval_days,
-    by(s.b.userId)?.interval_confirmed,
-  ]).toEqual([21, 0]);
+  expect([by(s.a.userId)?.interval_days, by(s.a.userId)?.interval_confirmed]).toEqual([56, 1]);
+  expect([by(s.b.userId)?.interval_days, by(s.b.userId)?.interval_confirmed]).toEqual([21, 0]);
   expect(rows).toHaveLength(2);
 });
 
@@ -434,34 +290,75 @@ test("mergePeople moves a setting that only the dropped person had", async () =>
   const { dup } = await duplicateAnna();
   await setCheckInInterval(s.b, dup, 21, true);
   await mergePeople(s.a, s.anna, dup);
-  const row = await (
-    await db()
-  )
-    .selectFrom("person_settings")
-    .selectAll()
-    .where("person_id", "=", s.anna)
-    .executeTakeFirstOrThrow();
-  expect([row.user_id, row.interval_days, row.interval_confirmed]).toEqual([
-    s.b.userId,
-    21,
-    1,
-  ]);
+  const row = await (await db()).selectFrom("person_settings").selectAll().where("person_id", "=", s.anna).executeTakeFirstOrThrow();
+  expect([row.user_id, row.interval_days, row.interval_confirmed]).toEqual([s.b.userId, 21, 1]);
 });
 
-test("mergePeople refuses a user's own person, itself and unknown persons", async () => {
-  await expect(mergePeople(s.a, s.anna, s.b.personId)).rejects.toBeInstanceOf(
-    InvalidInputError,
-  );
-  await expect(mergePeople(s.a, s.a.personId, s.anna)).rejects.toBeInstanceOf(
-    InvalidInputError,
-  );
-  await expect(mergePeople(s.a, s.anna, s.anna)).rejects.toBeInstanceOf(
-    InvalidInputError,
-  );
-  await expect(mergePeople(s.a, s.anna, "nope")).rejects.toBeInstanceOf(
-    NotFoundError,
-  );
-  await expect(mergePeople(s.a, "nope", s.anna)).rejects.toBeInstanceOf(
-    NotFoundError,
-  );
+test("mergePeople refuses to drop a user's own person but merges a duplicate into one", async () => {
+  await expect(mergePeople(s.a, s.anna, s.b.personId)).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(mergePeople(s.a, s.anna, s.a.personId)).rejects.toBeInstanceOf(InvalidInputError);
+  const { dup } = await duplicateAnna();
+  await mergePeople(s.a, s.a.personId, dup);
+  const d = await db();
+  expect(await d.selectFrom("persons").select("id").where("id", "=", dup).execute()).toEqual([]);
+  expect((await d.selectFrom("facts").select("id").where("text", "=", "dup shared").where("person_id", "=", s.a.personId).execute()).length).toBe(1);
+});
+
+test("mergePeople refuses itself and unknown persons", async () => {
+  await expect(mergePeople(s.a, s.anna, s.anna)).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(mergePeople(s.a, s.anna, "nope")).rejects.toBeInstanceOf(NotFoundError);
+  await expect(mergePeople(s.a, "nope", s.anna)).rejects.toBeInstanceOf(NotFoundError);
+});
+
+test("on a membership collision the less restrictive row wins", async () => {
+  const { dup } = await duplicateAnna();
+  const d = await db();
+  await d.insertInto("groups").values({ id: "g3", name: "Hiking" }).execute();
+  const row = (person_id: string, visibility: string) => ({ group_id: "g3", person_id, visibility, recorded_by: s.a.userId });
+  await d
+    .insertInto("group_members")
+    .values([row(s.anna, "private"), row(dup, "shared")])
+    .execute();
+  await mergePeople(s.a, s.anna, dup);
+  const rows = await d.selectFrom("group_members").select(["person_id", "visibility"]).where("group_id", "=", "g3").execute();
+  expect(rows).toEqual([{ person_id: s.anna, visibility: "shared" }]);
+});
+
+async function choir(over: { private: boolean }) {
+  const r = await recordConversation(s.a, {
+    date: "2026-10-22",
+    kind: "event",
+    summary: "Choir practice.",
+    transcript: "Choir practice with Anna.",
+    visibility: "shared",
+    people: [{ id: s.anna, present: true }],
+    facts: [{ person: 0, text: "sings alto", category: "hobby" }],
+    groups: [{ name: "Choir", members: [0], private: over.private }],
+  });
+  return r.conversationId;
+}
+
+test("a private membership keeps the transcript private when another item is shared", async () => {
+  const c = await choir({ private: true });
+  const d = await db();
+  const tp = async () =>
+    (await d.selectFrom("conversations").select("transcript_private").where("id", "=", c).executeTakeFirstOrThrow()).transcript_private;
+  expect(await tp()).toBe(1);
+  await setVisibility(s.a, "facts", await factId("sings alto"), "private");
+  await setVisibility(s.a, "facts", await factId("sings alto"), "shared");
+  expect(await tp()).toBe(1);
+});
+
+test("a conversation set to private makes its memberships private", async () => {
+  const c = await choir({ private: false });
+  await setVisibility(s.a, "conversations", c, "private");
+  const d = await db();
+  const rows = await d.selectFrom("group_members").select("visibility").where("conversation_id", "=", c).execute();
+  expect(rows).toEqual([{ visibility: "private" }]);
+});
+
+test("editItem rejects inherited property names as fields", async () => {
+  const id = await factId("new job");
+  await expect(editItem(s.a, "facts", id, { constructor: "x" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(editItem(s.a, "facts", id, { toString: "x" })).rejects.toBeInstanceOf(InvalidInputError);
 });

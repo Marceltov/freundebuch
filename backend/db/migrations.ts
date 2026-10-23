@@ -137,6 +137,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("person_id", "text", person)
         .addColumn("visibility", "text", (c) => c.notNull())
         .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("conversation_id", "text", (c) => c.references("conversations.id").onDelete("cascade")) // null when set directly
         // One row per recorder: each user's membership keeps its own visibility, so a private one never blocks or reveals itself
         // to the partner's shared one. Reads dedupe per viewer.
         .addPrimaryKeyConstraint("group_members_pk", ["group_id", "person_id", "recorded_by"])

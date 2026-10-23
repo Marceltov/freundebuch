@@ -8,45 +8,17 @@ import { MAX_SUMMARY, MAX_TRANSCRIPT } from "./conversations";
 import { db, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import {
-  CONVERSATION_KINDS,
-  EXCHANGE_KINDS,
-  FACT_CATEGORIES,
-  RELATIONSHIP_TYPES,
-  VISIBILITIES,
-  type Viewer,
-  type Visibility,
-} from "./types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, RELATIONSHIP_TYPES, VISIBILITIES, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
 
-export type ItemTable =
-  | "facts"
-  | "promises"
-  | "dates"
-  | "exchanges"
-  | "relationships"
-  | "conversations";
+export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations";
 
-const ITEM_TABLES: readonly ItemTable[] = [
-  "facts",
-  "promises",
-  "dates",
-  "exchanges",
-  "relationships",
-  "conversations",
-];
+const ITEM_TABLES: readonly ItemTable[] = ["facts", "promises", "dates", "exchanges", "relationships", "conversations"];
 /** The tables whose items belong to a conversation and weigh on its transcript privacy. */
-const CONVERSATION_ITEMS = [
-  "facts",
-  "promises",
-  "dates",
-  "exchanges",
-  "relationships",
-] as const;
+const CONVERSATION_ITEMS = ["facts", "promises", "dates", "exchanges", "relationships"] as const;
 
 function assertTable(table: string): asserts table is ItemTable {
-  if (!ITEM_TABLES.includes(table as ItemTable))
-    throw new InvalidInputError(`Unknown item type "${table}"`);
+  if (!ITEM_TABLES.includes(table as ItemTable)) throw new InvalidInputError(`Unknown item type "${table}"`);
 }
 
 type Row = {
@@ -57,13 +29,7 @@ type Row = {
 };
 
 /** The row, when the viewer can see it (else not_found); with `own`, also when they recorded it (else forbidden). */
-async function load(
-  d: Kysely<Schema>,
-  v: Viewer,
-  table: ItemTable,
-  id: string,
-  own: boolean,
-): Promise<Row> {
+async function load(d: Kysely<Schema>, v: Viewer, table: ItemTable, id: string, own: boolean): Promise<Row> {
   assertTable(table);
   // One query shape for every table; the columns read here exist on all of them (a conversation has no conversation_id).
   const t = table as "facts";
@@ -74,23 +40,15 @@ async function load(
     .$call((qb) => visible(qb, v, t))
     .executeTakeFirst()) as Row | undefined;
   if (!row) throw new NotFoundError("Not found");
-  if (own && row.recorded_by !== v.userId)
-    throw new ForbiddenError("Only the person who recorded this may change it");
+  if (own && row.recorded_by !== v.userId) throw new ForbiddenError("Only the person who recorded this may change it");
   return row;
 }
 
 const DONE_COLUMN = { promises: "done", exchanges: "settled" } as const;
 
 /** Marks a promise done or an exchange settled. A shared one may be marked by either user; a private one is invisible to the other. */
-export async function markDone(
-  v: Viewer,
-  table: "promises" | "exchanges",
-  id: string,
-): Promise<void> {
-  if (!(table in DONE_COLUMN))
-    throw new InvalidInputError(
-      `Only promises and exchanges can be marked done, not "${table}"`,
-    );
+export async function markDone(v: Viewer, table: "promises" | "exchanges", id: string): Promise<void> {
+  if (!(table in DONE_COLUMN)) throw new InvalidInputError(`Only promises and exchanges can be marked done, not "${table}"`);
   const d = await db();
   await load(d, v, table, id, false);
   await d
@@ -104,11 +62,7 @@ export async function markDone(
 export async function markOutdated(v: Viewer, factId: string): Promise<void> {
   const d = await db();
   await load(d, v, "facts", factId, false);
-  await d
-    .updateTable("facts")
-    .set({ status: "outdated" })
-    .where("id", "=", factId)
-    .execute();
+  await d.updateTable("facts").set({ status: "outdated" }).where("id", "=", factId).execute();
 }
 
 // What each table lets its recorder edit: the patch key, the column it writes and the check on the value. Who or what an item is
@@ -119,29 +73,22 @@ type Field = {
 };
 
 const text = (value: unknown, what: string): string => {
-  if (typeof value !== "string" || !value.trim())
-    throw new InvalidInputError(`${what} must be a non-empty string`);
+  if (typeof value !== "string" || !value.trim()) throw new InvalidInputError(`${what} must be a non-empty string`);
   return value;
 };
-const optionalText = (value: unknown, what: string): string | null =>
-  value === null ? null : text(value, what).trim();
+const optionalText = (value: unknown, what: string): string | null => (value === null ? null : text(value, what).trim());
 const flag = (value: unknown, what: string): number => {
-  if (typeof value !== "boolean")
-    throw new InvalidInputError(`${what} must be true or false`);
+  if (typeof value !== "boolean") throw new InvalidInputError(`${what} must be true or false`);
   return value ? 1 : 0;
 };
 const oneOf =
   (allowed: readonly string[]) =>
   (value: unknown, what: string): string => {
-    if (typeof value !== "string" || !allowed.includes(value))
-      throw new InvalidInputError(
-        `${what} must be one of ${allowed.join(", ")}`,
-      );
+    if (typeof value !== "string" || !allowed.includes(value)) throw new InvalidInputError(`${what} must be one of ${allowed.join(", ")}`);
     return value;
   };
 const day = (value: unknown, what: string): string => {
-  if (typeof value !== "string")
-    throw new InvalidInputError(`${what} must be a date as YYYY-MM-DD`);
+  if (typeof value !== "string") throw new InvalidInputError(`${what} must be a date as YYYY-MM-DD`);
   assertDay(value, what);
   return value;
 };
@@ -149,8 +96,7 @@ const upTo =
   (max: number) =>
   (value: unknown, what: string): string => {
     const s = text(value, what);
-    if (s.length > max)
-      throw new InvalidInputError(`${what} holds at most ${max} characters`);
+    if (s.length > max) throw new InvalidInputError(`${what} holds at most ${max} characters`);
     return s;
   };
 
@@ -180,8 +126,7 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     amount: {
       column: "amount",
       check: (v, w) => {
-        if (v !== null && (typeof v !== "number" || !Number.isFinite(v)))
-          throw new InvalidInputError(`${w} must be a number`);
+        if (v !== null && (typeof v !== "number" || !Number.isFinite(v))) throw new InvalidInputError(`${w} must be a number`);
         return v;
       },
     },
@@ -201,12 +146,7 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
 };
 
 /** Changes the given fields of an item the viewer recorded. */
-export async function editItem(
-  v: Viewer,
-  table: ItemTable,
-  id: string,
-  patch: Record<string, unknown>,
-): Promise<void> {
+export async function editItem(v: Viewer, table: ItemTable, id: string, patch: Record<string, unknown>): Promise<void> {
   assertTable(table);
   const d = await db();
   const row = await load(d, v, table, id, true);
@@ -214,11 +154,9 @@ export async function editItem(
   if (!keys.length) throw new InvalidInputError("Nothing to change");
   const set: Record<string, unknown> = {};
   for (const k of keys) {
-    const field = FIELDS[table][k];
+    const field = Object.hasOwn(FIELDS[table], k) ? FIELDS[table][k] : undefined;
     if (!field)
-      throw new InvalidInputError(
-        `A ${table.replace(/s$/, "")} has no editable field "${k}"; editable: ${Object.keys(FIELDS[table]).join(", ")}`,
-      );
+      throw new InvalidInputError(`A ${table.replace(/s$/, "")} has no editable field "${k}"; editable: ${Object.keys(FIELDS[table]).join(", ")}`);
     set[field.column] = field.check(patch[k], k);
   }
   if (table === "dates") {
@@ -226,9 +164,7 @@ export async function editItem(
     const date = (set.date ?? old.date) as string;
     const yearly = (set.yearly ?? old.yearly) === 1;
     if (!isDay(date) && !(yearly && isYearless(date)))
-      throw new InvalidInputError(
-        `A date must be a real date as YYYY-MM-DD, or --MM-DD when yearly; got "${date}"`,
-      );
+      throw new InvalidInputError(`A date must be a real date as YYYY-MM-DD, or --MM-DD when yearly; got "${date}"`);
   }
   await d
     .updateTable(table as "facts")
@@ -238,15 +174,8 @@ export async function editItem(
 }
 
 /** The verbatim transcript is private whenever the conversation or any item recorded with it is. */
-async function recomputeTranscriptPrivacy(
-  d: Kysely<Schema>,
-  conversationId: string,
-): Promise<void> {
-  const c = await d
-    .selectFrom("conversations")
-    .select("visibility")
-    .where("id", "=", conversationId)
-    .executeTakeFirst();
+async function recomputeTranscriptPrivacy(d: Kysely<Schema>, conversationId: string): Promise<void> {
+  const c = await d.selectFrom("conversations").select("visibility").where("id", "=", conversationId).executeTakeFirst();
   if (!c) return;
   let isPrivate = c.visibility === "private";
   for (const t of CONVERSATION_ITEMS) {
@@ -258,6 +187,13 @@ async function recomputeTranscriptPrivacy(
       .where("visibility", "=", "private")
       .executeTakeFirst());
   }
+  // Memberships recorded with the conversation count too; they have no id column.
+  isPrivate ||= !!(await d
+    .selectFrom("group_members")
+    .select("group_id")
+    .where("conversation_id", "=", conversationId)
+    .where("visibility", "=", "private")
+    .executeTakeFirst());
   await d
     .updateTable("conversations")
     .set({ transcript_private: isPrivate ? 1 : 0 })
@@ -269,48 +205,41 @@ async function recomputeTranscriptPrivacy(
  * Changes who can see an item the viewer recorded. A conversation made private takes its items with it; made shared again, its
  * individually private items stay private. Either way the transcript rule is applied afresh.
  */
-export async function setVisibility(
-  v: Viewer,
-  table: ItemTable,
-  id: string,
-  visibility: Visibility,
-): Promise<void> {
+export async function setVisibility(v: Viewer, table: ItemTable, id: string, visibility: Visibility): Promise<void> {
   assertTable(table);
-  if (!VISIBILITIES.includes(visibility))
-    throw new InvalidInputError(
-      `Visibility must be one of ${VISIBILITIES.join(", ")}`,
-    );
+  if (!VISIBILITIES.includes(visibility)) throw new InvalidInputError(`Visibility must be one of ${VISIBILITIES.join(", ")}`);
   const d = await db();
   await d.transaction().execute(async (tx) => {
     const row = await load(tx, v, table, id, true);
+    // A private conversation forces private on all its items; share the conversation first.
+    if (table !== "conversations" && visibility === "shared" && row.conversation_id) {
+      const parent = await tx.selectFrom("conversations").select("visibility").where("id", "=", row.conversation_id).executeTakeFirst();
+      if (parent?.visibility === "private") throw new InvalidInputError("This item belongs to a private conversation: share the conversation first");
+    }
     await tx
       .updateTable(table as "facts")
       .set({ visibility })
       .where("id", "=", id)
       .execute();
     if (table === "conversations") {
-      if (visibility === "private")
-        for (const t of CONVERSATION_ITEMS)
+      if (visibility === "private") {
+        for (const t of [...CONVERSATION_ITEMS, "group_members"] as const)
           await tx
             .updateTable(t as "facts")
             .set({ visibility })
             .where("conversation_id", "=", id)
             .execute();
+      }
       await recomputeTranscriptPrivacy(tx, id);
-    } else if (row.conversation_id)
-      await recomputeTranscriptPrivacy(tx, row.conversation_id);
+    } else if (row.conversation_id) await recomputeTranscriptPrivacy(tx, row.conversation_id);
   });
 }
 
 /**
- * Deletes an item the viewer recorded; a conversation takes its items and participants with it. The transcript of the conversation
- * an item belonged to keeps its privacy: it still holds the text of what was deleted.
+ * Deletes an item the viewer recorded; a conversation takes its items and participants with it. The conversation's transcript_private
+ * is deliberately not recomputed: the transcript still holds the text of what was deleted.
  */
-export async function deleteItem(
-  v: Viewer,
-  table: ItemTable,
-  id: string,
-): Promise<void> {
+export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promise<void> {
   assertTable(table);
   const d = await db();
   await load(d, v, table, id, true);
@@ -320,105 +249,50 @@ export async function deleteItem(
     .execute();
 }
 
-export async function renamePerson(
-  v: Viewer,
-  id: string,
-  name: string,
-): Promise<void> {
+export async function renamePerson(v: Viewer, id: string, name: string): Promise<void> {
   void v;
   const n = name.trim();
   if (!n) throw new InvalidInputError("A person needs a name");
   const d = await db();
   await d.transaction().execute(async (tx) => {
-    if (
-      !(await tx
-        .selectFrom("persons")
-        .select("id")
-        .where("id", "=", id)
-        .executeTakeFirst())
-    )
-      throw new NotFoundError("No such person");
-    await tx
-      .updateTable("persons")
-      .set({ name: n })
-      .where("id", "=", id)
-      .execute();
+    if (!(await tx.selectFrom("persons").select("id").where("id", "=", id).executeTakeFirst())) throw new NotFoundError("No such person");
+    await tx.updateTable("persons").set({ name: n }).where("id", "=", id).execute();
     // An alias that matches the name adds nothing (insertAlias never stores one).
-    await tx
-      .deleteFrom("aliases")
-      .where("person_id", "=", id)
-      .where("norm", "=", norm(n))
-      .execute();
+    await tx.deleteFrom("aliases").where("person_id", "=", id).where("norm", "=", norm(n)).execute();
   });
 }
 
 /**
  * Merges the duplicate `dropId` into `keepId`: every item, alias, participant and setting moves over with its visibility, and the
- * dropped person goes. Rows that would collide with one `keepId` already has are dropped instead of moved. Neither may be a
- * user's own person.
+ * dropped person goes. Rows that would collide with one `keepId` already has are dropped instead of moved. The dropped person may
+ * not be a user's own person (a duplicate can be merged into one).
  */
-export async function mergePeople(
-  v: Viewer,
-  keepId: string,
-  dropId: string,
-): Promise<void> {
+export async function mergePeople(v: Viewer, keepId: string, dropId: string): Promise<void> {
   void v;
-  if (keepId === dropId)
-    throw new InvalidInputError("Can't merge a person into themselves");
+  if (keepId === dropId) throw new InvalidInputError("Can't merge a person into themselves");
   const d = await db();
   await d.transaction().execute(async (tx) => {
-    const keep = await tx
-      .selectFrom("persons")
-      .select(["id", "name"])
-      .where("id", "=", keepId)
-      .executeTakeFirst();
-    const drop = await tx
-      .selectFrom("persons")
-      .select(["id", "name"])
-      .where("id", "=", dropId)
-      .executeTakeFirst();
+    const keep = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", keepId).executeTakeFirst();
+    const drop = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", dropId).executeTakeFirst();
     if (!keep || !drop) throw new NotFoundError("No such person");
-    const own = await tx
-      .selectFrom("users")
-      .select("id")
-      .where("person_id", "in", [keepId, dropId])
-      .executeTakeFirst();
+    const own = await tx.selectFrom("users").select("id").where("person_id", "=", dropId).executeTakeFirst();
     if (own) throw new InvalidInputError("Can't merge a user's own person");
 
     for (const t of ["facts", "promises", "dates", "exchanges"] as const)
-      await tx
-        .updateTable(t)
-        .set({ person_id: keepId })
-        .where("person_id", "=", dropId)
-        .execute();
+      await tx.updateTable(t).set({ person_id: keepId }).where("person_id", "=", dropId).execute();
 
     // A relationship between the two would become one with itself.
     await tx
       .deleteFrom("relationships")
       .where((eb) =>
-        eb.or([
-          eb.and([eb("from_id", "=", keepId), eb("to_id", "=", dropId)]),
-          eb.and([eb("from_id", "=", dropId), eb("to_id", "=", keepId)]),
-        ]),
+        eb.or([eb.and([eb("from_id", "=", keepId), eb("to_id", "=", dropId)]), eb.and([eb("from_id", "=", dropId), eb("to_id", "=", keepId)])]),
       )
       .execute();
-    await tx
-      .updateTable("relationships")
-      .set({ from_id: keepId })
-      .where("from_id", "=", dropId)
-      .execute();
-    await tx
-      .updateTable("relationships")
-      .set({ to_id: keepId })
-      .where("to_id", "=", dropId)
-      .execute();
+    await tx.updateTable("relationships").set({ from_id: keepId }).where("from_id", "=", dropId).execute();
+    await tx.updateTable("relationships").set({ to_id: keepId }).where("to_id", "=", dropId).execute();
 
     // The dropped name stays findable as an alias, unless it is the same name once normalised.
-    const aliases = await tx
-      .selectFrom("aliases")
-      .select("alias")
-      .where("person_id", "=", dropId)
-      .execute();
+    const aliases = await tx.selectFrom("aliases").select("alias").where("person_id", "=", dropId).execute();
     for (const alias of [drop.name, ...aliases.map((a) => a.alias)]) {
       if (norm(alias) === norm(keep.name)) continue;
       await tx
@@ -429,30 +303,19 @@ export async function mergePeople(
     }
     await tx.deleteFrom("aliases").where("person_id", "=", dropId).execute();
 
-    for (const p of await tx
-      .selectFrom("participants")
-      .select("conversation_id")
-      .where("person_id", "=", dropId)
-      .execute())
+    for (const p of await tx.selectFrom("participants").select("conversation_id").where("person_id", "=", dropId).execute())
       await tx
         .insertInto("participants")
         .values({ conversation_id: p.conversation_id, person_id: keepId })
         .onConflict((oc) => oc.doNothing())
         .execute();
-    await tx
-      .deleteFrom("participants")
-      .where("person_id", "=", dropId)
-      .execute();
+    await tx.deleteFrom("participants").where("person_id", "=", dropId).execute();
 
-    // Memberships are keyed by (group, person, recorder): keep's own row wins over a moved duplicate.
-    for (const m of await tx
-      .selectFrom("group_members")
-      .select(["group_id", "recorded_by"])
-      .where("person_id", "=", dropId)
-      .execute()) {
+    // Memberships are keyed by (group, person, recorder): keep's own row wins over a moved duplicate, except that shared wins over private.
+    for (const m of await tx.selectFrom("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute()) {
       const exists = await tx
         .selectFrom("group_members")
-        .select("group_id")
+        .select(["group_id", "visibility"])
         .where("group_id", "=", m.group_id)
         .where("recorded_by", "=", m.recorded_by)
         .where("person_id", "=", keepId)
@@ -462,8 +325,24 @@ export async function mergePeople(
         .where("group_id", "=", m.group_id)
         .where("recorded_by", "=", m.recorded_by)
         .where("person_id", "=", dropId);
-      if (exists) await dropped.execute();
-      else
+      if (exists) {
+        const theirs = await tx
+          .selectFrom("group_members")
+          .select("visibility")
+          .where("group_id", "=", m.group_id)
+          .where("recorded_by", "=", m.recorded_by)
+          .where("person_id", "=", dropId)
+          .executeTakeFirstOrThrow();
+        if (exists.visibility === "private" && theirs.visibility === "shared")
+          await tx
+            .updateTable("group_members")
+            .set({ visibility: "shared" })
+            .where("group_id", "=", m.group_id)
+            .where("recorded_by", "=", m.recorded_by)
+            .where("person_id", "=", keepId)
+            .execute();
+        await dropped.execute();
+      } else
         await tx
           .updateTable("group_members")
           .set({ person_id: keepId })
@@ -474,11 +353,7 @@ export async function mergePeople(
     }
 
     // Settings are per user. The confirmed interval wins; with both or neither confirmed, the smaller one does.
-    for (const dropped of await tx
-      .selectFrom("person_settings")
-      .selectAll()
-      .where("person_id", "=", dropId)
-      .execute()) {
+    for (const dropped of await tx.selectFrom("person_settings").selectAll().where("person_id", "=", dropId).execute()) {
       const kept = await tx
         .selectFrom("person_settings")
         .selectAll()
@@ -495,14 +370,8 @@ export async function mergePeople(
         continue;
       }
       let winner = kept;
-      if (kept.interval_confirmed !== dropped.interval_confirmed)
-        winner = kept.interval_confirmed ? kept : dropped;
-      else if (
-        dropped.interval_days !== null &&
-        (kept.interval_days === null ||
-          dropped.interval_days < kept.interval_days)
-      )
-        winner = dropped;
+      if (kept.interval_confirmed !== dropped.interval_confirmed) winner = kept.interval_confirmed ? kept : dropped;
+      else if (dropped.interval_days !== null && (kept.interval_days === null || dropped.interval_days < kept.interval_days)) winner = dropped;
       await tx
         .updateTable("person_settings")
         .set({

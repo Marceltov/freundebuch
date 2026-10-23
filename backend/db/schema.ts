@@ -44,7 +44,7 @@ export interface Schema {
   };
   relationships: Item & { id: string; from_id: string; to_id: string; type: string; note: string | null };
   groups: { id: string; name: string };
-  group_members: { group_id: string; person_id: string; visibility: string; recorded_by: string };
+  group_members: { group_id: string; person_id: string; visibility: string; recorded_by: string; conversation_id: string | null };
   user_settings: { user_id: string; webhook_url: string | null };
   meta: { key: string; value: string };
 }

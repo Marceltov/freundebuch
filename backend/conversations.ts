@@ -187,7 +187,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
       for (const m of new Set(g.members.map(id))) {
         const r = await tx
           .insertInto("group_members")
-          .values({ group_id: groupId, person_id: m, visibility: vis(g), recorded_by: v.userId })
+          .values({ group_id: groupId, person_id: m, visibility: vis(g), recorded_by: v.userId, conversation_id: conversationId })
           .onConflict((oc) => oc.doNothing())
           .executeTakeFirst();
         memberships += Number(r.numInsertedOrUpdatedRows ?? 0);
