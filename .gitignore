@@ -30,3 +30,6 @@ next-env.d.ts
 /.superpowers/
 /.playwright-mcp/
 /docs/superpowers/
+
+# mkdocs build output
+/site/

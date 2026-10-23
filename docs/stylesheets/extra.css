@@ -1,0 +1,148 @@
+/* The app's palette (app/globals.css): the warm "carbon" brown for links and
+   the active page, the orbit's teal for hover. The header stays quiet, paper
+   in light mode and the app's dark surface in dark mode. */
+
+:root > * {
+  --fb-carbon: #7a5a1a;
+  --fb-fresh: #2a9d8f;
+  --fb-ink: #1e2130;
+  --fb-paper: #f2f3f0;
+  --fb-mist: #e9eae6;
+
+  --md-default-bg-color: var(--fb-paper);
+  --md-primary-fg-color: var(--fb-paper);
+  --md-primary-fg-color--light: var(--fb-paper);
+  --md-primary-fg-color--dark: var(--fb-paper);
+  --md-primary-bg-color: var(--fb-ink);
+  --md-primary-bg-color--light: #686d7a;
+  --md-accent-fg-color: var(--fb-fresh);
+  --md-typeset-a-color: var(--fb-carbon);
+  --md-typeset-color: var(--fb-ink);
+  --md-footer-bg-color: #2a2418;
+  --md-footer-bg-color--dark: #1f1a11;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 230;
+  --fb-carbon: #e3cb94;
+  --fb-fresh: #4fc1b2;
+  --fb-ink: #e4e5eb;
+  --fb-paper: #15161b;
+  --fb-mist: #262832;
+
+  --md-default-bg-color: var(--fb-paper);
+  --md-primary-fg-color: #1d1f26;
+  --md-primary-fg-color--light: #1d1f26;
+  --md-primary-fg-color--dark: #1d1f26;
+  --md-primary-bg-color: var(--fb-ink);
+  --md-typeset-a-color: var(--fb-carbon);
+  --md-typeset-color: #d6d8e0;
+}
+
+/* Header: a hairline instead of a coloured bar. */
+.md-header {
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  box-shadow: none;
+}
+.md-search__input {
+  background-color: var(--fb-mist);
+  color: var(--fb-ink);
+}
+.md-search__input::placeholder,
+.md-search__icon {
+  color: var(--md-default-fg-color--light);
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-nav--primary > .md-nav__title {
+    display: none;
+  }
+}
+
+/* Atkinson reads best a touch larger and looser. */
+.md-typeset {
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+.md-typeset h1,
+.md-typeset h2 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.md-typeset h1 {
+  color: var(--fb-ink);
+}
+.md-typeset a:focus-visible,
+.md-nav__link:focus-visible {
+  outline: 2px solid var(--fb-fresh);
+  outline-offset: 2px;
+}
+
+/* Home page hero. */
+.fb-hero {
+  padding: 1.5rem 0 0.5rem;
+}
+.md-typeset .fb-hero h1 {
+  font-size: 2.4rem;
+  line-height: 1.1;
+  margin: 0.4em 0;
+  max-width: 13em;
+  text-wrap: balance;
+}
+.fb-hero__lead {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  max-width: 34em;
+  color: var(--md-default-fg-color--light);
+}
+.md-typeset .md-button {
+  color: var(--fb-carbon);
+  border-color: currentColor;
+  margin: 0.3rem 0.4rem 0.3rem 0;
+}
+.md-typeset .md-button--primary {
+  background-color: var(--fb-carbon);
+  border-color: var(--fb-carbon);
+  color: #ffffff;
+}
+[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
+  color: #15161b;
+}
+.md-typeset .md-button--primary:hover,
+.md-typeset .md-button--primary:focus {
+  background-color: var(--fb-fresh);
+  border-color: var(--fb-fresh);
+}
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .fb-hero h1 {
+    font-size: 1.8rem;
+  }
+}
+
+/* Phone screenshots side by side, top-aligned, stacked on narrow screens.
+   Markdown wraps the images in one <p>, so that is the flex container. */
+.fb-shots > p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.md-typeset .fb-shots img {
+  width: 260px;
+  max-width: 100%;
+  border-radius: 1rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.md-typeset .admonition.note,
+.md-typeset details.note {
+  border-color: var(--fb-carbon);
+}
+.md-typeset .note > .admonition-title,
+.md-typeset .note > summary {
+  background-color: color-mix(in srgb, var(--fb-carbon) 10%, transparent);
+}
+.md-typeset .note > .admonition-title::before,
+.md-typeset .note > summary::before {
+  background-color: var(--fb-carbon);
+}
