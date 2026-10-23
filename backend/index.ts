@@ -6,7 +6,7 @@ import { db } from "./db";
 import { healthRoute, setDbProbe } from "./http/health";
 
 export { healthRoute };
-export { IDENTITY_COOKIE, identityOk, logoutRoute, requireViewer, viewerFromRequest } from "./auth/session";
+export { IDENTITY_COOKIE, identityOk, logoutRoute, requireViewer, type Surface, viewerFromCookie, viewerFromRequest } from "./auth/session";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 export { mcpResource, publicUrl, safeNext } from "./urls";

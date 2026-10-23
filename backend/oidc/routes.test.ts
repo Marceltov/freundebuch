@@ -209,7 +209,7 @@ describe("callback", () => {
     const [user] = await users();
     expect(user).toMatchObject({ oidc_sub: "ann-sub", name: "Ann", email: "ann@x.com" });
     expect(verify("identity", valueOf(id)!)).toMatchObject({ uid: user.id });
-    expect((await viewerFromRequest(get("/", `fb_identity=${valueOf(id)}`)))?.userId).toBe(user.id);
+    expect((await viewerFromRequest(get("/", `fb_identity=${valueOf(id)}`), "api"))?.userId).toBe(user.id);
     expect(setCookie(res, "fb_oidc")).toMatch(/^fb_oidc=; Path=\/api\/oidc; Max-Age=0/);
     const body = new URLSearchParams(String(fetchStub.mock.calls.find(([u]) => String(u) === META.token_endpoint)![1]!.body));
     expect(body.get("code")).toBe("c");

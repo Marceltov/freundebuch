@@ -63,7 +63,8 @@ async function code(extra: Record<string, string> = {}) {
 const exchange = (c: { id: string; verifier: string; code: string }, extra: Record<string, string> = {}) =>
   token({ grant_type: "authorization_code", code: c.code, client_id: c.id, redirect_uri: CB, code_verifier: c.verifier, resource: RESOURCE, ...extra });
 
-const asBearer = (t: string) => viewerFromRequest(new Request(RESOURCE, { method: "POST", headers: { ...H, authorization: `Bearer ${t}` } }));
+// The access token as /mcp (or, for an /api/v1 token, the API) would check it.
+const asBearer = (t: string, surface: "mcp" | "api" = "mcp") => viewerFromRequest(new Request(RESOURCE, { method: "POST", headers: { ...H, authorization: `Bearer ${t}` } }), surface);
 
 describe("flow", () => {
   test("register, authorize, sign in, exchange, use the access token", async () => {
@@ -84,13 +85,15 @@ describe("flow", () => {
     expect(Object.keys(body).sort()).toEqual(["access_token", "expires_in", "refresh_token", "token_type"]);
     expect(verify("access", body.access_token)).toMatchObject({ aud: RESOURCE, uid: ann.userId });
     expect(await asBearer(body.access_token)).toEqual(ann);
+    expect(await asBearer(body.access_token, "api")).toBeNull();
   });
 
   test("the resource decides the audience: /api/v1 is accepted, none means /mcp", async () => {
     const api = await code({ resource: API });
     const { access_token } = await (await exchange(api, { resource: API })).json();
     expect(verify("access", access_token)!.aud).toBe(API);
-    expect(await asBearer(access_token)).toEqual(ann);
+    expect(await asBearer(access_token, "api")).toEqual(ann);
+    expect(await asBearer(access_token, "mcp")).toBeNull();
 
     const id = await clientId();
     const { verifier, challenge } = pkce();
