@@ -22,7 +22,10 @@ async function message(v: Viewer, item: DueItem, from: string, click: (id: strin
     const seen = await lastSeen(v, item.personId);
     return { ...base, title: fill(copy.overdue, { name: item.name }), body: seen ? fill(copy.overdueBody, { date: seen }) : "", tags: ["hourglass_flowing_sand"] };
   }
-  if (item.kind === "promise") return { ...base, title: fill(copy.promise, { text: item.text! }), body: fill(copy.promiseBody, { name: item.name }), tags: ["pushpin"] };
+  if (item.kind === "promise")
+    return item.byMe
+      ? { ...base, title: fill(copy.promise, { text: item.text! }), body: fill(copy.promiseBody, { name: item.name }), tags: ["pushpin"] }
+      : { ...base, title: fill(copy.promiseTheirs, { name: item.name, text: item.text! }), body: "", tags: ["pushpin"] };
   const when = item.date === from ? copy.today : copy.tomorrow;
   const found = (await upcomingDates(v, from, 1)).find((u) => u.personId === item.personId && u.date === item.date && (u.label ?? u.kind) === item.text);
   if (found?.kind === "birthday") {

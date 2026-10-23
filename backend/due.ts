@@ -6,7 +6,8 @@ import { freshness } from "./intervals";
 import type { Viewer } from "./types";
 import { visible } from "./visibility";
 
-export type DueItem = { kind: "date" | "promise" | "overdue"; personId: string; name: string; date?: string; text?: string; ratio?: number };
+/** `byMe`, on a promise: the viewer made it; false when the person promised it to the viewer. */
+export type DueItem = { kind: "date" | "promise" | "overdue"; personId: string; name: string; date?: string; text?: string; ratio?: number; byMe?: boolean };
 
 export type UpcomingDate = {
   id: string;
@@ -34,7 +35,10 @@ export async function upcomingDates(v: Viewer, from: string, horizonDays: number
   return out.sort((a, b) => a.inDays - b.inDays || a.id.localeCompare(b.id));
 }
 
-/** Dates by closeness, then people past their interval by how far past (ratio, largest first), then promises by due date. */
+/**
+ * Dates by closeness, then people past their interval by how far past (ratio, largest first), then promises by due date. Only the
+ * viewer's own promises count: one the partner recorded is between them and the person, even when it is shared.
+ */
 export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Promise<DueItem[]> {
   const d = await db();
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
@@ -62,15 +66,16 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
   const promises: DueItem[] = (
     await d
       .selectFrom("promises")
-      .select(["person_id", "text", "due"])
+      .select(["person_id", "text", "due", "by_me"])
       .where("done", "=", 0)
       .where("due", "is not", null)
       .where("due", "<=", limit.toISOString().slice(0, 10))
       .$call((qb) => visible(qb, v, "promises"))
+      .where("recorded_by", "=", v.userId)
       .orderBy("due")
       .orderBy("created_at")
       .execute()
-  ).map((p) => ({ kind: "promise", personId: p.person_id, name: name(p.person_id), date: p.due!, text: p.text }));
+  ).map((p) => ({ kind: "promise", personId: p.person_id, name: name(p.person_id), date: p.due!, text: p.text, byMe: !!p.by_me }));
 
   return [...dates, ...overdue, ...promises];
 }

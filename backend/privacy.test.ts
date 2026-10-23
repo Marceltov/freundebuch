@@ -191,10 +191,12 @@ test("B's briefing on Anna and Tom and B's whatsDue never contain A's private it
   expect((await briefing(s.b, s.tom, "2026-10-23")).person.birthday).toBeNull();
   expect((await briefing(s.a, s.tom, "2026-10-23")).person.birthday?.next).toBe("2026-10-24");
   expect((await briefing(s.a, s.tom, "2026-10-23")).nextDates.map((d) => d.date)).toEqual(["2026-10-24"]);
-  // What's due: the birthday is A's alone.
+  // What's due: the birthday is A's alone, and A's shared promise is not B's to keep.
+  await record(s.a, { promises: [{ person: 0, text: "bring the wine", byMe: true, due: "2026-10-24" }] });
+  expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "promise").map((i) => i.text)).toEqual(["bring the wine"]);
   expect(await whatsDue(s.b, "2026-10-23")).toEqual([]);
   expect(JSON.stringify(await whatsDue(s.b, "2026-10-23"))).not.toContain("Tom");
-  expect((await whatsDue(s.a, "2026-10-23")).map((i) => i.date)).toEqual(["2026-10-24"]);
+  expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "date").map((i) => i.date)).toEqual(["2026-10-24"]);
 });
 
 test("last seen and the interval are per user: B's call changes nothing for A, and a private conversation is not B's", async () => {

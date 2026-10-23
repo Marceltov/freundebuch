@@ -8,6 +8,7 @@ export const copy = {
   overdueBody: "Zuletzt am {date}",
   promise: "📌 Versprochen: {text}",
   promiseBody: "für {name}",
+  promiseTheirs: "📌 {name} wollte: {text}",
   more: "+{n} weitere",
   today: "heute",
   tomorrow: "morgen",

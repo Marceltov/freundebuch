@@ -64,6 +64,18 @@ describe("runDaily", () => {
     expect(p?.body).toBe("für Anna");
   });
 
+  test("a promise the person made reads as theirs; the partner's promises are never announced", async () => {
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+    const d = await db();
+    const promise = (id: string, text: string, by_me: number, recorded_by: string) =>
+      d.insertInto("promises").values({ id, person_id: s.anna, text, due: "2026-10-23", by_me, done: 0, visibility: "shared", recorded_by, conversation_id: null, created_at: 1 }).execute();
+    await promise("pr1", "das Zelt leihen", 0, s.a.userId);
+    await promise("pr2", "Bobs Besorgung", 1, s.b.userId);
+    await runDaily(NOW, fetchFn);
+    expect(sent.map((m) => m.title)).toContain("📌 Anna wollte: das Zelt leihen");
+    expect(JSON.stringify(sent)).not.toContain("Bobs Besorgung");
+  });
+
   test("more than 10 items: nine singles and a '+N weitere' summary", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     const d = await db();

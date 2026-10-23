@@ -107,6 +107,7 @@ export const DueItemJson = z
     date: z.string().optional(),
     text: z.string().optional(),
     ratio: z.number().optional(),
+    byMe: z.boolean().optional().describe("On a promise: whether the caller made it (false: the person promised it to the caller). Only the caller's own promises are due"),
   })
   .meta({ id: "DueItem" });
 

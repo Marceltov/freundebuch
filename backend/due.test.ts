@@ -65,6 +65,17 @@ test("promises: open ones due within the horizon, past due included; done, undat
   ]);
 });
 
+test("only the viewer's own promises are due: the partner's shared ones are theirs to keep", async () => {
+  await record(s.b, { promises: [{ person: 0, text: "bob's errand", byMe: true, due: "2026-10-24" }] });
+  await record(s.a, { promises: [{ person: 0, text: "lend me the tent", byMe: false, due: "2026-10-24" }] });
+  expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "promise")).toEqual([
+    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "lend me the tent", byMe: false },
+  ]);
+  expect((await whatsDue(s.b, "2026-10-23")).filter((i) => i.kind === "promise")).toEqual([
+    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "bob's errand", byMe: true },
+  ]);
+});
+
 test("a private promise is due for its recorder only", async () => {
   await record(s.a, { promises: [{ person: 0, text: "secret errand", byMe: true, due: "2026-10-24", private: true }] });
   expect((await whatsDue(s.a, "2026-10-23")).map((i) => i.text)).toContain("secret errand");
