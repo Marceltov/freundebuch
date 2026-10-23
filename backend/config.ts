@@ -35,13 +35,21 @@ export const config = {
   secret: (): string | undefined => env("FREUNDEBUCH_SECRET") || undefined,
   notifyAt,
   timeZone,
-  // Who signs in: authentik (or any OIDC provider). `allow` is a comma-separated list, trimmed; empty means authentik alone decides.
-  oidc: () => ({
-    issuer: env("FREUNDEBUCH_OIDC_ISSUER"),
-    clientId: env("FREUNDEBUCH_OIDC_CLIENT_ID"),
-    clientSecret: env("FREUNDEBUCH_OIDC_CLIENT_SECRET"),
-    allow: env("FREUNDEBUCH_OIDC_ALLOW").split(",").map((n) => n.trim()).filter(Boolean),
-  }),
+  // Who signs in: authentik (or any OIDC provider), see oidc/config.ts. `allow` is a comma-separated list of addresses,
+  // @domain entries or *, trimmed and lowercased; unset or empty means * (authentik alone decides who gets in).
+  oidc: () => {
+    const allow = env("FREUNDEBUCH_OIDC_ALLOW").split(",").map((n) => n.trim().toLowerCase()).filter(Boolean);
+    return {
+      issuer: env("FREUNDEBUCH_OIDC_ISSUER"),
+      clientId: env("FREUNDEBUCH_OIDC_CLIENT_ID"),
+      clientSecret: env("FREUNDEBUCH_OIDC_CLIENT_SECRET"),
+      allow: allow.length ? allow : ["*"],
+    };
+  },
+  // X-Forwarded-For/-Proto/-Host are believed only behind a proxy that sets them (see limits.ts and urls.ts).
+  trustProxy: () => env("FREUNDEBUCH_TRUST_PROXY") === "1",
+  // Failed sign-ins per minute and IP; 0 or below turns the limit off. Unset or not a number → 60.
+  rateLimit: (): number => ((n) => (Number.isInteger(n) ? n : 60))(Number.parseInt(env("FREUNDEBUCH_RATE_LIMIT").trim(), 10)),
   // Unset, empty or not a level → info.
   logLevel: (): LogLevel => ((l) => ((LOG_LEVELS as readonly string[]).includes(l) ? (l as LogLevel) : "info"))(env("FREUNDEBUCH_LOG_LEVEL").trim().toLowerCase()),
 };

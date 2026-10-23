@@ -6,6 +6,10 @@ import { db } from "./db";
 import { healthRoute, setDbProbe } from "./http/health";
 
 export { healthRoute };
+export { IDENTITY_COOKIE, identityOk, logoutRoute, requireViewer, viewerFromRequest } from "./auth/session";
+export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
+export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
+export { mcpResource, publicUrl, safeNext } from "./urls";
 
 // The health probe asks the database a trivial question; opening it (and migrating) is part of answering.
 setDbProbe(async () => sql`select 1`.execute(await db()));

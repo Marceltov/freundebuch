@@ -32,3 +32,11 @@ export class AmbiguousError extends FreundebuchError {
     super("ambiguous", message);
   }
 }
+
+// No (or no longer a valid) sign-in: no identity cookie, no access token for this instance, or a user that is gone. The OIDC flow
+// throws it too, after logging why; the browser only ever sees "sign-in didn't work".
+export class AuthError extends FreundebuchError {
+  constructor(message = "Sign-in required") {
+    super("unauthorized", message);
+  }
+}
