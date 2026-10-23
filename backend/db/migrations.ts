@@ -2,8 +2,13 @@
 // nothing extra to trace. Kysely's Migrator records what ran in `kysely_migration`.
 // The migrations run against whatever the schema was when they were written, so the database is untyped here.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Kysely } from "kysely";
+import { Kysely, sql } from "kysely";
 import { Migrator, type Migration } from "kysely/migration";
+
+// The vocabularies of backend/types.ts as they were when this migration was written, checked by the database as well: a write
+// path that forgets to check a value still can't store a bad one.
+const oneOf = (column: string, values: readonly string[]) => sql`${sql.ref(column)} in (${sql.join(values.map((v) => sql.lit(v)))})`;
+const VISIBILITY = ["shared", "private"];
 
 // Every id is a text UUID, every time a bigint in ms. An item's `conversation_id` is null for what no conversation recorded
 // (a relationship or group set directly); deleting a conversation or a person takes their items with them.
@@ -23,12 +28,12 @@ const migrations: Record<string, Migration> = {
         .createTable("conversations")
         .addColumn("id", "text", (c) => c.primaryKey())
         .addColumn("date", "text", (c) => c.notNull())
-        .addColumn("kind", "text", (c) => c.notNull())
+        .addColumn("kind", "text", (c) => c.notNull().check(oneOf("kind", ["in_person", "call", "message", "video", "event"])))
         .addColumn("place", "text")
         .addColumn("summary", "text", (c) => c.notNull())
         .addColumn("transcript", "text", (c) => c.notNull())
         .addColumn("transcript_private", "integer", (c) => c.notNull().defaultTo(0))
-        .addColumn("visibility", "text", (c) => c.notNull())
+        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
         .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
         .addColumn("created_at", "bigint", (c) => c.notNull())
         .execute();
@@ -66,7 +71,7 @@ const migrations: Record<string, Migration> = {
       // The item tables share these columns (after their own); `item` adds them.
       const item = (t: any) =>
         t
-          .addColumn("visibility", "text", (c: any) => c.notNull())
+          .addColumn("visibility", "text", (c: any) => c.notNull().check(oneOf("visibility", VISIBILITY)))
           .addColumn("recorded_by", "text", (c: any) => c.notNull().references("users.id"))
           .addColumn("conversation_id", "text", (c: any) => c.references("conversations.id").onDelete("cascade"))
           .addColumn("created_at", "bigint", (c: any) => c.notNull());
@@ -79,7 +84,7 @@ const migrations: Record<string, Migration> = {
           .addColumn("person_id", "text", person)
           .addColumn("text", "text", (c) => c.notNull())
           .addColumn("category", "text", (c) => c.notNull())
-          .addColumn("status", "text", (c) => c.notNull().defaultTo("current")),
+          .addColumn("status", "text", (c) => c.notNull().defaultTo("current").check(oneOf("status", ["current", "outdated"]))),
       ).execute();
       await item(
         db.schema
@@ -96,7 +101,7 @@ const migrations: Record<string, Migration> = {
           .createTable("dates")
           .addColumn("id", "text", (c) => c.primaryKey())
           .addColumn("person_id", "text", person)
-          .addColumn("kind", "text", (c) => c.notNull())
+          .addColumn("kind", "text", (c) => c.notNull().check(oneOf("kind", ["birthday", "anniversary", "custom"])))
           .addColumn("date", "text", (c) => c.notNull())
           .addColumn("label", "text")
           .addColumn("yearly", "integer", (c) => c.notNull().defaultTo(1)),
@@ -106,8 +111,8 @@ const migrations: Record<string, Migration> = {
           .createTable("exchanges")
           .addColumn("id", "text", (c) => c.primaryKey())
           .addColumn("person_id", "text", person)
-          .addColumn("kind", "text", (c) => c.notNull())
-          .addColumn("direction", "text", (c) => c.notNull())
+          .addColumn("kind", "text", (c) => c.notNull().check(oneOf("kind", ["gift_idea", "gift", "money", "lent", "help"])))
+          .addColumn("direction", "text", (c) => c.notNull().check(oneOf("direction", ["to_them", "from_them"])))
           .addColumn("text", "text", (c) => c.notNull())
           .addColumn("amount", "real")
           .addColumn("currency", "text")
@@ -119,7 +124,9 @@ const migrations: Record<string, Migration> = {
           .addColumn("id", "text", (c) => c.primaryKey())
           .addColumn("from_id", "text", person)
           .addColumn("to_id", "text", person)
-          .addColumn("type", "text", (c) => c.notNull())
+          .addColumn("type", "text", (c) =>
+            c.notNull().check(oneOf("type", ["partner", "spouse", "parent", "child", "sibling", "friend", "colleague", "introduced_by", "other"])),
+          )
           .addColumn("note", "text"),
       ).execute();
       for (const t of ["facts", "promises", "dates", "exchanges"]) await db.schema.createIndex(`${t}_by_person`).on(t).column("person_id").execute();
@@ -135,7 +142,7 @@ const migrations: Record<string, Migration> = {
         .createTable("group_members")
         .addColumn("group_id", "text", (c) => c.notNull().references("groups.id").onDelete("cascade"))
         .addColumn("person_id", "text", person)
-        .addColumn("visibility", "text", (c) => c.notNull())
+        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
         .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
         .addColumn("conversation_id", "text", (c) => c.references("conversations.id").onDelete("cascade")) // null when set directly
         // One row per recorder: each user's membership keeps its own visibility, so a private one never blocks or reveals itself

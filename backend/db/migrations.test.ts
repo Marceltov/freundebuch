@@ -2,6 +2,7 @@ import { Kysely, SqliteDialect, sql } from "kysely";
 import Database from "better-sqlite3";
 import { beforeEach, expect, test } from "vitest";
 import { MIGRATION_NAMES, NEWER, migrate } from "./migrations";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, RELATIONSHIP_TYPES } from "../types";
 import { db, newId, now, resetDbForTests } from "./index";
 
 const fresh = () => new Kysely<any>({ dialect: new SqliteDialect({ database: new Database(":memory:") }) }); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -56,9 +57,54 @@ test("items may have no conversation, and deleting a conversation cascades to it
   const conv = newId();
   await d.insertInto("users").values({ id: user, oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: t }).execute();
   await d.insertInto("persons").values({ id: person, name: "Anna", created_by: user, created_from: null, created_at: t }).execute();
-  await d.insertInto("conversations").values({ id: conv, date: "2026-01-01", kind: "meeting", place: null, summary: "", transcript: "", transcript_private: 0, visibility: "private", recorded_by: user, created_at: t }).execute();
+  await d.insertInto("conversations").values({ id: conv, date: "2026-01-01", kind: "in_person", place: null, summary: "", transcript: "", transcript_private: 0, visibility: "private", recorded_by: user, created_at: t }).execute();
   const base = { person_id: person, visibility: "private", recorded_by: user, created_at: t };
   await d.insertInto("facts").values([{ ...base, id: newId(), text: "a", category: "c", status: "current", conversation_id: conv }, { ...base, id: newId(), text: "b", category: "c", status: "current", conversation_id: null }]).execute();
   await d.deleteFrom("conversations").where("id", "=", conv).execute();
   expect((await d.selectFrom("facts").select("text").execute()).map((r) => r.text)).toEqual(["b"]);
+});
+
+// The vocabularies are checked by the database too, so a write path that forgets oneOf() still can't store a bad value.
+test("CHECK constraints refuse values outside the vocabularies", async () => {
+  const d = await db();
+  const t = now();
+  const user = newId();
+  const person = newId();
+  const conv = newId();
+  await d.insertInto("users").values({ id: user, oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: t }).execute();
+  await d.insertInto("persons").values({ id: person, name: "Anna", created_by: user, created_from: null, created_at: t }).execute();
+  const conversation = { id: conv, date: "2026-01-01", kind: "call", place: null, summary: "", transcript: "", transcript_private: 0, visibility: "shared", recorded_by: user, created_at: t };
+  const base = { person_id: person, visibility: "shared", recorded_by: user, conversation_id: null, created_at: t };
+  const fact = { ...base, text: "a", category: "work", status: "current" as const };
+  const promise = { ...base, text: "a", by_me: 1 };
+  const date = { ...base, kind: "birthday" as const, date: "--01-01", label: null, yearly: 1 };
+  const exchange = { ...base, kind: "gift", direction: "to_them" as const, text: "a", amount: null, currency: null };
+  const rel = { from_id: person, to_id: person, type: "friend", note: null, visibility: "shared", recorded_by: user, conversation_id: null, created_at: t };
+  const bad: Array<[string, () => Promise<unknown>]> = [
+    ["conversations.visibility", () => d.insertInto("conversations").values({ ...conversation, id: newId(), visibility: "secret" }).execute()],
+    ["conversations.kind", () => d.insertInto("conversations").values({ ...conversation, id: newId(), kind: "meeting" }).execute()],
+    ["facts.visibility", () => d.insertInto("facts").values({ ...fact, id: newId(), visibility: "Private" }).execute()],
+    ["facts.status", () => d.insertInto("facts").values({ ...fact, id: newId(), status: "old" as "current" }).execute()],
+    ["promises.visibility", () => d.insertInto("promises").values({ ...promise, id: newId(), visibility: "" }).execute()],
+    ["dates.visibility", () => d.insertInto("dates").values({ ...date, id: newId(), visibility: "x" }).execute()],
+    ["dates.kind", () => d.insertInto("dates").values({ ...date, id: newId(), kind: "nameday" as "custom" }).execute()],
+    ["exchanges.visibility", () => d.insertInto("exchanges").values({ ...exchange, id: newId(), visibility: "x" }).execute()],
+    ["exchanges.kind", () => d.insertInto("exchanges").values({ ...exchange, id: newId(), kind: "loan" }).execute()],
+    ["exchanges.direction", () => d.insertInto("exchanges").values({ ...exchange, id: newId(), direction: "both" as "to_them" }).execute()],
+    ["relationships.visibility", () => d.insertInto("relationships").values({ ...rel, id: newId(), visibility: "x" }).execute()],
+    ["relationships.type", () => d.insertInto("relationships").values({ ...rel, id: newId(), type: "cousin" }).execute()],
+  ];
+  await d.insertInto("conversations").values(conversation).execute();
+  for (const [what, insert] of bad) await expect(insert(), what).rejects.toThrow(/CHECK constraint failed/);
+  const group = newId();
+  await d.insertInto("groups").values({ id: group, name: "Uni" }).execute();
+  await expect(d.insertInto("group_members").values({ group_id: group, person_id: person, visibility: "x", recorded_by: user, conversation_id: null }).execute()).rejects.toThrow(
+    /CHECK constraint failed/,
+  );
+  // Every value of every vocabulary is accepted.
+  for (const kind of CONVERSATION_KINDS) await d.insertInto("conversations").values({ ...conversation, id: newId(), kind, visibility: "private" }).execute();
+  for (const kind of EXCHANGE_KINDS) for (const direction of ["to_them", "from_them"] as const) await d.insertInto("exchanges").values({ ...exchange, id: newId(), kind, direction }).execute();
+  for (const type of RELATIONSHIP_TYPES) await d.insertInto("relationships").values({ ...rel, id: newId(), type }).execute();
+  for (const kind of ["birthday", "anniversary", "custom"] as const) await d.insertInto("dates").values({ ...date, id: newId(), kind }).execute();
+  await d.insertInto("facts").values({ ...fact, id: newId(), status: "outdated", visibility: "private" }).execute();
 });
