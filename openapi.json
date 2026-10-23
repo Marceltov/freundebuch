@@ -1265,7 +1265,12 @@
                       "type": "string"
                     },
                     "byMe": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether the caller made the promise"
+                    },
+                    "by": {
+                      "description": "The other user's name, when they made the promise; with neither, the person made it",
+                      "type": "string"
                     },
                     "due": {
                       "type": [
@@ -1319,7 +1324,12 @@
                       "enum": [
                         "to_them",
                         "from_them"
-                      ]
+                      ],
+                      "description": "`to_them`: the caller (or `by`) gave to the person; `from_them`: the person gave"
+                    },
+                    "by": {
+                      "description": "The other user's name, when they recorded it; `direction` then reads from their side",
+                      "type": "string"
                     },
                     "text": {
                       "type": "string"
@@ -2189,7 +2199,12 @@
                   "type": "string"
                 },
                 "byMe": {
-                  "type": "boolean"
+                  "type": "boolean",
+                  "description": "Whether the caller made the promise"
+                },
+                "by": {
+                  "description": "The other user's name, when they made the promise; with neither, the person made it",
+                  "type": "string"
                 },
                 "due": {
                   "type": [
@@ -2309,7 +2324,12 @@
                   "enum": [
                     "to_them",
                     "from_them"
-                  ]
+                  ],
+                  "description": "`to_them`: the caller (or `by`) gave to the person; `from_them`: the person gave"
+                },
+                "by": {
+                  "description": "The other user's name, when they recorded it; `direction` then reads from their side",
+                  "type": "string"
                 },
                 "text": {
                   "type": "string"

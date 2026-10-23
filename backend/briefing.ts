@@ -26,8 +26,10 @@ export type Briefing = {
   nextDates: UpcomingDate[];
   current: Array<Own & { id: string; text: string; category: FactCategory }>;
   open: {
-    promises: Array<Own & { id: string; text: string; byMe: boolean; due: string | null }>;
-    exchanges: Array<Own & { id: string; kind: ExchangeKind; direction: "to_them" | "from_them"; text: string; amount: number | null; currency: string | null }>;
+    /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
+    promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null }>;
+    /** `by`: the other user's name, when they recorded it; `direction` then reads from their side (`to_them`: they gave). */
+    exchanges: Array<Own & { id: string; kind: ExchangeKind; direction: "to_them" | "from_them"; by?: string; text: string; amount: number | null; currency: string | null }>;
     giftIdeas: Array<Own & { id: string; text: string }>;
   };
   recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[] }>;
@@ -77,6 +79,9 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   ]);
 
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
+  // Promises and exchanges are stored from their recorder's side; one the other user recorded is shown with their own person's name.
+  const users = new Map((await d.selectFrom("users").select(["id", "person_id"]).execute()).map((u) => [u.id, (u.person_id && names.get(u.person_id)) || ""]));
+  const by = (r: { recorded_by: string }) => (r.recorded_by === v.userId ? {} : { by: users.get(r.recorded_by) ?? "" });
   const others = convs.length
     ? await d
         .selectFrom("participants")
@@ -102,10 +107,10 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     nextDates,
     current: facts.map((f) => ({ id: f.id, text: f.text, category: f.category as FactCategory, ...own(f) })),
     open: {
-      promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me, due: p.due, ...own(p) })),
+      promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, ...own(p) })),
       exchanges: exchanges
         .filter((e) => e.kind !== "gift_idea")
-        .map((e) => ({ id: e.id, kind: e.kind as ExchangeKind, direction: e.direction, text: e.text, amount: e.amount, currency: e.currency, ...own(e) })),
+        .map((e) => ({ id: e.id, kind: e.kind as ExchangeKind, direction: e.direction, ...by(e), text: e.text, amount: e.amount, currency: e.currency, ...own(e) })),
       giftIdeas: exchanges.filter((e) => e.kind === "gift_idea").map((e) => ({ id: e.id, text: e.text, ...own(e) })),
     },
     recent: convs.map((c) => ({ id: c.id, date: c.date, kind: c.kind, summary: c.summary, withOthers: withOthers(c.id) })),

@@ -111,6 +111,29 @@ test("open: undone promises, unsettled exchanges and gift ideas, each shown per 
   expect(b.giftIdeas.map((g) => g.text)).toEqual(["a hiking book"]);
 });
 
+test("promises and exchanges read from the viewer's side: the partner's are theirs, by name", async () => {
+  await record(s.a, {
+    promises: [
+      { person: 0, text: "send photos", byMe: true },
+      { person: 0, text: "lend me her tent", byMe: false },
+    ],
+    exchanges: [{ person: 0, kind: "lent", direction: "to_them", text: "my drill" }],
+  });
+  const a = (await briefing(s.a, s.anna, "2026-10-23")).open;
+  expect(a.promises.map((p) => [p.text, p.byMe, p.by])).toEqual([
+    ["send photos", true, undefined],
+    ["lend me her tent", false, undefined],
+  ]);
+  expect(a.exchanges.map((e) => [e.text, e.direction, e.by])).toEqual([["my drill", "to_them", undefined]]);
+  // For B, Alice promised the photos and lent the drill; Anna's promise was to Alice.
+  const b = (await briefing(s.b, s.anna, "2026-10-23")).open;
+  expect(b.promises.map((p) => [p.text, p.byMe, p.by])).toEqual([
+    ["send photos", false, "Alice"],
+    ["lend me her tent", false, undefined],
+  ]);
+  expect(b.exchanges.map((e) => [e.text, e.direction, e.by])).toEqual([["my drill", "to_them", "Alice"]]);
+});
+
 test("nextDates look 60 days ahead; a birthday with a year carries the age", async () => {
   await record(s.a, { dates: [{ person: 0, kind: "birthday", date: "1990-12-20", yearly: true }, { person: 0, kind: "custom", date: "--12-23", label: "far", yearly: true }] });
   const dates = (await briefing(s.a, s.anna, "2026-10-23")).nextDates;

@@ -77,6 +77,17 @@ test("only the recorder's explicit shareTranscript reveals a transcript, and onl
   expect((await getConversation(s.b, s.dinner)).transcript).toBeNull();
 });
 
+test("A's promise and exchange read as Alice's for B, never as B's own", async () => {
+  const r = await record(s.a, { promises: [{ person: 0, text: "send photos", byMe: true }], exchanges: [{ person: 0, kind: "lent", direction: "to_them", text: "my drill" }] });
+  const b = await getConversation(s.b, r.conversationId);
+  expect(b.promises.map((p) => [p.byMe, p.by])).toEqual([[false, "Alice"]]);
+  expect(b.exchanges.map((e) => [e.direction, e.by])).toEqual([["to_them", "Alice"]]);
+  const a = await getConversation(s.a, r.conversationId);
+  expect(a.promises.map((p) => [p.byMe, p.by])).toEqual([[true, undefined]]);
+  expect(a.exchanges[0].by).toBeUndefined();
+  expect((await briefing(s.b, s.anna)).open.promises.find((p) => p.text === "send photos")).toMatchObject({ byMe: false, by: "Alice" });
+});
+
 test("Tom exists for B, but without the partner edge or the birthday", async () => {
   const [tom] = await findPeople(s.b, "Tom");
   expect(tom.id).toBe(s.tom);

@@ -66,7 +66,7 @@ export function FriendPage({ b, daysSince }: { b: Briefing; daysSince: number | 
         <Section title={copy.open}>
           {promises.map((p) => (
             <Tile key={p.id} icon={Pin} private={p.visibility === "private"} actions={<ItemActions table="promises" {...item(p)} />}>
-              {p.byMe && <b>{copy.byMe}: </b>}
+              {(p.byMe || p.by) && <b>{p.byMe ? copy.byMe : p.by}: </b>}
               {p.text}
               {p.due && <span className="text-muted"> · {shortDay(p.due)}</span>}
             </Tile>
@@ -78,6 +78,7 @@ export function FriendPage({ b, daysSince }: { b: Briefing; daysSince: number | 
           ))}
           {exchanges.map((e) => (
             <Tile key={e.id} icon={EXCHANGE_ICON[e.kind] ?? ArrowLeftRight} private={e.visibility === "private"} actions={<ItemActions table="exchanges" {...item(e)} />}>
+              {e.by && <b>{e.by} </b>}
               <span aria-hidden>{e.direction === "to_them" ? "→ " : "← "}</span>
               {e.text}
               {e.amount !== null && ` · ${e.amount}${e.currency ? ` ${e.currency}` : ""}`}

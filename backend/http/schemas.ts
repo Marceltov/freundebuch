@@ -44,6 +44,11 @@ const UpcomingDate = z.object({
 });
 
 const Direction = z.enum(["to_them", "from_them"]);
+// Promises and exchanges read from the caller's side; one the other user made or recorded names them.
+const ByMe = z.boolean().describe("Whether the caller made the promise");
+const PromiseBy = z.string().optional().describe("The other user's name, when they made the promise; with neither, the person made it");
+const ExchangeBy = z.string().optional().describe("The other user's name, when they recorded it; `direction` then reads from their side");
+const ExchangeDirection = Direction.describe("`to_them`: the caller (or `by`) gave to the person; `from_them`: the person gave");
 const Own = { visibility: Visibility, mine: z.boolean().describe("Whether the caller recorded it; only then may they edit it, change its visibility or delete it") };
 
 export const BriefingJson = z
@@ -66,9 +71,18 @@ export const BriefingJson = z
     nextDates: z.array(UpcomingDate),
     current: z.array(z.object({ id: z.string(), text: z.string(), category: z.enum(FACT_CATEGORIES), ...Own })),
     open: z.object({
-      promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: z.boolean(), due: z.string().nullable(), ...Own })),
+      promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), ...Own })),
       exchanges: z.array(
-        z.object({ id: z.string(), kind: z.enum(EXCHANGE_KINDS), direction: Direction, text: z.string(), amount: z.number().nullable(), currency: z.string().nullable(), ...Own }),
+        z.object({
+          id: z.string(),
+          kind: z.enum(EXCHANGE_KINDS),
+          direction: ExchangeDirection,
+          by: ExchangeBy,
+          text: z.string(),
+          amount: z.number().nullable(),
+          currency: z.string().nullable(),
+          ...Own,
+        }),
       ),
       giftIdeas: z.array(z.object({ id: z.string(), text: z.string(), ...Own })),
     }),
@@ -190,10 +204,20 @@ export const ConversationJson = z
     recordedBy: z.string(),
     participants: z.array(z.object({ id: PersonId, name: z.string() })),
     facts: z.array(z.object({ ...Item, personId: PersonId, text: z.string(), category: z.enum(FACT_CATEGORIES), status: z.enum(["current", "outdated"]) })),
-    promises: z.array(z.object({ ...Item, personId: PersonId, text: z.string(), byMe: z.boolean(), due: z.string().nullable(), done: z.boolean() })),
+    promises: z.array(z.object({ ...Item, personId: PersonId, text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), done: z.boolean() })),
     dates: z.array(z.object({ ...Item, personId: PersonId, kind: z.enum(["birthday", "anniversary", "custom"]), date: z.string(), label: z.string().nullable(), yearly: z.boolean() })),
     exchanges: z.array(
-      z.object({ ...Item, personId: PersonId, kind: z.enum(EXCHANGE_KINDS), direction: Direction, text: z.string(), amount: z.number().nullable(), currency: z.string().nullable(), settled: z.boolean() }),
+      z.object({
+        ...Item,
+        personId: PersonId,
+        kind: z.enum(EXCHANGE_KINDS),
+        direction: ExchangeDirection,
+        by: ExchangeBy,
+        text: z.string(),
+        amount: z.number().nullable(),
+        currency: z.string().nullable(),
+        settled: z.boolean(),
+      }),
     ),
     relationships: z.array(z.object({ ...Item, fromId: PersonId, toId: PersonId, type: z.enum(RELATIONSHIP_TYPES), note: z.string().nullable() })),
   })
