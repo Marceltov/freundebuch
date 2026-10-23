@@ -1,9 +1,12 @@
 // The partner must never see a private item, through any read function. One fixture, every read, as the other user (B on A's
 // recordings). Every later task that adds a read function adds its assertions here.
 import { beforeEach, expect, test } from "vitest";
+import { briefing } from "./briefing";
 import { getConversation, recordConversation } from "./conversations";
 import { db } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
+import { whatsDue } from "./due";
+import { lastSeen, setCheckInInterval } from "./intervals";
 import { findPeople, getPerson, listPeople } from "./people";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
 import type { Viewer } from "./types";
@@ -106,4 +109,30 @@ test("a private fact may replace the recorder's own private fact", async () => {
   const divorce = (await d.selectFrom("facts").select("id").where("text", "=", "divorce").executeTakeFirstOrThrow()).id;
   await record(s.a, { facts: [{ person: 0, text: "divorce is final", category: "family", private: true, supersedes: divorce }] });
   expect((await d.selectFrom("facts").select("status").where("id", "=", divorce).executeTakeFirstOrThrow()).status).toBe("outdated");
+});
+
+test("B's briefing on Anna and Tom and B's whatsDue never contain A's private items", async () => {
+  for (const id of [s.anna, s.tom]) {
+    const text = JSON.stringify(await briefing(s.b, id, "2026-10-23"));
+    for (const secret of ["divorce", "partner", "--10-24", "2026-10-24", "Tom's birthday"]) expect(text, `${id} ${secret}`).not.toContain(secret);
+  }
+  const anna = await briefing(s.b, s.anna, "2026-10-23");
+  expect(anna.current.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);
+  expect(anna.relationships).toEqual([]);
+  // Person-level date reads hide Tom's birthday too.
+  expect((await briefing(s.b, s.tom, "2026-10-23")).nextDates).toEqual([]);
+  expect((await briefing(s.a, s.tom, "2026-10-23")).nextDates.map((d) => d.date)).toEqual(["2026-10-24"]);
+  // What's due: the birthday is A's alone.
+  expect(await whatsDue(s.b, "2026-10-23")).toEqual([]);
+  expect(JSON.stringify(await whatsDue(s.b, "2026-10-23"))).not.toContain("Tom");
+  expect((await whatsDue(s.a, "2026-10-23")).map((i) => i.date)).toEqual(["2026-10-24"]);
+});
+
+test("last seen and the interval are per user: B's call changes nothing for A, and a private conversation is not B's", async () => {
+  expect(await lastSeen(s.a, s.anna)).toBe("2026-10-20");
+  expect(await lastSeen(s.b, s.anna)).toBe("2026-10-15");
+  expect(await lastSeen(s.b, s.lena)).toBeNull();
+  expect((await findPeople(s.b, "Anna"))[0].context).toEqual(["last seen 2026-10-15"]);
+  await setCheckInInterval(s.a, s.anna, 1, true);
+  expect((await whatsDue(s.b, "2026-12-01")).map((i) => i.kind)).not.toContain("overdue");
 });

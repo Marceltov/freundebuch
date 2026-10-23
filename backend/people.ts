@@ -3,6 +3,7 @@
 import type { Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
+import { lastSeen } from "./intervals";
 import { norm, within } from "./names";
 import type { RelationshipType, Viewer } from "./types";
 import { visible } from "./visibility";
@@ -106,15 +107,8 @@ async function contextFor(v: Viewer, personId: string): Promise<string[]> {
     const other = await d.selectFrom("persons").select("name").where("id", "=", outgoing ? r.to_id : r.from_id).executeTakeFirst();
     if (other) hints.push(`${label} ${other.name}`);
   }
-  const last = await d
-    .selectFrom("conversations")
-    .innerJoin("participants", "participants.conversation_id", "conversations.id")
-    .select("conversations.date")
-    .where("participants.person_id", "=", personId)
-    .$call((qb) => visible(qb, v, "conversations"))
-    .orderBy("conversations.date", "desc")
-    .executeTakeFirst();
-  if (last) hints.push(`last conversation ${last.date}`);
+  const last = await lastSeen(v, personId);
+  if (last) hints.push(`last seen ${last}`);
   return hints.slice(0, MAX_CONTEXT);
 }
 

@@ -54,7 +54,7 @@ test("limit caps the result", async () => {
   expect(await findPeople(a, "max", 2)).toHaveLength(2);
 });
 
-test("context shows relationships and the last visible conversation", async () => {
+test("context shows relationships and when the viewer last saw the person", async () => {
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
   const d = await db();
@@ -62,10 +62,14 @@ test("context shows relationships and the last visible conversation", async () =
   for (const date of ["2026-10-01", "2026-10-20"]) {
     const id = newId();
     await d.insertInto("conversations").values({ id, date, kind: "call", place: null, summary: "s", transcript: "", visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
-    await d.insertInto("participants").values({ conversation_id: id, person_id: anna }).execute();
+    await d.insertInto("participants").values([{ conversation_id: id, person_id: anna }, { conversation_id: id, person_id: b.personId }]).execute();
   }
+  // A conversation the viewer was not part of does not count as seeing Anna.
+  const other = newId();
+  await d.insertInto("conversations").values({ id: other, date: "2026-10-22", kind: "call", place: null, summary: "s", transcript: "", visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
+  await d.insertInto("participants").values({ conversation_id: other, person_id: anna }).execute();
   const [c] = await findPeople(b, "Anna");
-  expect(c.context).toEqual(["partner of Tom", "last conversation 2026-10-20"]);
+  expect(c.context).toEqual(["partner of Tom", "last seen 2026-10-20"]);
   expect((await findPeople(b, "Tom"))[0].context).toEqual(["partner of Anna"]);
 });
 
@@ -76,9 +80,9 @@ test("context never contains anything from a private item of the other user", as
   await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, type: "partner", note: null, visibility: "private", recorded_by: b.userId, conversation_id: null, created_at: now() }).execute();
   const cid = newId();
   await d.insertInto("conversations").values({ id: cid, date: "2026-10-20", kind: "call", place: null, summary: "s", transcript: "", visibility: "private", recorded_by: b.userId, created_at: now() }).execute();
-  await d.insertInto("participants").values({ conversation_id: cid, person_id: anna }).execute();
+  await d.insertInto("participants").values([{ conversation_id: cid, person_id: anna }, { conversation_id: cid, person_id: b.personId }]).execute();
   expect((await findPeople(a, "Anna"))[0].context).toEqual([]);
-  expect((await findPeople(b, "Anna"))[0].context).toEqual(["partner of Tom", "last conversation 2026-10-20"]);
+  expect((await findPeople(b, "Anna"))[0].context).toEqual(["partner of Tom", "last seen 2026-10-20"]);
 });
 
 test("addAlias adds, dedupes by norm and is found", async () => {

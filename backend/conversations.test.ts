@@ -157,9 +157,16 @@ test("validates date formats", async () => {
     base({ promises: [{ person: 0, text: "t", byMe: true, due: "next week" }] }),
     base({ dates: [{ person: 0, kind: "custom", date: "--06-01", yearly: false }] }),
     base({ dates: [{ person: 0, kind: "birthday", date: "24.10.", yearly: true }] }),
+    // well-formed but not on the calendar
+    base({ date: "2026-13-45" }),
+    base({ date: "2026-02-29" }),
+    base({ promises: [{ person: 0, text: "t", byMe: true, due: "2026-04-31" }] }),
+    base({ dates: [{ person: 0, kind: "birthday", date: "--02-30", yearly: true }] }),
+    base({ dates: [{ person: 0, kind: "custom", date: "2026-00-10", yearly: false }] }),
   ];
   for (const c of bad) await expect(recordConversation(a, c)).rejects.toBeInstanceOf(InvalidInputError);
   await expect(recordConversation(a, base({ dates: [{ person: 0, kind: "birthday", date: "1990-10-24", yearly: true }] }))).resolves.toBeDefined();
+  await expect(recordConversation(a, base({ date: "2028-02-29", dates: [{ person: 0, kind: "birthday", date: "--02-29", yearly: true }] }))).resolves.toBeDefined();
 });
 
 test("rejects a people entry with neither id nor name, a bad person ref and unknown vocabulary", async () => {

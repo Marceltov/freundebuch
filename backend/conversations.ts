@@ -2,6 +2,7 @@
 // bad item leaves nothing behind. Privacy is decided here once: a private conversation makes every item private, and any private
 // item makes the verbatim transcript private to the recorder (it contains the private part).
 import type { Kysely } from "kysely";
+import { assertDay, isDay, isYearless } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { insertPerson } from "./people";
@@ -73,20 +74,14 @@ export type ConversationView = {
 
 export const MAX_TRANSCRIPT = 200_000;
 export const MAX_SUMMARY = 2_000;
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const YEARLESS = /^--\d{2}-\d{2}$/;
 
 function oneOf<T extends string>(value: string, allowed: readonly T[], what: string): void {
   if (!allowed.includes(value as T)) throw new InvalidInputError(`Unknown ${what} "${value}"`);
 }
 
-function day(value: string, what: string): void {
-  if (!DAY.test(value)) throw new InvalidInputError(`${what} must be YYYY-MM-DD, got "${value}"`);
-}
-
 /** Everything that can be checked without the database, so most bad input fails before the transaction starts. */
 function validate(c: NewConversation): void {
-  day(c.date, "The conversation date");
+  assertDay(c.date, "The conversation date");
   oneOf(c.kind, CONVERSATION_KINDS, "conversation kind");
   oneOf(c.visibility, VISIBILITIES, "visibility");
   if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
@@ -101,12 +96,12 @@ function validate(c: NewConversation): void {
   }
   for (const p of c.promises ?? []) {
     ref(p.person);
-    if (p.due !== undefined) day(p.due, "A promise's due date");
+    if (p.due !== undefined) assertDay(p.due, "A promise's due date");
   }
   for (const d of c.dates ?? []) {
     ref(d.person);
     oneOf(d.kind, ["birthday", "anniversary", "custom"], "date kind");
-    if (!DAY.test(d.date) && !(d.yearly && YEARLESS.test(d.date))) throw new InvalidInputError(`A date must be YYYY-MM-DD, or --MM-DD when yearly; got "${d.date}"`);
+    if (!isDay(d.date) && !(d.yearly && isYearless(d.date))) throw new InvalidInputError(`A date must be a real date as YYYY-MM-DD, or --MM-DD when yearly; got "${d.date}"`);
   }
   for (const e of c.exchanges ?? []) {
     ref(e.person);
