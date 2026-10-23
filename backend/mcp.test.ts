@@ -226,6 +226,9 @@ describe("tools", () => {
     expect(await call(s.b, "correct", { action: "visibility", table: "facts", id: marathon, visibility: "private" })).toMatchObject({ isError: true });
     expect(await call(s.a, "correct", { action: "delete", table: "promises", id: promise })).toMatchObject(ok);
     expect(await call(s.a, "correct", { action: "rename", id: s.lena, name: "Lena M." })).toMatchObject(ok);
+    expect(await call(s.b, "correct", { action: "alias", id: s.lena, alias: "Leni" })).toMatchObject(ok);
+    expect((await call(s.a, "find_person", { name: "Leni" })).structuredContent.people[0]).toMatchObject({ id: s.lena, aliases: ["Leni"] });
+    expect(await call(s.a, "correct", { action: "alias", id: s.lena })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^alias: /) }] });
     expect(await call(s.a, "correct", { action: "merge", id: s.anna, drop: s.tom })).toMatchObject(ok);
     expect(await d.selectFrom("persons").select("id").where("id", "=", s.tom).execute()).toEqual([]);
     // The dinner still holds private items, so its transcript stays private; the coffee is B's to never see.

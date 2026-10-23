@@ -71,6 +71,14 @@ describe("people", () => {
     expect((await call(s.a, "PUT", "/people/nope/interval", { days: 7 })).status).toBe(404);
   });
 
+  test("aliases: add one, then the person is found by it", async () => {
+    expect((await call(s.a, "POST", `/people/${s.anna}/aliases`, { alias: "Anni" })).status).toBe(204);
+    expect((await call(s.b, "GET", "/people?q=Anni")).json[0]).toMatchObject({ id: s.anna, aliases: ["Anni"] });
+    expect((await call(s.a, "POST", `/people/${s.anna}/aliases`, { alias: " " })).json.code).toBe("invalid_input");
+    expect((await call(s.a, "POST", `/people/${s.anna}/aliases`, {})).json.code).toBe("invalid_request");
+    expect((await call(s.a, "POST", "/people/nope/aliases", { alias: "x" })).status).toBe(404);
+  });
+
   test("merge moves a duplicate into the person and deletes it", async () => {
     const rec = await call(s.a, "POST", "/conversations", lunch({ people: [{ name: "Maxi", present: true }, { name: "Max", present: false }] }));
     const [maxi, max] = rec.json.people.map((p: { id: string }) => p.id);

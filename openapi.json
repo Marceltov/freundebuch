@@ -363,6 +363,80 @@
         }
       }
     },
+    "/api/v1/people/{id}/aliases": {
+      "post": {
+        "operationId": "addAlias",
+        "summary": "Add another name a person goes by",
+        "description": "Aliases are shared, like names, and searching finds the person by them. One the person already has, or their name, changes nothing.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Alias"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/due": {
       "get": {
         "operationId": "getDue",
@@ -1643,6 +1717,18 @@
         },
         "required": [
           "drop"
+        ]
+      },
+      "Alias": {
+        "type": "object",
+        "properties": {
+          "alias": {
+            "type": "string",
+            "description": "Another name the person goes by, e.g. a nickname"
+          }
+        },
+        "required": [
+          "alias"
         ]
       },
       "NewConversation": {

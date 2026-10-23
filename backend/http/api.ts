@@ -10,11 +10,12 @@ import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError } from "../errors";
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
-import { findPeople, getPerson, listPeople } from "../people";
+import { addAlias, findPeople, getPerson, listPeople } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
+  AliasJson,
   BriefingJson,
   COMPONENTS,
   ConversationJson,
@@ -114,6 +115,22 @@ const OPS: AnyOp[] = [
     responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params, body }) => {
     await mergePeople(viewer, params.id, body.drop);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/people/{id}/aliases`,
+    operationId: "addAlias",
+    summary: "Add another name a person goes by",
+    description: "Aliases are shared, like names, and searching finds the person by them. One the person already has, or their name, changes nothing.",
+    tags: ["People"],
+    auth: true,
+    params: { id: IdParam },
+    body: AliasJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await addAlias(viewer, params.id, body.alias);
     return { status: 204, body: undefined };
   }),
 
