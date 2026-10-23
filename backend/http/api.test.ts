@@ -191,18 +191,27 @@ describe("privacy through the API: B never sees A's private items", () => {
     const res = await call(s.b, "GET", `/conversations/${s.dinner}`);
     expect(res.status).toBe(200);
     expect(res.json.transcript).toBeNull();
+    expect(res.json.summary).toBe("Dinner with Anna; she has a new job.");
+    expect(res.json.facts.map((f: { text: string }) => f.text)).toEqual(["new job"]);
     const text = JSON.stringify(res.json);
     for (const secret of ["divorce", "partner", "--10-24", "Tom's birthday", "getting divorced"]) expect(text, secret).not.toContain(secret);
   });
 
   test("B's briefings, searches and due list hold none of A's private strings", async () => {
     const secrets = ["divorce", "partner", "--10-24", "2026-10-24", "Tom's birthday", "quitting", "Lena"];
-    const bodies = [
-      ...(await Promise.all([s.anna, s.tom].map((id) => call(s.b, "GET", `/people/${id}/briefing`)))).map((r) => r.json),
-      (await call(s.b, "GET", "/people?q=Tom")).json,
-      (await call(s.b, "GET", "/due")).json,
-    ];
-    for (const body of bodies) for (const secret of secrets) expect(JSON.stringify(body), secret).not.toContain(secret);
+    const [anna, tom, search, due] = await Promise.all([
+      call(s.b, "GET", `/people/${s.anna}/briefing`),
+      call(s.b, "GET", `/people/${s.tom}/briefing`),
+      call(s.b, "GET", "/people?q=Tom"),
+      call(s.b, "GET", "/due"),
+    ]);
+    // Each answered for real (not an error body that trivially lacks the secrets), with the shared part present.
+    expect([anna.status, tom.status, search.status, due.status]).toEqual([200, 200, 200, 200]);
+    expect(anna.json.current.map((f: { text: string }) => f.text).sort()).toEqual(["likes hiking", "new job"]);
+    expect(tom.json.person.name).toBe("Tom");
+    expect(search.json.map((p: { id: string }) => p.id)).toEqual([s.tom]);
+    expect(due.json).toEqual([]);
+    for (const body of [anna.json, tom.json, search.json, due.json]) for (const secret of secrets) expect(JSON.stringify(body), secret).not.toContain(secret);
     expect((await call(s.b, "GET", `/people/${s.lena}/briefing`)).json.current).toEqual([]);
   });
 });
