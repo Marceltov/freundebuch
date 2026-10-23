@@ -29,7 +29,15 @@ export interface Schema {
     created_at: number;
   };
   participants: { conversation_id: string; person_id: string };
-  facts: Item & { id: string; person_id: string; text: string; category: string; status: ColumnType<"current" | "outdated", "current" | "outdated" | undefined, "current" | "outdated"> };
+  facts: Item & {
+    id: string;
+    person_id: string;
+    text: string;
+    category: string;
+    status: ColumnType<"current" | "outdated", "current" | "outdated" | undefined, "current" | "outdated">;
+    /** The fact that replaced this one, when one did. */
+    superseded_by: ColumnType<string | null, string | null | undefined, string | null>;
+  };
   promises: Item & { id: string; person_id: string; text: string; by_me: number; due: string | null; done: Flag };
   dates: Item & { id: string; person_id: string; kind: "birthday" | "anniversary" | "custom"; date: string; label: string | null; yearly: Flag };
   exchanges: Item & {

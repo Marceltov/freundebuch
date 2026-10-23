@@ -4,7 +4,7 @@
 // user for a shared item, and a private item is only ever visible to its recorder anyway.
 import type { Kysely } from "kysely";
 import { assertDay, isDay, isYearless } from "./dates";
-import { MAX_SUMMARY, MAX_TRANSCRIPT } from "./conversations";
+import { MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED } from "./conversations";
 import { db, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
@@ -221,6 +221,7 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
   const d = await db();
   await d.transaction().execute(async (tx) => {
     const row = await load(tx, v, table, id, true);
+    if (visibility === "private") await assertReplacesNothingShared(tx, table, id);
     // A private conversation forces private on all its items; share the conversation first.
     if (table !== "conversations" && visibility === "shared" && row.conversation_id) {
       const parent = await tx.selectFrom("conversations").select("visibility").where("id", "=", row.conversation_id).executeTakeFirst();
@@ -243,6 +244,24 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
       await raiseTranscriptPrivacy(tx, id);
     } else if (row.conversation_id) await raiseTranscriptPrivacy(tx, row.conversation_id);
   });
+}
+
+/**
+ * A fact that replaced a shared fact stays shared, as recordConversation demands of it at the start: private, it would leave the
+ * partner's fact outdated with no successor they can see. Checked for the fact itself, or for every fact of a conversation.
+ */
+async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, id: string): Promise<void> {
+  if (table !== "facts" && table !== "conversations") return;
+  const replaced = await d
+    .selectFrom("facts as old")
+    .innerJoin("facts as new", "new.id", "old.superseded_by")
+    .select("old.id")
+    .where("old.visibility", "=", "shared")
+    .where(table === "facts" ? "new.id" : "new.conversation_id", "=", id)
+    // Within one conversation the old fact turns private along with the new one.
+    .$call((qb) => (table === "conversations" ? qb.where((eb) => eb.or([eb("old.conversation_id", "is", null), eb("old.conversation_id", "!=", id)])) : qb))
+    .executeTakeFirst();
+  if (replaced) throw new InvalidInputError(PRIVATE_REPLACES_SHARED);
 }
 
 /**

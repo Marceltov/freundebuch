@@ -84,7 +84,9 @@ const migrations: Record<string, Migration> = {
           .addColumn("person_id", "text", person)
           .addColumn("text", "text", (c) => c.notNull())
           .addColumn("category", "text", (c) => c.notNull())
-          .addColumn("status", "text", (c) => c.notNull().defaultTo("current").check(oneOf("status", ["current", "outdated"]))),
+          .addColumn("status", "text", (c) => c.notNull().defaultTo("current").check(oneOf("status", ["current", "outdated"])))
+          // On an outdated fact: the fact that replaced it, so that one can't turn private later and leave the old one without a successor.
+          .addColumn("superseded_by", "text", (c) => c.references("facts.id").onDelete("set null")),
       ).execute();
       await item(
         db.schema

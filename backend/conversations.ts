@@ -203,8 +203,9 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     for (const personId of present) await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).execute();
 
     for (const f of c.facts ?? []) {
-      if (f.supersedes) await outdate(tx, v, f.supersedes, id(f.person), vis(f));
-      await tx.insertInto("facts").values({ ...base, id: newId(), person_id: id(f.person), text: f.text, category: f.category, visibility: vis(f) }).execute();
+      const factId = newId();
+      await tx.insertInto("facts").values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, visibility: vis(f) }).execute();
+      if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
     }
     for (const p of c.promises ?? [])
       await tx.insertInto("promises").values({ ...base, id: newId(), person_id: id(p.person), text: p.text, by_me: p.byMe ? 1 : 0, due: p.due ?? null, visibility: vis(p) }).execute();
@@ -227,11 +228,15 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
   });
 }
 
+/** Why a private fact can't replace a shared one; corrections.ts refuses making such a replacement private later with the same words. */
+export const PRIVATE_REPLACES_SHARED =
+  "A private fact can't replace a shared one: record the update as shared, or keep the old fact and add the private one without supersedes";
+
 /**
- * Marks a fact the viewer can see as outdated; it must be about the same person as the fact that replaces it. A private fact may
- * only replace the viewer's own private fact: outdating a shared one would show the partner that something private changed.
+ * Marks a fact the viewer can see as outdated by `newId`; it must be about the same person as the fact that replaces it. A private
+ * fact may only replace the viewer's own private fact: outdating a shared one would show the partner that something private changed.
  */
-async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, personId: string, visibility: Visibility): Promise<void> {
+async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, newId: string, personId: string, visibility: Visibility): Promise<void> {
   const old = await tx
     .selectFrom("facts")
     .select(["person_id", "visibility"])
@@ -240,11 +245,8 @@ async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, personId: 
     .executeTakeFirst();
   if (!old) throw new NotFoundError(`No such fact: ${factId}`);
   if (old.person_id !== personId) throw new InvalidInputError("A fact can only supersede a fact about the same person");
-  if (visibility === "private" && old.visibility !== "private")
-    throw new InvalidInputError(
-      "A private fact can't replace a shared one: record the update as shared, or keep the old fact and add the private one without supersedes",
-    );
-  await tx.updateTable("facts").set({ status: "outdated" }).where("id", "=", factId).execute();
+  if (visibility === "private" && old.visibility !== "private") throw new InvalidInputError(PRIVATE_REPLACES_SHARED);
+  await tx.updateTable("facts").set({ status: "outdated", superseded_by: newId }).where("id", "=", factId).execute();
 }
 
 /** The group with this exact name, created when there is none. Group names carry no visibility; their memberships do. */

@@ -139,6 +139,20 @@ test("a private fact can't outdate B's shared fact, so B's fact stays current", 
   expect(await status()).toBe("outdated");
 });
 
+test("a fact that outdated B's shared fact can't be made private afterwards, on its own or with its conversation", async () => {
+  const d = await db();
+  const hiking = (await d.selectFrom("facts").select("id").where("text", "=", "likes hiking").executeTakeFirstOrThrow()).id;
+  const r = await record(s.a, { facts: [{ person: 0, text: "hurt her knee, no more hiking", category: "health", supersedes: hiking }] });
+  const knee = (await d.selectFrom("facts").select("id").where("conversation_id", "=", r.conversationId).executeTakeFirstOrThrow()).id;
+  expect((await d.selectFrom("facts").select("superseded_by").where("id", "=", hiking).executeTakeFirstOrThrow()).superseded_by).toBe(knee);
+  await expect(setVisibility(s.a, "facts", knee, "private")).rejects.toThrow(/private fact can't replace a shared one/);
+  await expect(setVisibility(s.a, "conversations", r.conversationId, "private")).rejects.toThrow(/private fact can't replace a shared one/);
+  // B still sees what replaced their fact.
+  expect((await briefing(s.b, s.anna, "2026-10-23")).current.map((f) => f.text)).toContain("hurt her knee, no more hiking");
+  // A fact that replaced nothing shared may still go private.
+  await setVisibility(s.a, "facts", (await d.selectFrom("facts").select("id").where("text", "=", "new job").executeTakeFirstOrThrow()).id, "private");
+});
+
 test("a private fact may replace the recorder's own private fact", async () => {
   const d = await db();
   const divorce = (await d.selectFrom("facts").select("id").where("text", "=", "divorce").executeTakeFirstOrThrow()).id;
