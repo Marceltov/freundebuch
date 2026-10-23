@@ -73,7 +73,7 @@ The same domain functions are available over REST at `${PUBLIC_URL}/api/v1`, wit
 
 ```bash
 npm ci
-npm run dev        # http://localhost:3000, needs the variables above (or see CLAUDE.md for tests)
+npm run dev        # http://localhost:3000, needs the variables above
 npm test           # unit tests
 npm run test:e2e   # Playwright against `next dev`
 ```

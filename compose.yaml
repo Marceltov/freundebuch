@@ -1,6 +1,6 @@
 services:
   freundebuch:
-    image: ghcr.io/marceltov/freundebuch:latest
+    image: ghcr.io/marceltov/freundebuch:main
     build: .
     restart: unless-stopped
     ports:
