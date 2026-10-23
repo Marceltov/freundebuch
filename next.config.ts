@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
   // The OAuth login hands a code to whatever host the client registered: no framing it (clickjacking the
   // sign-in and the "Allow" click).
   headers: async () => [{ source: "/oauth/authorize", headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }] }],
-  // freundebuch doesn't use next/image, so leave out sharp and its LGPL libvips binaries.
+  // freundebuch doesn't use next/image: the optimizer stays off (no endpoint to attack), and sharp and its LGPL libvips binaries stay out.
+  images: { unoptimized: true },
   outputFileTracingExcludes: {
     "*": ["node_modules/sharp/**", "node_modules/@img/**"],
   },

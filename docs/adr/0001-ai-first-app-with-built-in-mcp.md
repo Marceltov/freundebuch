@@ -33,6 +33,7 @@ Chosen option: "Build our own, AI-first, with the MCP endpoint built in", becaus
 * **Stack:** one Next.js app (standalone output, one Docker image) with SQLite (better-sqlite3, kysely) on one volume. Pages, a REST API and the MCP endpoint are thin surfaces over the same domain functions in `backend/`.
 * **Reference implementation:** `notefeed/notefeed` (Next.js, official MCP SDK, stateless OAuth server). Its structure, conventions and tests are the model; what freundebuch does not need is left out.
 * **Language:** code, API, tool names and docs in English; every UI string in German.
+* **Pinned exactly:** `next` (with `eslint-config-next`) and `@modelcontextprotocol/server` are pinned to exact versions, because the app leans on their behaviour (the MCP SDK's handler and schema conversion, Next's standalone output). A pin moves only on purpose: tests, `npm run build` and `npm audit --omit=dev` after every bump. On 2026-10-23 they moved to `next@16.4.3` and `@modelcontextprotocol/server@2.3.1`, which clear the critical Next advisories (image optimizer RCE via SVG, among others) and the high MCP SDK advisories; `images.unoptimized` stays on, since nothing uses next/image and the optimizer is attack surface.
 
 ### Consequences
 
