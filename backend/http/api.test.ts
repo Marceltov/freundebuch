@@ -147,6 +147,20 @@ describe("conversations and items", () => {
     expect((await call(s.a, "PATCH", `/items/widgets/${r.fact}`, { patch: {} })).json.code).toBe("invalid_input");
   });
 
+  test("PATCH transcriptShared on a conversation: the recorder's only way to share a transcript", async () => {
+    const r = await recorded();
+    expect((await call(s.a, "PATCH", `/items/facts/${r.fact}`, { visibility: "private" })).status).toBe(204);
+    expect((await call(s.b, "GET", `/conversations/${r.conversation}`)).json.transcript).toBeNull();
+    expect((await call(s.a, "PATCH", `/items/facts/${r.fact}`, { visibility: "shared" })).status).toBe(204);
+    expect((await call(s.b, "GET", `/conversations/${r.conversation}`)).json.transcript).toBeNull();
+    expect((await call(s.b, "PATCH", `/items/conversations/${r.conversation}`, { transcriptShared: true })).status).toBe(403);
+    expect((await call(s.a, "PATCH", `/items/facts/${r.fact}`, { transcriptShared: true })).json.code).toBe("invalid_input");
+    expect((await call(s.a, "PATCH", `/items/conversations/${r.conversation}`, { transcriptShared: true, done: true })).json.code).toBe("invalid_request");
+    expect((await call(s.a, "PATCH", `/items/conversations/${s.dinner}`, { transcriptShared: true })).json.code).toBe("invalid_input"); // still holds private items
+    expect((await call(s.a, "PATCH", `/items/conversations/${r.conversation}`, { transcriptShared: true })).status).toBe(204);
+    expect((await call(s.b, "GET", `/conversations/${r.conversation}`)).json.transcript).toBe("Lunch with Max. He likes chess.");
+  });
+
   test("only the recorder edits: B gets 403 on A's shared fact, and may mark a shared promise done", async () => {
     const r = await recorded();
     const edit = await call(s.b, "PATCH", `/items/facts/${r.fact}`, { patch: { text: "x" } });

@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility } from "./corrections";
+import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
 import { briefing } from "./briefing";
 import { getConversation, recordConversation } from "./conversations";
 import { db } from "./db/testing";
@@ -107,14 +107,16 @@ test("the recorder edits an item and bad values are invalid_input", async () => 
   await expect(editItem(s.a, "facts", l.privateFact, {})).rejects.toBeInstanceOf(InvalidInputError);
 });
 
-test("making an item shared recomputes the transcript rule; a private conversation keeps its transcript hidden", async () => {
+test("sharing every item keeps the transcript private until the recorder shares it; a private item hides it again", async () => {
   const l = await lunch();
   const transcriptPrivate = async (id: string) =>
     (await (await db()).selectFrom("conversations").select("transcript_private").where("id", "=", id).executeTakeFirstOrThrow()).transcript_private;
   expect(await transcriptPrivate(l.conversation)).toBe(1);
   await setVisibility(s.a, "promises", l.privatePromise, "shared");
-  expect(await transcriptPrivate(l.conversation)).toBe(1); // the private fact remains
+  await expect(shareTranscript(s.a, l.conversation)).rejects.toBeInstanceOf(InvalidInputError); // the private fact remains
   await setVisibility(s.a, "facts", l.privateFact, "shared");
+  expect(await transcriptPrivate(l.conversation)).toBe(1);
+  await shareTranscript(s.a, l.conversation);
   expect(await transcriptPrivate(l.conversation)).toBe(0);
   expect((await getConversation(s.b, l.conversation)).transcript).toContain("new flat");
   await setVisibility(s.a, "exchanges", l.exchange, "private");

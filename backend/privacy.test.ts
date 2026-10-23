@@ -3,9 +3,9 @@
 import { beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
 import { getConversation, recordConversation } from "./conversations";
-import { setVisibility } from "./corrections";
+import { deleteItem, setVisibility, shareTranscript } from "./corrections";
 import { db } from "./db/testing";
-import { InvalidInputError, NotFoundError } from "./errors";
+import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { whatsDue } from "./due";
 import { lastSeen, setCheckInInterval } from "./intervals";
 import { orbit } from "./orbit";
@@ -42,6 +42,39 @@ test("A's private conversation does not exist for B; B's shared call is visible 
   await expect(getConversation(s.b, s.coffee)).rejects.toBeInstanceOf(NotFoundError);
   const call = await getConversation(s.a, s.call);
   expect(call.transcript).toBe("Called Anna, we talked about hiking on the weekend.");
+});
+
+test("deleting or sharing the private items never re-exposes the dinner's transcript to B", async () => {
+  const d = await db();
+  const id = async (t: "facts" | "dates" | "relationships") => (await d.selectFrom(t).select("id").where("conversation_id", "=", s.dinner).where("visibility", "=", "private").executeTakeFirstOrThrow()).id;
+  // The transcript still holds "divorce", whatever happens to the items recorded from it.
+  await deleteItem(s.a, "facts", await id("facts"));
+  await setVisibility(s.a, "relationships", await id("relationships"), "shared");
+  await setVisibility(s.a, "dates", await id("dates"), "shared");
+  expect((await getConversation(s.b, s.dinner)).transcript).toBeNull();
+  await setVisibility(s.a, "conversations", s.dinner, "private");
+  await setVisibility(s.a, "conversations", s.dinner, "shared");
+  expect((await getConversation(s.b, s.dinner)).transcript).toBeNull();
+  expect(JSON.stringify(await getConversation(s.b, s.dinner))).not.toContain("divorce");
+});
+
+test("only the recorder's explicit shareTranscript reveals a transcript, and only once nothing recorded with it is private", async () => {
+  const d = await db();
+  const privates = async (t: "facts" | "dates" | "relationships") => d.selectFrom(t).select("id").where("conversation_id", "=", s.dinner).where("visibility", "=", "private").execute();
+  await expect(shareTranscript(s.a, s.dinner)).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(shareTranscript(s.b, s.dinner)).rejects.toBeInstanceOf(ForbiddenError);
+  await expect(shareTranscript(s.b, s.coffee)).rejects.toBeInstanceOf(NotFoundError);
+  for (const t of ["facts", "dates", "relationships"] as const) for (const r of await privates(t)) await setVisibility(s.a, t, r.id, "shared");
+  await setVisibility(s.a, "conversations", s.dinner, "private");
+  await expect(shareTranscript(s.a, s.dinner)).rejects.toBeInstanceOf(InvalidInputError); // the conversation itself is private
+  await setVisibility(s.a, "conversations", s.dinner, "shared");
+  for (const t of ["facts", "dates", "relationships"] as const) for (const r of await privates(t)) await setVisibility(s.a, t, r.id, "shared");
+  expect((await getConversation(s.b, s.dinner)).transcript).toBeNull();
+  await shareTranscript(s.a, s.dinner);
+  expect((await getConversation(s.b, s.dinner)).transcript).toBe(DINNER_TRANSCRIPT);
+  // Made private again, an item takes the transcript with it.
+  await setVisibility(s.a, "dates", (await d.selectFrom("dates").select("id").where("conversation_id", "=", s.dinner).executeTakeFirstOrThrow()).id, "private");
+  expect((await getConversation(s.b, s.dinner)).transcript).toBeNull();
 });
 
 test("Tom exists for B, but without the partner edge or the birthday", async () => {

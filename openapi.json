@@ -578,7 +578,7 @@
       "patch": {
         "operationId": "editItem",
         "summary": "Correct an item",
-        "description": "The body holds exactly one of `done`, `outdated`, `visibility` or `patch`; none or several is `invalid_request`.",
+        "description": "The body holds exactly one of `done`, `outdated`, `visibility`, `patch` or `transcriptShared`; none or several is `invalid_request`. A transcript turns private whenever anything recorded with it does, and turns shared again only through `transcriptShared`.",
         "tags": [
           "Items"
         ],
@@ -2388,9 +2388,14 @@
               "type": "string"
             },
             "additionalProperties": {}
+          },
+          "transcriptShared": {
+            "description": "Lets the partner read a conversation's transcript (only its recorder may, and only once neither it nor anything recorded with it is private)",
+            "type": "boolean",
+            "const": true
           }
         },
-        "description": "Exactly one of the four"
+        "description": "Exactly one of the five"
       }
     },
     "securitySchemes": {

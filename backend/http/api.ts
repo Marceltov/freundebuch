@@ -4,7 +4,7 @@
 import * as z from "zod";
 import { briefing } from "../briefing";
 import { IDENTITY_COOKIE } from "../auth/session";
-import { deleteItem, editItem, markDone, markOutdated, mergePeople, setVisibility, type ItemTable } from "../corrections";
+import { deleteItem, editItem, markDone, markOutdated, mergePeople, setVisibility, shareTranscript, type ItemTable } from "../corrections";
 import { getConversation, recordConversation } from "../conversations";
 import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError } from "../errors";
@@ -173,7 +173,9 @@ const OPS: AnyOp[] = [
     path: `${API_PREFIX}/items/{table}/{id}`,
     operationId: "editItem",
     summary: "Correct an item",
-    description: "The body holds exactly one of `done`, `outdated`, `visibility` or `patch`; none or several is `invalid_request`.",
+    description:
+      "The body holds exactly one of `done`, `outdated`, `visibility`, `patch` or `transcriptShared`; none or several is `invalid_request`. " +
+      "A transcript turns private whenever anything recorded with it does, and turns shared again only through `transcriptShared`.",
     tags: ["Items"],
     auth: true,
     params: { table: TableParam, id: IdParam },
@@ -181,14 +183,17 @@ const OPS: AnyOp[] = [
     responses: { 204: NO_CONTENT, 400: E400, 401: E401, 403: E403, 404: E404 },
   }).handle(async ({ viewer, params, body }) => {
     const table = params.table as ItemTable;
-    const given = [body.done, body.outdated, body.visibility, body.patch].filter((x) => x !== undefined).length;
-    if (given !== 1) throw new InvalidRequestError("Give exactly one of done, outdated, visibility or patch");
+    const given = [body.done, body.outdated, body.visibility, body.patch, body.transcriptShared].filter((x) => x !== undefined).length;
+    if (given !== 1) throw new InvalidRequestError("Give exactly one of done, outdated, visibility, patch or transcriptShared");
     if (body.done) {
       if (table !== "promises" && table !== "exchanges") throw new InvalidInputError("Only a promise or an exchange can be marked done");
       await markDone(viewer, table, params.id);
     } else if (body.outdated) {
       if (table !== "facts") throw new InvalidInputError("Only a fact can be marked outdated");
       await markOutdated(viewer, params.id);
+    } else if (body.transcriptShared) {
+      if (table !== "conversations") throw new InvalidInputError("Only a conversation has a transcript");
+      await shareTranscript(viewer, params.id);
     } else if (body.visibility) await setVisibility(viewer, table, params.id, body.visibility);
     else await editItem(viewer, table, params.id, body.patch!);
     return { status: 204, body: undefined };

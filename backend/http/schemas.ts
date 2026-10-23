@@ -188,8 +188,12 @@ export const ItemPatchJson = z
     outdated: z.literal(true).optional().describe("Marks a fact outdated"),
     visibility: Visibility.optional().describe("Changes who can see the item (only its recorder may)"),
     patch: z.record(z.string(), z.unknown()).optional().describe("New values for the item's own fields (only its recorder may)"),
+    transcriptShared: z
+      .literal(true)
+      .optional()
+      .describe("Lets the partner read a conversation's transcript (only its recorder may, and only once neither it nor anything recorded with it is private)"),
   })
-  .describe("Exactly one of the four")
+  .describe("Exactly one of the five")
   .meta({ id: "ItemPatch" });
 
 // A list of components is a component too: the generator only resolves a $ref at the top of a schema.

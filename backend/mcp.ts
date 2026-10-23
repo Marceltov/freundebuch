@@ -6,7 +6,7 @@ import { bearerOf, viewerFromRequest } from "./auth/session";
 import { verify } from "./auth/tokens";
 import { briefing } from "./briefing";
 import { getConversation, recordConversation } from "./conversations";
-import { deleteItem, editItem, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility } from "./corrections";
+import { deleteItem, editItem, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
 import { whatsDue } from "./due";
 import { FreundebuchError, InvalidInputError } from "./errors";
 import { BriefingJson, Day, DueItemJson, IntervalJson, NewConversationJson, PersonId, PersonJson, RecordedJson, Visibility } from "./http/schemas";
@@ -104,15 +104,15 @@ const RelateArgs = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("group"), name: z.string().describe("The group's name, e.g. Uni or Climbing"), members: z.array(PersonId).min(1), visibility: Visibility }),
 ]);
 
-const CORRECT_ACTIONS = ["done", "outdated", "edit", "visibility", "delete", "rename", "merge"] as const;
+const CORRECT_ACTIONS = ["done", "outdated", "edit", "visibility", "delete", "rename", "merge", "share_transcript"] as const;
 const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded, a conversation with its items (table, id). rename: rename a person (id, name). merge: merge the duplicate drop into the person id (id, drop)",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded, a conversation with its items (table, id). rename: rename a person (id, name). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a conversation the user recorded, once nothing in it is private any more (id); a transcript never turns shared on its own",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
-  id: z.string().describe("The item's id as a briefing shows it; for rename and merge, a person's id (merge: the person to keep)"),
+  id: z.string().describe("The item's id as a briefing shows it; for rename and merge, a person's id (merge: the person to keep); for share_transcript, a conversation's id"),
   patch: z.record(z.string(), z.unknown()).optional().describe("edit: new values for the item's own fields"),
   visibility: Visibility.optional().describe("visibility: who may see the item from now on"),
   name: z.string().optional().describe("rename: the person's new name"),
@@ -129,6 +129,7 @@ const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delete"), table: Table, id: ItemId }).describe("Delete an item the user recorded; a conversation takes its items with it"),
   z.object({ action: z.literal("rename"), id: PersonId, name: z.string() }).describe("Rename a person"),
   z.object({ action: z.literal("merge"), id: PersonId.describe("The person to keep"), drop: PersonId.describe("The duplicate; it is deleted") }).describe("Merge a duplicate person"),
+  z.object({ action: z.literal("share_transcript"), id: ConversationId }).describe("Let the partner read a conversation's transcript"),
 ]);
 
 function server(v: Viewer): McpServer {
@@ -228,7 +229,7 @@ function server(v: Viewer): McpServer {
     "correct",
     {
       description:
-        "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person or merge a duplicate. Use it when the user says something is done, no longer true or wrong.",
+        "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person, merge a duplicate or let the partner read a transcript. Use it when the user says something is done, no longer true or wrong.",
       inputSchema: CorrectInput,
       outputSchema: CorrectedJson,
       annotations: { destructiveHint: true },
@@ -256,6 +257,9 @@ function server(v: Viewer): McpServer {
           break;
         case "merge":
           await mergePeople(v, a.id, a.drop);
+          break;
+        case "share_transcript":
+          await shareTranscript(v, a.id);
           break;
       }
       return ok(CorrectedJson, { corrected: true as const });

@@ -173,37 +173,47 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
     .execute();
 }
 
-/** The verbatim transcript is private whenever the conversation or any item recorded with it is. */
-async function recomputeTranscriptPrivacy(d: Kysely<Schema>, conversationId: string): Promise<void> {
+/** Whether the conversation, or anything recorded with it (memberships included), is private. */
+async function holdsPrivate(d: Kysely<Schema>, conversationId: string): Promise<boolean> {
   const c = await d.selectFrom("conversations").select("visibility").where("id", "=", conversationId).executeTakeFirst();
-  if (!c) return;
-  let isPrivate = c.visibility === "private";
-  for (const t of CONVERSATION_ITEMS) {
-    if (isPrivate) break;
-    isPrivate = !!(await d
-      .selectFrom(t)
-      .select("id")
-      .where("conversation_id", "=", conversationId)
-      .where("visibility", "=", "private")
-      .executeTakeFirst());
-  }
-  // Memberships recorded with the conversation count too; they have no id column.
-  isPrivate ||= !!(await d
+  if (c?.visibility === "private") return true;
+  for (const t of CONVERSATION_ITEMS)
+    if (await d.selectFrom(t).select("id").where("conversation_id", "=", conversationId).where("visibility", "=", "private").executeTakeFirst()) return true;
+  // Memberships have no id column.
+  return !!(await d
     .selectFrom("group_members")
     .select("group_id")
     .where("conversation_id", "=", conversationId)
     .where("visibility", "=", "private")
     .executeTakeFirst());
-  await d
-    .updateTable("conversations")
-    .set({ transcript_private: isPrivate ? 1 : 0 })
-    .where("id", "=", conversationId)
-    .execute();
+}
+
+/**
+ * The verbatim transcript turns private whenever the conversation or any item recorded with it does. It never turns shared again
+ * here: the transcript still holds the text of a private item that was later deleted or shared, so only the recorder's explicit
+ * `shareTranscript` may lower it.
+ */
+async function raiseTranscriptPrivacy(d: Kysely<Schema>, conversationId: string): Promise<void> {
+  if (await holdsPrivate(d, conversationId)) await d.updateTable("conversations").set({ transcript_private: 1 }).where("id", "=", conversationId).execute();
+}
+
+/**
+ * Lets the partner read the transcript of a conversation the viewer recorded: the recorder's word that it holds nothing private any
+ * more. Refused while the conversation or anything recorded with it is private.
+ */
+export async function shareTranscript(v: Viewer, conversationId: string): Promise<void> {
+  const d = await db();
+  await d.transaction().execute(async (tx) => {
+    await load(tx, v, "conversations", conversationId, true);
+    if (await holdsPrivate(tx, conversationId))
+      throw new InvalidInputError("The conversation or something recorded with it is private: share those first, or keep the transcript private");
+    await tx.updateTable("conversations").set({ transcript_private: 0 }).where("id", "=", conversationId).execute();
+  });
 }
 
 /**
  * Changes who can see an item the viewer recorded. A conversation made private takes its items with it; made shared again, its
- * individually private items stay private. Either way the transcript rule is applied afresh.
+ * individually private items stay private. A private result makes the transcript private; nothing here makes it shared again.
  */
 export async function setVisibility(v: Viewer, table: ItemTable, id: string, visibility: Visibility): Promise<void> {
   assertTable(table);
@@ -230,8 +240,8 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
             .where("conversation_id", "=", id)
             .execute();
       }
-      await recomputeTranscriptPrivacy(tx, id);
-    } else if (row.conversation_id) await recomputeTranscriptPrivacy(tx, row.conversation_id);
+      await raiseTranscriptPrivacy(tx, id);
+    } else if (row.conversation_id) await raiseTranscriptPrivacy(tx, row.conversation_id);
   });
 }
 

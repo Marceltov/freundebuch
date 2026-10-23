@@ -217,6 +217,10 @@ describe("tools", () => {
     expect(await call(s.a, "correct", { action: "rename", id: s.lena, name: "Lena M." })).toMatchObject(ok);
     expect(await call(s.a, "correct", { action: "merge", id: s.anna, drop: s.tom })).toMatchObject(ok);
     expect(await d.selectFrom("persons").select("id").where("id", "=", s.tom).execute()).toEqual([]);
+    // The dinner still holds private items, so its transcript stays private; the coffee is B's to never see.
+    expect(await call(s.a, "correct", { action: "share_transcript", id: s.dinner })).toMatchObject({ isError: true, content: [{ text: expect.stringContaining("private") }] });
+    expect(await call(s.b, "correct", { action: "share_transcript", id: s.coffee })).toMatchObject({ isError: true });
+    expect(await call(s.a, "correct", { action: "share_transcript", id: s.call })).toMatchObject({ isError: true }); // B recorded it
     expect((await call(s.a, "correct", { action: "done", table: "facts", id: marathon })).isError).toBe(true);
     expect(await call(s.a, "correct", { action: "merge", id: s.anna })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^drop: /) }] });
   });
@@ -230,6 +234,17 @@ describe("tools", () => {
 });
 
 describe("privacy over MCP", () => {
+  test("get_transcript stays null for B after A shares the private items, until A uses share_transcript", async () => {
+    const r = await call(s.a, "record_conversation", ramble());
+    const id = r.structuredContent.conversationId;
+    const d = await db();
+    const money = (await d.selectFrom("facts").select("id").where("text", "=", "worried about money").executeTakeFirstOrThrow()).id;
+    expect(await call(s.a, "correct", { action: "visibility", table: "facts", id: money, visibility: "shared" })).toMatchObject({ structuredContent: { corrected: true } });
+    expect((await call(s.b, "get_transcript", { conversationId: id })).structuredContent.transcript).toBeNull();
+    expect(await call(s.a, "correct", { action: "share_transcript", id })).toMatchObject({ structuredContent: { corrected: true } });
+    expect((await call(s.b, "get_transcript", { conversationId: id })).structuredContent.transcript).toContain("worried about money");
+  });
+
   test("B's briefing never shows A's private item from a ramble recorded through MCP", async () => {
     await call(s.a, "record_conversation", ramble());
     const mine = JSON.stringify((await call(s.a, "briefing", { personId: s.anna })).structuredContent);
