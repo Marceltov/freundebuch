@@ -40,3 +40,11 @@ export class AuthError extends FreundebuchError {
     super("unauthorized", message);
   }
 }
+
+// A request the API can't read: a query, path or body that doesn't match the operation's description. Domain input that is
+// readable but wrong is InvalidInputError.
+export class InvalidRequestError extends FreundebuchError {
+  constructor(message: string) {
+    super("invalid_request", message);
+  }
+}

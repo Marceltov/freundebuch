@@ -9,6 +9,7 @@ export { healthRoute };
 export { IDENTITY_COOKIE, identityOk, logoutRoute, requireViewer, type Surface, viewerFromCookie, viewerFromRequest } from "./auth/session";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
+export { dispatch } from "./http/api";
 export { mcpResource, publicUrl, safeNext } from "./urls";
 
 // The health probe asks the database a trivial question; opening it (and migrating) is part of answering.
