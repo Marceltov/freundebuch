@@ -83,7 +83,14 @@ describe("runDaily", () => {
 });
 
 describe("runDailyIfDue (the scheduler's tick)", () => {
-  beforeEach(async () => putSettings(s.a, { webhookUrl: "https://ntfy.example/a" }));
+  beforeEach(async () => {
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+    // B has something due too (A's private birthday is not B's).
+    await (await db())
+      .insertInto("promises")
+      .values({ id: "pb", person_id: s.anna, text: "Anruf", due: "2026-10-23", by_me: 1, done: 0, visibility: "shared", recorded_by: s.b.userId, conversation_id: null, created_at: 1 })
+      .execute();
+  });
 
   test("sends once per day, however often it ticks", async () => {
     await runDailyIfDue(NOW, fetchFn);
@@ -93,6 +100,46 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
     expect(sent).toHaveLength(first);
     await runDailyIfDue(NOW + 24 * 3600_000, fetchFn); // the next day
     expect(sent.length).toBeGreaterThan(first);
+  });
+
+  test("a failing receiver for A doesn't stop B, and neither is sent to again", async () => {
+    await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+    const mixed = (async (url: string, init: RequestInit) => {
+      const res = await fetchFn(url, init);
+      return url.endsWith("/a") ? new Response(null, { status: 500 }) : res;
+    }) as unknown as typeof fetch;
+    await runDailyIfDue(NOW, mixed);
+    const once = sent.length;
+    expect(sent.some((m) => m.url.endsWith("/b"))).toBe(true);
+    await runDailyIfDue(NOW + 60_000, fetchFn);
+    expect(sent).toHaveLength(once);
+  });
+
+  test("a user whose processing throws is retried, the others are not resent", async () => {
+    await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
+    const due = await import("../due");
+    const real = due.whatsDue;
+    const spy = vi.spyOn(due, "whatsDue").mockImplementation(async (v, ...rest) => {
+      if (v.userId === s.a.userId) throw new Error("boom");
+      return real(v, ...rest);
+    });
+    await runDailyIfDue(NOW, fetchFn);
+    const toB = sent.filter((m) => m.url.endsWith("/b")).length;
+    expect(sent.filter((m) => m.url.endsWith("/a"))).toHaveLength(0);
+    spy.mockRestore();
+    await runDailyIfDue(NOW + 60_000, fetchFn);
+    expect(sent.filter((m) => m.url.endsWith("/a")).length).toBeGreaterThan(0);
+    expect(sent.filter((m) => m.url.endsWith("/b"))).toHaveLength(toB);
+  });
+
+  test("a restart after A was served sends only to B", async () => {
+    await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
+    const d = await db();
+    await d.insertInto("meta").values({ key: `last_notify_date:${s.a.userId}`, value: "2026-10-23" }).execute();
+    await runDailyIfDue(NOW, fetchFn);
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent.every((m) => m.url.endsWith("/b"))).toBe(true);
   });
 
   test("waits until the configured time", async () => {

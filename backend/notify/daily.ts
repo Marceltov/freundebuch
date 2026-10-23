@@ -5,7 +5,7 @@ import { config } from "../config";
 import { db } from "../db";
 import { today } from "../dates";
 import { lastSeen } from "../intervals";
-import { logger } from "../log";
+import { errorFields, logger } from "../log";
 import { processState } from "../state";
 import { upcomingDates, whatsDue, type DueItem } from "../due";
 import { viewerById } from "../users";
@@ -33,22 +33,38 @@ async function message(v: Viewer, item: DueItem, from: string, click: (id: strin
   return { ...base, title: fill(copy.date, { label, when, name: item.name }), body: "", tags: ["calendar"] };
 }
 
-/** Sends every user with a webhook their due items (at most 10 messages: past nine, the tenth is "+N weitere"). Returns how many were sent. */
-export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch): Promise<number> {
+const doneKey = (userId: string) => `last_notify_date:${userId}`;
+
+/**
+ * Sends every user with a webhook their due items (at most 10 messages: past nine, the tenth is "+N weitere"). Returns how many were sent.
+ * With `onlyNew`, a user already served on this day (meta `last_notify_date:<userId>`) is skipped, and each user is marked right after
+ * their messages were attempted: a failure for one user is logged and leaves the others alone, and a restart never resends.
+ */
+export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, onlyNew = false): Promise<number> {
   const from = today(now);
   // A background job has no request to take the address from.
   const base = config.publicUrl();
   const click = (id: string) => (base ? `${base}/p/${id}` : undefined);
-  const rows = await (await db()).selectFrom("user_settings").select(["user_id", "webhook_url"]).where("webhook_url", "is not", null).execute();
+  const d = await db();
+  const rows = await d.selectFrom("user_settings").select(["user_id", "webhook_url"]).where("webhook_url", "is not", null).execute();
   let sent = 0;
   for (const row of rows) {
-    const v = await viewerById(row.user_id);
-    if (!v) continue;
-    const items = await whatsDue(v, from, 1);
-    const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
-    const messages = await Promise.all(shown.map((i) => message(v, i, from, click)));
-    if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });
-    for (const m of messages) if (await sendWebhook(row.webhook_url!, m, fetchFn)) sent++;
+    try {
+      if (onlyNew) {
+        const mark = await d.selectFrom("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
+        if (mark?.value === from) continue;
+      }
+      const v = await viewerById(row.user_id);
+      if (!v) continue;
+      const items = await whatsDue(v, from, 1);
+      const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
+      const messages = await Promise.all(shown.map((i) => message(v, i, from, click)));
+      if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });
+      for (const m of messages) if (await sendWebhook(row.webhook_url!, m, fetchFn)) sent++;
+      if (onlyNew) await d.insertInto("meta").values({ key: doneKey(row.user_id), value: from }).onConflict((oc) => oc.column("key").doUpdateSet({ value: from })).execute();
+    } catch (e) {
+      log.error({ err: errorFields(e) }, "daily reminders failed for a user");
+    }
   }
   log.info({ sent }, "daily reminders sent");
   return sent;
@@ -59,17 +75,12 @@ const localTime = (now: number) =>
 
 const running = processState("notify", () => ({ busy: false, timer: null as NodeJS.Timeout | null }));
 
-/** One tick of the scheduler: runs the day's reminders when it is NOTIFY_AT or later and they haven't gone out yet today. */
+/** One tick of the scheduler: from NOTIFY_AT on, serves each user who hasn't had today's reminders yet. */
 export async function runDailyIfDue(now = Date.now(), fetchFn: typeof fetch = fetch): Promise<void> {
   if (running.busy || localTime(now) < config.notifyAt()) return;
-  const day = today(now);
-  const d = await db();
-  const last = await d.selectFrom("meta").select("value").where("key", "=", "last_notify_date").executeTakeFirst();
-  if (last?.value === day) return;
   running.busy = true;
   try {
-    await runDaily(now, fetchFn);
-    await d.insertInto("meta").values({ key: "last_notify_date", value: day }).onConflict((oc) => oc.column("key").doUpdateSet({ value: day })).execute();
+    await runDaily(now, fetchFn, true);
   } finally {
     running.busy = false;
   }
