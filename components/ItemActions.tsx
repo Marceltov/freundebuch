@@ -71,6 +71,8 @@ export function ItemActions({
     );
 
   const done = table === "promises" || table === "exchanges";
+  // The partner's conversation: nothing either user may do to it, so no empty menu.
+  if (!done && table !== "facts" && !mine) return null;
   return (
     <span className="relative ml-auto inline-flex shrink-0 items-center">
       {open && (
