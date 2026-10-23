@@ -83,7 +83,7 @@ function oneOf<T extends string>(value: string, allowed: readonly T[], what: str
 function validate(c: NewConversation): void {
   assertDay(c.date, "The conversation date");
   oneOf(c.kind, CONVERSATION_KINDS, "conversation kind");
-  oneOf(c.visibility, VISIBILITIES, "visibility");
+  checkVisibility(c.visibility);
   if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
   if (c.transcript.length > MAX_TRANSCRIPT) throw new InvalidInputError(`The transcript holds at most ${MAX_TRANSCRIPT} characters`);
   for (const p of c.people) if (!p.id && !p.name?.trim()) throw new InvalidInputError("Each person needs an id (existing) or a name (new)");
@@ -108,16 +108,56 @@ function validate(c: NewConversation): void {
     oneOf(e.kind, EXCHANGE_KINDS, "exchange kind");
     oneOf(e.direction, ["to_them", "from_them"], "direction");
   }
-  for (const r of c.relationships ?? []) {
-    ref(r.from);
-    ref(r.to);
-    oneOf(r.type, RELATIONSHIP_TYPES, "relationship type");
-    if (r.from === r.to) throw new InvalidInputError("A relationship needs two different people");
+  for (const r of c.relationships ?? []) checkRelationship(r, ref);
+  for (const g of c.groups ?? []) checkGroup(g, ref);
+}
+
+// The checks and writers of relationships and group memberships, shared with relate (relationships.ts), which records them
+// without a conversation. `ref` checks one person reference: an index here, a person id there.
+
+export function checkVisibility(visibility: string): void {
+  oneOf(visibility, VISIBILITIES, "visibility");
+}
+
+export function checkRelationship<P>(r: { from: P; to: P; type: string }, ref: (p: P) => void): void {
+  ref(r.from);
+  ref(r.to);
+  oneOf(r.type, RELATIONSHIP_TYPES, "relationship type");
+  if (r.from === r.to) throw new InvalidInputError("A relationship needs two different people");
+}
+
+export function checkGroup<P>(g: { name: string; members: P[] }, ref: (p: P) => void): void {
+  if (!g.name.trim()) throw new InvalidInputError("A group needs a name");
+  g.members.forEach(ref);
+}
+
+/** Who recorded an item, when, and with which conversation (null for one set directly). */
+export type ItemBase = { recorded_by: string; conversation_id: string | null; created_at: number };
+
+export async function insertRelationship(
+  tx: Kysely<Schema>,
+  base: ItemBase,
+  r: { fromId: string; toId: string; type: RelationshipType; note?: string; visibility: Visibility },
+): Promise<string> {
+  const id = newId();
+  await tx.insertInto("relationships").values({ ...base, id, from_id: r.fromId, to_id: r.toId, type: r.type, note: r.note ?? null, visibility: r.visibility }).execute();
+  return id;
+}
+
+/** Adds the people to the group with this name (created when there is none); returns how many memberships were new. */
+export async function insertMemberships(tx: Kysely<Schema>, base: ItemBase, name: string, personIds: string[], visibility: Visibility): Promise<number> {
+  const groupId = await groupNamed(tx, name.trim());
+  let added = 0;
+  // Each user has their own membership row. One the viewer recorded before keeps its visibility; only they may change it.
+  for (const m of new Set(personIds)) {
+    const r = await tx
+      .insertInto("group_members")
+      .values({ group_id: groupId, person_id: m, visibility, recorded_by: base.recorded_by, conversation_id: base.conversation_id })
+      .onConflict((oc) => oc.doNothing())
+      .executeTakeFirst();
+    added += Number(r.numInsertedOrUpdatedRows ?? 0);
   }
-  for (const g of c.groups ?? []) {
-    if (!g.name.trim()) throw new InvalidInputError("A group needs a name");
-    g.members.forEach(ref);
-  }
+  return added;
 }
 
 export async function recordConversation(v: Viewer, c: NewConversation): Promise<Recorded> {
@@ -127,7 +167,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
   const transcriptPrivate = c.visibility === "private" || items.some((i) => i.private) ? 1 : 0;
   const conversationId = newId();
   const t = now();
-  const base = { recorded_by: v.userId, conversation_id: conversationId, created_at: t };
+  const base: ItemBase = { recorded_by: v.userId, conversation_id: conversationId, created_at: t };
 
   return (await db()).transaction().execute(async (tx) => {
     await tx
@@ -178,21 +218,9 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
         .insertInto("exchanges")
         .values({ ...base, id: newId(), person_id: id(e.person), kind: e.kind, direction: e.direction, text: e.text, amount: e.amount ?? null, currency: e.currency ?? null, visibility: vis(e) })
         .execute();
-    for (const r of c.relationships ?? [])
-      await tx.insertInto("relationships").values({ ...base, id: newId(), from_id: id(r.from), to_id: id(r.to), type: r.type, note: r.note ?? null, visibility: vis(r) }).execute();
+    for (const r of c.relationships ?? []) await insertRelationship(tx, base, { fromId: id(r.from), toId: id(r.to), type: r.type, note: r.note, visibility: vis(r) });
     let memberships = 0;
-    for (const g of c.groups ?? []) {
-      const groupId = await groupNamed(tx, g.name.trim());
-      // Each user has their own membership row. One the viewer recorded before keeps its visibility; only they may change it.
-      for (const m of new Set(g.members.map(id))) {
-        const r = await tx
-          .insertInto("group_members")
-          .values({ group_id: groupId, person_id: m, visibility: vis(g), recorded_by: v.userId, conversation_id: conversationId })
-          .onConflict((oc) => oc.doNothing())
-          .executeTakeFirst();
-        memberships += Number(r.numInsertedOrUpdatedRows ?? 0);
-      }
-    }
+    for (const g of c.groups ?? []) memberships += await insertMemberships(tx, base, g.name, g.members.map(id), vis(g));
 
     const counts = { ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]), groups: memberships };
     return { conversationId, people, counts };

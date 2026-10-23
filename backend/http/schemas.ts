@@ -13,9 +13,9 @@ export const ErrorJson = z
   })
   .meta({ id: "Error" });
 
-const Visibility = z.enum(VISIBILITIES).describe("`private` items are visible only to whoever recorded them");
-const Day = z.string().describe("A day, `YYYY-MM-DD`");
-const PersonId = z.string().describe("A person's id");
+export const Visibility = z.enum(VISIBILITIES).describe("`private` items are visible only to whoever recorded them");
+export const Day = z.string().describe("A day, `YYYY-MM-DD`");
+export const PersonId = z.string().describe("A person's id");
 
 export const PersonJson = z
   .object({

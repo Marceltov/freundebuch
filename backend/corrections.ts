@@ -13,7 +13,7 @@ import { visible } from "./visibility";
 
 export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations";
 
-const ITEM_TABLES: readonly ItemTable[] = ["facts", "promises", "dates", "exchanges", "relationships", "conversations"];
+export const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "conversations"] as const;
 /** The tables whose items belong to a conversation and weigh on its transcript privacy. */
 const CONVERSATION_ITEMS = ["facts", "promises", "dates", "exchanges", "relationships"] as const;
 
