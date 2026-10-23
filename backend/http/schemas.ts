@@ -185,7 +185,13 @@ export const ItemPatchJson = z
 export const PersonListJson = z.array(PersonJson).meta({ id: "PersonList" });
 export const DueListJson = z.array(DueItemJson).meta({ id: "DueList" });
 
-export const COMPONENTS = [ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, IntervalJson, MergeJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const SettingsJson = z
+  .object({ webhookUrl: z.url({ protocol: /^https?$/ }).nullable().describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https") })
+  .meta({ id: "Settings" });
+
+export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
+
+export const COMPONENTS = [SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, IntervalJson, MergeJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

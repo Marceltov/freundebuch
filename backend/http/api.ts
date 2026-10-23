@@ -10,6 +10,7 @@ import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError } from "../errors";
 import { setCheckInInterval } from "../intervals";
 import { findPeople, getPerson, listPeople } from "../people";
+import { getSettings, putSettings, testWebhook } from "../settings";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
@@ -27,6 +28,8 @@ import {
   PersonJson,
   PersonListJson,
   RecordedJson,
+  SentJson,
+  SettingsJson,
   TableParam,
 } from "./schemas";
 
@@ -189,6 +192,44 @@ const OPS: AnyOp[] = [
     await deleteItem(viewer, params.table as ItemTable, params.id);
     return { status: 204, body: undefined };
   }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/me/settings`,
+    operationId: "getSettings",
+    summary: "The caller's settings",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The settings", schema: SettingsJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: await getSettings(viewer) })),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/me/settings`,
+    operationId: "putSettings",
+    summary: "Change the caller's settings",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    body: SettingsJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => {
+    await putSettings(viewer, body);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/me/settings/test`,
+    operationId: "testWebhook",
+    summary: "Send a test message to the caller's webhook",
+    description: "`sent` is false when there is no webhook or it didn't accept the message.",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "Whether it was sent", schema: SentJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: { sent: await testWebhook(viewer) } })),
 
   op({
     method: "GET",

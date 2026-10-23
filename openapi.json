@@ -708,6 +708,135 @@
         }
       }
     },
+    "/api/v1/me/settings": {
+      "get": {
+        "operationId": "getSettings",
+        "summary": "The caller's settings",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putSettings",
+        "summary": "Change the caller's settings",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/settings/test": {
+      "post": {
+        "operationId": "testWebhook",
+        "summary": "Send a test message to the caller's webhook",
+        "description": "`sent` is false when there is no webhook or it didn't accept the message.",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether it was sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/openapi.json": {
       "get": {
         "operationId": "getOpenApi",
@@ -755,6 +884,38 @@
   },
   "components": {
     "schemas": {
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "webhookUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"
+          }
+        },
+        "required": [
+          "webhookUrl"
+        ]
+      },
+      "Sent": {
+        "type": "object",
+        "properties": {
+          "sent": {
+            "type": "boolean",
+            "description": "Whether the receiver accepted the message"
+          }
+        },
+        "required": [
+          "sent"
+        ]
+      },
       "Error": {
         "type": "object",
         "properties": {

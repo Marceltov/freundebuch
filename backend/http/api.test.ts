@@ -215,3 +215,18 @@ describe("privacy through the API: B never sees A's private items", () => {
     expect((await call(s.b, "GET", `/people/${s.lena}/briefing`)).json.current).toEqual([]);
   });
 });
+
+describe("settings", () => {
+  test("a user reads and sets their own webhook; another scheme is rejected; signed out is 401", async () => {
+    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: null });
+    expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: "https://ntfy.example/a" })).status).toBe(204);
+    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: "https://ntfy.example/a" });
+    expect((await call(s.b, "GET", "/me/settings")).json).toEqual({ webhookUrl: null });
+    expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: "ftp://x.example/" })).status).toBe(400);
+    expect((await call(null, "GET", "/me/settings")).status).toBe(401);
+  });
+
+  test("testing without a webhook sends nothing", async () => {
+    expect((await call(s.b, "POST", "/me/settings/test")).json).toEqual({ sent: false });
+  });
+});
