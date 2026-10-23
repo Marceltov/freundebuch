@@ -48,6 +48,7 @@ const ITEM_KINDS = ["facts", "promises", "dates", "exchanges", "relationships", 
 export type Recorded = {
   conversationId: string;
   people: Array<{ ref: PersonRef; id: string; name: string; created: boolean }>;
+  /** Items written; `groups` counts the group memberships written. */
   counts: Record<(typeof ITEM_KINDS)[number], number>;
 };
 
@@ -167,7 +168,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     for (const personId of present) await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).execute();
 
     for (const f of c.facts ?? []) {
-      if (f.supersedes) await outdate(tx, v, f.supersedes, id(f.person));
+      if (f.supersedes) await outdate(tx, v, f.supersedes, id(f.person), vis(f));
       await tx.insertInto("facts").values({ ...base, id: newId(), person_id: id(f.person), text: f.text, category: f.category, visibility: vis(f) }).execute();
     }
     for (const p of c.promises ?? [])
@@ -184,23 +185,42 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
         .execute();
     for (const r of c.relationships ?? [])
       await tx.insertInto("relationships").values({ ...base, id: newId(), from_id: id(r.from), to_id: id(r.to), type: r.type, note: r.note ?? null, visibility: vis(r) }).execute();
+    let memberships = 0;
     for (const g of c.groups ?? []) {
       const groupId = await groupNamed(tx, g.name.trim());
-      // A membership that already exists keeps its visibility; only its recorder may change that.
-      for (const m of new Set(g.members.map(id)))
-        await tx.insertInto("group_members").values({ group_id: groupId, person_id: m, visibility: vis(g), recorded_by: v.userId }).onConflict((oc) => oc.doNothing()).execute();
+      // Each user has their own membership row. One the viewer recorded before keeps its visibility; only they may change it.
+      for (const m of new Set(g.members.map(id))) {
+        const r = await tx
+          .insertInto("group_members")
+          .values({ group_id: groupId, person_id: m, visibility: vis(g), recorded_by: v.userId })
+          .onConflict((oc) => oc.doNothing())
+          .executeTakeFirst();
+        memberships += Number(r.numInsertedOrUpdatedRows ?? 0);
+      }
     }
 
-    const counts = Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"];
+    const counts = { ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]), groups: memberships };
     return { conversationId, people, counts };
   });
 }
 
-/** Marks a fact the viewer can see as outdated; it must be about the same person as the fact that replaces it. */
-async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, personId: string): Promise<void> {
-  const old = await tx.selectFrom("facts").select("person_id").where("id", "=", factId).$call((qb) => visible(qb, v, "facts")).executeTakeFirst();
+/**
+ * Marks a fact the viewer can see as outdated; it must be about the same person as the fact that replaces it. A private fact may
+ * only replace the viewer's own private fact: outdating a shared one would show the partner that something private changed.
+ */
+async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, personId: string, visibility: Visibility): Promise<void> {
+  const old = await tx
+    .selectFrom("facts")
+    .select(["person_id", "visibility"])
+    .where("id", "=", factId)
+    .$call((qb) => visible(qb, v, "facts"))
+    .executeTakeFirst();
   if (!old) throw new NotFoundError(`No such fact: ${factId}`);
   if (old.person_id !== personId) throw new InvalidInputError("A fact can only supersede a fact about the same person");
+  if (visibility === "private" && old.visibility !== "private")
+    throw new InvalidInputError(
+      "A private fact can't replace a shared one: record the update as shared, or keep the old fact and add the private one without supersedes",
+    );
   await tx.updateTable("facts").set({ status: "outdated" }).where("id", "=", factId).execute();
 }
 

@@ -1,10 +1,13 @@
 // The partner must never see a private item, through any read function. One fixture, every read, as the other user (B on A's
 // recordings). Every later task that adds a read function adds its assertions here.
 import { beforeEach, expect, test } from "vitest";
-import { getConversation } from "./conversations";
-import { NotFoundError } from "./errors";
+import { getConversation, recordConversation } from "./conversations";
+import { db } from "./db/testing";
+import { InvalidInputError, NotFoundError } from "./errors";
 import { findPeople, getPerson, listPeople } from "./people";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
+import type { Viewer } from "./types";
+import { visible } from "./visibility";
 
 let s: Seed;
 
@@ -61,4 +64,46 @@ test("createdFrom never points B at where a person was first mentioned in privat
 test("names and aliases are shared: B finds Lena, without context", async () => {
   const [lena] = await findPeople(s.b, "Lena");
   expect(lena).toMatchObject({ id: s.lena, name: "Lena", context: [] });
+});
+
+const record = (v: Viewer, over: Partial<Parameters<typeof recordConversation>[1]>) =>
+  recordConversation(v, { date: "2026-10-21", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ id: s.anna, present: true }], ...over });
+
+test("A's private group membership neither blocks nor reveals itself to B's shared one for the same group and person", async () => {
+  const mine = await record(s.a, { groups: [{ name: "Uni", members: [0], private: true }] });
+  const theirs = await record(s.b, { groups: [{ name: "Uni", members: [0] }] });
+  expect([mine.counts.groups, theirs.counts.groups]).toEqual([1, 1]);
+  const seen = async (v: Viewer) =>
+    (
+      await (await db())
+        .selectFrom("group_members")
+        .innerJoin("groups", "groups.id", "group_members.group_id")
+        .select(["groups.name", "group_members.visibility"])
+        .where("group_members.person_id", "=", s.anna)
+        .$call((qb) => visible(qb, v, "group_members"))
+        .orderBy("group_members.visibility")
+        .execute()
+    ).map((r) => `${r.name}/${r.visibility}`);
+  expect(await seen(s.b)).toEqual(["Uni/shared"]);
+  expect(await seen(s.a)).toEqual(["Uni/private", "Uni/shared"]);
+});
+
+test("a private fact can't outdate B's shared fact, so B's fact stays current", async () => {
+  const d = await db();
+  const hiking = (await d.selectFrom("facts").select("id").where("text", "=", "likes hiking").executeTakeFirstOrThrow()).id;
+  const status = async () => (await d.selectFrom("facts").select("status").where("id", "=", hiking).executeTakeFirstOrThrow()).status;
+  const replace = { person: 0, text: "hurt her knee, no more hiking", category: "health" as const, supersedes: hiking };
+  await expect(record(s.a, { facts: [{ ...replace, private: true }] })).rejects.toThrow(/private fact can't replace a shared one/);
+  await expect(record(s.a, { visibility: "private", facts: [replace] })).rejects.toBeInstanceOf(InvalidInputError);
+  expect(await status()).toBe("current");
+  // A shared update may replace it, whoever recorded the old fact.
+  await record(s.a, { facts: [replace] });
+  expect(await status()).toBe("outdated");
+});
+
+test("a private fact may replace the recorder's own private fact", async () => {
+  const d = await db();
+  const divorce = (await d.selectFrom("facts").select("id").where("text", "=", "divorce").executeTakeFirstOrThrow()).id;
+  await record(s.a, { facts: [{ person: 0, text: "divorce is final", category: "family", private: true, supersedes: divorce }] });
+  expect((await d.selectFrom("facts").select("status").where("id", "=", divorce).executeTakeFirstOrThrow()).status).toBe("outdated");
 });

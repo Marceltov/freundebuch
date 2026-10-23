@@ -49,7 +49,7 @@ test("returns the people and correct counts", async () => {
     { ref: 0, name: "Anna", created: true },
     { ref: 1, name: "Tom", created: true },
   ]);
-  expect(r.counts).toEqual({ facts: 2, promises: 1, dates: 1, exchanges: 1, relationships: 1, groups: 1 });
+  expect(r.counts).toEqual({ facts: 2, promises: 1, dates: 1, exchanges: 1, relationships: 1, groups: 2 });
   expect(await rowCount("group_members")).toBe(2);
   expect((await getPerson(a, r.people[0].id)).aliases).toEqual(["Anni"]);
 });
