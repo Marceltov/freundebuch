@@ -403,6 +403,46 @@
         }
       }
     },
+    "/api/v1/orbit": {
+      "get": {
+        "operationId": "getOrbit",
+        "summary": "The people worth a look, placed around the caller",
+        "description": "At most 24, most urgent first: overdue or nearly so, seen within 14 days, a birthday within 14 days, or an open promise. Rings follow the caller's own last seen and interval; another user's private conversations never move a face.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Faces, most urgent first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Orbit"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/conversations": {
       "post": {
         "operationId": "recordConversation",
@@ -1130,12 +1170,26 @@
                     "travel",
                     "other"
                   ]
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
                 }
               },
               "required": [
                 "id",
                 "text",
-                "category"
+                "category",
+                "visibility",
+                "mine"
               ]
             }
           },
@@ -1161,13 +1215,27 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "mine": {
+                      "type": "boolean",
+                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
                     }
                   },
                   "required": [
                     "id",
                     "text",
                     "byMe",
-                    "due"
+                    "due",
+                    "visibility",
+                    "mine"
                   ]
                 }
               },
@@ -1210,6 +1278,18 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "mine": {
+                      "type": "boolean",
+                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
                     }
                   },
                   "required": [
@@ -1218,7 +1298,9 @@
                     "direction",
                     "text",
                     "amount",
-                    "currency"
+                    "currency",
+                    "visibility",
+                    "mine"
                   ]
                 }
               },
@@ -1232,11 +1314,25 @@
                     },
                     "text": {
                       "type": "string"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "mine": {
+                      "type": "boolean",
+                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
                     }
                   },
                   "required": [
                     "id",
-                    "text"
+                    "text",
+                    "visibility",
+                    "mine"
                   ]
                 }
               }
@@ -1379,6 +1475,64 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/DueItem"
+        }
+      },
+      "OrbitFace": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": "string",
+            "description": "A person's id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ring": {
+            "anyOf": [
+              {
+                "type": "number",
+                "const": 0
+              },
+              {
+                "type": "number",
+                "const": 1
+              },
+              {
+                "type": "number",
+                "const": 2
+              }
+            ],
+            "description": "0 seen recently, 1 drifting, 2 due or overdue, by the caller's own last seen and interval"
+          },
+          "angle": {
+            "type": "number",
+            "description": "Where on its ring, in degrees; stable for a person and spread evenly within the ring"
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "birthday",
+                "promise",
+                "gift"
+              ]
+            },
+            "description": "A birthday within 14 days, an open promise, a gift idea"
+          }
+        },
+        "required": [
+          "personId",
+          "name",
+          "ring",
+          "angle",
+          "badges"
+        ]
+      },
+      "Orbit": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrbitFace"
         }
       },
       "Interval": {

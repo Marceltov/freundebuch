@@ -3,10 +3,12 @@
 import { beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
 import { getConversation, recordConversation } from "./conversations";
+import { setVisibility } from "./corrections";
 import { db } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { whatsDue } from "./due";
 import { lastSeen, setCheckInInterval } from "./intervals";
+import { orbit } from "./orbit";
 import { findPeople, getPerson, listPeople } from "./people";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
 import type { Viewer } from "./types";
@@ -135,4 +137,34 @@ test("last seen and the interval are per user: B's call changes nothing for A, a
   expect((await findPeople(s.b, "Anna"))[0].context).toEqual(["last seen 2026-10-15"]);
   await setCheckInInterval(s.a, s.anna, 1, true);
   expect((await whatsDue(s.b, "2026-12-01")).map((i) => i.kind)).not.toContain("overdue");
+});
+
+test("the orbit is per viewer: A's private conversation with Anna and Bob doesn't move Anna for B, and A's private items add no faces or badges", async () => {
+  const now = Date.parse("2026-10-23T10:00:00Z");
+  await setCheckInInterval(s.a, s.anna, 7, true);
+  await setCheckInInterval(s.b, s.anna, 7, true);
+  // Bob was there, but the conversation is private to A: for B it never happened.
+  const coffee = await record(s.a, {
+    date: "2026-10-22",
+    visibility: "private",
+    people: [
+      { id: s.anna, present: true },
+      { id: s.b.personId, present: true },
+    ],
+    promises: [{ person: 0, text: "bring the wine", byMe: true }],
+  });
+  const ring = async (v: Viewer) => (await orbit(v, now)).find((f) => f.personId === s.anna);
+  expect(await ring(s.a)).toMatchObject({ ring: 0, badges: ["promise"] });
+  // B last saw Anna on 15 Oct: 8 days on a 7-day interval.
+  expect(await ring(s.b)).toMatchObject({ ring: 2, badges: [] });
+  // Tom's private birthday and Lena's private coffee are A's alone.
+  const b = (await orbit(s.b, now)).map((f) => f.personId);
+  expect(b).not.toContain(s.tom);
+  expect(b).not.toContain(s.lena);
+  const a = await orbit(s.a, now);
+  expect(a.find((f) => f.personId === s.tom)?.badges).toEqual(["birthday"]);
+  expect(a.map((f) => f.personId)).toContain(s.lena);
+  // Shared, it counts for B too; the promise stays private.
+  await setVisibility(s.a, "conversations", coffee.conversationId, "shared");
+  expect(await ring(s.b)).toMatchObject({ ring: 0, badges: [] });
 });

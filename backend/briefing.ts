@@ -5,21 +5,24 @@ import { today } from "./dates";
 import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "./intervals";
 import { getPerson } from "./people";
-import type { ExchangeKind, FactCategory, RelationshipType, Viewer } from "./types";
+import type { ExchangeKind, FactCategory, RelationshipType, Viewer, Visibility } from "./types";
 import { visible } from "./visibility";
 
 const NEXT_DATES_DAYS = 60;
 const RECENT = 5;
 
+/** Whose an item is: `mine` when the viewer recorded it, which is when the page offers edit, visibility and delete. */
+type Own = { visibility: Visibility; mine: boolean };
+
 export type Briefing = {
   person: { id: string; name: string; aliases: string[] };
   freshness: Freshness;
   nextDates: UpcomingDate[];
-  current: Array<{ id: string; text: string; category: FactCategory }>;
+  current: Array<Own & { id: string; text: string; category: FactCategory }>;
   open: {
-    promises: Array<{ id: string; text: string; byMe: boolean; due: string | null }>;
-    exchanges: Array<{ id: string; kind: ExchangeKind; direction: "to_them" | "from_them"; text: string; amount: number | null; currency: string | null }>;
-    giftIdeas: Array<{ id: string; text: string }>;
+    promises: Array<Own & { id: string; text: string; byMe: boolean; due: string | null }>;
+    exchanges: Array<Own & { id: string; kind: ExchangeKind; direction: "to_them" | "from_them"; text: string; amount: number | null; currency: string | null }>;
+    giftIdeas: Array<Own & { id: string; text: string }>;
   };
   recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[] }>;
   /** `direction` is `out` when the person is the `from` side of the relationship (see `RelationshipType`), `in` otherwise. */
@@ -72,16 +75,19 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .map((o) => names.get(o.person_id) ?? "")
       .sort((a, b) => a.localeCompare(b));
 
+  const own = (r: { visibility: string; recorded_by: string }): Own => ({ visibility: r.visibility as Visibility, mine: r.recorded_by === v.userId });
   const suggested = setting?.interval_confirmed ? null : await suggestInterval(v, personId);
   return {
     person: { id: person.id, name: person.name, aliases: person.aliases },
     freshness: fresh,
     nextDates,
-    current: facts.map((f) => ({ id: f.id, text: f.text, category: f.category as FactCategory })),
+    current: facts.map((f) => ({ id: f.id, text: f.text, category: f.category as FactCategory, ...own(f) })),
     open: {
-      promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me, due: p.due })),
-      exchanges: exchanges.filter((e) => e.kind !== "gift_idea").map((e) => ({ id: e.id, kind: e.kind as ExchangeKind, direction: e.direction, text: e.text, amount: e.amount, currency: e.currency })),
-      giftIdeas: exchanges.filter((e) => e.kind === "gift_idea").map((e) => ({ id: e.id, text: e.text })),
+      promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me, due: p.due, ...own(p) })),
+      exchanges: exchanges
+        .filter((e) => e.kind !== "gift_idea")
+        .map((e) => ({ id: e.id, kind: e.kind as ExchangeKind, direction: e.direction, text: e.text, amount: e.amount, currency: e.currency, ...own(e) })),
+      giftIdeas: exchanges.filter((e) => e.kind === "gift_idea").map((e) => ({ id: e.id, text: e.text, ...own(e) })),
     },
     recent: convs.map((c) => ({ id: c.id, date: c.date, kind: c.kind, summary: c.summary, withOthers: withOthers(c.id) })),
     relationships: rels.map((r) => {

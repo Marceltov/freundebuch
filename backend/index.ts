@@ -12,6 +12,16 @@ export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRo
 export { dispatch } from "./http/api";
 export { mcpRoute } from "./mcp";
 export { mcpResource, publicUrl, safeNext } from "./urls";
+export { e2eLoginRoute } from "./auth/e2e";
+
+// What the pages read, as the viewer sees it.
+export { briefing, type Briefing } from "./briefing";
+export { getConversation, type ConversationView } from "./conversations";
+export { daysBetween, today } from "./dates";
+export { NotFoundError } from "./errors";
+export { orbit, type Badge, type OrbitFace } from "./orbit";
+export { getSettings } from "./settings";
+export type { Viewer } from "./types";
 
 // The health probe asks the database a trivial question; opening it (and migrating) is part of answering.
 setDbProbe(async () => sql`select 1`.execute(await db()));

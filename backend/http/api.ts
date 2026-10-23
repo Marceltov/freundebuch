@@ -9,6 +9,7 @@ import { getConversation, recordConversation } from "../conversations";
 import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError } from "../errors";
 import { setCheckInInterval } from "../intervals";
+import { orbit } from "../orbit";
 import { findPeople, getPerson, listPeople } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { API_PREFIX, publicUrl } from "../urls";
@@ -24,6 +25,7 @@ import {
   ItemPatchJson,
   MergeJson,
   NewConversationJson,
+  OrbitJson,
   PeopleQuery,
   PersonJson,
   PersonListJson,
@@ -126,6 +128,20 @@ const OPS: AnyOp[] = [
     params: {},
     responses: { 200: { description: "Due items, most pressing first", schema: DueListJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: await whatsDue(viewer) })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/orbit`,
+    operationId: "getOrbit",
+    summary: "The people worth a look, placed around the caller",
+    description:
+      "At most 24, most urgent first: overdue or nearly so, seen within 14 days, a birthday within 14 days, or an open promise. " +
+      "Rings follow the caller's own last seen and interval; another user's private conversations never move a face.",
+    tags: ["People"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "Faces, most urgent first", schema: OrbitJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: await orbit(viewer) })),
 
   op({
     method: "POST",

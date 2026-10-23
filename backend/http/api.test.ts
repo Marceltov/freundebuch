@@ -80,6 +80,15 @@ describe("people", () => {
     expect((await call(s.a, "POST", `/people/${max}/merge`, {})).json.code).toBe("invalid_request");
   });
 
+  test("orbit", async () => {
+    await call(s.a, "POST", "/conversations", lunch({ visibility: "private" })); // the open promise keeps Max in the orbit
+    const res = await call(s.a, "GET", "/orbit");
+    expect(res.status).toBe(200);
+    expect(res.json.find((f: { name: string }) => f.name === "Max")).toMatchObject({ ring: expect.any(Number), angle: expect.any(Number), badges: ["promise"] });
+    expect((await call(s.b, "GET", "/orbit")).json.map((f: { name: string }) => f.name)).not.toContain("Max");
+    expect((await call(null, "GET", "/orbit")).status).toBe(401);
+  });
+
   test("due", async () => {
     const res = await call(s.a, "GET", "/due");
     expect(res.status).toBe(200);

@@ -51,5 +51,8 @@ export const config = {
   // Failed sign-ins per minute and IP; 0 or below turns the limit off. Unset or not a number → 60.
   rateLimit: (): number => ((n) => (Number.isInteger(n) ? n : 60))(Number.parseInt(env("FREUNDEBUCH_RATE_LIMIT").trim(), 10)),
   // Unset, empty or not a level → info.
+  // The Playwright tests' sign-in without authentik (auth/e2e.ts). Never in a production build: Next inlines NODE_ENV when it
+  // builds, so in the image this is false whatever FREUNDEBUCH_E2E says.
+  e2e: (): boolean => env("FREUNDEBUCH_E2E") === "1" && process.env.NODE_ENV !== "production",
   logLevel: (): LogLevel => ((l) => ((LOG_LEVELS as readonly string[]).includes(l) ? (l as LogLevel) : "info"))(env("FREUNDEBUCH_LOG_LEVEL").trim().toLowerCase()),
 };

@@ -44,19 +44,20 @@ const UpcomingDate = z.object({
 });
 
 const Direction = z.enum(["to_them", "from_them"]);
+const Own = { visibility: Visibility, mine: z.boolean().describe("Whether the caller recorded it; only then may they edit it, change its visibility or delete it") };
 
 export const BriefingJson = z
   .object({
     person: z.object({ id: PersonId, name: z.string(), aliases: z.array(z.string()) }),
     freshness: Freshness,
     nextDates: z.array(UpcomingDate),
-    current: z.array(z.object({ id: z.string(), text: z.string(), category: z.enum(FACT_CATEGORIES) })),
+    current: z.array(z.object({ id: z.string(), text: z.string(), category: z.enum(FACT_CATEGORIES), ...Own })),
     open: z.object({
-      promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: z.boolean(), due: z.string().nullable() })),
+      promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: z.boolean(), due: z.string().nullable(), ...Own })),
       exchanges: z.array(
-        z.object({ id: z.string(), kind: z.enum(EXCHANGE_KINDS), direction: Direction, text: z.string(), amount: z.number().nullable(), currency: z.string().nullable() }),
+        z.object({ id: z.string(), kind: z.enum(EXCHANGE_KINDS), direction: Direction, text: z.string(), amount: z.number().nullable(), currency: z.string().nullable(), ...Own }),
       ),
-      giftIdeas: z.array(z.object({ id: z.string(), text: z.string() })),
+      giftIdeas: z.array(z.object({ id: z.string(), text: z.string(), ...Own })),
     }),
     recent: z.array(z.object({ id: z.string(), date: Day, kind: z.string(), summary: z.string(), withOthers: z.array(z.string()) })),
     relationships: z.array(
@@ -81,6 +82,16 @@ export const DueItemJson = z
     ratio: z.number().optional(),
   })
   .meta({ id: "DueItem" });
+
+export const OrbitFaceJson = z
+  .object({
+    personId: PersonId,
+    name: z.string(),
+    ring: z.union([z.literal(0), z.literal(1), z.literal(2)]).describe("0 seen recently, 1 drifting, 2 due or overdue, by the caller's own last seen and interval"),
+    angle: z.number().describe("Where on its ring, in degrees; stable for a person and spread evenly within the ring"),
+    badges: z.array(z.enum(["birthday", "promise", "gift"])).describe("A birthday within 14 days, an open promise, a gift idea"),
+  })
+  .meta({ id: "OrbitFace" });
 
 export const IntervalJson = z
   .object({
@@ -184,6 +195,7 @@ export const ItemPatchJson = z
 // A list of components is a component too: the generator only resolves a $ref at the top of a schema.
 export const PersonListJson = z.array(PersonJson).meta({ id: "PersonList" });
 export const DueListJson = z.array(DueItemJson).meta({ id: "DueList" });
+export const OrbitJson = z.array(OrbitFaceJson).meta({ id: "Orbit" });
 
 export const SettingsJson = z
   .object({ webhookUrl: z.url({ protocol: /^https?$/ }).nullable().describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https") })
@@ -191,7 +203,7 @@ export const SettingsJson = z
 
 export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
 
-export const COMPONENTS = [SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, IntervalJson, MergeJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

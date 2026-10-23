@@ -113,3 +113,14 @@ test("the suggested interval appears until the interval is confirmed", async () 
 test("an unknown person is not found", async () => {
   await expect(briefing(s.a, "nobody")).rejects.toBeInstanceOf(NotFoundError);
 });
+
+test("each item says whether it is the viewer's own and how visible it is, so only the recorder is offered edit, visibility and delete", async () => {
+  await record(s.a, { promises: [{ person: 0, text: "return the tent", byMe: true, private: true }], exchanges: [{ person: 0, kind: "gift_idea", direction: "to_them", text: "a map" }] });
+  const facts = (v: Viewer) => briefing(v, s.anna, "2026-10-23").then((b) => Object.fromEntries(b.current.map((f) => [f.text, [f.mine, f.visibility]])));
+  expect(await facts(s.a)).toEqual({ "new job": [true, "shared"], divorce: [true, "private"], "likes hiking": [false, "shared"] });
+  expect(await facts(s.b)).toEqual({ "new job": [false, "shared"], "likes hiking": [true, "shared"] });
+  const a = await briefing(s.a, s.anna, "2026-10-23");
+  expect(a.open.promises).toMatchObject([{ text: "return the tent", mine: true, visibility: "private" }]);
+  expect(a.open.giftIdeas).toMatchObject([{ text: "a map", mine: true, visibility: "shared" }]);
+  expect((await briefing(s.b, s.anna, "2026-10-23")).open.giftIdeas).toMatchObject([{ text: "a map", mine: false, visibility: "shared" }]);
+});

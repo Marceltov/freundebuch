@@ -11,6 +11,9 @@
   --muted: #686d7a;
   --error: #b3261e;
   --on-carbon: #ffffff;
+  --fresh: #2a9d8f;
+  --drift: #e0962b;
+  --due: #d0573a;
   color-scheme: light;
 }
 
@@ -25,6 +28,9 @@
     --muted: #9a9eab;
     --error: #ff8a80;
     --on-carbon: #15161b;
+    --fresh: #4fc1b2;
+    --drift: #f2b45c;
+    --due: #f08a6c;
     color-scheme: dark;
   }
 }
