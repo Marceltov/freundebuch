@@ -7,7 +7,7 @@ const log = logger("health");
 
 export type DbProbe = () => unknown | Promise<unknown>;
 
-// Task 2 wires this to the database (`db()`); until then nothing can be down.
+// backend/index.ts wires this to the database (`db()`); until then nothing can be down.
 let probe: DbProbe = () => undefined;
 
 /** Sets what asks the database whether it answers; it throws or rejects when it does not. */
