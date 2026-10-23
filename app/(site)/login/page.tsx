@@ -4,7 +4,7 @@ import { SignInError } from "@/components/SignInError";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Anmelden" };
+export const metadata = { title: copy.signInTitle };
 
 // One way in: authentik. The link starts the sign-in (GET /api/oidc/start), which comes back to `next`, or here with ?error=.
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {

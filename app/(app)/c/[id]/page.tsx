@@ -10,7 +10,7 @@ import { orNotFound, pageViewer } from "../../viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Gespräch" };
+export const metadata = { title: copy.conversation };
 
 // One conversation: when and how, who was there, the summary and the verbatim transcript, or a lock when it is private to the
 // other user (it holds something only they may read).

@@ -6,7 +6,7 @@ import { SignInError } from "@/components/SignInError";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Verbinden" };
+export const metadata = { title: copy.connectTitle };
 
 // The OAuth authorize step: an MCP client (the Claude app) wants in. Signing in through authentik is the consent: the form
 // posts the checked fields to /api/oidc/start, and the callback sends the browser back to the client with a code, or back

@@ -8,7 +8,7 @@ import { pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Einstellungen" };
+export const metadata = { title: copy.settings };
 
 // The viewer's own settings: the webhook for reminders, and the address to connect Claude with. The time of day the
 // reminders go out is the instance's (FREUNDEBUCH_NOTIFY_AT), not a setting here.

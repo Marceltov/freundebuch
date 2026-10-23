@@ -3,6 +3,8 @@ export const copy = {
   appName: "freundebuch",
   tagline: "Wer ist dir wichtig, und was ist gerade los bei ihnen.",
   signIn: "Mit authentik anmelden",
+  signInTitle: "Anmelden",
+  connectTitle: "Verbinden",
   signInFailed: "Die Anmeldung hat nicht geklappt. Versuch es noch einmal.",
   tooManyAttempts: "Zu viele Versuche. Versuch es in {seconds} Sekunden noch einmal.",
   tooManyAttemptsSoon: "Zu viele Versuche. Versuch es gleich noch einmal.",
@@ -63,7 +65,7 @@ export const copy = {
   // A conversation
   participants: "Dabei",
   transcriptPrivate: "Das Transkript ist privat.",
-  back: "Zurück",
+  conversation: "Gespräch",
 
   // Settings
   webhook: "Webhook für Erinnerungen",
