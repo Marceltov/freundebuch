@@ -18,7 +18,7 @@ const record = (v: Viewer, over: Partial<Parameters<typeof recordConversation>[1
 
 test("A's briefing on Anna holds everything, B's only the shared part", async () => {
   const a = await briefing(s.a, s.anna, "2026-10-23");
-  expect(a.person).toEqual({ id: s.anna, name: "Anna", aliases: [] });
+  expect(a.person).toEqual({ id: s.anna, name: "Anna", aliases: [], birthday: null });
   expect(a.current.map((f) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
   expect(a.relationships).toEqual([{ personId: s.tom, name: "Tom", type: "partner", direction: "out" }]);
   expect(a.freshness).toEqual({ lastSeen: "2026-10-20", intervalDays: null, ratio: null });
@@ -35,6 +35,25 @@ test("B's briefing on Anna and Tom never contains A's private items", async () =
   }
   expect((await briefing(s.b, s.tom, "2026-10-23")).nextDates).toEqual([]);
   expect((await briefing(s.a, s.tom, "2026-10-23")).nextDates).toEqual([{ id: expect.any(String), personId: s.tom, kind: "birthday", label: null, date: "2026-10-24", inDays: 1, age: null }]);
+});
+
+test("the birthday shows however far away it is, with the age when the year is known", async () => {
+  const r = await record(s.a, { people: [{ name: "Sarah", present: true }], dates: [{ person: 0, kind: "birthday", date: "1990-03-15", yearly: true }] });
+  const sarah = r.people[0].id;
+  const a = await briefing(s.a, sarah, "2026-10-23");
+  expect(a.nextDates).toEqual([]); // months away: beyond the 60 days of nextDates
+  expect(a.person.birthday).toEqual({ date: "1990-03-15", next: "2027-03-15", age: 37 });
+  expect((await briefing(s.b, sarah, "2026-10-23")).person.birthday).toEqual({ date: "1990-03-15", next: "2027-03-15", age: 37 });
+  expect((await briefing(s.a, s.tom, "2026-10-23")).person.birthday).toEqual({ date: "--10-24", next: "2026-10-24", age: null });
+  expect((await briefing(s.b, s.tom, "2026-10-23")).person.birthday).toBeNull();
+});
+
+test("groups: the names of the groups the viewer may see the person in, each once", async () => {
+  await record(s.a, { groups: [{ name: "Uni", members: [0] }, { name: "Climbing", members: [0], private: true }] });
+  await record(s.b, { groups: [{ name: "Uni", members: [0] }, { name: "Choir", members: [0] }] });
+  expect((await briefing(s.a, s.anna, "2026-10-23")).groups).toEqual(["Choir", "Climbing", "Uni"]);
+  expect((await briefing(s.b, s.anna, "2026-10-23")).groups).toEqual(["Choir", "Uni"]);
+  expect((await briefing(s.b, s.tom, "2026-10-23")).groups).toEqual([]);
 });
 
 test("superseded facts are not current", async () => {

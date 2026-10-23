@@ -47,6 +47,7 @@ export const copy = {
   seenMonthsAgo: "vor {n} Monaten",
   lastSeen: "Zuletzt gesehen",
   interval: "Intervall",
+  group: "Gruppe",
   age: "wird {n}",
 
   // Item actions

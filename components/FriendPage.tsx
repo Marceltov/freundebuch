@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeftRight, Cake, CalendarDays, Coffee, Gift, Lock, Mic, Pin, Repeat, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, Cake, CalendarDays, Coffee, Gift, Lock, Mic, Pin, Repeat, Users, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Briefing } from "@/backend";
 import { copy, kindName } from "@/components/copy";
@@ -13,8 +13,8 @@ import { MiniGraph } from "@/components/MiniGraph";
 // (the timeline, each entry linking to its conversation), and who they're connected to. Sections without content are left out.
 // `daysSince`: since the viewer last saw them, null for never.
 export function FriendPage({ b, daysSince }: { b: Briefing; daysSince: number | null }) {
-  const birthday = b.nextDates.find((d) => d.kind === "birthday");
-  const otherDates = b.nextDates.filter((d) => d !== birthday);
+  const birthday = b.person.birthday;
+  const otherDates = b.nextDates.filter((d) => d.kind !== "birthday");
   const { promises, exchanges, giftIdeas } = b.open;
   return (
     <article>
@@ -28,7 +28,7 @@ export function FriendPage({ b, daysSince }: { b: Briefing; daysSince: number | 
             </Chip>
             {birthday && (
               <Chip icon={Cake}>
-                {dayMonth(birthday.date)}
+                {dayMonth(birthday.next)}
                 {birthday.age !== null && ` · ${birthday.age}`}
               </Chip>
             )}
@@ -41,6 +41,11 @@ export function FriendPage({ b, daysSince }: { b: Briefing; daysSince: number | 
               <Chip key={d.id} icon={CalendarDays}>
                 {dayMonth(d.date)}
                 {d.label && ` · ${d.label}`}
+              </Chip>
+            ))}
+            {b.groups.map((g) => (
+              <Chip key={g} icon={Users} label={copy.group}>
+                {g}
               </Chip>
             ))}
           </div>

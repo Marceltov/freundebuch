@@ -1053,13 +1053,60 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "birthday": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "date": {
+                        "type": "string",
+                        "description": "As recorded: `YYYY-MM-DD`, or `--MM-DD` without a year"
+                      },
+                      "next": {
+                        "type": "string",
+                        "description": "The day it falls on next"
+                      },
+                      "age": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The age reached then, when the year is known"
+                      }
+                    },
+                    "required": [
+                      "date",
+                      "next",
+                      "age"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The person's birthday as the caller may see it, however far away"
               }
             },
             "required": [
               "id",
               "name",
-              "aliases"
+              "aliases",
+              "birthday"
             ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The groups the caller may see the person in, each name once"
           },
           "freshness": {
             "type": "object",
@@ -1439,6 +1486,7 @@
         },
         "required": [
           "person",
+          "groups",
           "freshness",
           "nextDates",
           "current",

@@ -48,7 +48,20 @@ const Own = { visibility: Visibility, mine: z.boolean().describe("Whether the ca
 
 export const BriefingJson = z
   .object({
-    person: z.object({ id: PersonId, name: z.string(), aliases: z.array(z.string()) }),
+    person: z.object({
+      id: PersonId,
+      name: z.string(),
+      aliases: z.array(z.string()),
+      birthday: z
+        .object({
+          date: z.string().describe("As recorded: `YYYY-MM-DD`, or `--MM-DD` without a year"),
+          next: Day.describe("The day it falls on next"),
+          age: z.number().int().nullable().describe("The age reached then, when the year is known"),
+        })
+        .nullable()
+        .describe("The person's birthday as the caller may see it, however far away"),
+    }),
+    groups: z.array(z.string()).describe("The groups the caller may see the person in, each name once"),
     freshness: Freshness,
     nextDates: z.array(UpcomingDate),
     current: z.array(z.object({ id: z.string(), text: z.string(), category: z.enum(FACT_CATEGORIES), ...Own })),

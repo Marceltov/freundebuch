@@ -124,6 +124,13 @@ test("A's private group membership neither blocks nor reveals itself to B's shar
     ).map((r) => `${r.name}/${r.visibility}`);
   expect(await seen(s.b)).toEqual(["Uni/shared"]);
   expect(await seen(s.a)).toEqual(["Uni/private", "Uni/shared"]);
+  // The briefing names the group once, for both.
+  expect((await briefing(s.b, s.anna)).groups).toEqual(["Uni"]);
+  expect((await briefing(s.a, s.anna)).groups).toEqual(["Uni"]);
+  // A's private membership alone stays A's.
+  await record(s.a, { groups: [{ name: "Therapy group", members: [0], private: true }] });
+  expect((await briefing(s.b, s.anna)).groups).toEqual(["Uni"]);
+  expect((await briefing(s.a, s.anna)).groups).toEqual(["Therapy group", "Uni"]);
 });
 
 test("a private fact can't outdate B's shared fact, so B's fact stays current", async () => {
@@ -168,8 +175,10 @@ test("B's briefing on Anna and Tom and B's whatsDue never contain A's private it
   const anna = await briefing(s.b, s.anna, "2026-10-23");
   expect(anna.current.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);
   expect(anna.relationships).toEqual([]);
-  // Person-level date reads hide Tom's birthday too.
+  // Person-level date reads hide Tom's birthday too, the chip's birthday as well.
   expect((await briefing(s.b, s.tom, "2026-10-23")).nextDates).toEqual([]);
+  expect((await briefing(s.b, s.tom, "2026-10-23")).person.birthday).toBeNull();
+  expect((await briefing(s.a, s.tom, "2026-10-23")).person.birthday?.next).toBe("2026-10-24");
   expect((await briefing(s.a, s.tom, "2026-10-23")).nextDates.map((d) => d.date)).toEqual(["2026-10-24"]);
   // What's due: the birthday is A's alone.
   expect(await whatsDue(s.b, "2026-10-23")).toEqual([]);

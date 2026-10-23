@@ -1,7 +1,7 @@
 // Everything to know before meeting a person, as the viewer sees it: every list below is read through `visible`, and "recent"
 // shows who else was there (names are always shared) but never the items of a conversation.
 import { db } from "./db";
-import { today } from "./dates";
+import { ageOn, nextOccurrence, today } from "./dates";
 import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "./intervals";
 import { getPerson } from "./people";
@@ -14,8 +14,14 @@ const RECENT = 5;
 /** Whose an item is: `mine` when the viewer recorded it, which is when the page offers edit, visibility and delete. */
 type Own = { visibility: Visibility; mine: boolean };
 
+/** A birthday as recorded (`date`, `--MM-DD` without a year), the day it falls on next, and the age reached then when the year is known. */
+export type Birthday = { date: string; next: string; age: number | null };
+
 export type Briefing = {
-  person: { id: string; name: string; aliases: string[] };
+  /** `birthday` however far away it is; the viewer's own record of it wins over the partner's shared one. */
+  person: { id: string; name: string; aliases: string[]; birthday: Birthday | null };
+  /** The names of the groups the viewer may see the person in, each once. */
+  groups: string[];
   freshness: Freshness;
   nextDates: UpcomingDate[];
   current: Array<Own & { id: string; text: string; category: FactCategory }>;
@@ -34,7 +40,7 @@ export type Briefing = {
 export async function briefing(v: Viewer, personId: string, from = today()): Promise<Briefing> {
   const person = await getPerson(v, personId);
   const d = await db();
-  const [fresh, nextDates, facts, promises, exchanges, rels, convs, setting] = await Promise.all([
+  const [fresh, nextDates, facts, promises, exchanges, rels, convs, setting, birthdays, groups] = await Promise.all([
     freshness(v, personId, from),
     upcomingDates(v, from, NEXT_DATES_DAYS, personId),
     d.selectFrom("facts").selectAll().where("person_id", "=", personId).where("status", "=", "current").$call((qb) => visible(qb, v, "facts")).orderBy("created_at").execute(),
@@ -58,6 +64,16 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .limit(RECENT)
       .execute(),
     d.selectFrom("person_settings").select("interval_confirmed").where("user_id", "=", v.userId).where("person_id", "=", personId).executeTakeFirst(),
+    d.selectFrom("dates").select(["date", "yearly", "recorded_by"]).where("person_id", "=", personId).where("kind", "=", "birthday").$call((qb) => visible(qb, v, "dates")).orderBy("created_at").execute(),
+    d
+      .selectFrom("group_members")
+      .innerJoin("groups", "groups.id", "group_members.group_id")
+      .select("groups.name")
+      .distinct()
+      .where("group_members.person_id", "=", personId)
+      .$call((qb) => visible(qb, v, "group_members"))
+      .orderBy("groups.name")
+      .execute(),
   ]);
 
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
@@ -77,8 +93,11 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
 
   const own = (r: { visibility: string; recorded_by: string }): Own => ({ visibility: r.visibility as Visibility, mine: r.recorded_by === v.userId });
   const suggested = setting?.interval_confirmed ? null : await suggestInterval(v, personId);
+  const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
+  const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
   return {
-    person: { id: person.id, name: person.name, aliases: person.aliases },
+    person: { id: person.id, name: person.name, aliases: person.aliases, birthday: bday ? { date: bday.date, next, age: ageOn(bday.date, next) } : null },
+    groups: groups.map((g) => g.name),
     freshness: fresh,
     nextDates,
     current: facts.map((f) => ({ id: f.id, text: f.text, category: f.category as FactCategory, ...own(f) })),
