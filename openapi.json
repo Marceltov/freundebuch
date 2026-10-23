@@ -447,7 +447,7 @@
       "post": {
         "operationId": "recordConversation",
         "summary": "Record a conversation",
-        "description": "Everything lands in one transaction: a bad item leaves nothing behind. A private conversation makes every item private.",
+        "description": "Everything lands in one transaction: a bad item leaves nothing behind. A private conversation makes every item private. A new person named like an existing person or alias is `ambiguous` (409, listing the candidates) unless `confirmedNew`.",
         "tags": [
           "Conversations"
         ],
@@ -502,6 +502,16 @@
           },
           "404": {
             "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request names more than one match (`ambiguous`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1630,6 +1640,10 @@
                 "present": {
                   "type": "boolean",
                   "description": "Whether the person took part"
+                },
+                "confirmedNew": {
+                  "description": "A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`",
+                  "type": "boolean"
                 }
               },
               "required": [

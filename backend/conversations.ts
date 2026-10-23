@@ -4,8 +4,8 @@
 import type { Kysely } from "kysely";
 import { assertDay, isDay, isYearless } from "./dates";
 import { db, newId, now, type Schema } from "./db";
-import { InvalidInputError, NotFoundError } from "./errors";
-import { insertPerson } from "./people";
+import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
+import { insertPerson, namedLike } from "./people";
 import {
   CONVERSATION_KINDS,
   EXCHANGE_KINDS,
@@ -33,8 +33,11 @@ export type NewConversation = {
   summary: string;
   transcript: string;
   visibility: Visibility;
-  /** `id` links an existing person, `name` creates one. `present` makes them a participant. */
-  people: Array<{ id?: string; name?: string; aliases?: string[]; present: boolean }>;
+  /**
+   * `id` links an existing person, `name` creates one. `present` makes them a participant. A new name that matches an existing
+   * person's name or alias is refused as ambiguous unless `confirmedNew`.
+   */
+  people: Array<{ id?: string; name?: string; aliases?: string[]; present: boolean; confirmedNew?: boolean }>;
   facts?: Array<{ person: PersonRef; text: string; category: FactCategory; private?: boolean; supersedes?: string }>;
   promises?: Array<{ person: PersonRef; text: string; byMe: boolean; due?: string; private?: boolean }>;
   /** `date` is `YYYY-MM-DD`, or `--MM-DD` for a yearly date without a year. */
@@ -160,8 +163,26 @@ export async function insertMemberships(tx: Kysely<Schema>, base: ItemBase, name
   return added;
 }
 
+/**
+ * Refuses to create a person who may already exist: a new name equal to an existing person's name or alias, once normalised,
+ * unless the entry says `confirmedNew`. The message lists each candidate with the hints the viewer may see.
+ */
+async function assertNoNamesake(v: Viewer, c: NewConversation): Promise<void> {
+  const found: string[] = [];
+  for (const p of c.people) {
+    if (p.id || p.confirmedNew) continue;
+    const candidates = await namedLike(v, p.name!);
+    if (!candidates.length) continue;
+    const list = candidates.map((x) => `${x.name} (id ${x.id}${x.context.length ? `; ${x.context.join(", ")}` : ""})`).join("; ");
+    found.push(`"${p.name!.trim()}" may already be ${candidates.length > 1 ? "one of " : ""}${list}`);
+  }
+  if (found.length)
+    throw new AmbiguousError(`${found.join(". ")}. Link an existing person by id, or set confirmedNew: true on a person the user confirmed is someone new`);
+}
+
 export async function recordConversation(v: Viewer, c: NewConversation): Promise<Recorded> {
   validate(c);
+  await assertNoNamesake(v, c);
   const vis = (item: { private?: boolean }): Visibility => (c.visibility === "private" || item.private ? "private" : "shared");
   const items = [...(c.facts ?? []), ...(c.promises ?? []), ...(c.dates ?? []), ...(c.exchanges ?? []), ...(c.relationships ?? []), ...(c.groups ?? [])];
   const transcriptPrivate = c.visibility === "private" || items.some((i) => i.private) ? 1 : 0;

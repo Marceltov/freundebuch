@@ -77,6 +77,14 @@ export async function findPeople(v: Viewer, q: string, limit = 5): Promise<Candi
   return Promise.all(hits.map(async ({ p }) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], context: await contextFor(v, p.id) })));
 }
 
+/** The people whose name or one of whose aliases is `name` once normalised; names and aliases are shared, the context is the viewer's. */
+export async function namedLike(v: Viewer, name: string): Promise<Candidate[]> {
+  const n = norm(name);
+  const [people, aliases] = await Promise.all([(await db()).selectFrom("persons").select(["id", "name"]).orderBy("name").execute(), aliasesByPerson()]);
+  const hits = people.filter((p) => norm(p.name) === n || (aliases.get(p.id) ?? []).some((a) => norm(a) === n));
+  return Promise.all(hits.map(async (p) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], context: await contextFor(v, p.id) })));
+}
+
 // How a relationship reads from the person's side: `out` when they are `from`, `in` when they are `to`. "Tom" is appended.
 const LABELS: Record<RelationshipType, { out: string; in: string }> = {
   partner: { out: "partner of", in: "partner of" },

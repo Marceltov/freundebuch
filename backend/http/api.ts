@@ -148,12 +148,14 @@ const OPS: AnyOp[] = [
     path: `${API_PREFIX}/conversations`,
     operationId: "recordConversation",
     summary: "Record a conversation",
-    description: "Everything lands in one transaction: a bad item leaves nothing behind. A private conversation makes every item private.",
+    description:
+      "Everything lands in one transaction: a bad item leaves nothing behind. A private conversation makes every item private. " +
+      "A new person named like an existing person or alias is `ambiguous` (409, listing the candidates) unless `confirmedNew`.",
     tags: ["Conversations"],
     auth: true,
     params: {},
     body: NewConversationJson,
-    responses: { 201: { description: "Recorded", schema: RecordedJson }, 400: E400, 401: E401, 404: E404 },
+    responses: { 201: { description: "Recorded", schema: RecordedJson }, 400: E400, 401: E401, 404: E404, 409: E[409] },
   }).handle(async ({ viewer, body }) => ({ status: 201, body: await recordConversation(viewer, body) })),
 
   op({

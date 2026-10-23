@@ -106,6 +106,14 @@ describe("conversations and items", () => {
     expect(got.json).toMatchObject({ summary: "Lunch with Max.", transcript: "Lunch with Max. He likes chess.", facts: [{ text: "likes chess" }] });
   });
 
+  test("a new person named like an existing one is 409 ambiguous; confirmedNew creates them", async () => {
+    const res = await call(s.a, "POST", "/conversations", lunch({ people: [{ name: "Anna", present: true }] }));
+    expect([res.status, res.json.code]).toEqual([409, "ambiguous"]);
+    expect(res.json.error).toContain(s.anna);
+    const ok = await call(s.a, "POST", "/conversations", lunch({ people: [{ name: "Anna", present: true, confirmedNew: true }] }));
+    expect(ok.status).toBe(201);
+  });
+
   test("the domain's validation answers: bad day, unknown person, nothing is written", async () => {
     const day = await call(s.a, "POST", "/conversations", lunch({ date: "2026-13-40" }));
     expect([day.status, day.json.code]).toEqual([400, "invalid_input"]);

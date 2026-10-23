@@ -177,8 +177,15 @@ describe("tools", () => {
     expect((await call(s.b, "get_transcript", { conversationId: s.coffee })).isError).toBe(true);
   });
 
+  test("record_conversation refuses a new person named like an existing one, listing who it may be", async () => {
+    const r = await call(s.a, "record_conversation", ramble({ people: [{ name: "anna", present: true }], facts: [] }));
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toContain(s.anna);
+    expect(r.content[0].text).toContain("confirmedNew");
+  });
+
   test("find_person with two Annas returns both", async () => {
-    await call(s.a, "record_conversation", ramble({ people: [{ name: "Anna", present: true }], facts: [] }));
+    await call(s.a, "record_conversation", ramble({ people: [{ name: "Anna", present: true, confirmedNew: true }], facts: [] }));
     const r = await call(s.a, "find_person", { name: "anna" });
     expect(r.structuredContent.people.map((p: { name: string }) => p.name)).toEqual(["Anna", "Anna"]);
   });

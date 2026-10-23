@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { recordConversation, getConversation, type NewConversation } from "./conversations";
 import { db, resetDbForTests } from "./db/testing";
-import { InvalidInputError, NotFoundError } from "./errors";
+import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { getPerson } from "./people";
 import { userFromOidc } from "./users";
 import type { Viewer } from "./types";
@@ -63,6 +63,26 @@ test("creating a new person by name sets created_from; an existing person is lin
   expect((await getPerson(a, anna)).createdFrom).toBe(first.conversationId);
 });
 
+test("a new person named like an existing person or alias is ambiguous, listing the candidates, unless confirmedNew", async () => {
+  const first = await recordConversation(a, base({ people: [{ name: "Anna Schmidt", aliases: ["Anni"], present: true }, { name: "Tom", present: false }], relationships: [{ from: 0, to: 1, type: "partner" }] }));
+  const anna = first.people[0].id;
+  const before = await rowCount("conversations");
+  for (const name of ["anna schmidt", " Anni ", "ANNI"]) {
+    const err = await recordConversation(a, base({ people: [{ name, present: true }] })).catch((e) => e);
+    expect(err, name).toBeInstanceOf(AmbiguousError);
+    expect(err.message).toContain(anna);
+    expect(err.message).toContain("Anna Schmidt");
+    expect(err.message).toContain("partner of Tom");
+    expect(err.message).toContain("confirmedNew");
+  }
+  expect(await rowCount("conversations")).toBe(before);
+  // A different name is no match; a confirmed one is a second person.
+  expect((await recordConversation(a, base({ people: [{ name: "Annabel", present: true }] }))).people[0].created).toBe(true);
+  const second = await recordConversation(a, base({ people: [{ name: "Anni", present: true, confirmedNew: true }] }));
+  expect(second.people[0]).toMatchObject({ name: "Anni", created: true });
+  expect(second.people[0].id).not.toBe(anna);
+});
+
 test("the viewer's own person is always a participant; absent people are not", async () => {
   const r = await recordConversation(a, base({ people: [{ name: "Anna", present: true }, { name: "Tom", present: false }] }));
   const c = await getConversation(a, r.conversationId);
@@ -98,7 +118,7 @@ test("one private item makes the transcript private; none leaves it shared", asy
   const tp = async (id: string) => (await d.selectFrom("conversations").select("transcript_private").where("id", "=", id).executeTakeFirstOrThrow()).transcript_private;
   const open = await recordConversation(a, base({ facts: [{ person: 0, text: "new job", category: "work" }] }));
   expect(await tp(open.conversationId)).toBe(0);
-  const closed = await recordConversation(a, base({ promises: [{ person: 0, text: "keep quiet", byMe: true, private: true }] }));
+  const closed = await recordConversation(a, base({ people: [{ id: open.people[0].id, present: true }], promises: [{ person: 0, text: "keep quiet", byMe: true, private: true }] }));
   expect(await tp(closed.conversationId)).toBe(1);
 });
 
@@ -166,7 +186,7 @@ test("validates date formats", async () => {
   ];
   for (const c of bad) await expect(recordConversation(a, c)).rejects.toBeInstanceOf(InvalidInputError);
   await expect(recordConversation(a, base({ dates: [{ person: 0, kind: "birthday", date: "1990-10-24", yearly: true }] }))).resolves.toBeDefined();
-  await expect(recordConversation(a, base({ date: "2028-02-29", dates: [{ person: 0, kind: "birthday", date: "--02-29", yearly: true }] }))).resolves.toBeDefined();
+  await expect(recordConversation(a, base({ date: "2028-02-29", people: [{ name: "Ben", present: true }], dates: [{ person: 0, kind: "birthday", date: "--02-29", yearly: true }] }))).resolves.toBeDefined();
 });
 
 test("rejects a people entry with neither id nor name, a bad person ref and unknown vocabulary", async () => {

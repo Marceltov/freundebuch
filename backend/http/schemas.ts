@@ -120,6 +120,10 @@ export const NewConversationJson = z
         name: z.string().optional().describe("A new person"),
         aliases: z.array(z.string()).optional(),
         present: z.boolean().describe("Whether the person took part"),
+        confirmedNew: z
+          .boolean()
+          .optional()
+          .describe("A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`"),
       }),
     ),
     facts: z.array(z.object({ person: Ref, text: z.string(), category: z.enum(FACT_CATEGORIES), private: Private, supersedes: z.string().optional().describe("The id of the fact this replaces") })).optional(),

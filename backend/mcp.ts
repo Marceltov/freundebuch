@@ -139,7 +139,7 @@ function server(v: Viewer): McpServer {
     "record_conversation",
     {
       description:
-        "File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, and ask the user when a name fits more than one person or resembles an existing one. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary.",
+        "File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary.",
       inputSchema: NewConversation,
       outputSchema: Recorded,
       annotations: { destructiveHint: false },
