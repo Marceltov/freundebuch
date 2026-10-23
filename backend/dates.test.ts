@@ -16,6 +16,11 @@ test("today is the date in TZ, not in UTC", () => {
   expect(today(Date.parse("2026-10-23T22:30:00Z"))).toBe("2026-10-23");
 });
 
+test("today uses Europe/Berlin when TZ is unset", () => {
+  delete process.env.TZ;
+  expect(today(Date.parse("2026-10-23T22:30:00Z"))).toBe("2026-10-24");
+});
+
 test("daysBetween counts whole calendar days, across year ends and leap days", () => {
   expect(daysBetween("2026-10-20", "2026-10-23")).toBe(3);
   expect(daysBetween("2026-10-23", "2026-10-20")).toBe(-3);

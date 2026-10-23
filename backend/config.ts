@@ -15,6 +15,17 @@ function notifyAt(): string {
   return v;
 }
 
+// The zone "today" is computed in: TZ, or Europe/Berlin when unset. Must be an IANA zone name.
+function timeZone(): string {
+  const tz = env("TZ").trim() || "Europe/Berlin";
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+  } catch {
+    throw new Error(`TZ must be an IANA time zone such as Europe/Berlin, got "${tz}"`);
+  }
+  return tz;
+}
+
 export const config = {
   // Where the database (freundebuch.db) and the generated secret live.
   dataDir: () => env("DATA_DIR") || "/data",
@@ -23,6 +34,7 @@ export const config = {
   // Empty means unset: compose passes ${FREUNDEBUCH_SECRET:-}.
   secret: (): string | undefined => env("FREUNDEBUCH_SECRET") || undefined,
   notifyAt,
+  timeZone,
   // Who signs in: authentik (or any OIDC provider). `allow` is a comma-separated list, trimmed; empty means authentik alone decides.
   oidc: () => ({
     issuer: env("FREUNDEBUCH_OIDC_ISSUER"),

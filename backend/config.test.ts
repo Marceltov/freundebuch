@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "vitest";
 import { config } from "./config";
 
 afterEach(() => {
-  for (const k of ["FREUNDEBUCH_NOTIFY_AT", "FREUNDEBUCH_OIDC_ALLOW", "FREUNDEBUCH_SECRET", "PUBLIC_URL", "DATA_DIR"]) delete process.env[k];
+  for (const k of ["FREUNDEBUCH_NOTIFY_AT", "FREUNDEBUCH_OIDC_ALLOW", "FREUNDEBUCH_SECRET", "PUBLIC_URL", "DATA_DIR", "TZ"]) delete process.env[k];
 });
 
 test("notifyAt is 08:00 when unset or empty", () => {
@@ -37,4 +37,16 @@ test("publicUrl has no trailing slash and is undefined when unset; secret likewi
   expect(config.dataDir()).toBe("/data");
   process.env.PUBLIC_URL = "https://freundebuch.example/";
   expect(config.publicUrl()).toBe("https://freundebuch.example");
+});
+
+test("timeZone is TZ, Europe/Berlin when unset or empty, and an invalid one throws naming TZ", () => {
+  expect(config.timeZone()).toBe("Europe/Berlin");
+  process.env.TZ = "";
+  expect(config.timeZone()).toBe("Europe/Berlin");
+  process.env.TZ = "America/New_York";
+  expect(config.timeZone()).toBe("America/New_York");
+  for (const v of ["Mars/Base", "nonsense"]) {
+    process.env.TZ = v;
+    expect(() => config.timeZone()).toThrow(/TZ/);
+  }
 });

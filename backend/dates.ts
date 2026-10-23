@@ -1,5 +1,6 @@
 // Calendar dates as plain `YYYY-MM-DD` strings (or `--MM-DD` for a yearly date without a year). No time zones inside: only
 // `today` knows about TZ, and everything else counts whole days on the calendar.
+import { config } from "./config";
 import { InvalidInputError } from "./errors";
 
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -45,7 +46,7 @@ const epochDay = (year: number, month: number, day: number) => {
 
 /** Today's date in the configured time zone (`TZ`), not UTC: just after local midnight it is already the next day. */
 export function today(now = Date.now()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: process.env.TZ || undefined, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: config.timeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
 /** Whole days from `a` to `b`; negative when `b` is earlier. */
