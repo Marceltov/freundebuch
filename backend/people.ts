@@ -1,10 +1,11 @@
 // Persons and their aliases. Persons themselves are shared by everyone; what hangs off them (relationships, conversations) is
 // visible per viewer, and the hints in a Candidate only use what the viewer may see.
-import type { ExpressionBuilder } from "kysely";
-import { db, newId, now } from "./db";
+import type { Kysely } from "kysely";
+import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { norm, within } from "./names";
 import type { RelationshipType, Viewer } from "./types";
+import { visible } from "./visibility";
 
 export type Candidate = { id: string; name: string; aliases: string[]; context: string[] };
 export type PersonView = { id: string; name: string; aliases: string[]; createdFrom: string | null };
@@ -12,23 +13,23 @@ export type PersonView = { id: string; name: string; aliases: string[]; createdF
 const MAX_CONTEXT = 3;
 const FUZZY_MIN = 5;
 
-/** A row is visible to the viewer when it is shared or they recorded it. Task 4 replaces this with the shared helper in visibility.ts. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const visibleTo = (v: Viewer) => (eb: ExpressionBuilder<any, any>) => eb.or([eb("visibility", "=", "shared"), eb("recorded_by", "=", v.userId)]);
+type NewPerson = { name: string; aliases?: string[]; createdFrom?: string };
 
-export async function createPerson(v: Viewer, p: { name: string; aliases?: string[]; createdFrom?: string }): Promise<string> {
+export async function createPerson(v: Viewer, p: NewPerson): Promise<string> {
+  return (await db()).transaction().execute((tx) => insertPerson(tx, v, p));
+}
+
+/** `createPerson` inside the caller's transaction, for writes that create persons along with other rows. */
+export async function insertPerson(d: Kysely<Schema>, v: Viewer, p: NewPerson): Promise<string> {
   const name = p.name.trim();
   if (!name) throw new InvalidInputError("A person needs a name");
   const id = newId();
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
-    await tx.insertInto("persons").values({ id, name, created_by: v.userId, created_from: p.createdFrom ?? null, created_at: now() }).execute();
-    for (const alias of p.aliases ?? []) await insertAlias(tx, id, name, alias);
-  });
+  await d.insertInto("persons").values({ id, name, created_by: v.userId, created_from: p.createdFrom ?? null, created_at: now() }).execute();
+  for (const alias of p.aliases ?? []) await insertAlias(d, id, name, alias);
   return id;
 }
 
-async function insertAlias(d: Awaited<ReturnType<typeof db>>, personId: string, name: string, alias: string): Promise<void> {
+async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {
   const a = alias.trim();
   if (!a) throw new InvalidInputError("An alias can't be empty");
   if (norm(a) === norm(name)) return; // the name already matches
@@ -96,7 +97,7 @@ async function contextFor(v: Viewer, personId: string): Promise<string[]> {
     .selectFrom("relationships")
     .select(["from_id", "to_id", "type"])
     .where((eb) => eb.or([eb("from_id", "=", personId), eb("to_id", "=", personId)]))
-    .where(visibleTo(v))
+    .$call((qb) => visible(qb, v, "relationships"))
     .orderBy("created_at")
     .execute();
   for (const r of rels) {
@@ -110,22 +111,47 @@ async function contextFor(v: Viewer, personId: string): Promise<string[]> {
     .innerJoin("participants", "participants.conversation_id", "conversations.id")
     .select("conversations.date")
     .where("participants.person_id", "=", personId)
-    .where(visibleTo(v))
+    .$call((qb) => visible(qb, v, "conversations"))
     .orderBy("conversations.date", "desc")
     .executeTakeFirst();
   if (last) hints.push(`last conversation ${last.date}`);
   return hints.slice(0, MAX_CONTEXT);
 }
 
-async function visibleConversationIds(v: Viewer, ids: string[]): Promise<Set<string>> {
-  if (!ids.length) return new Set();
-  const rows = await (await db()).selectFrom("conversations").select("id").where("id", "in", ids).where(visibleTo(v)).execute();
-  return new Set(rows.map((r) => r.id));
+/**
+ * The conversation a person was first mentioned in, when the viewer may know it: they recorded it, or it is visible and shows the
+ * person to them (as a participant or through an item they can see). A person first mentioned only in private items keeps the
+ * link hidden, because the link alone would tell the partner where that person came up.
+ */
+async function createdFromFor(v: Viewer, personId: string, conversationId: string): Promise<string | null> {
+  const d = await db();
+  const c = await d
+    .selectFrom("conversations")
+    .select("recorded_by")
+    .where("id", "=", conversationId)
+    .$call((qb) => visible(qb, v, "conversations"))
+    .executeTakeFirst();
+  if (!c) return null;
+  if (c.recorded_by === v.userId) return conversationId;
+  const shows = [
+    d.selectFrom("participants").select("person_id").where("conversation_id", "=", conversationId).where("person_id", "=", personId),
+    ...(["facts", "promises", "dates", "exchanges"] as const).map((t) =>
+      d.selectFrom(t).select("id").where("conversation_id", "=", conversationId).where("person_id", "=", personId).$call((qb) => visible(qb, v, t)),
+    ),
+    d
+      .selectFrom("relationships")
+      .select("id")
+      .where("conversation_id", "=", conversationId)
+      .where((eb) => eb.or([eb("from_id", "=", personId), eb("to_id", "=", personId)]))
+      .$call((qb) => visible(qb, v, "relationships")),
+  ];
+  for (const q of shows) if (await q.executeTakeFirst()) return conversationId;
+  return null;
 }
 
 async function toViews(v: Viewer, rows: { id: string; name: string; created_from: string | null }[]): Promise<PersonView[]> {
-  const [aliases, visible] = await Promise.all([aliasesByPerson(), visibleConversationIds(v, rows.flatMap((r) => (r.created_from ? [r.created_from] : [])))]);
-  return rows.map((r) => ({ id: r.id, name: r.name, aliases: aliases.get(r.id) ?? [], createdFrom: r.created_from && visible.has(r.created_from) ? r.created_from : null }));
+  const aliases = await aliasesByPerson();
+  return Promise.all(rows.map(async (r) => ({ id: r.id, name: r.name, aliases: aliases.get(r.id) ?? [], createdFrom: r.created_from ? await createdFromFor(v, r.id, r.created_from) : null })));
 }
 
 export async function getPerson(v: Viewer, id: string): Promise<PersonView> {
