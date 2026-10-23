@@ -119,6 +119,12 @@ export function checkAuthorize(params: URLSearchParams, h: Headers): Checked {
   return { kind: "page", clientName: client.client_name || new URL(redirectUri).host, redirectHost: new URL(redirectUri).host, fields };
 }
 
+/**
+ * How long one OAuth grant (a connected Claude app or API client) lasts: its refresh chain ends this long after the sign-in, so a
+ * connector doesn't need a weekly sign-in like the browser's identity cookie (7 days). Revoking one means rotating FREUNDEBUCH_SECRET.
+ */
+export const GRANT_TTL = 90 * 24 * 3600;
+
 // Back to the client with a code, after the sign-in of user `uid`. `fields` must come from checkAuthorize, never from a request.
 export function issueCode(fields: Record<string, string>, h: Headers, uid: string): Response {
   const code = sign("code", {
@@ -128,7 +134,7 @@ export function issueCode(fields: Record<string, string>, h: Headers, uid: strin
     resource: fields.resource ?? mcpResource(h),
     jti: newJti(),
     uid,
-    until: Math.floor(Date.now() / 1000) + TTL.identity,
+    until: Math.floor(Date.now() / 1000) + GRANT_TTL,
   });
   const to = new URL(fields.redirect_uri);
   to.searchParams.set("code", code);
@@ -137,8 +143,8 @@ export function issueCode(fields: Record<string, string>, h: Headers, uid: strin
   return seeOther(to.href);
 }
 
-// The user goes from the code into both tokens, and from each refresh token into the next; the sign-in's `until` goes into
-// each refresh token, so the chain ends with the sign-in, like a browser session.
+// The user goes from the code into both tokens, and from each refresh token into the next; the grant's `until` goes into
+// each refresh token, so the chain ends GRANT_TTL after the sign-in that started it.
 function issue(clientHash: string, aud: string, uid: string, until: number): Response {
   return Response.json(
     { access_token: sign("access", { aud, uid }), token_type: "Bearer", expires_in: TTL.access, refresh_token: sign("refresh", { cid: clientHash, aud, jti: newJti(), uid, until }) },

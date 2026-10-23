@@ -7,7 +7,7 @@ import { logsOf } from "../log";
 import { resetSecretForTests } from "../secret";
 import type { Viewer } from "../types";
 import { userFromOidc } from "../users";
-import { authServerRoute, checkAuthorize, issueCode, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./routes";
+import { GRANT_TTL, authServerRoute, checkAuthorize, issueCode, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./routes";
 
 const BASE = "http://localhost:3000";
 const RESOURCE = `${BASE}/mcp`;
@@ -122,7 +122,7 @@ describe("flow", () => {
   test("the code's user and sign-in limit are carried into the tokens and through refresh", async () => {
     const c = await code();
     const until = verify("code", c.code)!.until;
-    expect(Math.abs(until - (Math.floor(Date.now() / 1000) + TTL.identity))).toBeLessThanOrEqual(1);
+    expect(Math.abs(until - (Math.floor(Date.now() / 1000) + GRANT_TTL))).toBeLessThanOrEqual(1);
     const first = await (await exchange(c)).json();
     expect(verify("access", first.access_token)?.uid).toBe(ann.userId);
     expect(verify("refresh", first.refresh_token)).toMatchObject({ uid: ann.userId, until });
@@ -131,10 +131,21 @@ describe("flow", () => {
     expect(verify("refresh", second.refresh_token)).toMatchObject({ uid: ann.userId, until });
   });
 
-  test("the refresh chain ends with the sign-in lifetime", async () => {
+  test("the refresh chain outlives the browser's 7 days and ends after 90", async () => {
+    expect(GRANT_TTL).toBe(90 * 24 * 3600);
     const c = await code();
-    const { refresh_token } = await (await exchange(c)).json();
-    vi.spyOn(Date, "now").mockReturnValue(Date.now() + (TTL.identity + 2) * 1000);
+    let { refresh_token } = await (await exchange(c)).json();
+    const start = Date.now();
+    // Refreshed every 29 days (a refresh token itself lasts 30), the chain carries on past the identity cookie's lifetime...
+    for (const day of [29, 58, 87]) {
+      vi.spyOn(Date, "now").mockReturnValue(start + day * 86400_000);
+      const res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id });
+      expect(res.status, `day ${day}`).toBe(200);
+      ({ refresh_token } = await res.json());
+    }
+    expect(TTL.identity).toBeLessThan(29 * 86400);
+    // ...until the grant's 90 days are up.
+    vi.spyOn(Date, "now").mockReturnValue(start + (GRANT_TTL + 2) * 1000);
     let res = new Response();
     expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([{ level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in past its lifetime" }]);
     expect((await res.json()).error).toBe("invalid_grant");
