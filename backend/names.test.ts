@@ -12,3 +12,9 @@ test("norm folds umlauts, case and whitespace", () => {
 test("norm strips other diacritics", () => {
   expect(norm("José Müller-Çelik")).toBe("jose mueller-celik");
 });
+
+test("norm treats decomposed (NFD) input like composed", () => {
+  const nfd = "Ju\u0308rgen";
+  expect(nfd).not.toBe("Jürgen");
+  expect(norm(nfd)).toBe("juergen");
+});

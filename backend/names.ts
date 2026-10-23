@@ -3,6 +3,7 @@ const FOLDS: Record<string, string> = { ä: "ae", ö: "oe", ü: "ue", ß: "ss" }
 
 export function norm(s: string): string {
   return s
+    .normalize("NFC") // decomposed "ü" must fold like "ü", before NFKD would strip its diaeresis
     .toLowerCase()
     .replace(/[äöüß]/g, (c) => FOLDS[c])
     .normalize("NFKD")

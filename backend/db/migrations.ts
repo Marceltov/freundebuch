@@ -47,6 +47,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("norm", "text", (c) => c.notNull())
         .execute();
       await db.schema.createIndex("aliases_by_norm").on("aliases").column("norm").execute();
+      await db.schema.createIndex("aliases_unique").unique().on("aliases").columns(["person_id", "norm"]).execute();
       await db.schema
         .createTable("person_settings")
         .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))

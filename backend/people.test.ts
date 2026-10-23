@@ -107,3 +107,33 @@ test("listPeople lists everyone including the users' own persons", async () => {
   const all = (await listPeople(a)).map((p) => p.name);
   expect(all).toEqual(["Alice", "Bob", "Zed"]);
 });
+
+test("Jürgen with alias Jogi is found by every spelling", async () => {
+  const id = await createPerson(a, { name: "Jürgen", aliases: ["Jogi"] });
+  await createPerson(a, { name: "Jens" });
+  for (const q of ["Jürgen", "Juergen", "jürgen", "Ju\u0308rgen", "Jogi"]) expect((await findPeople(a, q))[0].id, q).toBe(id);
+});
+
+test("duplicate aliases and an alias equal to the name are stored once or not at all", async () => {
+  const id = await createPerson(a, { name: "Katharina", aliases: ["Kathi", "kathi", "KATHARINA"] });
+  await addAlias(a, id, "Kathi");
+  await addAlias(a, id, "katharina");
+  expect((await getPerson(a, id)).aliases).toEqual(["Kathi"]);
+});
+
+test("relationship hints read naturally in both directions", async () => {
+  const sarah = await createPerson(a, { name: "Sarah" });
+  const ella = await createPerson(a, { name: "Ella" });
+  const tom = await createPerson(a, { name: "Tom" });
+  const anna = await createPerson(a, { name: "Anna" });
+  const rel = async (from: string, to: string, type: string) =>
+    (await db()).insertInto("relationships").values({ id: newId(), from_id: from, to_id: to, type, note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
+  await rel(sarah, ella, "parent");
+  await rel(anna, tom, "introduced_by");
+  await rel(tom, ella, "other");
+  const ctx = async (q: string) => [...(await findPeople(a, q))[0].context].sort();
+  expect(await ctx("Sarah")).toEqual(["parent of Ella"]);
+  expect(await ctx("Ella")).toEqual(["child of Sarah", "knows Tom"].sort());
+  expect(await ctx("Anna")).toEqual(["introduced by Tom"]);
+  expect(await ctx("Tom")).toEqual(["introduced Anna", "knows Ella"].sort());
+});

@@ -23,24 +23,24 @@ export async function createPerson(v: Viewer, p: { name: string; aliases?: strin
   const d = await db();
   await d.transaction().execute(async (tx) => {
     await tx.insertInto("persons").values({ id, name, created_by: v.userId, created_from: p.createdFrom ?? null, created_at: now() }).execute();
-    for (const alias of p.aliases ?? []) await insertAlias(tx, id, alias);
+    for (const alias of p.aliases ?? []) await insertAlias(tx, id, name, alias);
   });
   return id;
 }
 
-async function insertAlias(d: Awaited<ReturnType<typeof db>>, personId: string, alias: string): Promise<void> {
+async function insertAlias(d: Awaited<ReturnType<typeof db>>, personId: string, name: string, alias: string): Promise<void> {
   const a = alias.trim();
   if (!a) throw new InvalidInputError("An alias can't be empty");
+  if (norm(a) === norm(name)) return; // the name already matches
   await d.insertInto("aliases").values({ person_id: personId, alias: a, norm: norm(a) }).onConflict((oc) => oc.doNothing()).execute();
 }
 
 export async function addAlias(v: Viewer, id: string, alias: string): Promise<void> {
   void v;
   const d = await db();
-  if (!(await d.selectFrom("persons").select("id").where("id", "=", id).executeTakeFirst())) throw new NotFoundError("No such person");
-  const n = norm(alias);
-  if (await d.selectFrom("aliases").select("norm").where("person_id", "=", id).where("norm", "=", n).executeTakeFirst()) return;
-  await insertAlias(d, id, alias);
+  const person = await d.selectFrom("persons").select("name").where("id", "=", id).executeTakeFirst();
+  if (!person) throw new NotFoundError("No such person");
+  await insertAlias(d, id, person.name, alias);
 }
 
 async function aliasesByPerson(): Promise<Map<string, string[]>> {
@@ -75,8 +75,18 @@ export async function findPeople(v: Viewer, q: string, limit = 5): Promise<Candi
   return Promise.all(hits.map(async ({ p }) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], context: await contextFor(v, p.id) })));
 }
 
-const INVERSE: Partial<Record<RelationshipType, string>> = { parent: "child", child: "parent", introduced_by: "introducer" };
-const SYMMETRIC = new Set<string>(["partner", "spouse", "sibling", "friend", "colleague"]);
+// How a relationship reads from the person's side: `out` when they are `from`, `in` when they are `to`. "Tom" is appended.
+const LABELS: Record<RelationshipType, { out: string; in: string }> = {
+  partner: { out: "partner of", in: "partner of" },
+  spouse: { out: "spouse of", in: "spouse of" },
+  sibling: { out: "sibling of", in: "sibling of" },
+  friend: { out: "friend of", in: "friend of" },
+  colleague: { out: "colleague of", in: "colleague of" },
+  parent: { out: "parent of", in: "child of" },
+  child: { out: "child of", in: "parent of" },
+  introduced_by: { out: "introduced by", in: "introduced" },
+  other: { out: "knows", in: "knows" },
+};
 
 /** Hints that help tell two people with the same name apart, built only from what the viewer can see. */
 async function contextFor(v: Viewer, personId: string): Promise<string[]> {
@@ -91,9 +101,9 @@ async function contextFor(v: Viewer, personId: string): Promise<string[]> {
     .execute();
   for (const r of rels) {
     const outgoing = r.from_id === personId;
-    const label = outgoing || SYMMETRIC.has(r.type) ? r.type : (INVERSE[r.type as RelationshipType] ?? r.type);
+    const label = LABELS[r.type as RelationshipType]?.[outgoing ? "out" : "in"] ?? "knows";
     const other = await d.selectFrom("persons").select("name").where("id", "=", outgoing ? r.to_id : r.from_id).executeTakeFirst();
-    if (other) hints.push(`${label.replace("_", " ")} of ${other.name}`);
+    if (other) hints.push(`${label} ${other.name}`);
   }
   const last = await d
     .selectFrom("conversations")
