@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+/* Paper is the page, surface the cards on it, surface-2 the fields and chips; carbon is the one accent. */
+:root {
+  --paper: #f2f3f0;
+  --surface: #ffffff;
+  --surface-2: #e9eae6;
+  --ink: #1e2130;
+  --carbon: #7a5a1a;
+  --rule: #d6d9df;
+  --muted: #686d7a;
+  --error: #b3261e;
+  --on-carbon: #ffffff;
+  --fresh: #2a9d8f;
+  --drift: #e0962b;
+  --due: #d0573a;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #15161b;
+    --surface: #1d1f26;
+    --surface-2: #262832;
+    --ink: #e4e5eb;
+    --carbon: #e3cb94;
+    --rule: #2a2c35;
+    --muted: #9a9eab;
+    --error: #ff8a80;
+    --on-carbon: #15161b;
+    --fresh: #4fc1b2;
+    --drift: #f2b45c;
+    --due: #f08a6c;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-carbon: var(--carbon);
+  --color-rule: var(--rule);
+  --color-muted: var(--muted);
+  --color-error: var(--error);
+  --color-on-carbon: var(--on-carbon);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 8px rgb(0 0 0 / 0.04);
+}
+
+/* A long word or a link wraps instead of widening the page. */
+body {
+  background: var(--paper);
+  color: var(--ink);
+  overflow-wrap: break-word;
+}
+
+/* iOS Safari zooms into a text field under 16px when it gets the focus, so below lg no field is smaller. */
+@media (max-width: 63.98rem) {
+  input, textarea, select { font-size: max(1rem, 1em); }
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--carbon);
+    outline-offset: 2px;
+  }
+}

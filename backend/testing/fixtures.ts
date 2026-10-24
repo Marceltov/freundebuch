@@ -1,0 +1,67 @@
+// One household, recorded through the real write path, for the privacy tests of every read function. Alice (A) records a shared
+// dinner with Anna that holds private parts, and a private coffee with Lena; Bob (B) records a shared call with Anna.
+import { resetDbForTests } from "../db/testing";
+import { recordConversation } from "../conversations";
+import { userFromOidc } from "../users";
+import type { Viewer } from "../types";
+
+export type Seed = {
+  a: Viewer;
+  b: Viewer;
+  anna: string;
+  tom: string;
+  lena: string;
+  /** A's shared dinner with Anna: the "new job" fact is shared; the divorce, Anna ↔ Tom and Tom's birthday are private. */
+  dinner: string;
+  /** A's private coffee with Lena, who was first mentioned there. */
+  coffee: string;
+  /** B's shared call with Anna. */
+  call: string;
+};
+
+export const DINNER_TRANSCRIPT = "Dinner with Anna at Luigi's. She starts a new job at the museum next month. In confidence: she and Tom are getting divorced. Tom's birthday is on 24 October.";
+
+/** Resets the database and records the fixture. */
+export async function seed(): Promise<Seed> {
+  await resetDbForTests();
+  const a = await userFromOidc({ sub: "a", name: "Alice" });
+  const b = await userFromOidc({ sub: "b", name: "Bob" });
+  const dinner = await recordConversation(a, {
+    date: "2026-10-20",
+    kind: "in_person",
+    place: "Luigi's",
+    summary: "Dinner with Anna; she has a new job.",
+    transcript: DINNER_TRANSCRIPT,
+    visibility: "shared",
+    people: [
+      { name: "Anna", present: true },
+      { name: "Tom", present: false },
+    ],
+    facts: [
+      { person: 0, text: "new job", category: "work" },
+      { person: 0, text: "divorce", category: "family", private: true },
+    ],
+    relationships: [{ from: 0, to: 1, type: "partner", private: true }],
+    dates: [{ person: 1, kind: "birthday", date: "--10-24", yearly: true, private: true }],
+  });
+  const [anna, tom] = dinner.people.map((p) => p.id);
+  const coffee = await recordConversation(a, {
+    date: "2026-10-18",
+    kind: "in_person",
+    summary: "Coffee with Lena.",
+    transcript: "Coffee with Lena, she is thinking about quitting.",
+    visibility: "private",
+    people: [{ name: "Lena", present: true }],
+    facts: [{ person: 0, text: "thinking about quitting", category: "work" }],
+  });
+  const call = await recordConversation(b, {
+    date: "2026-10-15",
+    kind: "call",
+    summary: "Called Anna about the weekend.",
+    transcript: "Called Anna, we talked about hiking on the weekend.",
+    visibility: "shared",
+    people: [{ id: anna, present: true }],
+    facts: [{ person: 0, text: "likes hiking", category: "hobby" }],
+  });
+  return { a, b, anna, tom, lena: coffee.people[0].id, dinner: dinner.conversationId, coffee: coffee.conversationId, call: call.conversationId };
+}

@@ -1,0 +1,35 @@
+# dependencies
+/node_modules
+
+# testing
+/coverage
+/test-results/
+/playwright-report/
+
+# next.js
+/.next/
+/out/
+/build
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+
+# env files; the example is committed
+.env*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# local data and scratch
+/data/
+/.dev/
+/.superpowers/
+/.playwright-mcp/
+/docs/superpowers/
+
+# mkdocs build output
+/site/

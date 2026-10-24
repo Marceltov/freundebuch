@@ -1,0 +1,25 @@
+services:
+  freundebuch:
+    image: ghcr.io/marceltov/freundebuch:main
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    # Everything is optional; set values in .env (see .env.example). Empty means the default.
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      FREUNDEBUCH_SECRET: ${FREUNDEBUCH_SECRET:-}
+      FREUNDEBUCH_NOTIFY_AT: ${FREUNDEBUCH_NOTIFY_AT:-}
+      FREUNDEBUCH_OIDC_ISSUER: ${FREUNDEBUCH_OIDC_ISSUER:-}
+      FREUNDEBUCH_OIDC_CLIENT_ID: ${FREUNDEBUCH_OIDC_CLIENT_ID:-}
+      FREUNDEBUCH_OIDC_CLIENT_SECRET: ${FREUNDEBUCH_OIDC_CLIENT_SECRET:-}
+      FREUNDEBUCH_OIDC_ALLOW: ${FREUNDEBUCH_OIDC_ALLOW:-}
+      FREUNDEBUCH_TRUST_PROXY: ${FREUNDEBUCH_TRUST_PROXY:-}
+      FREUNDEBUCH_RATE_LIMIT: ${FREUNDEBUCH_RATE_LIMIT:-}
+      FREUNDEBUCH_LOG_LEVEL: ${FREUNDEBUCH_LOG_LEVEL:-}
+      TZ: ${TZ:-Europe/Berlin}
+    volumes:
+      - freundebuch-data:/data
+
+volumes:
+  freundebuch-data:

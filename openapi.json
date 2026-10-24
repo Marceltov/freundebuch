@@ -1,0 +1,2587 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Freundebuch API",
+    "version": "1",
+    "description": "A personal CRM for two: people, the conversations with them, and what to remember before the next one.\n\nEvery error is JSON, `{\"error\": \"...\", \"code\": \"...\"}`. Besides the responses listed per operation, an unknown path under /api/v1 answers 404 (`not_found`), a method an operation doesn't have answers 405 with `Allow`, and a failure on the server's side answers 500 (`internal`) without details.",
+    "license": {
+      "name": "AGPL-3.0-only",
+      "identifier": "AGPL-3.0-only"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://freundebuch.example"
+    }
+  ],
+  "tags": [
+    {
+      "name": "People",
+      "description": "Who is in the book, and what to know before meeting them."
+    },
+    {
+      "name": "Conversations",
+      "description": "Recording what was said, and reading it back."
+    },
+    {
+      "name": "Items",
+      "description": "Corrections after the fact: facts, promises, dates, exchanges, relationships and conversations."
+    },
+    {
+      "name": "Meta",
+      "description": "About the API itself."
+    }
+  ],
+  "paths": {
+    "/api/v1/people": {
+      "get": {
+        "operationId": "listPeople",
+        "summary": "List or search people",
+        "description": "With `q`, the best matches for a name or alias, each with `context` hints from what the caller may see; without, everyone by name.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "A name or alias to search for; best matches first, at most 5. Without it, every person",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "People",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}": {
+      "get": {
+        "operationId": "getPerson",
+        "summary": "Get a person",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}/briefing": {
+      "get": {
+        "operationId": "getBriefing",
+        "summary": "Everything to know before meeting a person",
+        "description": "As the caller sees it: private items of other users are never part of it.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The briefing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Briefing"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}/interval": {
+      "put": {
+        "operationId": "setCheckInInterval",
+        "summary": "Set how often to check in with a person",
+        "description": "The caller's own interval; other users keep theirs.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Interval"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}/merge": {
+      "post": {
+        "operationId": "mergePeople",
+        "summary": "Merge a duplicate into a person",
+        "description": "Everything of `drop` moves to the person in the path, and `drop` is deleted. A user's own person can't be merged away.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Merge"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}/aliases": {
+      "post": {
+        "operationId": "addAlias",
+        "summary": "Add another name a person goes by",
+        "description": "Aliases are shared, like names, and searching finds the person by them. One the person already has, or their name, changes nothing.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Alias"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/due": {
+      "get": {
+        "operationId": "getDue",
+        "summary": "What needs attention",
+        "description": "Dates coming up, people past their check-in interval, and promises with a due date.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Due items, most pressing first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DueList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orbit": {
+      "get": {
+        "operationId": "getOrbit",
+        "summary": "The people worth a look, placed around the caller",
+        "description": "At most 24, most urgent first: overdue or nearly so, seen within 14 days, a birthday within 14 days, or an open promise. Rings follow the caller's own last seen and interval; another user's private conversations never move a face.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Faces, most urgent first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Orbit"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations": {
+      "post": {
+        "operationId": "recordConversation",
+        "summary": "Record a conversation",
+        "description": "Everything lands in one transaction: a bad item leaves nothing behind. A private conversation makes every item private. A new person named like an existing person or alias is `ambiguous` (409, listing the candidates) unless `confirmedNew`.",
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewConversation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recorded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request names more than one match (`ambiguous`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{id}": {
+      "get": {
+        "operationId": "getConversation",
+        "summary": "Get a conversation",
+        "description": "With the items the caller may see. `transcript` is null when it is private to someone else.",
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/items/{table}/{id}": {
+      "patch": {
+        "operationId": "editItem",
+        "summary": "Correct an item",
+        "description": "The body holds exactly one of `done`, `outdated`, `visibility`, `patch` or `transcriptShared`; none or several is `invalid_request`. A transcript turns private whenever anything recorded with it does, and turns shared again only through `transcriptShared`.",
+        "tags": [
+          "Items"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "description": "The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The item is visible to the caller but only its recorder may change it (`forbidden`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteItem",
+        "summary": "Delete an item",
+        "description": "Only its recorder may.",
+        "tags": [
+          "Items"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "description": "The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The item is visible to the caller but only its recorder may change it (`forbidden`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/settings": {
+      "get": {
+        "operationId": "getSettings",
+        "summary": "The caller's settings",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putSettings",
+        "summary": "Change the caller's settings",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/settings/test": {
+      "post": {
+        "operationId": "testWebhook",
+        "summary": "Send a test message to the caller's webhook",
+        "description": "`sent` is false when there is no webhook or it didn't accept the message.",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether it was sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sent"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "summary": "This API's OpenAPI document",
+        "description": "Generated from the server's route table, with `servers` set to this instance's URL.",
+        "tags": [
+          "Meta"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "webhookUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"
+          }
+        },
+        "required": [
+          "webhookUrl"
+        ]
+      },
+      "Sent": {
+        "type": "object",
+        "properties": {
+          "sent": {
+            "type": "boolean",
+            "description": "Whether the receiver accepted the message"
+          }
+        },
+        "required": [
+          "sent"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "A short reason, for people"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid_request",
+              "invalid_input",
+              "unauthorized",
+              "forbidden",
+              "not_found",
+              "ambiguous",
+              "internal"
+            ],
+            "description": "Stable machine-readable code"
+          }
+        },
+        "required": [
+          "error",
+          "code"
+        ]
+      },
+      "Person": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "A person's id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdFrom": {
+            "description": "The conversation the person was first mentioned in, when the viewer may see it; absent in a search",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "context": {
+            "description": "Only in a search: short hints that tell people with the same name apart",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "aliases"
+        ]
+      },
+      "PersonList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Person"
+        }
+      },
+      "Briefing": {
+        "type": "object",
+        "properties": {
+          "person": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "A person's id"
+              },
+              "name": {
+                "type": "string"
+              },
+              "aliases": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "birthday": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "date": {
+                        "type": "string",
+                        "description": "As recorded: `YYYY-MM-DD`, or `--MM-DD` without a year"
+                      },
+                      "next": {
+                        "type": "string",
+                        "description": "The day it falls on next"
+                      },
+                      "age": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The age reached then, when the year is known"
+                      }
+                    },
+                    "required": [
+                      "date",
+                      "next",
+                      "age"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The person's birthday as the caller may see it, however far away"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "aliases",
+              "birthday"
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The groups the caller may see the person in, each name once"
+          },
+          "freshness": {
+            "type": "object",
+            "properties": {
+              "lastSeen": {
+                "description": "The day of the latest conversation the person was present at",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "intervalDays": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The viewer's check-in interval for the person"
+              },
+              "ratio": {
+                "description": "Days since last seen divided by the interval; 1 means the check-in falls due today",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "lastSeen",
+              "intervalDays",
+              "ratio"
+            ]
+          },
+          "nextDates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "personId": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "birthday",
+                    "anniversary",
+                    "custom"
+                  ]
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "date": {
+                  "type": "string",
+                  "description": "The day it falls on next"
+                },
+                "inDays": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "age": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The age reached, for a birthday with a year"
+                }
+              },
+              "required": [
+                "id",
+                "personId",
+                "kind",
+                "label",
+                "date",
+                "inDays",
+                "age"
+              ]
+            }
+          },
+          "current": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "work",
+                    "home",
+                    "family",
+                    "health",
+                    "hobby",
+                    "travel",
+                    "other"
+                  ]
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                }
+              },
+              "required": [
+                "id",
+                "text",
+                "category",
+                "visibility",
+                "mine"
+              ]
+            }
+          },
+          "open": {
+            "type": "object",
+            "properties": {
+              "promises": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "byMe": {
+                      "type": "boolean",
+                      "description": "Whether the caller made the promise"
+                    },
+                    "by": {
+                      "description": "The other user's name, when they made the promise; with neither, the person made it",
+                      "type": "string"
+                    },
+                    "due": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "mine": {
+                      "type": "boolean",
+                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text",
+                    "byMe",
+                    "due",
+                    "visibility",
+                    "mine"
+                  ]
+                }
+              },
+              "exchanges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "gift_idea",
+                        "gift",
+                        "money",
+                        "lent",
+                        "help"
+                      ]
+                    },
+                    "direction": {
+                      "type": "string",
+                      "enum": [
+                        "to_them",
+                        "from_them"
+                      ],
+                      "description": "`to_them`: the caller (or `by`) gave to the person; `from_them`: the person gave"
+                    },
+                    "by": {
+                      "description": "The other user's name, when they recorded it; `direction` then reads from their side",
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "currency": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "mine": {
+                      "type": "boolean",
+                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "direction",
+                    "text",
+                    "amount",
+                    "currency",
+                    "visibility",
+                    "mine"
+                  ]
+                }
+              },
+              "giftIdeas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "mine": {
+                      "type": "boolean",
+                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text",
+                    "visibility",
+                    "mine"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "promises",
+              "exchanges",
+              "giftIdeas"
+            ]
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "withOthers": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "kind",
+                "summary",
+                "withOthers"
+              ]
+            }
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "partner",
+                    "spouse",
+                    "parent",
+                    "child",
+                    "sibling",
+                    "friend",
+                    "colleague",
+                    "introduced_by",
+                    "other"
+                  ]
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "out",
+                    "in"
+                  ],
+                  "description": "`out` when the person is the `from` side of the relationship"
+                }
+              },
+              "required": [
+                "personId",
+                "name",
+                "type",
+                "direction"
+              ]
+            }
+          },
+          "suggestedInterval": {
+            "description": "Only while the interval isn't confirmed, and only when the history is long enough to suggest one",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "person",
+          "groups",
+          "freshness",
+          "nextDates",
+          "current",
+          "open",
+          "recent",
+          "relationships"
+        ]
+      },
+      "DueItem": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "date",
+              "promise",
+              "overdue"
+            ]
+          },
+          "personId": {
+            "type": "string",
+            "description": "A person's id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "ratio": {
+            "type": "number"
+          },
+          "byMe": {
+            "description": "On a promise: whether the caller made it (false: the person promised it to the caller). Only the caller's own promises are due",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "personId",
+          "name"
+        ]
+      },
+      "DueList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DueItem"
+        }
+      },
+      "OrbitFace": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "type": "string",
+            "description": "A person's id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ring": {
+            "anyOf": [
+              {
+                "type": "number",
+                "const": 0
+              },
+              {
+                "type": "number",
+                "const": 1
+              },
+              {
+                "type": "number",
+                "const": 2
+              }
+            ],
+            "description": "0 seen recently, 1 drifting, 2 due or overdue, by the caller's own last seen and interval"
+          },
+          "angle": {
+            "type": "number",
+            "description": "Where on its ring, in degrees; stable for a person and spread evenly within the ring"
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "birthday",
+                "promise",
+                "gift"
+              ]
+            },
+            "description": "A birthday within 14 days, an open promise, a gift idea"
+          }
+        },
+        "required": [
+          "personId",
+          "name",
+          "ring",
+          "angle",
+          "badges"
+        ]
+      },
+      "Orbit": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrbitFace"
+        }
+      },
+      "Interval": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Days between check-ins; null for no check-in wanted"
+          },
+          "confirmed": {
+            "default": false,
+            "description": "Whether the viewer agreed to this interval, as opposed to accepting a default",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "days"
+        ]
+      },
+      "Merge": {
+        "type": "object",
+        "properties": {
+          "drop": {
+            "type": "string",
+            "description": "The duplicate to merge into the person in the path; it is deleted"
+          }
+        },
+        "required": [
+          "drop"
+        ]
+      },
+      "Alias": {
+        "type": "object",
+        "properties": {
+          "alias": {
+            "type": "string",
+            "description": "Another name the person goes by, e.g. a nickname"
+          }
+        },
+        "required": [
+          "alias"
+        ]
+      },
+      "NewConversation": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "A day, `YYYY-MM-DD`"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "in_person",
+              "call",
+              "message",
+              "video",
+              "event"
+            ]
+          },
+          "place": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "transcript": {
+            "type": "string",
+            "description": "The verbatim text; private to the recorder whenever anything recorded with it is private"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ],
+            "description": "`private` items are visible only to whoever recorded them"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "An existing person",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "A new person",
+                  "type": "string"
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "present": {
+                  "type": "boolean",
+                  "description": "Whether the person took part"
+                },
+                "confirmedNew": {
+                  "description": "A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "present"
+              ]
+            }
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "work",
+                    "home",
+                    "family",
+                    "health",
+                    "hobby",
+                    "travel",
+                    "other"
+                  ]
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                },
+                "supersedes": {
+                  "description": "The id of the fact this replaces",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "person",
+                "text",
+                "category"
+              ]
+            }
+          },
+          "promises": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "byMe": {
+                  "type": "boolean"
+                },
+                "due": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "person",
+                "text",
+                "byMe"
+              ]
+            }
+          },
+          "dates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "birthday",
+                    "anniversary",
+                    "custom"
+                  ]
+                },
+                "date": {
+                  "type": "string",
+                  "description": "`YYYY-MM-DD`, or `--MM-DD` for a yearly date without a year"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "yearly": {
+                  "type": "boolean"
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "person",
+                "kind",
+                "date",
+                "yearly"
+              ]
+            }
+          },
+          "exchanges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "gift_idea",
+                    "gift",
+                    "money",
+                    "lent",
+                    "help"
+                  ]
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "to_them",
+                    "from_them"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "person",
+                "kind",
+                "direction",
+                "text"
+              ]
+            }
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "to": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "partner",
+                    "spouse",
+                    "parent",
+                    "child",
+                    "sibling",
+                    "friend",
+                    "colleague",
+                    "introduced_by",
+                    "other"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "type"
+              ]
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "members": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "An index into `people`"
+                  }
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "members"
+              ]
+            }
+          }
+        },
+        "required": [
+          "date",
+          "kind",
+          "summary",
+          "transcript",
+          "visibility",
+          "people"
+        ]
+      },
+      "Recorded": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "created": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "ref",
+                "id",
+                "name",
+                "created"
+              ]
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "facts": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "promises": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "dates": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "exchanges": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "relationships": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groups": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The group memberships written"
+              }
+            },
+            "required": [
+              "facts",
+              "promises",
+              "dates",
+              "exchanges",
+              "relationships",
+              "groups"
+            ]
+          }
+        },
+        "required": [
+          "conversationId",
+          "people",
+          "counts"
+        ]
+      },
+      "Conversation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "description": "A day, `YYYY-MM-DD`"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "in_person",
+              "call",
+              "message",
+              "video",
+              "event"
+            ]
+          },
+          "place": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "transcript": {
+            "description": "Null when the viewer may not read it",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ],
+            "description": "`private` items are visible only to whoever recorded them"
+          },
+          "recordedBy": {
+            "type": "string"
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "recordedBy": {
+                  "type": "string",
+                  "description": "The id of the user who recorded it"
+                },
+                "personId": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "work",
+                    "home",
+                    "family",
+                    "health",
+                    "hobby",
+                    "travel",
+                    "other"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "outdated"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "visibility",
+                "recordedBy",
+                "personId",
+                "text",
+                "category",
+                "status"
+              ]
+            }
+          },
+          "promises": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "recordedBy": {
+                  "type": "string",
+                  "description": "The id of the user who recorded it"
+                },
+                "personId": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "byMe": {
+                  "type": "boolean",
+                  "description": "Whether the caller made the promise"
+                },
+                "by": {
+                  "description": "The other user's name, when they made the promise; with neither, the person made it",
+                  "type": "string"
+                },
+                "due": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "done": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "visibility",
+                "recordedBy",
+                "personId",
+                "text",
+                "byMe",
+                "due",
+                "done"
+              ]
+            }
+          },
+          "dates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "recordedBy": {
+                  "type": "string",
+                  "description": "The id of the user who recorded it"
+                },
+                "personId": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "birthday",
+                    "anniversary",
+                    "custom"
+                  ]
+                },
+                "date": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "yearly": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "visibility",
+                "recordedBy",
+                "personId",
+                "kind",
+                "date",
+                "label",
+                "yearly"
+              ]
+            }
+          },
+          "exchanges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "recordedBy": {
+                  "type": "string",
+                  "description": "The id of the user who recorded it"
+                },
+                "personId": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "gift_idea",
+                    "gift",
+                    "money",
+                    "lent",
+                    "help"
+                  ]
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "to_them",
+                    "from_them"
+                  ],
+                  "description": "`to_them`: the caller (or `by`) gave to the person; `from_them`: the person gave"
+                },
+                "by": {
+                  "description": "The other user's name, when they recorded it; `direction` then reads from their side",
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "currency": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "settled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "visibility",
+                "recordedBy",
+                "personId",
+                "kind",
+                "direction",
+                "text",
+                "amount",
+                "currency",
+                "settled"
+              ]
+            }
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "recordedBy": {
+                  "type": "string",
+                  "description": "The id of the user who recorded it"
+                },
+                "fromId": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "toId": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "partner",
+                    "spouse",
+                    "parent",
+                    "child",
+                    "sibling",
+                    "friend",
+                    "colleague",
+                    "introduced_by",
+                    "other"
+                  ]
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "visibility",
+                "recordedBy",
+                "fromId",
+                "toId",
+                "type",
+                "note"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "kind",
+          "place",
+          "summary",
+          "transcript",
+          "visibility",
+          "recordedBy",
+          "participants",
+          "facts",
+          "promises",
+          "dates",
+          "exchanges",
+          "relationships"
+        ]
+      },
+      "ItemPatch": {
+        "type": "object",
+        "properties": {
+          "done": {
+            "description": "Marks a promise done or an exchange settled",
+            "type": "boolean",
+            "const": true
+          },
+          "outdated": {
+            "description": "Marks a fact outdated",
+            "type": "boolean",
+            "const": true
+          },
+          "visibility": {
+            "description": "Changes who can see the item (only its recorder may)",
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ]
+          },
+          "patch": {
+            "description": "New values for the item's own fields (only its recorder may)",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "transcriptShared": {
+            "description": "Lets the partner read a conversation's transcript (only its recorder may, and only once neither it nor anything recorded with it is private)",
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "description": "Exactly one of the five"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An OAuth access token issued for this API's URL (`/api/v1`)"
+      },
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "fb_identity",
+        "description": "The browser's sign-in; on anything but a GET only from the app's own pages"
+      }
+    }
+  }
+}

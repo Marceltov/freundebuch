@@ -1,0 +1,92 @@
+site_name: freundebuch
+site_description: A personal CRM for one household. Ramble to Claude about the people in your life; freundebuch remembers and briefs you before you meet them again.
+site_url: https://marceltov.github.io/freundebuch/
+repo_url: https://github.com/Marceltov/freundebuch
+repo_name: Marceltov/freundebuch
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Marcel Bruckner. Licensed under <a href="https://github.com/Marceltov/freundebuch/blob/main/LICENSE">AGPL-3.0-only</a>
+
+# Planning notes are local-only (gitignored); never publish them.
+exclude_docs: |
+  superpowers/
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Using it:
+      - Rambling to Claude: using/rambling.md
+      - Briefings and what's due: using/briefings.md
+      - Private and shared: using/privacy.md
+      - Fixing mistakes: using/corrections.md
+      - Notifications: using/notifications.md
+      - The web app: using/web-app.md
+  - Self-hosting:
+      - Configuration: self-hosting/configuration.md
+      - Sign-in with authentik: self-hosting/sign-in.md
+      - Connect Claude: self-hosting/connect-claude.md
+      - Operating: self-hosting/operating.md
+  - Reference:
+      - MCP tools: reference/mcp-tools.md
+      - REST API: reference/rest-api.md
+  - Internals:
+      - How it works: internals/how-it-works.md
+      - Design decisions:
+          - AI-first app with a built-in MCP: adr/0001-ai-first-app-with-built-in-mcp.md
+          - Privacy model: adr/0002-privacy-model.md
+          - authentik sign-in and own OAuth server: adr/0003-authentik-sign-in-and-own-oauth-server.md
+      - Development: internals/development.md
+
+theme:
+  name: material
+  logo: assets/icon.svg
+  favicon: assets/icon.svg
+  font:
+    text: Atkinson Hyperlegible Next
+    code: Atkinson Hyperlegible Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.instant
+    - navigation.footer
+    - navigation.top
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - content.action.edit
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
