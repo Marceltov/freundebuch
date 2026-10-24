@@ -66,6 +66,16 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   await promise.getByRole("button", { name: "Aktionen" }).click();
   await promise.getByRole("button", { name: "Erledigt" }).click();
   await expect(page.getByText("Umzugsfirma schicken")).toHaveCount(0);
+
+  // The links Claude hands out: a fact opens its highlighted row on the friend page; the done promise still has its row, on the
+  // conversation's page, which lists everything filed from it.
+  const { conversationId } = await recorded.json();
+  const c = await (await page.request.get(`/api/v1/conversations/${conversationId}`)).json();
+  await page.goto(c.facts[0].url);
+  await expect(page.locator(":target")).toHaveText(/Neuer Job im Museum/);
+  await page.goto(c.promises[0].url);
+  await expect(page.locator(":target")).toHaveText(/Umzugsfirma schicken.*Erledigt/);
+  await expectNoSideScroll(page);
 });
 
 test("settings fit the screen and offer the MCP address", async ({ page }) => {

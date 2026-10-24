@@ -18,7 +18,10 @@ The server also sends Claude instructions with the connection. In short:
 - pass the ramble verbatim as the transcript,
 - ask before filing anything sensitive as shared,
 - resolve every person with `find_person` and ask when a name is ambiguous,
-- read back what was filed,
+- read back what was filed, with the link to the conversation,
+- give you the link whenever you may want to look at something in the web app,
 - offer suggested intervals and save them only once you agree.
+
+Every person, conversation and item in a tool result carries a `url` into the web app, built from `PUBLIC_URL` (or the request's host when it is unset). A person opens their page, a conversation its page. An item opens the page that shows it with its row highlighted: in a briefing or `whats_due` that is the person's page, in a conversation the conversation's page, which also lists done and outdated items. The REST API returns the same fields.
 
 The exact input and output schemas are served by the endpoint itself (`tools/list`).

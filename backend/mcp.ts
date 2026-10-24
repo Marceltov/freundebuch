@@ -15,7 +15,7 @@ import { logger } from "./log";
 import { addAlias, findPeople } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
 import { RELATIONSHIP_TYPES, type Viewer } from "./types";
-import { publicUrl } from "./urls";
+import { absoluteUrls, conversationPath, personPath, publicUrl } from "./urls";
 
 const log = logger("mcp");
 
@@ -23,13 +23,15 @@ export const INSTRUCTIONS = `freundebuch remembers what is going on in the lives
 Pass the ramble verbatim as transcript, never a summary.
 Before recording, look for sensitive content: health, relationship trouble, money, anything said in confidence or "between us". If you find any, ask the user whether it should be private. Default to shared otherwise. When only part is sensitive, mark only those items private and keep that part out of the summary.
 Resolve every person with find_person first. When more than one candidate fits, or a new name resembles an existing person, ask the user which one; never guess and never create a duplicate.
-After recording, read back in one or two sentences what you filed.
+After recording, read back in one or two sentences what you filed, with the link to the conversation.
+Every person, conversation and item comes with a url to it in the web app; give the user the link whenever they may want to look at something there.
 When a briefing has suggestedInterval, offer it to the user and save it with set_interval once they agree.`;
 
 // A tool result: the body as structured content and, for clients that only read text, as JSON text. The body goes through the
-// tool's output schema first, which drops every field the schema doesn't name: what leaves is only what was declared.
-function ok<S extends z.ZodType>(schema: S, body: z.input<S>) {
-  const out = schema.parse(body) as Record<string, unknown>;
+// tool's output schema first, which drops every field the schema doesn't name: what leaves is only what was declared. Its links
+// are made absolute against `base`, the server's public URL.
+function result<S extends z.ZodType>(base: string, schema: S, body: z.input<S>) {
+  const out = absoluteUrls(base, schema.parse(body)) as Record<string, unknown>;
   return { structuredContent: out, content: [{ type: "text" as const, text: JSON.stringify(out) }] };
 }
 
@@ -62,11 +64,13 @@ const DueJson = z.object({ items: z.array(DueItemJson).describe("Most pressing f
 const RelatedJson = z.object({
   id: z.string().optional().describe("The new relationship's id"),
   added: z.number().int().optional().describe("How many group memberships were new; one the user already recorded is kept as it was"),
+  url: z.string().optional().describe("For a relationship: the page of `from`, which shows it, as an absolute URL"),
 });
-const SetIntervalJson = IntervalJson.extend({ personId: PersonId });
+const SetIntervalJson = IntervalJson.extend({ personId: PersonId, url: z.string().describe("The person's page, as an absolute URL") });
 const CorrectedJson = z.object({ corrected: z.literal(true) });
 const TranscriptJson = z.object({
   conversationId: z.string(),
+  url: z.string().describe("The conversation's page, as an absolute URL"),
   date: Day,
   transcript: z.string().nullable().describe("Null when the other user recorded it and it is private to them"),
 });
@@ -134,7 +138,8 @@ const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("share_transcript"), id: ConversationId }).describe("Let the partner read a conversation's transcript"),
 ]);
 
-function server(v: Viewer): McpServer {
+function server(v: Viewer, base: string): McpServer {
+  const ok = <S extends z.ZodType>(schema: S, body: z.input<S>) => result(base, schema, body);
   const s = new McpServer({ name: "freundebuch", version: "1.0.0" }, { instructions: INSTRUCTIONS });
 
   s.registerTool(
@@ -202,7 +207,7 @@ function server(v: Viewer): McpServer {
       return ok(
         RelatedJson,
         a.kind === "relationship"
-          ? await addRelationship(v, { from: a.from, to: a.to, type: a.type, note: a.note, visibility: a.visibility })
+          ? { ...(await addRelationship(v, { from: a.from, to: a.to, type: a.type, note: a.note, visibility: a.visibility })), url: personPath(a.from) }
           : await addToGroup(v, { name: a.name, members: a.members, visibility: a.visibility }),
       );
     }),
@@ -223,7 +228,7 @@ function server(v: Viewer): McpServer {
     },
     guard(async ({ personId, days, confirmed }) => {
       await setCheckInInterval(v, personId, days, confirmed);
-      return ok(SetIntervalJson, { personId, days, confirmed });
+      return ok(SetIntervalJson, { personId, days, confirmed, url: personPath(personId) });
     }),
   );
 
@@ -281,7 +286,7 @@ function server(v: Viewer): McpServer {
     },
     guard(async ({ conversationId }) => {
       const c = await getConversation(v, conversationId);
-      return ok(TranscriptJson, { conversationId: c.id, date: c.date, transcript: c.transcript });
+      return ok(TranscriptJson, { conversationId: c.id, url: conversationPath(c.id), date: c.date, transcript: c.transcript });
     }),
   );
   return s;
@@ -292,7 +297,7 @@ const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 
 // "auto" answers with one JSON body unless a tool emits mid-call notifications, which ours never do. The gate has found the
 // viewer already; it arrives here in authInfo.
-const handler = createMcpHandler(({ authInfo }) => server(authInfo!.extra!.viewer as Viewer), { legacy: "reject", maxRequestBodySize: MAX_REQUEST_BYTES });
+const handler = createMcpHandler(({ authInfo }) => server(authInfo!.extra!.viewer as Viewer, authInfo!.extra!.base as string), { legacy: "reject", maxRequestBodySize: MAX_REQUEST_BYTES });
 
 const rpcError = (status: number, message: string, headers?: Record<string, string>) =>
   Response.json({ jsonrpc: "2.0", error: { code: -32600, message } }, { status, headers });
@@ -310,7 +315,7 @@ async function gate(req: Request): Promise<Response | AuthInfo> {
     if (host !== new URL(publicUrl(req.headers)).host) return rpcError(403, "forbidden origin");
   }
   const viewer = await viewerFromRequest(req, "mcp");
-  if (viewer) return { token: "", clientId: "oauth", scopes: [], extra: { viewer } };
+  if (viewer) return { token: "", clientId: "oauth", scopes: [], extra: { viewer, base: publicUrl(req.headers) } };
   const unauthorized = (message: string, error = "") =>
     rpcError(401, message, { "www-authenticate": `Bearer ${error}resource_metadata="${publicUrl(req.headers)}/.well-known/oauth-protected-resource/mcp"` });
   // An access token we signed (now = 0 ignores expiry) that has expired, names another resource or a user that is gone:

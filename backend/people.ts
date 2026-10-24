@@ -6,10 +6,11 @@ import { InvalidInputError, NotFoundError } from "./errors";
 import { lastSeen } from "./intervals";
 import { norm, within } from "./names";
 import type { RelationshipType, Viewer } from "./types";
+import { personPath } from "./urls";
 import { visible } from "./visibility";
 
-export type Candidate = { id: string; name: string; aliases: string[]; context: string[] };
-export type PersonView = { id: string; name: string; aliases: string[]; createdFrom: string | null };
+export type Candidate = { id: string; name: string; aliases: string[]; url: string; context: string[] };
+export type PersonView = { id: string; name: string; aliases: string[]; url: string; createdFrom: string | null };
 
 const MAX_CONTEXT = 3;
 const FUZZY_MIN = 5;
@@ -74,7 +75,7 @@ export async function findPeople(v: Viewer, q: string, limit = 5): Promise<Candi
     .filter((h): h is { p: (typeof people)[number]; r: number } => h.r !== null)
     .sort((x, y) => x.r - y.r || x.p.name.localeCompare(y.p.name))
     .slice(0, limit);
-  return Promise.all(hits.map(async ({ p }) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], context: await contextFor(v, p.id) })));
+  return Promise.all(hits.map(async ({ p }) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], url: personPath(p.id), context: await contextFor(v, p.id) })));
 }
 
 /** The people whose name or one of whose aliases is `name` once normalised; names and aliases are shared, the context is the viewer's. */
@@ -82,7 +83,7 @@ export async function namedLike(v: Viewer, name: string): Promise<Candidate[]> {
   const n = norm(name);
   const [people, aliases] = await Promise.all([(await db()).selectFrom("persons").select(["id", "name"]).orderBy("name").execute(), aliasesByPerson()]);
   const hits = people.filter((p) => norm(p.name) === n || (aliases.get(p.id) ?? []).some((a) => norm(a) === n));
-  return Promise.all(hits.map(async (p) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], context: await contextFor(v, p.id) })));
+  return Promise.all(hits.map(async (p) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], url: personPath(p.id), context: await contextFor(v, p.id) })));
 }
 
 // How a relationship reads from the person's side: `out` when they are `from`, `in` when they are `to`. "Tom" is appended.
@@ -153,7 +154,7 @@ async function createdFromFor(v: Viewer, personId: string, conversationId: strin
 
 async function toViews(v: Viewer, rows: { id: string; name: string; created_from: string | null }[]): Promise<PersonView[]> {
   const aliases = await aliasesByPerson();
-  return Promise.all(rows.map(async (r) => ({ id: r.id, name: r.name, aliases: aliases.get(r.id) ?? [], createdFrom: r.created_from ? await createdFromFor(v, r.id, r.created_from) : null })));
+  return Promise.all(rows.map(async (r) => ({ id: r.id, name: r.name, aliases: aliases.get(r.id) ?? [], url: personPath(r.id), createdFrom: r.created_from ? await createdFromFor(v, r.id, r.created_from) : null })));
 }
 
 export async function getPerson(v: Viewer, id: string): Promise<PersonView> {

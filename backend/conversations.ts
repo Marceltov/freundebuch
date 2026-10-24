@@ -19,6 +19,7 @@ import {
   type Viewer,
   type Visibility,
 } from "./types";
+import { conversationPath, itemPath, personPath, type AnchoredTable } from "./urls";
 import { visible } from "./visibility";
 
 /** An index into `NewConversation.people`. */
@@ -51,12 +52,16 @@ const ITEM_KINDS = ["facts", "promises", "dates", "exchanges", "relationships", 
 
 export type Recorded = {
   conversationId: string;
-  people: Array<{ ref: PersonRef; id: string; name: string; created: boolean }>;
+  url: string;
+  people: Array<{ ref: PersonRef; id: string; name: string; created: boolean; url: string }>;
   /** Items written; `groups` counts the group memberships written. */
   counts: Record<(typeof ITEM_KINDS)[number], number>;
 };
 
-type Item = { id: string; visibility: Visibility; recordedBy: string };
+/** `url`: the item's row on the conversation's page, which lists everything filed from it, done and outdated ones too. */
+type Item = { id: string; visibility: Visibility; recordedBy: string; url: string };
+/** `name`: the name of the person the item is about. */
+type About = { personId: string; name: string };
 export type ConversationView = {
   id: string;
   date: string;
@@ -67,16 +72,17 @@ export type ConversationView = {
   transcript: string | null;
   visibility: Visibility;
   recordedBy: string;
-  participants: Array<{ id: string; name: string }>;
-  facts: Array<Item & { personId: string; text: string; category: FactCategory; status: "current" | "outdated" }>;
+  url: string;
+  participants: Array<{ id: string; name: string; url: string }>;
+  facts: Array<Item & About & { text: string; category: FactCategory; status: "current" | "outdated" }>;
   /** `byMe` and `by` as in a briefing: from the viewer's side, with the other user's name when they made the promise. */
-  promises: Array<Item & { personId: string; text: string; byMe: boolean; by?: string; due: string | null; done: boolean }>;
-  dates: Array<Item & { personId: string; kind: DateKind; date: string; label: string | null; yearly: boolean }>;
+  promises: Array<Item & About & { text: string; byMe: boolean; by?: string; due: string | null; done: boolean }>;
+  dates: Array<Item & About & { kind: DateKind; date: string; label: string | null; yearly: boolean }>;
   /** `by`: the other user's name when they recorded it; `direction` then reads from their side. */
   exchanges: Array<
-    Item & { personId: string; kind: ExchangeKind; direction: Direction; by?: string; text: string; amount: number | null; currency: string | null; settled: boolean }
+    Item & About & { kind: ExchangeKind; direction: Direction; by?: string; text: string; amount: number | null; currency: string | null; settled: boolean }
   >;
-  relationships: Array<Item & { fromId: string; toId: string; type: RelationshipType; note: string | null }>;
+  relationships: Array<Item & { fromId: string; fromName: string; toId: string; toName: string; type: RelationshipType; note: string | null }>;
 };
 
 export const MAX_TRANSCRIPT = 200_000;
@@ -211,7 +217,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
       })
       .execute();
 
-    const people: Recorded["people"] = [];
+    const people: Omit<Recorded["people"][number], "url">[] = [];
     for (const [ref, p] of c.people.entries()) {
       if (p.id) {
         const row = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", p.id).executeTakeFirst();
@@ -249,7 +255,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     for (const g of c.groups ?? []) memberships += await insertMemberships(tx, base, g.name, g.members.map(id), vis(g));
 
     const counts = { ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]), groups: memberships };
-    return { conversationId, people, counts };
+    return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts };
   });
 }
 
@@ -294,7 +300,13 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     .where("participants.conversation_id", "=", id)
     .orderBy("persons.name")
     .execute();
-  const item = (r: { id: string; visibility: string; recorded_by: string }): Item => ({ id: r.id, visibility: r.visibility as Visibility, recordedBy: r.recorded_by });
+  const page = conversationPath(id);
+  const item = (table: AnchoredTable, r: { id: string; visibility: string; recorded_by: string }): Item => ({
+    id: r.id,
+    visibility: r.visibility as Visibility,
+    recordedBy: r.recorded_by,
+    url: itemPath(page, table, r.id),
+  });
   // The recorder of every item is the conversation's recorder.
   const recorder = c.recorded_by === v.userId ? null : await d.selectFrom("users").innerJoin("persons", "persons.id", "users.person_id").select("persons.name").where("users.id", "=", c.recorded_by).executeTakeFirst();
   const by = recorder ? { by: recorder.name } : {};
@@ -305,6 +317,9 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     d.selectFrom("exchanges").selectAll().where("conversation_id", "=", id).$call((qb) => visible(qb, v, "exchanges")).orderBy("created_at").execute(),
     d.selectFrom("relationships").selectAll().where("conversation_id", "=", id).$call((qb) => visible(qb, v, "relationships")).orderBy("created_at").execute(),
   ]);
+  const ids = [...new Set([...[facts, promises, dates, exchanges].flat().map((x) => x.person_id), ...relationships.flatMap((r) => [r.from_id, r.to_id])])];
+  const names = new Map(ids.length ? (await d.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute()).map((p) => [p.id, p.name]) : []);
+  const about = (personId: string): About => ({ personId, name: names.get(personId) ?? "" });
   return {
     id: c.id,
     date: c.date,
@@ -314,13 +329,14 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     transcript: c.recorded_by === v.userId || !c.transcript_private ? c.transcript : null,
     visibility: c.visibility as Visibility,
     recordedBy: c.recorded_by,
-    participants,
-    facts: facts.map((f) => ({ ...item(f), personId: f.person_id, text: f.text, category: f.category as FactCategory, status: f.status })),
-    promises: promises.map((p) => ({ ...item(p), personId: p.person_id, text: p.text, byMe: !!p.by_me && !recorder, ...(p.by_me ? by : {}), due: p.due, done: !!p.done })),
-    dates: dates.map((x) => ({ ...item(x), personId: x.person_id, kind: x.kind, date: x.date, label: x.label, yearly: !!x.yearly })),
+    url: page,
+    participants: participants.map((p) => ({ ...p, url: personPath(p.id) })),
+    facts: facts.map((f) => ({ ...item("facts", f), ...about(f.person_id), text: f.text, category: f.category as FactCategory, status: f.status })),
+    promises: promises.map((p) => ({ ...item("promises", p), ...about(p.person_id), text: p.text, byMe: !!p.by_me && !recorder, ...(p.by_me ? by : {}), due: p.due, done: !!p.done })),
+    dates: dates.map((x) => ({ ...item("dates", x), ...about(x.person_id), kind: x.kind, date: x.date, label: x.label, yearly: !!x.yearly })),
     exchanges: exchanges.map((e) => ({
-      ...item(e),
-      personId: e.person_id,
+      ...item("exchanges", e),
+      ...about(e.person_id),
       kind: e.kind as ExchangeKind,
       direction: e.direction,
       ...by,
@@ -329,6 +345,6 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
       currency: e.currency,
       settled: !!e.settled,
     })),
-    relationships: relationships.map((r) => ({ ...item(r), fromId: r.from_id, toId: r.to_id, type: r.type as RelationshipType, note: r.note })),
+    relationships: relationships.map((r) => ({ ...item("relationships", r), fromId: r.from_id, fromName: names.get(r.from_id) ?? "", toId: r.to_id, toName: names.get(r.to_id) ?? "", type: r.type as RelationshipType, note: r.note })),
   };
 }

@@ -67,6 +67,7 @@ export const copy = {
   participants: "Dabei",
   transcriptPrivate: "Das Transkript ist privat.",
   conversation: "Gespräch",
+  recorded: "Erfasst",
 
   // Settings
   webhook: "Webhook für Erinnerungen",
@@ -81,6 +82,8 @@ export const copy = {
 
 // The names of the vocabularies the domain stores (backend/types.ts).
 export const kindName: Record<string, string> = { in_person: "Treffen", call: "Anruf", message: "Nachricht", video: "Videoanruf", event: "Feier" };
+
+export const dateKindName: Record<string, string> = { birthday: "Geburtstag", anniversary: "Jahrestag", custom: "Datum" };
 
 // What the other person is to the one whose page it is. `out`: the page's person is the `from` side ("from is type of to").
 export const relationName: Record<string, { out: string; in: string }> = {

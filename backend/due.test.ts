@@ -33,7 +33,7 @@ test("someone never seen is not overdue, even with an interval", async () => {
 });
 
 test("Tom's private birthday is due for A and absent for B", async () => {
-  expect(await whatsDue(s.a, "2026-10-23")).toEqual([{ kind: "date", personId: s.tom, name: "Tom", date: "2026-10-24", text: "birthday" }]);
+  expect(await whatsDue(s.a, "2026-10-23")).toEqual([{ kind: "date", personId: s.tom, name: "Tom", date: "2026-10-24", text: "birthday", url: expect.stringMatching(`^/p/${s.tom}#dates-`) }]);
   expect(await whatsDue(s.b, "2026-10-23")).toEqual([]);
 });
 
@@ -69,10 +69,10 @@ test("only the viewer's own promises are due: the partner's shared ones are thei
   await record(s.b, { promises: [{ person: 0, text: "bob's errand", byMe: true, due: "2026-10-24" }] });
   await record(s.a, { promises: [{ person: 0, text: "lend me the tent", byMe: false, due: "2026-10-24" }] });
   expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "promise")).toEqual([
-    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "lend me the tent", byMe: false },
+    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "lend me the tent", byMe: false, url: expect.stringMatching(`^/p/${s.anna}#promises-`) },
   ]);
   expect((await whatsDue(s.b, "2026-10-23")).filter((i) => i.kind === "promise")).toEqual([
-    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "bob's errand", byMe: true },
+    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "bob's errand", byMe: true, url: expect.stringMatching(`^/p/${s.anna}#promises-`) },
   ]);
 });
 

@@ -158,6 +158,17 @@ describe("tools", () => {
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
   });
 
+  test("every person and conversation comes with an absolute link into the web app", async () => {
+    const r = (await call(s.a, "record_conversation", ramble())).structuredContent;
+    expect(r.url).toBe(`http://localhost:3000/c/${r.conversationId}`);
+    expect(r.people[0].url).toBe(`http://localhost:3000/p/${s.anna}`);
+    expect((await call(s.a, "find_person", { name: "Anna" })).structuredContent.people[0].url).toBe(`http://localhost:3000/p/${s.anna}`);
+    const b = (await call(s.a, "briefing", { personId: s.anna })).structuredContent;
+    for (const f of b.current) expect(f.url).toBe(`http://localhost:3000/p/${s.anna}#facts-${f.id}`);
+    expect(b.recent[0].url).toBe(`http://localhost:3000/c/${b.recent[0].id}`);
+    expect((await call(s.a, "get_transcript", { conversationId: r.conversationId })).structuredContent.url).toBe(r.url);
+  });
+
   test("a domain refusal is a readable tool error", async () => {
     const r = await call(s.a, "briefing", { personId: "nope" });
     expect(r).toMatchObject({ isError: true, content: [{ text: "No such person" }] });
@@ -193,14 +204,17 @@ describe("tools", () => {
   test("whats_due and set_interval", async () => {
     expect((await call(s.a, "whats_due", { from: "2026-10-23" })).structuredContent.items.map((i: { date: string }) => i.date)).toEqual(["2026-10-24"]);
     const set = await call(s.a, "set_interval", { personId: s.anna, days: 14 });
-    expect(set.structuredContent).toEqual({ personId: s.anna, days: 14, confirmed: true });
+    expect(set.structuredContent).toEqual({ personId: s.anna, days: 14, confirmed: true, url: `http://localhost:3000/p/${s.anna}` });
     expect((await call(s.a, "briefing", { personId: s.anna })).structuredContent.freshness.intervalDays).toBe(14);
   });
 
   test("relate: a relationship and a group membership without a conversation", async () => {
     const rel = await call(s.a, "relate", { kind: "relationship", from: s.lena, to: s.anna, type: "colleague", visibility: "shared" });
     expect(rel.isError).toBeUndefined();
-    expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.relationships).toEqual([{ personId: s.lena, name: "Lena", type: "colleague", direction: "in" }]);
+    expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.relationships).toEqual([
+      { personId: s.lena, name: "Lena", type: "colleague", direction: "in", url: `http://localhost:3000/p/${s.lena}` },
+    ]);
+    expect(rel.structuredContent.url).toBe(`http://localhost:3000/p/${s.lena}`);
     const group = await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna, s.lena], visibility: "shared" });
     expect(group.structuredContent).toEqual({ added: 2 });
     expect((await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna], visibility: "shared" })).structuredContent).toEqual({ added: 0 });
@@ -280,6 +294,6 @@ describe("privacy over MCP", () => {
   test("structured content carries only the fields of the output schema", async () => {
     const r = await call(s.b, "find_person", { name: "Tom" });
     expect(Object.keys(r.structuredContent)).toEqual(["people"]);
-    expect(Object.keys(r.structuredContent.people[0]).sort()).toEqual(["aliases", "context", "id", "name"]);
+    expect(Object.keys(r.structuredContent.people[0]).sort()).toEqual(["aliases", "context", "id", "name", "url"]);
   });
 });

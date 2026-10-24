@@ -6,6 +6,7 @@ import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "./intervals";
 import { getPerson } from "./people";
 import type { ExchangeKind, FactCategory, RelationshipType, Viewer, Visibility } from "./types";
+import { conversationPath, itemPath, personPath } from "./urls";
 import { visible } from "./visibility";
 
 const NEXT_DATES_DAYS = 60;
@@ -15,26 +16,26 @@ const RECENT = 5;
 type Own = { visibility: Visibility; mine: boolean };
 
 /** A birthday as recorded (`date`, `--MM-DD` without a year), the day it falls on next, and the age reached then when the year is known. */
-export type Birthday = { date: string; next: string; age: number | null };
+export type Birthday = { id: string; date: string; next: string; age: number | null };
 
 export type Briefing = {
   /** `birthday` however far away it is; the viewer's own record of it wins over the partner's shared one. */
-  person: { id: string; name: string; aliases: string[]; birthday: Birthday | null };
+  person: { id: string; name: string; aliases: string[]; url: string; birthday: Birthday | null };
   /** The names of the groups the viewer may see the person in, each once. */
   groups: string[];
   freshness: Freshness;
   nextDates: UpcomingDate[];
-  current: Array<Own & { id: string; text: string; category: FactCategory }>;
+  current: Array<Own & { id: string; text: string; category: FactCategory; url: string }>;
   open: {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
-    promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null }>;
+    promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null; url: string }>;
     /** `by`: the other user's name, when they recorded it; `direction` then reads from their side (`to_them`: they gave). */
-    exchanges: Array<Own & { id: string; kind: ExchangeKind; direction: "to_them" | "from_them"; by?: string; text: string; amount: number | null; currency: string | null }>;
-    giftIdeas: Array<Own & { id: string; text: string }>;
+    exchanges: Array<Own & { id: string; kind: ExchangeKind; direction: "to_them" | "from_them"; by?: string; text: string; amount: number | null; currency: string | null; url: string }>;
+    giftIdeas: Array<Own & { id: string; text: string; url: string }>;
   };
-  recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[] }>;
+  recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[]; url: string }>;
   /** `direction` is `out` when the person is the `from` side of the relationship (see `RelationshipType`), `in` otherwise. */
-  relationships: Array<{ personId: string; name: string; type: RelationshipType; direction: "out" | "in" }>;
+  relationships: Array<{ personId: string; name: string; type: RelationshipType; direction: "out" | "in"; url: string }>;
   /** Only while the interval isn't confirmed, and only when the history is long enough to suggest one. */
   suggestedInterval?: number;
 };
@@ -66,7 +67,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .limit(RECENT)
       .execute(),
     d.selectFrom("person_settings").select("interval_confirmed").where("user_id", "=", v.userId).where("person_id", "=", personId).executeTakeFirst(),
-    d.selectFrom("dates").select(["date", "yearly", "recorded_by"]).where("person_id", "=", personId).where("kind", "=", "birthday").$call((qb) => visible(qb, v, "dates")).orderBy("created_at").execute(),
+    d.selectFrom("dates").select(["id", "date", "yearly", "recorded_by"]).where("person_id", "=", personId).where("kind", "=", "birthday").$call((qb) => visible(qb, v, "dates")).orderBy("created_at").execute(),
     d
       .selectFrom("group_members")
       .innerJoin("groups", "groups.id", "group_members.group_id")
@@ -96,28 +97,29 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .map((o) => names.get(o.person_id) ?? "")
       .sort((a, b) => a.localeCompare(b));
 
+  const page = personPath(personId);
   const own = (r: { visibility: string; recorded_by: string }): Own => ({ visibility: r.visibility as Visibility, mine: r.recorded_by === v.userId });
   const suggested = setting?.interval_confirmed ? null : await suggestInterval(v, personId);
   const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
   return {
-    person: { id: person.id, name: person.name, aliases: person.aliases, birthday: bday ? { date: bday.date, next, age: ageOn(bday.date, next) } : null },
+    person: { id: person.id, name: person.name, aliases: person.aliases, url: page, birthday: bday ? { id: bday.id, date: bday.date, next, age: ageOn(bday.date, next) } : null },
     groups: groups.map((g) => g.name),
     freshness: fresh,
     nextDates,
-    current: facts.map((f) => ({ id: f.id, text: f.text, category: f.category as FactCategory, ...own(f) })),
+    current: facts.map((f) => ({ id: f.id, text: f.text, category: f.category as FactCategory, url: itemPath(page, "facts", f.id), ...own(f) })),
     open: {
-      promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, ...own(p) })),
+      promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),
       exchanges: exchanges
         .filter((e) => e.kind !== "gift_idea")
-        .map((e) => ({ id: e.id, kind: e.kind as ExchangeKind, direction: e.direction, ...by(e), text: e.text, amount: e.amount, currency: e.currency, ...own(e) })),
-      giftIdeas: exchanges.filter((e) => e.kind === "gift_idea").map((e) => ({ id: e.id, text: e.text, ...own(e) })),
+        .map((e) => ({ id: e.id, kind: e.kind as ExchangeKind, direction: e.direction, ...by(e), text: e.text, amount: e.amount, currency: e.currency, url: itemPath(page, "exchanges", e.id), ...own(e) })),
+      giftIdeas: exchanges.filter((e) => e.kind === "gift_idea").map((e) => ({ id: e.id, text: e.text, url: itemPath(page, "exchanges", e.id), ...own(e) })),
     },
-    recent: convs.map((c) => ({ id: c.id, date: c.date, kind: c.kind, summary: c.summary, withOthers: withOthers(c.id) })),
+    recent: convs.map((c) => ({ id: c.id, date: c.date, kind: c.kind, summary: c.summary, withOthers: withOthers(c.id), url: conversationPath(c.id) })),
     relationships: rels.map((r) => {
       const out = r.from_id === personId;
       const other = out ? r.to_id : r.from_id;
-      return { personId: other, name: names.get(other) ?? "", type: r.type as RelationshipType, direction: out ? "out" : "in" };
+      return { personId: other, name: names.get(other) ?? "", type: r.type as RelationshipType, direction: out ? "out" : "in", url: personPath(other) };
     }),
     ...(suggested !== null ? { suggestedInterval: suggested } : {}),
   };
