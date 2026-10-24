@@ -6,6 +6,7 @@ import { daysBetween, today } from "./dates";
 import { upcomingDates } from "./due";
 import { freshness } from "./intervals";
 import type { Viewer } from "./types";
+import { personPath } from "./urls";
 import { visible } from "./visibility";
 
 const MAX_FACES = 24;
@@ -17,7 +18,7 @@ const NEARLY_DUE = 0.75;
 const RING_OFFSET = [0, 40, 20] as const;
 
 export type Badge = "birthday" | "promise" | "gift";
-export type OrbitFace = { personId: string; name: string; ring: 0 | 1 | 2; angle: number; badges: Badge[] };
+export type OrbitFace = { personId: string; name: string; ring: 0 | 1 | 2; angle: number; badges: Badge[]; url: string };
 
 // FNV-1a: a stable order within a ring that doesn't follow names or ids alphabetically.
 function hash(s: string): number {
@@ -51,7 +52,7 @@ export async function orbit(v: Viewer, now = Date.now()): Promise<OrbitFace[]> {
   const withPromise = new Set(promised.map((p) => p.person_id));
   const withGift = new Set(gifts.map((g) => g.person_id));
 
-  const picked: Array<Omit<OrbitFace, "angle"> & { urgency: number }> = [];
+  const picked: Array<Omit<OrbitFace, "angle" | "url"> & { urgency: number }> = [];
   for (const p of persons) {
     const { lastSeen, intervalDays, ratio } = await freshness(v, p.id, from);
     const daysSince = lastSeen ? daysBetween(lastSeen, from) : null;
@@ -74,5 +75,5 @@ export async function orbit(v: Viewer, now = Date.now()): Promise<OrbitFace[]> {
     const onRing = shown.filter((f) => f.ring === ring).sort((a, b) => hash(a.personId) - hash(b.personId));
     onRing.forEach((f, i) => angle.set(f.personId, (RING_OFFSET[ring] + (i * 360) / onRing.length) % 360));
   }
-  return shown.map((f) => ({ personId: f.personId, name: f.name, ring: f.ring, angle: angle.get(f.personId)!, badges: f.badges }));
+  return shown.map((f) => ({ personId: f.personId, name: f.name, ring: f.ring, angle: angle.get(f.personId)!, badges: f.badges, url: personPath(f.personId) }));
 }

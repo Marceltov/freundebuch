@@ -4,10 +4,11 @@ import { db } from "./db";
 import { ageOn, daysBetween, nextOccurrence, today } from "./dates";
 import { freshness } from "./intervals";
 import type { Viewer } from "./types";
+import { itemPath, personPath } from "./urls";
 import { visible } from "./visibility";
 
 /** `byMe`, on a promise: the viewer made it; false when the person promised it to the viewer. */
-export type DueItem = { kind: "date" | "promise" | "overdue"; personId: string; name: string; date?: string; text?: string; ratio?: number; byMe?: boolean };
+export type DueItem = { kind: "date" | "promise" | "overdue"; personId: string; name: string; date?: string; text?: string; ratio?: number; byMe?: boolean; url: string };
 
 export type UpcomingDate = {
   id: string;
@@ -19,6 +20,8 @@ export type UpcomingDate = {
   inDays: number;
   /** The age reached, for a birthday with a year. */
   age: number | null;
+  /** Its row on the person's page. */
+  url: string;
 };
 
 /** The viewer's visible dates that fall within `horizonDays` of `from`, soonest first; a yearly date recurs, a one-off date only counts once. */
@@ -30,7 +33,7 @@ export async function upcomingDates(v: Viewer, from: string, horizonDays: number
     const date = d.yearly ? nextOccurrence(d.date, from) : d.date;
     const inDays = daysBetween(from, date);
     if (inDays < 0 || inDays > horizonDays) continue;
-    out.push({ id: d.id, personId: d.person_id, kind: d.kind, label: d.label, date, inDays, age: d.kind === "birthday" ? ageOn(d.date, date) : null });
+    out.push({ id: d.id, personId: d.person_id, kind: d.kind, label: d.label, date, inDays, age: d.kind === "birthday" ? ageOn(d.date, date) : null, url: itemPath(personPath(d.person_id), "dates", d.id) });
   }
   return out.sort((a, b) => a.inDays - b.inDays || a.id.localeCompare(b.id));
 }
@@ -50,13 +53,14 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
     name: name(u.personId),
     date: u.date,
     text: u.label ?? u.kind,
+    url: u.url,
   }));
 
   const overdue: DueItem[] = [];
   for (const id of names.keys()) {
     if (id === v.personId) continue;
     const { ratio } = await freshness(v, id, from);
-    if (ratio !== null && ratio > 1) overdue.push({ kind: "overdue", personId: id, name: name(id), ratio });
+    if (ratio !== null && ratio > 1) overdue.push({ kind: "overdue", personId: id, name: name(id), ratio, url: personPath(id) });
   }
   overdue.sort((a, b) => b.ratio! - a.ratio! || a.name.localeCompare(b.name));
 
@@ -66,7 +70,7 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
   const promises: DueItem[] = (
     await d
       .selectFrom("promises")
-      .select(["person_id", "text", "due", "by_me"])
+      .select(["id", "person_id", "text", "due", "by_me"])
       .where("done", "=", 0)
       .where("due", "is not", null)
       .where("due", "<=", limit.toISOString().slice(0, 10))
@@ -75,7 +79,7 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
       .orderBy("due")
       .orderBy("created_at")
       .execute()
-  ).map((p) => ({ kind: "promise", personId: p.person_id, name: name(p.person_id), date: p.due!, text: p.text, byMe: !!p.by_me }));
+  ).map((p) => ({ kind: "promise", personId: p.person_id, name: name(p.person_id), date: p.due!, text: p.text, byMe: !!p.by_me, url: itemPath(personPath(p.person_id), "promises", p.id) }));
 
   return [...dates, ...overdue, ...promises];
 }

@@ -6,6 +6,7 @@ import { requireViewer } from "../auth/session";
 import { InvalidRequestError, NotFoundError } from "../errors";
 import { logger } from "../log";
 import type { Viewer } from "../types";
+import { absoluteUrls, publicUrl } from "../urls";
 import { errorReply } from "./errors";
 import { readCapped } from "./request";
 
@@ -98,7 +99,7 @@ async function jsonBody(req: Request, schema: z.ZodType): Promise<unknown> {
   return parsed.data;
 }
 
-function send(entry: AnyOp, reply: AnyReply): Response {
+function send(entry: AnyOp, reply: AnyReply, base: string): Response {
   const declared = (entry.responses as Record<number, ResponseSpec>)[reply.status];
   if (!declared) {
     log.error({ operation: entry.operationId, status: reply.status }, "an operation answered a status it doesn't declare");
@@ -114,7 +115,7 @@ function send(entry: AnyOp, reply: AnyReply): Response {
     }
   }
   if (reply.body === undefined) return new Response(null, { status: reply.status });
-  return Response.json(reply.body, { status: reply.status });
+  return Response.json(absoluteUrls(base, reply.body), { status: reply.status });
 }
 
 // `prefix` is where the catch-all route is mounted (e.g. "/api/v1"); entry paths include it.
@@ -146,6 +147,6 @@ export function createDispatcher(ops: AnyOp[], prefix: string): (req: Request, s
       reply = errorReply(e);
       if (reply.status === 500) return Response.json(reply.body, { status: 500 }); // never declared, always allowed
     }
-    return send(entry, reply);
+    return send(entry, reply, publicUrl(req.headers));
   };
 }

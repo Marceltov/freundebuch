@@ -11,7 +11,7 @@ export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 export { dispatch } from "./http/api";
 export { mcpRoute } from "./mcp";
-export { mcpResource, publicUrl, safeNext } from "./urls";
+export { anchorId, mcpResource, publicUrl, safeNext } from "./urls";
 export { e2eLoginRoute } from "./auth/e2e";
 
 // What the pages read, as the viewer sees it.

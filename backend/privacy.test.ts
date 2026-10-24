@@ -237,3 +237,23 @@ test("the orbit is per viewer: A's private conversation with Anna and Bob doesn'
   await setVisibility(s.a, "conversations", coffee.conversationId, "shared");
   expect(await ring(s.b)).toMatchObject({ ring: 0, badges: [] });
 });
+
+test("the links B is handed never name one of A's private items or conversations", async () => {
+  const d = await db();
+  const tables = ["conversations", "facts", "promises", "dates", "exchanges", "relationships"] as const;
+  const secret = (await Promise.all(tables.map((t) => d.selectFrom(t).select("id").where("visibility", "=", "private").where("recorded_by", "=", s.a.userId).execute())))
+    .flat()
+    .map((r) => r.id);
+  expect(secret.length).toBeGreaterThan(0);
+  const seen = [
+    await briefing(s.b, s.anna, "2026-10-23"),
+    await briefing(s.b, s.tom, "2026-10-23"),
+    await getConversation(s.b, s.dinner),
+    await whatsDue(s.b, "2026-10-23"),
+    await orbit(s.b),
+    await listPeople(s.b),
+  ];
+  const urls = JSON.stringify(seen).match(/"url":"[^"]*"/g) ?? [];
+  expect(urls.length).toBeGreaterThan(0);
+  for (const id of secret) expect(urls.join(), id).not.toContain(id);
+});

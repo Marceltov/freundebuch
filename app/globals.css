@@ -67,3 +67,10 @@ body {
     outline-offset: 2px;
   }
 }
+
+/* A link to one item (/p/…#promises-…) lands on its row: clear of the sticky header, outlined in the accent. */
+:target {
+  scroll-margin-top: 5rem;
+  outline: 2px solid var(--carbon);
+  outline-offset: 2px;
+}

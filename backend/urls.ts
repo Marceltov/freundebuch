@@ -15,6 +15,25 @@ export function publicUrl(headers: Headers): string {
 
 export const API_PREFIX = "/api/v1";
 
+// Where things open in the web app. The domain hands out paths; mcp.ts and the REST dispatcher make them absolute with
+// absoluteUrls() just before a result leaves, so the pages, which read the domain in-process, get links they can use as they are.
+export type AnchoredTable = "facts" | "promises" | "dates" | "exchanges" | "relationships";
+export const personPath = (id: string) => `/p/${id}`;
+export const conversationPath = (id: string) => `/c/${id}`;
+/** The element id of an item's row on a page; a link ending in `#` + this scrolls to the row and highlights it. */
+export const anchorId = (table: AnchoredTable, id: string) => `${table}-${id}`;
+export const itemPath = (page: string, table: AnchoredTable, id: string) => `${page}#${anchorId(table, id)}`;
+
+/** A copy of `body` with every `url` that is a path prefixed with `base`. */
+export function absoluteUrls<T>(base: string, body: T): T {
+  const walk = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(walk);
+    if (x === null || typeof x !== "object") return x;
+    return Object.fromEntries(Object.entries(x).map(([k, val]) => [k, k === "url" && typeof val === "string" && val.startsWith("/") ? base + val : walk(val)]));
+  };
+  return walk(body) as T;
+}
+
 // Where to go after signing in: a same-origin path, else "/". A second "/" or any "\" would make it
 // protocol-relative (browsers read "\" as "/"), and browsers drop tabs and newlines, so "/\t/x" is "//x".
 export const safeNext = (v: unknown): string => (typeof v === "string" && /^\/(?![/\\])[^\\\x00-\x1f\x7f]*$/.test(v) ? v : "/");

@@ -59,7 +59,8 @@ test("creating a new person by name sets created_from; an existing person is lin
   const anna = first.people[0].id;
   expect((await getPerson(a, anna)).createdFrom).toBe(first.conversationId);
   const second = await recordConversation(a, base({ people: [{ id: anna, present: true }] }));
-  expect(second.people).toEqual([{ ref: 0, id: anna, name: "Anna", created: false }]);
+  expect(second.people).toEqual([{ ref: 0, id: anna, name: "Anna", created: false, url: `/p/${anna}` }]);
+  expect(second.url).toBe(`/c/${second.conversationId}`);
   expect((await getPerson(a, anna)).createdFrom).toBe(first.conversationId);
 });
 
@@ -207,4 +208,13 @@ test("an unknown person id is NotFoundError", async () => {
 
 test("getConversation of an unknown id is NotFoundError", async () => {
   await expect(getConversation(a, "nope")).rejects.toBeInstanceOf(NotFoundError);
+});
+
+test("a conversation's items link to their rows on its page, done and outdated ones too, and name whom they are about", async () => {
+  const r = await recordConversation(a, base({ promises: [{ person: 0, text: "send the book", byMe: true }] }));
+  const c = await getConversation(a, r.conversationId);
+  expect(c.url).toBe(`/c/${c.id}`);
+  for (const x of [...c.facts, ...c.promises]) expect(x.url).toBe(`/c/${c.id}#${"category" in x ? "facts" : "promises"}-${x.id}`);
+  expect(c.promises[0].name).toBe("Anna");
+  expect(c.participants[0].url).toBe(`/p/${c.participants[0].id}`);
 });

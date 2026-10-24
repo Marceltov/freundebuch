@@ -1082,6 +1082,10 @@
               "type": "string"
             }
           },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
+          },
           "createdFrom": {
             "description": "The conversation the person was first mentioned in, when the viewer may see it; absent in a search",
             "type": [
@@ -1100,7 +1104,8 @@
         "required": [
           "id",
           "name",
-          "aliases"
+          "aliases",
+          "url"
         ]
       },
       "PersonList": {
@@ -1128,11 +1133,19 @@
                   "type": "string"
                 }
               },
+              "url": {
+                "type": "string",
+                "description": "Where it opens in the web app, as an absolute URL"
+              },
               "birthday": {
                 "anyOf": [
                   {
                     "type": "object",
                     "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "The date's id"
+                      },
                       "date": {
                         "type": "string",
                         "description": "As recorded: `YYYY-MM-DD`, or `--MM-DD` without a year"
@@ -1156,6 +1169,7 @@
                       }
                     },
                     "required": [
+                      "id",
                       "date",
                       "next",
                       "age"
@@ -1172,6 +1186,7 @@
               "id",
               "name",
               "aliases",
+              "url",
               "birthday"
             ]
           },
@@ -1266,6 +1281,10 @@
                     }
                   ],
                   "description": "The age reached, for a birthday with a year"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                 }
               },
               "required": [
@@ -1275,7 +1294,8 @@
                 "label",
                 "date",
                 "inDays",
-                "age"
+                "age",
+                "url"
               ]
             }
           },
@@ -1302,6 +1322,10 @@
                     "other"
                   ]
                 },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                },
                 "visibility": {
                   "type": "string",
                   "enum": [
@@ -1319,6 +1343,7 @@
                 "id",
                 "text",
                 "category",
+                "url",
                 "visibility",
                 "mine"
               ]
@@ -1352,6 +1377,10 @@
                         "null"
                       ]
                     },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
                     "visibility": {
                       "type": "string",
                       "enum": [
@@ -1370,6 +1399,7 @@
                     "text",
                     "byMe",
                     "due",
+                    "url",
                     "visibility",
                     "mine"
                   ]
@@ -1420,6 +1450,10 @@
                         "null"
                       ]
                     },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
                     "visibility": {
                       "type": "string",
                       "enum": [
@@ -1440,6 +1474,7 @@
                     "text",
                     "amount",
                     "currency",
+                    "url",
                     "visibility",
                     "mine"
                   ]
@@ -1455,6 +1490,10 @@
                     },
                     "text": {
                       "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                     },
                     "visibility": {
                       "type": "string",
@@ -1472,6 +1511,7 @@
                   "required": [
                     "id",
                     "text",
+                    "url",
                     "visibility",
                     "mine"
                   ]
@@ -1507,6 +1547,10 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
                 }
               },
               "required": [
@@ -1514,7 +1558,8 @@
                 "date",
                 "kind",
                 "summary",
-                "withOthers"
+                "withOthers",
+                "url"
               ]
             }
           },
@@ -1551,13 +1596,18 @@
                     "in"
                   ],
                   "description": "`out` when the person is the `from` side of the relationship"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The other person's page, as an absolute URL"
                 }
               },
               "required": [
                 "personId",
                 "name",
                 "type",
-                "direction"
+                "direction",
+                "url"
               ]
             }
           },
@@ -1609,12 +1659,17 @@
           "byMe": {
             "description": "On a promise: whether the caller made it (false: the person promised it to the caller). Only the caller's own promises are due",
             "type": "boolean"
+          },
+          "url": {
+            "type": "string",
+            "description": "The person's page, as an absolute URL; for a date or a promise, its highlighted row there"
           }
         },
         "required": [
           "kind",
           "personId",
-          "name"
+          "name",
+          "url"
         ]
       },
       "DueList": {
@@ -1665,6 +1720,10 @@
               ]
             },
             "description": "A birthday within 14 days, an open promise, a gift idea"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
           }
         },
         "required": [
@@ -1672,7 +1731,8 @@
           "name",
           "ring",
           "angle",
-          "badges"
+          "badges",
+          "url"
         ]
       },
       "Orbit": {
@@ -2056,6 +2116,10 @@
           "conversationId": {
             "type": "string"
           },
+          "url": {
+            "type": "string",
+            "description": "The conversation's page, which lists everything filed from it, as an absolute URL"
+          },
           "people": {
             "type": "array",
             "items": {
@@ -2076,13 +2140,18 @@
                 },
                 "created": {
                   "type": "boolean"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
                 }
               },
               "required": [
                 "ref",
                 "id",
                 "name",
-                "created"
+                "created",
+                "url"
               ]
             }
           },
@@ -2133,6 +2202,7 @@
         },
         "required": [
           "conversationId",
+          "url",
           "people",
           "counts"
         ]
@@ -2184,6 +2254,10 @@
           "recordedBy": {
             "type": "string"
           },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
+          },
           "participants": {
             "type": "array",
             "items": {
@@ -2195,11 +2269,16 @@
                 },
                 "name": {
                   "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
                 }
               },
               "required": [
                 "id",
-                "name"
+                "name",
+                "url"
               ]
             }
           },
@@ -2223,9 +2302,17 @@
                   "type": "string",
                   "description": "The id of the user who recorded it"
                 },
+                "url": {
+                  "type": "string",
+                  "description": "Its highlighted row on the conversation's page, as an absolute URL"
+                },
                 "personId": {
                   "type": "string",
                   "description": "A person's id"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The name of the person it is about"
                 },
                 "text": {
                   "type": "string"
@@ -2254,7 +2341,9 @@
                 "id",
                 "visibility",
                 "recordedBy",
+                "url",
                 "personId",
+                "name",
                 "text",
                 "category",
                 "status"
@@ -2281,9 +2370,17 @@
                   "type": "string",
                   "description": "The id of the user who recorded it"
                 },
+                "url": {
+                  "type": "string",
+                  "description": "Its highlighted row on the conversation's page, as an absolute URL"
+                },
                 "personId": {
                   "type": "string",
                   "description": "A person's id"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The name of the person it is about"
                 },
                 "text": {
                   "type": "string"
@@ -2310,7 +2407,9 @@
                 "id",
                 "visibility",
                 "recordedBy",
+                "url",
                 "personId",
+                "name",
                 "text",
                 "byMe",
                 "due",
@@ -2338,9 +2437,17 @@
                   "type": "string",
                   "description": "The id of the user who recorded it"
                 },
+                "url": {
+                  "type": "string",
+                  "description": "Its highlighted row on the conversation's page, as an absolute URL"
+                },
                 "personId": {
                   "type": "string",
                   "description": "A person's id"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The name of the person it is about"
                 },
                 "kind": {
                   "type": "string",
@@ -2367,7 +2474,9 @@
                 "id",
                 "visibility",
                 "recordedBy",
+                "url",
                 "personId",
+                "name",
                 "kind",
                 "date",
                 "label",
@@ -2395,9 +2504,17 @@
                   "type": "string",
                   "description": "The id of the user who recorded it"
                 },
+                "url": {
+                  "type": "string",
+                  "description": "Its highlighted row on the conversation's page, as an absolute URL"
+                },
                 "personId": {
                   "type": "string",
                   "description": "A person's id"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The name of the person it is about"
                 },
                 "kind": {
                   "type": "string",
@@ -2444,7 +2561,9 @@
                 "id",
                 "visibility",
                 "recordedBy",
+                "url",
                 "personId",
+                "name",
                 "kind",
                 "direction",
                 "text",
@@ -2474,13 +2593,23 @@
                   "type": "string",
                   "description": "The id of the user who recorded it"
                 },
+                "url": {
+                  "type": "string",
+                  "description": "Its highlighted row on the conversation's page, as an absolute URL"
+                },
                 "fromId": {
                   "type": "string",
                   "description": "A person's id"
                 },
+                "fromName": {
+                  "type": "string"
+                },
                 "toId": {
                   "type": "string",
                   "description": "A person's id"
+                },
+                "toName": {
+                  "type": "string"
                 },
                 "type": {
                   "type": "string",
@@ -2507,8 +2636,11 @@
                 "id",
                 "visibility",
                 "recordedBy",
+                "url",
                 "fromId",
+                "fromName",
                 "toId",
+                "toName",
                 "type",
                 "note"
               ]
@@ -2524,6 +2656,7 @@
           "transcript",
           "visibility",
           "recordedBy",
+          "url",
           "participants",
           "facts",
           "promises",

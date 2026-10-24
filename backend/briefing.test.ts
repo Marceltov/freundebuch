@@ -18,9 +18,9 @@ const record = (v: Viewer, over: Partial<Parameters<typeof recordConversation>[1
 
 test("A's briefing on Anna holds everything, B's only the shared part", async () => {
   const a = await briefing(s.a, s.anna, "2026-10-23");
-  expect(a.person).toEqual({ id: s.anna, name: "Anna", aliases: [], birthday: null });
+  expect(a.person).toEqual({ id: s.anna, name: "Anna", aliases: [], url: `/p/${s.anna}`, birthday: null });
   expect(a.current.map((f) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
-  expect(a.relationships).toEqual([{ personId: s.tom, name: "Tom", type: "partner", direction: "out" }]);
+  expect(a.relationships).toEqual([{ personId: s.tom, name: "Tom", type: "partner", direction: "out", url: `/p/${s.tom}` }]);
   expect(a.freshness).toEqual({ lastSeen: "2026-10-20", intervalDays: null, ratio: null });
   const b = await briefing(s.b, s.anna, "2026-10-23");
   expect(b.current.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);
@@ -34,7 +34,7 @@ test("B's briefing on Anna and Tom never contains A's private items", async () =
     for (const secret of ["divorce", "partner", "--10-24", "2026-10-24", "Luigi"]) expect(text, `${id} ${secret}`).not.toContain(secret);
   }
   expect((await briefing(s.b, s.tom, "2026-10-23")).nextDates).toEqual([]);
-  expect((await briefing(s.a, s.tom, "2026-10-23")).nextDates).toEqual([{ id: expect.any(String), personId: s.tom, kind: "birthday", label: null, date: "2026-10-24", inDays: 1, age: null }]);
+  expect((await briefing(s.a, s.tom, "2026-10-23")).nextDates).toEqual([{ id: expect.any(String), personId: s.tom, kind: "birthday", label: null, date: "2026-10-24", inDays: 1, age: null, url: expect.stringMatching(`^/p/${s.tom}#dates-`) }]);
 });
 
 test("the birthday shows however far away it is, with the age when the year is known", async () => {
@@ -42,9 +42,9 @@ test("the birthday shows however far away it is, with the age when the year is k
   const sarah = r.people[0].id;
   const a = await briefing(s.a, sarah, "2026-10-23");
   expect(a.nextDates).toEqual([]); // months away: beyond the 60 days of nextDates
-  expect(a.person.birthday).toEqual({ date: "1990-03-15", next: "2027-03-15", age: 37 });
-  expect((await briefing(s.b, sarah, "2026-10-23")).person.birthday).toEqual({ date: "1990-03-15", next: "2027-03-15", age: 37 });
-  expect((await briefing(s.a, s.tom, "2026-10-23")).person.birthday).toEqual({ date: "--10-24", next: "2026-10-24", age: null });
+  expect(a.person.birthday).toEqual({ id: expect.any(String), date: "1990-03-15", next: "2027-03-15", age: 37 });
+  expect((await briefing(s.b, sarah, "2026-10-23")).person.birthday).toEqual({ id: expect.any(String), date: "1990-03-15", next: "2027-03-15", age: 37 });
+  expect((await briefing(s.a, s.tom, "2026-10-23")).person.birthday).toEqual({ id: expect.any(String), date: "--10-24", next: "2026-10-24", age: null });
   expect((await briefing(s.b, s.tom, "2026-10-23")).person.birthday).toBeNull();
 });
 
@@ -68,7 +68,8 @@ test("recent: the last 5 visible conversations, newest first, with the other par
   for (let i = 1; i <= 5; i++) await record(s.b, { date: `2026-09-0${i}`, summary: `call ${i}` });
   const b = await briefing(s.b, s.anna, "2026-10-23");
   expect(b.recent.map((c) => c.date)).toEqual(["2026-10-20", "2026-10-15", "2026-09-05", "2026-09-04", "2026-09-03"]);
-  expect(Object.keys(b.recent[0]).sort()).toEqual(["date", "id", "kind", "summary", "withOthers"]);
+  expect(Object.keys(b.recent[0]).sort()).toEqual(["date", "id", "kind", "summary", "url", "withOthers"]);
+  expect(b.recent[0].url).toBe(`/c/${b.recent[0].id}`);
   // The dinner had Alice (the viewer's partner, who recorded it) and Anna; Tom was only mentioned.
   expect(b.recent[0]).toMatchObject({ id: s.dinner, summary: "Dinner with Anna; she has a new job.", withOthers: ["Alice"] });
   expect(b.recent[1].withOthers).toEqual([]);
