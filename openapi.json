@@ -156,6 +156,78 @@
             }
           }
         }
+      },
+      "patch": {
+        "operationId": "renamePerson",
+        "summary": "Rename a person",
+        "description": "Names are shared: the other user sees the new name too.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonName"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/people/{id}/briefing": {
@@ -1628,6 +1700,18 @@
   },
   "components": {
     "schemas": {
+      "PersonName": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The person's new name"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
       "Group": {
         "type": "object",
         "properties": {
@@ -2446,6 +2530,30 @@
           "byMe": {
             "description": "On a promise: whether the caller made it (false: the person promised it to the caller). Only the caller's own promises are due",
             "type": "boolean"
+          },
+          "itemId": {
+            "description": "On a date or a promise: its id",
+            "type": "string"
+          },
+          "lastSeen": {
+            "description": "On someone overdue: the day the caller last saw them",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "intervalDays": {
+            "description": "On someone overdue: the caller's check-in interval",
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "url": {
             "type": "string",

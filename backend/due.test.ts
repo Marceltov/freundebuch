@@ -33,7 +33,7 @@ test("someone never seen is not overdue, even with an interval", async () => {
 });
 
 test("Tom's private birthday is due for A and absent for B", async () => {
-  expect(await whatsDue(s.a, "2026-10-23")).toEqual([{ kind: "date", personId: s.tom, name: "Tom", date: "2026-10-24", text: "birthday", url: expect.stringMatching(`^/p/${s.tom}#dates-`) }]);
+  expect(await whatsDue(s.a, "2026-10-23")).toEqual([{ kind: "date", personId: s.tom, name: "Tom", date: "2026-10-24", text: "birthday", itemId: expect.any(String), url: expect.stringMatching(`^/p/${s.tom}#dates-`) }]);
   expect(await whatsDue(s.b, "2026-10-23")).toEqual([]);
 });
 
@@ -69,10 +69,10 @@ test("only the viewer's own promises are due: the partner's shared ones are thei
   await record(s.b, { promises: [{ person: 0, text: "bob's errand", byMe: true, due: "2026-10-24" }] });
   await record(s.a, { promises: [{ person: 0, text: "lend me the tent", byMe: false, due: "2026-10-24" }] });
   expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "promise")).toEqual([
-    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "lend me the tent", byMe: false, url: expect.stringMatching(`^/p/${s.anna}#promises-`) },
+    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "lend me the tent", byMe: false, itemId: expect.any(String), url: expect.stringMatching(`^/p/${s.anna}#promises-`) },
   ]);
   expect((await whatsDue(s.b, "2026-10-23")).filter((i) => i.kind === "promise")).toEqual([
-    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "bob's errand", byMe: true, url: expect.stringMatching(`^/p/${s.anna}#promises-`) },
+    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "bob's errand", byMe: true, itemId: expect.any(String), url: expect.stringMatching(`^/p/${s.anna}#promises-`) },
   ]);
 });
 
@@ -94,4 +94,14 @@ test("sorted: dates by closeness, then overdue by ratio descending, then promise
   await record(s.a, { date: "2026-10-10", promises: [{ person: 0, text: "p1", byMe: true, due: "2026-10-24" }] });
   const due = await whatsDue(s.a, "2026-10-23");
   expect(due.map((i) => i.kind + ":" + (i.text ?? i.name))).toEqual(["date:birthday", "date:d2", "overdue:Lena", "overdue:Anna", "promise:p1", "promise:p2"]);
+});
+
+test("due items carry what the Bald page shows: a promise's id, and for someone overdue, last seen and the interval", async () => {
+  await record(s.a, { promises: [{ person: 0, text: "bring the wine", byMe: true, due: "2026-10-24" }] });
+  await setCheckInInterval(s.a, s.anna, 1, true);
+  const items = await whatsDue(s.a, "2026-10-23");
+  const promise = items.find((i) => i.kind === "promise")!;
+  expect(promise.itemId).toBe(promise.url.split("#promises-")[1]);
+  expect(items.find((i) => i.kind === "date")!.itemId).toEqual(expect.any(String));
+  expect(items.find((i) => i.kind === "overdue" && i.personId === s.anna)).toMatchObject({ lastSeen: expect.any(String), intervalDays: 1 });
 });

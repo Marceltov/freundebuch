@@ -7,8 +7,23 @@ import type { Viewer } from "./types";
 import { itemPath, personPath } from "./urls";
 import { visible } from "./visibility";
 
-/** `byMe`, on a promise: the viewer made it; false when the person promised it to the viewer. */
-export type DueItem = { kind: "date" | "promise" | "overdue"; personId: string; name: string; date?: string; text?: string; ratio?: number; byMe?: boolean; url: string };
+/**
+ * `byMe`, on a promise: the viewer made it; false when the person promised it to the viewer. `itemId`: the date's or promise's id.
+ * `lastSeen` and `intervalDays`: for someone overdue.
+ */
+export type DueItem = {
+  kind: "date" | "promise" | "overdue";
+  personId: string;
+  name: string;
+  date?: string;
+  text?: string;
+  ratio?: number;
+  byMe?: boolean;
+  itemId?: string;
+  lastSeen?: string | null;
+  intervalDays?: number | null;
+  url: string;
+};
 
 export type UpcomingDate = {
   id: string;
@@ -53,14 +68,15 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
     name: name(u.personId),
     date: u.date,
     text: u.label ?? u.kind,
+    itemId: u.id,
     url: u.url,
   }));
 
   const overdue: DueItem[] = [];
   for (const id of names.keys()) {
     if (id === v.personId) continue;
-    const { ratio } = await freshness(v, id, from);
-    if (ratio !== null && ratio > 1) overdue.push({ kind: "overdue", personId: id, name: name(id), ratio, url: personPath(id) });
+    const { ratio, lastSeen, intervalDays } = await freshness(v, id, from);
+    if (ratio !== null && ratio > 1) overdue.push({ kind: "overdue", personId: id, name: name(id), ratio, lastSeen, intervalDays, url: personPath(id) });
   }
   overdue.sort((a, b) => b.ratio! - a.ratio! || a.name.localeCompare(b.name));
 
@@ -79,7 +95,7 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
       .orderBy("due")
       .orderBy("created_at")
       .execute()
-  ).map((p) => ({ kind: "promise", personId: p.person_id, name: name(p.person_id), date: p.due!, text: p.text, byMe: !!p.by_me, url: itemPath(personPath(p.person_id), "promises", p.id) }));
+  ).map((p) => ({ kind: "promise", personId: p.person_id, name: name(p.person_id), date: p.due!, text: p.text, byMe: !!p.by_me, itemId: p.id, url: itemPath(personPath(p.person_id), "promises", p.id) }));
 
   return [...dates, ...overdue, ...promises];
 }
