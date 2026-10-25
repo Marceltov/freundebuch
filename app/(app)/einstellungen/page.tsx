@@ -18,12 +18,12 @@ export default async function SettingsPage() {
   const { webhookUrl } = await getSettings(v);
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">{copy.settings}</h1>
+      <h1 className="font-display text-3xl font-bold">{copy.settings}</h1>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <WebhookSettings webhookUrl={webhookUrl} />
       </section>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
-        <h2 className="flex items-center gap-2 font-bold">
+        <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
           <Users aria-hidden className="h-4 w-4" />
           {copy.groups}
         </h2>
@@ -31,7 +31,7 @@ export default async function SettingsPage() {
         <GroupSettings groups={(await listGroups(v)).map((g) => ({ id: g.id, name: g.name, aliases: g.aliases, count: g.count }))} />
       </section>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
-        <h2 className="flex items-center gap-2 font-bold">
+        <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
           <Plug aria-hidden className="h-4 w-4" />
           {copy.mcpUrl}
         </h2>

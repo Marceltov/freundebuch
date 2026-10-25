@@ -11,12 +11,14 @@ export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 export { dispatch } from "./http/api";
 export { mcpRoute } from "./mcp";
-export { anchorId, mcpResource, publicUrl, safeNext } from "./urls";
+export { anchorId, itemPath, mcpResource, personPath, publicUrl, safeNext } from "./urls";
 export { e2eLoginRoute } from "./auth/e2e";
 
 // What the pages read, as the viewer sees it.
 export { briefing, type Briefing } from "./briefing";
-export { getConversation, type ConversationView } from "./conversations";
+export { getConversation, listConversations, type ConversationSummary, type ConversationView } from "./conversations";
+export { whatsDue, type DueItem } from "./due";
+export { getPerson, peopleOverview, type PersonOverview } from "./people";
 export { getGroup, listGroups, type GroupMember, type GroupView } from "./groups";
 export { daysBetween, today } from "./dates";
 export { NotFoundError } from "./errors";

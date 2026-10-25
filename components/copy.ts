@@ -29,10 +29,12 @@ export const copy = {
   badge: { birthday: "Geburtstag bald", promise: "Offenes Versprechen", gift: "Geschenkidee" },
 
   // The friend page
-  now: "Gerade",
-  open: "Offen",
-  timeline: "Verlauf",
-  theirPeople: "Ihre Leute",
+  now: "Gerade los",
+  promised: "Versprochen",
+  giftIdeas: "Ideen für Geschenke",
+  stillOpen: "Noch offen",
+  conversations: "Gespräche",
+  theirPeople: "Gehört zu",
   privateItem: "Privat: nur du siehst das",
   byMe: "Du",
   transcript: "Transkript",
@@ -49,6 +51,60 @@ export const copy = {
   interval: "Intervall",
   group: "Gruppe",
   age: "wird {n}",
+
+  // The tab bar
+  mainMenu: "Hauptmenü",
+  tabStart: "Start",
+  tabHistory: "Verlauf",
+  tabPeople: "Leute",
+  tabSoon: "Bald",
+
+  // The person menu
+  moreAbout: "Mehr zu {name}",
+  howOften: "Wie oft sehen?",
+  twoWeeks: "2 Wochen",
+  month: "Monat",
+  quarter: "Quartal",
+  never: "Nie",
+  addNickname: "Spitzname",
+  nickname: "Spitzname",
+  nicknameHint: "Unter diesem Namen findest du die Person auch.",
+  mergeDuplicate: "Doppelt angelegt?",
+  mergeDuplicateHint: "Führe den Eintrag mit dieser Person zusammen; alles davon landet hier.",
+  samePerson: "Wer ist dieselbe Person?",
+  confirmMergePerson: "{drop} wird zu {keep}. Sicher?",
+
+  // Leute
+  search: "Suchen",
+  searchPeople: "Name oder Spitzname …",
+  noMatch: "Niemand heißt so. Vielleicht unter einem Spitznamen?",
+  nobodyYet: "Noch niemand im Buch. Erzähl Claude von deinem letzten Treffen.",
+  neverMet: "noch nie getroffen",
+
+  // Bald
+  nextTwoWeeks: "Die nächsten zwei Wochen",
+  nothingSoon: "Gerade steht nichts an. Genieß die Ruhe.",
+  datesSoon: "Geburtstage und Termine",
+  youPromisedSoon: "Du hast versprochen",
+  wouldBeGlad: "Würden sich freuen",
+  sinceWanted: "Zuletzt {since}, du wolltest {every}",
+  markDone: "{text}: erledigt",
+  until: "bis {day}",
+  today: "heute",
+  tomorrow: "morgen",
+  inDays: "in {n} Tagen",
+
+  // Verlauf
+  thisWeek: "Diese Woche",
+  lastWeek: "Letzte Woche",
+  nothingFiled: "Noch nichts erfasst. Erzähl Claude von deinem letzten Treffen.",
+
+  // Start
+  hello: "Hallo {name}",
+  helloAnon: "Hallo",
+  nobodyWaiting: "Alle sind gut versorgt. Schön, dass du da bist.",
+  oneWaiting: "Eine Person würde sich freuen, von dir zu hören.",
+  manyWaiting: "{n} Leute würden sich freuen, von dir zu hören.",
 
   // Groups
   groupPage: "Gruppe",
@@ -96,7 +152,12 @@ export const copy = {
   participants: "Dabei",
   transcriptPrivate: "Das Transkript ist privat.",
   conversation: "Gespräch",
-  recorded: "Erfasst",
+  recorded: "Daraus gemerkt",
+  mentioned: "Erwähnt",
+  openAt: "Bei {name} öffnen",
+  youPromised: "Du hast {name} versprochen:",
+  theyPromised: "{name} hat versprochen:",
+  partnerPromised: "{by} hat {name} versprochen:",
 
   // Settings
   webhook: "Webhook für Erinnerungen",
@@ -113,6 +174,19 @@ export const copy = {
 export const kindName: Record<string, string> = { in_person: "Treffen", call: "Anruf", message: "Nachricht", video: "Videoanruf", event: "Feier" };
 
 export const dateKindName: Record<string, string> = { birthday: "Geburtstag", anniversary: "Jahrestag", custom: "Datum" };
+
+// A relationship as a sentence: `from` is {a}, `to` is {b} ("from is type of to").
+export const relationSentence: Record<string, string> = {
+  partner: "{a} und {b} sind ein Paar",
+  spouse: "{a} und {b} sind verheiratet",
+  parent: "{a} ist Elternteil von {b}",
+  child: "{a} ist Kind von {b}",
+  sibling: "{a} und {b} sind Geschwister",
+  friend: "{a} und {b} sind befreundet",
+  colleague: "{a} und {b} arbeiten zusammen",
+  introduced_by: "{a} kam über {b} dazu",
+  other: "{a} und {b} kennen sich",
+};
 
 // What the other person is to the one whose page it is. `out`: the page's person is the `from` side ("from is type of to").
 export const relationName: Record<string, { out: string; in: string }> = {

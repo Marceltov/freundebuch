@@ -7,6 +7,9 @@ const fill = (s: string, n: number | string) => s.replace("{n}", String(n));
 /** "Mo., 20. Okt." */
 export const shortDay = (day: string) => new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(at(day));
 
+/** "Samstag, 24. Oktober" */
+export const longDay = (day: string) => new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(at(day));
+
 /** "12. März" */
 export const dayMonth = (day: string) => new Intl.DateTimeFormat("de-DE", { day: "numeric", month: "long", timeZone: "UTC" }).format(at(day));
 

@@ -67,7 +67,7 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   await header.getByRole("button", { name: "Datum ändern" }).click();
   await header.getByLabel("Datum ändern").fill(yesterday);
   await header.getByRole("button", { name: "Speichern" }).click();
-  const day = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${yesterday}T00:00:00Z`));
+  const day = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${yesterday}T00:00:00Z`));
   await expect(page.getByRole("heading", { name: day })).toBeVisible();
 
   // Done: the promise leaves the "Offen" section.
@@ -167,6 +167,87 @@ test("groups in settings: another name, rename, merge, delete", async ({ page, b
   await renamed.getByRole("button", { name: "Löschen" }).click();
   await renamed.getByRole("button", { name: "Wirklich löschen?" }).click();
   await expect(page.getByRole("group", { name: "Verwandtschaft" })).toHaveCount(0);
+});
+
+test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person menu", async ({ page, baseURL }) => {
+  const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: {
+      date: today,
+      kind: "in_person",
+      summary: "Spaziergang mit Kai, Lea war auch dabei.",
+      transcript: "Spaziergang mit Kai Brandt und Lea Brandt. Uwe kennt Kai von der Arbeit.",
+      visibility: "shared",
+      people: [
+        { name: "Kai Brandt", present: true },
+        { name: "Lea Brandt", present: true },
+        { name: "Uwe Roth", present: false },
+      ],
+      facts: [{ person: 0, text: "Läuft einen Marathon", category: "hobby" }],
+      promises: [{ person: 1, text: "Buch zurückgeben", byMe: true, due: tomorrow }],
+      relationships: [
+        { from: 0, to: 1, type: "sibling" },
+        { from: 2, to: 0, type: "colleague" },
+      ],
+    },
+  });
+  const { conversationId, people } = await recorded.json();
+  const [kai, lea] = [people[0].id, people[1].id];
+
+  // Who was there, by name; who was only mentioned, apart. What was filed reads as sentences, and links to the people.
+  await page.goto(`/c/${conversationId}`);
+  await expect(page.getByRole("list", { name: "Dabei" }).getByRole("link", { name: "Kai Brandt" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Erwähnt" }).getByRole("link", { name: "Uwe Roth" })).toBeVisible();
+  await expect(page.getByText("Kai Brandt und Lea Brandt sind Geschwister")).toBeVisible();
+  await page.getByRole("link", { name: "Bei Kai Brandt öffnen" }).click();
+  await expect(page).toHaveURL(new RegExp(`/p/${kai}#facts-`));
+  await expect(page.locator(":target")).toHaveText(/Läuft einen Marathon/);
+
+  const nav = page.getByRole("navigation", { name: "Hauptmenü" });
+  // Leute: anyone, by name or part of it.
+  await nav.getByRole("link", { name: "Leute" }).click();
+  await page.getByLabel("Suchen").fill("lea");
+  await expect(page.getByRole("link", { name: /Lea Brandt/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Kai Brandt/ })).toHaveCount(0);
+  await expectNoSideScroll(page);
+
+  // Bald: the promise due tomorrow, ticked off right there.
+  await nav.getByRole("link", { name: "Bald" }).click();
+  await page.getByRole("button", { name: "Buch zurückgeben: erledigt" }).click();
+  await expect(page.getByText("Buch zurückgeben")).toHaveCount(0);
+  await expectNoSideScroll(page);
+
+  // Verlauf: the walk, with who was there.
+  await nav.getByRole("link", { name: "Verlauf" }).click();
+  await expect(page.getByRole("link", { name: /Kai Brandt, Lea Brandt/ })).toBeVisible();
+  await expectNoSideScroll(page);
+
+  // The person menu: how often, a nickname, merging a duplicate, a new name.
+  await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: { date: today, kind: "message", summary: "Nachricht von Leah.", transcript: "Leah hat geschrieben.", visibility: "shared", people: [{ name: "Leah B.", present: true }] },
+  });
+  await page.goto(`/p/${lea}`);
+  const menu = () => page.getByRole("button", { name: "Mehr zu Lea Brandt" });
+  await menu().click();
+  await page.getByRole("radiogroup", { name: "Wie oft sehen?" }).getByText("Monat").click();
+  await expect(page.getByText("alle 30 Tage")).toBeVisible();
+  await menu().click();
+  await page.getByLabel("Spitzname").fill("Leli");
+  await page.getByLabel("Spitzname").press("Enter");
+  await menu().click();
+  await page.getByLabel("Wer ist dieselbe Person?").selectOption({ label: "Leah B." });
+  await page.getByRole("button", { name: "Leah B. wird zu Lea Brandt. Sicher?" }).click();
+  await menu().click();
+  await page.getByLabel("Name", { exact: true }).fill("Lea Marie Brandt");
+  await page.getByLabel("Name", { exact: true }).press("Enter");
+  await expect(page.getByRole("heading", { name: "Lea Marie Brandt" })).toBeVisible();
+  await expectNoSideScroll(page);
+  await page.goto("/leute");
+  await page.getByLabel("Suchen").fill("leli");
+  await expect(page.getByRole("link", { name: /Lea Marie Brandt/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Leah B\./ })).toHaveCount(0);
 });
 
 test("settings fit the screen and offer the MCP address", async ({ page }) => {

@@ -1,36 +1,51 @@
 @import "tailwindcss";
 
-/* Paper is the page, surface the cards on it, surface-2 the fields and chips; carbon is the one accent. */
+/* The friendship book: cool paper, plum ink instead of black, berry as the one accent (still named carbon, the old name the
+   components use), sunflower for birthdays and highlights, and a soft tint per group. Freshness keeps green, orange and red. */
 :root {
-  --paper: #f2f3f0;
+  --paper: #f4f6fb;
   --surface: #ffffff;
-  --surface-2: #e9eae6;
-  --ink: #1e2130;
-  --carbon: #7a5a1a;
-  --rule: #d6d9df;
-  --muted: #686d7a;
-  --error: #b3261e;
+  --surface-2: #e9ecf5;
+  --ink: #2a2342;
+  --carbon: #c8326a;
+  --rule: #dfe2ee;
+  --muted: #6b6585;
+  --error: #b42318;
   --on-carbon: #ffffff;
-  --fresh: #2a9d8f;
-  --drift: #e0962b;
-  --due: #d0573a;
+  --sun: #ffc94d;
+  --on-sun: #5a3e00;
+  --rim: #ffffff;
+  --fresh: #2f9e77;
+  --drift: #e69500;
+  --due: #e2553a;
+  --g1: #ffe0ec;
+  --g2: #dff3ea;
+  --g3: #e3e8ff;
+  --g4: #fff1cc;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #15161b;
-    --surface: #1d1f26;
-    --surface-2: #262832;
-    --ink: #e4e5eb;
-    --carbon: #e3cb94;
-    --rule: #2a2c35;
-    --muted: #9a9eab;
+    --paper: #1b1726;
+    --surface: #252036;
+    --surface-2: #2f2944;
+    --ink: #f1edf9;
+    --carbon: #ff6b9a;
+    --rule: #383150;
+    --muted: #aaa3c2;
     --error: #ff8a80;
-    --on-carbon: #15161b;
-    --fresh: #4fc1b2;
-    --drift: #f2b45c;
-    --due: #f08a6c;
+    --on-carbon: #1b1726;
+    --sun: #ffd466;
+    --on-sun: #3a2a00;
+    --rim: #e8e2f5;
+    --fresh: #4fd1a5;
+    --drift: #ffb84d;
+    --due: #ff8a6b;
+    --g1: #4a2638;
+    --g2: #1f3d33;
+    --g3: #2b3159;
+    --g4: #4a3b16;
     color-scheme: dark;
   }
 }
@@ -45,8 +60,19 @@
   --color-muted: var(--muted);
   --color-error: var(--error);
   --color-on-carbon: var(--on-carbon);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 8px rgb(0 0 0 / 0.04);
+  --color-sun: var(--sun);
+  --color-on-sun: var(--on-sun);
+  --color-fresh: var(--fresh);
+  --color-drift: var(--drift);
+  --color-due: var(--due);
+  --color-g1: var(--g1);
+  --color-g2: var(--g2);
+  --color-g3: var(--g3);
+  --color-g4: var(--g4);
+  --font-sans: var(--font-text), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --shadow-card: 0 1px 2px rgb(42 35 66 / 0.05), 0 3px 10px rgb(42 35 66 / 0.05);
+  --shadow-float: 0 4px 18px rgb(42 35 66 / 0.14);
 }
 
 /* A long word or a link wraps instead of widening the page. */
@@ -73,4 +99,10 @@ body {
   scroll-margin-top: 5rem;
   outline: 2px solid var(--carbon);
   outline-offset: 2px;
+}
+
+/* Names and headings in Fraunces, at its softest, with its friendly "wonky" letters. */
+.font-display {
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+  letter-spacing: -0.01em;
 }
