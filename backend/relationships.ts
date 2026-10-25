@@ -4,7 +4,9 @@ import type { Kysely } from "kysely";
 import { checkGroup, checkRelationship, checkVisibility, insertMemberships, insertRelationship, type ItemBase } from "./conversations";
 import { db, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
+import { resolveOrCreateGroup } from "./groups";
 import type { RelationshipType, Viewer, Visibility } from "./types";
+import { groupPath } from "./urls";
 
 export type NewRelationship = { from: string; to: string; type: RelationshipType; note?: string; visibility: Visibility };
 export type NewMembership = { name: string; members: string[]; visibility: Visibility };
@@ -26,13 +28,16 @@ export async function addRelationship(v: Viewer, r: NewRelationship): Promise<{ 
   });
 }
 
-/** `added` counts the new memberships: one the viewer already recorded stays as it is. */
-export async function addToGroup(v: Viewer, g: NewMembership): Promise<{ added: number }> {
+/** `added` counts the new memberships: one the viewer already recorded stays as it is. `name` is the group's own, which the given name may only be another name of. */
+export async function addToGroup(v: Viewer, g: NewMembership): Promise<{ added: number; id: string; name: string; url: string }> {
   checkGroup(g, () => {});
   checkVisibility(g.visibility);
   if (!g.members.length) throw new InvalidInputError("A group membership needs at least one person");
   return (await db()).transaction().execute(async (tx) => {
     await assertPeople(tx, g.members);
-    return { added: await insertMemberships(tx, v, baseOf(v), g.name, g.members, g.visibility) };
+    const id = await resolveOrCreateGroup(tx, v, g.name);
+    const added = await insertMemberships(tx, v, baseOf(v), g.name, g.members, g.visibility);
+    const { name } = await tx.selectFrom("groups").select("name").where("id", "=", id).executeTakeFirstOrThrow();
+    return { added, id, name, url: groupPath(id) };
   });
 }

@@ -71,20 +71,21 @@ const ramble = (over: object = {}) => ({
 });
 
 describe("protocol", () => {
-  test("tools/list names the eight tools with their annotations", async () => {
+  test("tools/list names the nine tools with their annotations", async () => {
     const tools = (await (await rpc(s.a, "tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "briefing",
       "correct",
       "find_person",
       "get_transcript",
+      "groups",
       "record_conversation",
       "relate",
       "set_interval",
       "whats_due",
     ]);
     for (const t of tools) {
-      expect(t.annotations?.readOnlyHint === true, t.name).toBe(["find_person", "briefing", "whats_due", "get_transcript"].includes(t.name));
+      expect(t.annotations?.readOnlyHint === true, t.name).toBe(["find_person", "briefing", "whats_due", "get_transcript", "groups"].includes(t.name));
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: only correct is.
       const writes = ["record_conversation", "relate", "set_interval"].includes(t.name);
       expect(t.annotations?.destructiveHint, t.name).toBe(t.name === "correct" ? true : writes ? false : undefined);
@@ -116,6 +117,7 @@ describe("protocol", () => {
     expect(text).toContain("Pass the ramble verbatim as transcript, never a summary.");
     expect(text).toContain("When a briefing has suggestedInterval, offer it to the user");
     expect(text).toContain("with the day it happened");
+    expect(text).toContain("Prefer an existing group, by name or other name, over a new one");
   });
 
   test("initialize is refused with 400", async () => {
@@ -219,8 +221,8 @@ describe("tools", () => {
     ]);
     expect(rel.structuredContent.url).toBe(`http://localhost:3000/p/${s.lena}`);
     const group = await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna, s.lena], visibility: "shared" });
-    expect(group.structuredContent).toEqual({ added: 2 });
-    expect((await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna], visibility: "shared" })).structuredContent).toEqual({ added: 0 });
+    expect(group.structuredContent).toMatchObject({ added: 2, name: "Uni" });
+    expect((await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna], visibility: "shared" })).structuredContent).toMatchObject({ added: 0 });
     // The briefing's output schema carries the groups and the birthday.
     expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.groups.map((g: { name: string }) => g.name)).toEqual(["Uni"]);
     expect((await call(s.a, "briefing", { personId: s.tom })).structuredContent.person.birthday).toMatchObject({ date: "--10-24", age: null });
@@ -261,6 +263,38 @@ describe("tools", () => {
     const r = await call(s.a, "whats_due", {});
     expect(r).toMatchObject({ isError: true, content: [{ text: "internal error" }] });
     expect(logs.map((l) => JSON.parse(l))).toEqual([expect.objectContaining({ level: "error", component: "mcp", msg: "tool failed", err: expect.objectContaining({ type: "SqliteError" }) })]);
+  });
+});
+
+describe("groups over MCP", () => {
+  test("groups lists them with other names; relate finds Arbeit through Kollegen; correct takes someone out", async () => {
+    const list = (await call(s.a, "groups", {})).structuredContent.groups;
+    const arbeit = list.find((g: { name: string }) => g.name === "Arbeit");
+    expect(arbeit).toMatchObject({ aliases: ["Job", "Kollegen"], url: `http://localhost:3000/g/${arbeit.id}` });
+    const rel = (await call(s.a, "relate", { kind: "group", name: "Kollegen", members: [s.anna], visibility: "shared" })).structuredContent;
+    expect(rel).toEqual({ added: 1, id: arbeit.id, name: "Arbeit", url: arbeit.url });
+    const out = await call(s.a, "correct", { action: "ungroup", id: arbeit.id, person: s.anna });
+    expect(out.isError).toBeUndefined();
+    expect((await call(s.a, "groups", {})).structuredContent.groups.find((g: { name: string }) => g.name === "Arbeit").count).toBe(0);
+  });
+
+  test("correct renames, adds and drops other names, merges and deletes groups", async () => {
+    const id = (await call(s.a, "relate", { kind: "group", name: "Chor", members: [s.anna], visibility: "shared" })).structuredContent.id;
+    for (const [action, extra] of [
+      ["group_rename", { name: "Singen" }],
+      ["group_alias", { alias: "Choir" }],
+      ["group_unalias", { alias: "choir" }],
+    ] as const)
+      expect((await call(s.a, "correct", { action, id, ...extra })).isError, action).toBeUndefined();
+    const freunde = (await call(s.a, "groups", {})).structuredContent.groups.find((g: { name: string }) => g.name === "Freunde");
+    expect((await call(s.a, "correct", { action: "group_merge", id: freunde.id, drop: id })).isError).toBeUndefined();
+    expect((await call(s.a, "groups", {})).structuredContent.groups.find((g: { name: string }) => g.name === "Freunde").aliases).toEqual(["Chor", "Freundeskreis", "Singen"]);
+    expect((await call(s.a, "correct", { action: "group_delete", id: freunde.id })).isError).toBeUndefined();
+  });
+
+  test("B's groups never list a group only A's private membership fills", async () => {
+    await call(s.a, "relate", { kind: "group", name: "Therapie", members: [s.anna], visibility: "private" });
+    expect(JSON.stringify((await call(s.b, "groups", {})).structuredContent)).not.toContain("Therapie");
   });
 });
 
