@@ -46,9 +46,12 @@ jobs:
         run: test -z "$(git status --porcelain)" || { git status --short; echo "::error::Generated files are stale. Run npm run generate and commit."; exit 1; }
       - run: npx -y @redocly/cli@2.57.0 lint openapi.json
 
-  # Runs against `next dev`: the test sign-in is compiled out of production builds.
+  # Runs against `next dev`: the test sign-in is compiled out of production builds. The Playwright image brings Chromium and
+  # its system libraries, which `playwright install --with-deps` took up to five minutes to fetch from apt. Its tag must match
+  # the Playwright in package-lock.json; the first step fails when it doesn't.
   e2e:
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -56,14 +59,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # The browser download is cached per Playwright version; its system libraries still come from apt.
-      - id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      - run: npx playwright install --with-deps chromium
+      - name: The image matches the installed Playwright
+        run: test "$(node -p "require('@playwright/test/package.json').version")" = 1.64.1 || { echo "::error::Update the e2e container tag to the Playwright in package-lock.json."; exit 1; }
       - run: npm run test:e2e
       # Kept for a run that passed too: a test that failed once and passed on its retry leaves its trace only here.
       - uses: actions/upload-artifact@v4
