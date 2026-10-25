@@ -50,7 +50,7 @@ export const copy = {
   lastSeen: "Zuletzt gesehen",
   interval: "Intervall",
   group: "Gruppe",
-  age: "wird {n}",
+  ageYears: "{n} Jahre",
 
   // Erzählen, the chat
   tell: "Erzählen",
