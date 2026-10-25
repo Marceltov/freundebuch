@@ -279,6 +279,15 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await sheet.getByRole("button", { name: "Senden" }).click();
   await expect(sheet.getByRole("alert")).toHaveText("Claude ist gerade nicht erreichbar. Dein Text ist noch da, versuch es gleich noch mal.");
   await expect(field).toHaveValue("Fehlertest");
+
+  // Someone else signing in on this device doesn't see this chat.
+  await page.goto("/api/e2e/login?name=Bodo Gast");
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toHaveCount(0);
+  await page.goto("/api/e2e/login?name=Erika Muster");
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toBeVisible();
+
   await sheet.getByRole("button", { name: "Neues Gespräch" }).click();
   await expect(sheet.getByText("Erfasst.")).toHaveCount(0);
 });

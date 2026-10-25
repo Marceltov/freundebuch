@@ -66,6 +66,7 @@ export const copy = {
   chatHello: "Erzähl mir, was passiert ist, oder frag nach jemandem.",
   conversationOn: "Gespräch am {day}",
   thinking: "Claude denkt nach …",
+  filedThenFailed: "Erfasst ist es schon, siehe unten. Danach ging etwas schief: {error}",
   chatLimit: "Für heute ist das Limit erreicht. Morgen geht's weiter.",
   chatUnavailable: "Claude ist gerade nicht erreichbar. Dein Text ist noch da, versuch es gleich noch mal.",
   chatRefused: "Darauf kann Claude nicht antworten.",

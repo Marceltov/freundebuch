@@ -17,7 +17,7 @@ const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] 
   { href: "/bald", label: copy.tabSoon, icon: CalendarHeart, also: [] },
 ];
 
-export function TabBar({ chat = false }: { chat?: boolean }) {
+export function TabBar({ chat = null }: { chat?: { userId: string } | null }) {
   const path = usePathname();
   const [talking, setTalking] = useState(false);
   const current = (t: (typeof TABS)[number]) => (t.href === "/" ? path === "/" : path.startsWith(t.href)) || t.also.some((p) => path.startsWith(p));
@@ -59,7 +59,7 @@ export function TabBar({ chat = false }: { chat?: boolean }) {
           ];
         })}
       </ul>
-      {talking && <ChatSheet onClose={() => setTalking(false)} />}
+      {talking && chat && <ChatSheet userId={chat.userId} onClose={() => setTalking(false)} />}
     </nav>
   );
 }

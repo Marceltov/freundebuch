@@ -9,12 +9,15 @@ import { config } from "./config";
 import { readCapped } from "./http/request";
 
 const MAX_CHARS = 200_000;
+// All turns of one message together: a long ramble fits, a runaway history doesn't (each tool round resends it).
+export const MAX_TOTAL_CHARS = 250_000;
 const Body = z.object({
   turns: z
-    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(MAX_CHARS) }))
+    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(MAX_CHARS), filed: z.boolean().optional() }))
     .min(1)
     .max(MAX_TURNS)
-    .refine((t) => t[t.length - 1].role === "user", "the last turn must be the user's"),
+    .refine((t) => t[t.length - 1].role === "user", "the last turn must be the user's")
+    .refine((t) => t.reduce((n, x) => n + x.content.length, 0) <= MAX_TOTAL_CHARS, `at most ${MAX_TOTAL_CHARS} characters in all`),
   context: z.object({ personId: z.string().optional(), conversationId: z.string().optional() }).optional(),
 });
 
@@ -44,10 +47,11 @@ export async function chatRoute(req: Request): Promise<Response> {
   if (req.headers.has("authorization")) return json({ error: "the chat is for the web app", code: "unauthorized" }, 401);
   const v = await viewerFromRequest(req, "api");
   if (!v) return json({ error: "sign-in required", code: "unauthorized" }, 401);
-  const bytes = await readCapped(req, 2 * MAX_TURNS * MAX_CHARS);
+  const bytes = await readCapped(req, 4 * MAX_TOTAL_CHARS);
+  if (!bytes) return json({ error: "The conversation is too long", code: "invalid_request" }, 413);
   let parsed: z.infer<typeof Body>;
   try {
-    const r = Body.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array())));
+    const r = Body.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
     if (!r.success) return json({ error: z.prettifyError(r.error), code: "invalid_request" }, 400);
     parsed = r.data;
   } catch {

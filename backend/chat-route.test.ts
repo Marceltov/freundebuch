@@ -52,6 +52,9 @@ test("a malformed or oversized conversation is a 400", async () => {
   expect((await post({ turns: Array.from({ length: 41 }, () => ({ role: "user", content: "x" })) })).status).toBe(400);
   expect((await post({ turns: [{ role: "user", content: "x".repeat(200_001) }] })).status).toBe(400);
   expect((await post({ turns: [{ role: "assistant", content: "x" }] })).status).toBe(400);
+  // At most 250,000 characters a message, all turns together.
+  expect((await post({ turns: [{ role: "user", content: "x".repeat(150_000) }, { role: "assistant", content: "y" }, { role: "user", content: "z".repeat(150_000) }] })).status).toBe(400);
+  expect((await post({ turns: [{ role: "assistant", content: "Erfasst.", filed: true }, { role: "user", content: "x" }] })).status).toBe(200);
 });
 
 test("an unreachable Claude is a 502 with its code; the limit a 429", async () => {

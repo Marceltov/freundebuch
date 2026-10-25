@@ -6,8 +6,8 @@ import { copy } from "@/components/copy";
 import { TabBar } from "@/components/TabBar";
 
 // The frame of every signed-in page: a slim top bar (the name, which leads home, and the settings cog), one column, phone
-// width first and at most max-w-2xl on a desktop, and the tab bar floating at the bottom.
-export function AppShell({ children }: { children: ReactNode }) {
+// width first and at most max-w-2xl on a desktop, and the tab bar floating at the bottom. `userId` keeps the chat apart per user.
+export function AppShell({ userId, children }: { userId: string; children: ReactNode }) {
   return (
     <div className="mx-auto min-h-dvh max-w-2xl pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
       <div className="sticky top-0 z-30 flex items-center justify-between bg-paper/95 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
@@ -19,7 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
       </div>
       <main className="min-w-0 px-4 pt-2 pb-32">{children}</main>
-      <TabBar chat={chatEnabled()} />
+      <TabBar chat={chatEnabled() ? { userId } : null} />
     </div>
   );
 }

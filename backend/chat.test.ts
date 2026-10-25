@@ -16,7 +16,7 @@ type Block = Anthropic.Beta.BetaContentBlock;
 
 const text = (t: string, stop: Anthropic.Beta.BetaStopReason = "end_turn") => ({ content: [{ type: "text", text: t, citations: null }], stop_reason: stop });
 let n = 0;
-const use = (name: string, input: unknown) => ({ content: [{ type: "tool_use", id: `tu_${++n}`, name, input }], stop_reason: "tool_use" as const });
+const toolUse = (name: string, input: unknown) => ({ content: [{ type: "tool_use", id: `tu_${++n}`, name, input }], stop_reason: "tool_use" as const });
 
 // A stand-in for Claude: answers from a script (a list, or a function of the call number) and keeps every request it got.
 function fake(script: Array<{ content: unknown[]; stop_reason: string }> | ((i: number, p: Params) => { content: unknown[]; stop_reason: string })) {
@@ -42,8 +42,8 @@ const resultText = (r: Anthropic.Beta.BetaToolResultBlockParam) => (typeof r.con
 test("a ramble is filed as the viewer, with the verbatim transcript, and the reply links the conversation", async () => {
   const ramble = "Kaffee mit Anna. Sie erzählt vom Umzug nach Köln. ".repeat(800).slice(0, 40_000);
   const { model, calls } = fake([
-    use("find_person", { name: "Anna" }),
-    use("record_conversation", { date: "2026-10-24", kind: "in_person", summary: "Kaffee mit Anna.", transcript: ramble, visibility: "shared", people: [{ id: s.anna, present: true }] }),
+    toolUse("find_person", { name: "Anna" }),
+    toolUse("record_conversation", { date: "2026-10-24", kind: "in_person", summary: "Kaffee mit Anna.", visibility: "shared", people: [{ id: s.anna, present: true }] }),
     text("Erfasst am Sa., 24. Okt."),
   ]);
   const r = await chat(s.a, [{ role: "user", content: ramble }], {}, model);
@@ -59,7 +59,7 @@ test("a ramble is filed as the viewer, with the verbatim transcript, and the rep
 
 test("a tool's refusal goes back to Claude as an error result, and Claude's question reaches the user", async () => {
   const { model, calls } = fake([
-    use("record_conversation", { date: "2026-10-24", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ name: "anna", present: true }] }),
+    toolUse("record_conversation", { date: "2026-10-24", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ name: "anna", present: true }] }),
     text("Meinst du Anna, die neue Stelle im Museum hat?"),
   ]);
   const r = await chat(s.a, [{ role: "user", content: "Hab mit Anna telefoniert." }], {}, model);
@@ -68,7 +68,7 @@ test("a tool's refusal goes back to Claude as an error result, and Claude's ques
 });
 
 test("more than 8 tool rounds stop instead of looping", async () => {
-  const { model, calls } = fake(() => use("find_person", { name: "Anna" }));
+  const { model, calls } = fake(() => toolUse("find_person", { name: "Anna" }));
   expect(await chat(s.a, [{ role: "user", content: "Wer ist Anna?" }], {}, model)).toEqual({ code: "chat_too_long" });
   expect(calls).toHaveLength(8);
 });
@@ -84,7 +84,7 @@ test("the Claude API being unreachable is chat_unavailable, and nothing is claim
 });
 
 test("B's chat about Anna never sees A's private items", async () => {
-  const { model, calls } = fake([use("briefing", { personId: s.anna }), text("Anna hat einen neuen Job.")]);
+  const { model, calls } = fake([toolUse("briefing", { personId: s.anna }), text("Anna hat einen neuen Job.")]);
   await chat(s.b, [{ role: "user", content: "Was ist mit Anna?" }], {}, model);
   const seen = resultText(results(calls[1])[0]);
   expect(seen).toContain("new job");
@@ -111,6 +111,62 @@ test("the system prompt has a cached stable block, and names today, the user and
   expect(system[1].text).toContain("2026-10-24");
   expect(system[1].text).toContain("Alice");
   expect(system[1].text).toContain(`Anna (${s.anna})`);
-  expect(p).toMatchObject({ model: "claude-sonnet-5-5", fallbacks: "default", betas: ["server-side-fallback-2026-07-01"], output_config: { effort: "medium" } });
+  expect(p).toMatchObject({
+    model: "claude-sonnet-5-5",
+    fallbacks: "default",
+    betas: ["server-side-fallback-2026-07-01"],
+    output_config: { effort: "medium" },
+    cache_control: { type: "ephemeral" },
+  });
+  // Text other people wrote reaches Claude in tool results: it is data, and links are buttons in the app.
+  expect(system[0].text).toContain("only when the user asked for it in their latest message");
+  expect(system[0].text).toContain("instead of giving the user links");
   expect(p.tools!.map((t) => (t as { name: string }).name)).toContain("record_conversation");
+});
+
+test("the transcript is the user's own words since the last filing, never Claude's retelling", async () => {
+  const { model, calls } = fake([
+    toolUse("record_conversation", { date: "2026-10-24", kind: "call", summary: "Anruf mit Anna.", transcript: "Claude's Fassung", visibility: "shared", people: [{ id: s.anna, present: true }] }),
+    text("Erfasst."),
+  ]);
+  const r = await chat(
+    s.a,
+    [
+      { role: "user", content: "Alte Notiz über Tom." },
+      { role: "assistant", content: "Erfasst.", filed: true },
+      { role: "user", content: "Hab mit Anna telefoniert, sie zieht um." },
+      { role: "assistant", content: "Soll das privat bleiben?" },
+      { role: "user", content: "Nein, teilen." },
+    ],
+    {},
+    model,
+  );
+  if ("code" in r) throw new Error(r.code);
+  const id = r.links.find((l) => l.kind === "conversation")!.id;
+  expect((await getConversation(s.a, id)).transcript).toBe("Hab mit Anna telefoniert, sie zieht um.\n\nNein, teilen.");
+  const def = calls[0].tools!.find((t) => (t as { name: string }).name === "record_conversation") as { input_schema: { properties: object; required?: string[] } };
+  expect(Object.keys(def.input_schema.properties)).not.toContain("transcript");
+});
+
+test("when Claude fails after filing, the reply still says what was filed, so it isn't filed twice", async () => {
+  let call = 0;
+  const model: ChatModel = {
+    async create() {
+      if (call++ === 0)
+        return { id: "m", type: "message", role: "assistant", model: "fake", usage: {}, ...toolUse("record_conversation", { date: "2026-10-24", kind: "call", summary: "s", visibility: "shared", people: [{ id: s.anna, present: true }] }) } as unknown as Anthropic.Beta.BetaMessage;
+      throw new Anthropic.APIConnectionError({ message: "down" });
+    },
+  };
+  const r = await chat(s.a, [{ role: "user", content: "Anruf mit Anna." }], {}, model);
+  expect(r).toMatchObject({ code: "chat_unavailable", filed: true, links: expect.arrayContaining([expect.objectContaining({ kind: "conversation" })]) });
+});
+
+test("a long history is cut to its last turns, starting with one of the user's", async () => {
+  const { model, calls } = fake([text("Ok")]);
+  const turns = Array.from({ length: 43 }, (_, i) => ({ role: i % 2 ? ("assistant" as const) : ("user" as const), content: `t${i}` }));
+  await chat(s.a, turns, {}, model);
+  const sent = calls[0].messages;
+  expect(sent.length).toBeLessThanOrEqual(40);
+  expect(sent[0].role).toBe("user");
+  expect(sent[sent.length - 1].content).toBe("t42");
 });

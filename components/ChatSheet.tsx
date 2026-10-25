@@ -6,24 +6,29 @@ import { SendHorizontal, SquarePen, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ChatContext, ChatLink } from "@/backend";
 import { copy } from "@/components/copy";
+import { recentTurns } from "@/components/chatTurns";
 import { shortDay } from "@/components/format";
 
-type Turn = { role: "user" | "assistant"; content: string; links?: ChatLink[] };
+type Turn = { role: "user" | "assistant"; content: string; links?: ChatLink[]; filed?: boolean };
 
-const KEY = "freundebuch.chat";
-// Storage can be blocked or throw (private windows, cleared site data); the chat then lasts only while the page is open.
-const load = (): Turn[] => {
+// One chat per signed-in user on this device: someone else signing in here never sees it. Storage can be blocked or throw
+// (private windows, cleared site data); the chat then lasts only while the page is open.
+const keyOf = (userId: string) => `freundebuch.chat.${userId}`;
+const isTurn = (t: unknown): t is Turn =>
+  !!t && typeof t === "object" && ((t as Turn).role === "user" || (t as Turn).role === "assistant") && typeof (t as Turn).content === "string";
+const load = (userId: string): Turn[] => {
   try {
-    const t = JSON.parse(localStorage.getItem(KEY) ?? "[]");
-    return Array.isArray(t) ? t : [];
+    localStorage.removeItem("freundebuch.chat"); // the shared key of the first version
+    const t = JSON.parse(localStorage.getItem(keyOf(userId)) ?? "[]");
+    return Array.isArray(t) ? t.filter(isTurn) : [];
   } catch {
     return [];
   }
 };
-const save = (t: Turn[]) => {
+const save = (userId: string, t: Turn[]) => {
   try {
-    if (t.length) localStorage.setItem(KEY, JSON.stringify(t));
-    else localStorage.removeItem(KEY);
+    if (t.length) localStorage.setItem(keyOf(userId), JSON.stringify(t));
+    else localStorage.removeItem(keyOf(userId));
   } catch {}
 };
 
@@ -39,10 +44,10 @@ const linkLabel = (l: ChatLink) => (l.kind === "conversation" ? copy.conversatio
 // The chat with Claude ("Erzählen"), as a sheet over the current page. It knows the page it was opened on (a friend or a
 // conversation) and says so in a chip the user can remove. The conversation is kept on this device; the server gets it whole
 // with every message (backend/chat-route.ts). A failed message stays in the field to send again.
-export function ChatSheet({ onClose }: { onClose: () => void }) {
+export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => void }) {
   const router = useRouter();
   const path = usePathname();
-  const [turns, setTurns] = useState<Turn[]>(load);
+  const [turns, setTurns] = useState<Turn[]>(() => load(userId));
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,21 +86,24 @@ export function ChatSheet({ onClose }: { onClose: () => void }) {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turns: asked.map(({ role, content }) => ({ role, content })), context: about?.context }),
+      body: JSON.stringify({ turns: recentTurns(asked).map(({ role, content, filed }) => ({ role, content, filed })), context: about?.context }),
     }).catch(() => null);
     const body = res ? await res.json().catch(() => null) : null;
     setBusy(false);
-    if (!res || !body || "code" in body || !res.ok) return setError((body && ERRORS[body.code]) || copy.chatUnavailable);
-    const next: Turn[] = [...asked, { role: "assistant", content: body.reply, links: body.links }];
+    const failed = !res || !body || "code" in body || !res.ok;
+    const message = failed ? (body && ERRORS[body.code]) || copy.chatUnavailable : null;
+    // Nothing filed: the text stays in the field to send again. Filed before the failure: say so, so it isn't sent twice.
+    if (failed && !body?.filed) return setError(message);
+    const next: Turn[] = [...asked, { role: "assistant", content: failed ? copy.filedThenFailed.replace("{error}", message!) : body.reply, links: body.links, filed: body.filed }];
     setTurns(next);
-    save(next);
+    save(userId, next);
     setDraft("");
     if (body.filed) router.refresh();
   }
 
   function reset() {
     setTurns([]);
-    save([]);
+    save(userId, []);
     setError(null);
   }
 
