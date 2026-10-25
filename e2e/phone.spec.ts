@@ -110,6 +110,17 @@ test("groups: tick them on the friend page, open the group's page", async ({ pag
   await expect(page.getByText("auch: Job, Kollegen")).toBeVisible();
   await expect(page.getByRole("link", { name: /Jonas Keller/ })).toBeVisible();
   await expectNoSideScroll(page);
+
+  // The start page filtered by the group: Jonas stays, the chip says which filter is on, and the phone remembers it.
+  await page.goto("/");
+  await page.getByRole("link", { name: /^Arbeit/ }).click();
+  await expect(page.getByRole("link", { name: /^Arbeit/ })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator('[data-in-group="true"]', { hasText: "JK" })).toBeVisible();
+  await page.goto("/");
+  await expect(page).toHaveURL(/gruppe=/);
+  await page.getByRole("link", { name: "Alle" }).click();
+  await expect(page).not.toHaveURL(/gruppe=/);
+  await expectNoSideScroll(page);
 });
 
 test("settings fit the screen and offer the MCP address", async ({ page }) => {

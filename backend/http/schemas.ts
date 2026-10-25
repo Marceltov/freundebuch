@@ -129,6 +129,7 @@ export const OrbitFaceJson = z
     angle: z.number().describe("Where on its ring, in degrees; stable for a person and spread evenly within the ring"),
     badges: z.array(z.enum(["birthday", "promise", "gift"])).describe("A birthday within 14 days, an open promise, a gift idea"),
     url: Url,
+    inGroup: z.boolean().optional().describe("Only with a group filter: whether the person is in that group"),
   })
   .meta({ id: "OrbitFace" });
 

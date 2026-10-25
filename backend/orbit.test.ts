@@ -2,6 +2,7 @@ import { beforeEach, expect, test } from "vitest";
 import { recordConversation } from "./conversations";
 import { markDone } from "./corrections";
 import { db, resetDbForTests } from "./db/testing";
+import { addToGroupById, listGroups } from "./groups";
 import { setCheckInInterval } from "./intervals";
 import { orbit, type OrbitFace } from "./orbit";
 import type { Viewer } from "./types";
@@ -99,4 +100,20 @@ test("angles are stable and spread evenly within a ring", async () => {
   expect(angles[1] - angles[0]).toBeCloseTo(120);
   expect(angles[2] - angles[1]).toBeCloseTo(120);
   for (const a of angles) expect(a >= 0 && a < 360).toBe(true);
+});
+
+test("filtered by a group: its members come first and are marked, even when nothing else would show them", async () => {
+  const anna = await met("Anna", "2026-10-20");
+  await met("Lena", "2026-10-21");
+  const tom = await met("Tom", "2025-01-01"); // a long time ago and no interval: not on the unfiltered orbit
+  for (let i = 0; i < 24; i++) await met(`Recent ${i}`, "2026-10-22");
+  expect(byName(await orbit(me, NOW)).has("Tom")).toBe(false);
+  const familie = (await listGroups(me)).find((g) => g.name === "Familie")!.id;
+  for (const id of [anna, tom]) await addToGroupById(me, familie, id, "shared");
+  const faces = byName(await orbit(me, NOW, familie));
+  expect(faces.get("Anna")?.inGroup).toBe(true);
+  expect(faces.get("Tom")?.inGroup).toBe(true);
+  expect([...faces.values()].filter((f) => f.inGroup === false).length).toBeGreaterThan(0);
+  expect(faces.get("Lena")?.inGroup ?? false).toBe(false);
+  expect([...byName(await orbit(me, NOW)).values()].every((f) => f.inGroup === undefined)).toBe(true);
 });

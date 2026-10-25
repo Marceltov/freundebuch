@@ -63,6 +63,9 @@ export const copy = {
   newGroup: "Neue Gruppe",
   newGroupHint: "Neue Gruppe …",
   close: "Fertig",
+  all: "Alle",
+  groupFilter: "Nach Gruppe filtern",
+  groupDue: "{name}: fällig",
 
   // Item actions
   actions: "Aktionen",

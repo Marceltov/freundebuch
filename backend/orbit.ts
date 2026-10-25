@@ -7,6 +7,7 @@ import { upcomingDates } from "./due";
 import { freshness } from "./intervals";
 import type { Viewer } from "./types";
 import { personPath } from "./urls";
+import { getGroup } from "./groups";
 import { visible } from "./visibility";
 
 const MAX_FACES = 24;
@@ -18,7 +19,8 @@ const NEARLY_DUE = 0.75;
 const RING_OFFSET = [0, 40, 20] as const;
 
 export type Badge = "birthday" | "promise" | "gift";
-export type OrbitFace = { personId: string; name: string; ring: 0 | 1 | 2; angle: number; badges: Badge[]; url: string };
+/** `inGroup`: only with a group filter, whether the person is in that group. */
+export type OrbitFace = { personId: string; name: string; ring: 0 | 1 | 2; angle: number; badges: Badge[]; url: string; inGroup?: boolean };
 
 // FNV-1a: a stable order within a ring that doesn't follow names or ids alphabetically.
 function hash(s: string): number {
@@ -37,11 +39,13 @@ function ringOf(ratio: number | null, intervalDays: number | null, daysSince: nu
 /**
  * The faces worth showing, most urgent first, at most 24: overdue or nearly so (ratio ≥ 0.75), seen within 14 days, a birthday
  * within 14 days, or an open promise. Urgency is the largest of the ratio, 1 for an open promise, and 1–2 for a birthday (the
- * sooner the higher); a face that is only recent has 0. `angle` is in degrees, spread evenly within each ring.
+ * sooner the higher); a face that is only recent has 0. `angle` is in degrees, spread evenly within each ring. With `groupId`, the
+ * group's members the viewer may see are shown whatever their urgency and come first, each face marked `inGroup`.
  */
-export async function orbit(v: Viewer, now = Date.now()): Promise<OrbitFace[]> {
+export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Promise<OrbitFace[]> {
   const from = today(now);
   const d = await db();
+  const members = groupId ? new Set((await getGroup(v, groupId)).members.map((m) => m.personId)) : null;
   const [persons, birthdays, promised, gifts] = await Promise.all([
     d.selectFrom("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),
     upcomingDates(v, from, SOON_DAYS).then((ds) => ds.filter((x) => x.kind === "birthday")),
@@ -59,7 +63,7 @@ export async function orbit(v: Viewer, now = Date.now()): Promise<OrbitFace[]> {
     const birthday = birthdayIn.get(p.id);
     const promise = withPromise.has(p.id);
     const relevant = (ratio ?? 0) >= NEARLY_DUE || (daysSince !== null && daysSince <= RECENT_DAYS) || birthday !== undefined || promise;
-    if (!relevant) continue;
+    if (!relevant && !members?.has(p.id)) continue;
     const badges: Badge[] = [];
     if (birthday !== undefined) badges.push("birthday");
     if (promise) badges.push("promise");
@@ -67,7 +71,8 @@ export async function orbit(v: Viewer, now = Date.now()): Promise<OrbitFace[]> {
     const urgency = Math.max(ratio ?? 0, promise ? 1 : 0, birthday !== undefined ? 1 + (SOON_DAYS - birthday) / SOON_DAYS : 0);
     picked.push({ personId: p.id, name: p.name, ring: ringOf(ratio, intervalDays, daysSince), badges, urgency });
   }
-  picked.sort((a, b) => b.urgency - a.urgency || a.name.localeCompare(b.name) || a.personId.localeCompare(b.personId));
+  const first = (f: { personId: string }) => (members?.has(f.personId) ? 1 : 0);
+  picked.sort((a, b) => first(b) - first(a) || b.urgency - a.urgency || a.name.localeCompare(b.name) || a.personId.localeCompare(b.personId));
   const shown = picked.slice(0, MAX_FACES);
 
   const angle = new Map<string, number>();
@@ -75,5 +80,5 @@ export async function orbit(v: Viewer, now = Date.now()): Promise<OrbitFace[]> {
     const onRing = shown.filter((f) => f.ring === ring).sort((a, b) => hash(a.personId) - hash(b.personId));
     onRing.forEach((f, i) => angle.set(f.personId, (RING_OFFSET[ring] + (i * 360) / onRing.length) % 360));
   }
-  return shown.map((f) => ({ personId: f.personId, name: f.name, ring: f.ring, angle: angle.get(f.personId)!, badges: f.badges, url: personPath(f.personId) }));
+  return shown.map((f) => ({ personId: f.personId, name: f.name, ring: f.ring, angle: angle.get(f.personId)!, badges: f.badges, url: personPath(f.personId), ...(members ? { inGroup: members.has(f.personId) } : {}) }));
 }

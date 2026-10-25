@@ -2506,6 +2506,10 @@
           "url": {
             "type": "string",
             "description": "Where it opens in the web app, as an absolute URL"
+          },
+          "inGroup": {
+            "description": "Only with a group filter: whether the person is in that group",
+            "type": "boolean"
           }
         },
         "required": [
