@@ -257,6 +257,42 @@ describe("privacy through the API: B never sees A's private items", () => {
   });
 });
 
+describe("groups", () => {
+  test("list, create through another name, add and remove a member", async () => {
+    const list = await call(s.a, "GET", "/groups");
+    expect(list.status).toBe(200);
+    const arbeit = list.json.find((g: { name: string }) => g.name === "Arbeit");
+    expect(arbeit).toMatchObject({ aliases: ["Job", "Kollegen"], count: 0, url: `${BASE}/g/${arbeit.id}` });
+    const created = await call(s.a, "POST", "/groups", { name: "kollegen" });
+    expect(created.status).toBe(201);
+    expect(created.json.id).toBe(arbeit.id);
+    expect((await call(s.a, "PUT", `/groups/${arbeit.id}/members/${s.anna}`)).status).toBe(204);
+    const one = await call(s.b, "GET", `/groups/${arbeit.id}`);
+    expect(one.json.members.map((m: { name: string; url: string }) => [m.name, m.url])).toEqual([["Anna", `${BASE}/p/${s.anna}`]]);
+    expect((await call(s.b, "DELETE", `/groups/${arbeit.id}/members/${s.anna}`)).status).toBe(204);
+    expect((await call(s.a, "GET", `/groups/${arbeit.id}`)).json.members).toEqual([]);
+  });
+
+  test("rename, other names, merge and delete", async () => {
+    const id = (await call(s.a, "POST", "/groups", { name: "Chor" })).json.id;
+    expect((await call(s.a, "PATCH", `/groups/${id}`, { name: "Singen" })).status).toBe(204);
+    expect((await call(s.a, "POST", `/groups/${id}/aliases`, { alias: "Choir" })).status).toBe(204);
+    expect((await call(s.a, "POST", `/groups/${id}/aliases`, { alias: "Familie" })).status).toBe(400);
+    expect((await call(s.a, "DELETE", `/groups/${id}/aliases/Choir`)).status).toBe(204);
+    expect((await call(s.a, "GET", `/groups/${id}`)).json.aliases).toEqual(["Chor"]);
+    const freunde = (await call(s.a, "GET", "/groups")).json.find((g: { name: string }) => g.name === "Freunde").id;
+    expect((await call(s.a, "POST", `/groups/${freunde}/merge`, { drop: id })).status).toBe(204);
+    expect((await call(s.a, "GET", `/groups/${id}`)).status).toBe(404);
+    expect((await call(s.a, "DELETE", `/groups/${freunde}`)).status).toBe(204);
+  });
+
+  test("a group A made and filled with nobody B may see is a 404 for B", async () => {
+    const id = (await call(s.a, "POST", "/groups", { name: "Therapie" })).json.id;
+    expect((await call(s.b, "GET", `/groups/${id}`)).status).toBe(404);
+    expect((await call(s.b, "GET", "/groups")).json.map((g: { name: string }) => g.name)).not.toContain("Therapie");
+  });
+});
+
 describe("settings", () => {
   test("a user reads and sets their own webhook; another scheme is rejected; signed out is 401", async () => {
     expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: null });

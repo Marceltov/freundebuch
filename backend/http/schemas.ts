@@ -257,6 +257,31 @@ export const ItemPatchJson = z
 
 // A list of components is a component too: the generator only resolves a $ref at the top of a schema.
 export const PersonListJson = z.array(PersonJson).meta({ id: "PersonList" });
+
+export const GroupJson = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    aliases: z.array(z.string()).describe("Other names that find the group, e.g. Kollegen for Arbeit"),
+    count: z.number().int().describe("How many people the caller may see in it"),
+    url: Url,
+  })
+  .meta({ id: "Group" });
+export const GroupListJson = z.array(GroupJson).meta({ id: "GroupList" });
+export const GroupDetailJson = GroupJson.extend({
+  members: z.array(
+    z.object({
+      personId: PersonId,
+      name: z.string(),
+      url: Url,
+      private: z.boolean().describe("Whether the caller's own private membership is the only one they see"),
+      lastSeen: z.string().nullable(),
+      ratio: z.number().nullable().describe("Days since last seen divided by the caller's interval"),
+    }),
+  ),
+}).meta({ id: "GroupDetail" });
+export const GroupNameJson = z.object({ name: z.string().describe("A group's name; one that already names a group finds that group") }).meta({ id: "GroupName" });
+export const GroupMergeJson = z.object({ drop: z.string().describe("The group to merge into the one in the path; it is deleted") }).meta({ id: "GroupMerge" });
 export const DueListJson = z.array(DueItemJson).meta({ id: "DueList" });
 export const OrbitJson = z.array(OrbitFaceJson).meta({ id: "Orbit" });
 
@@ -266,7 +291,7 @@ export const SettingsJson = z
 
 export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
 
-export const COMPONENTS = [SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");
