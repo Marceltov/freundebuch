@@ -31,7 +31,7 @@ export async function insertPerson(d: Kysely<Schema>, v: Viewer, p: NewPerson): 
   return id;
 }
 
-async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {
+export async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {
   const a = alias.trim();
   if (!a) throw new InvalidInputError("An alias can't be empty");
   if (norm(a) === norm(name)) return; // the name already matches
