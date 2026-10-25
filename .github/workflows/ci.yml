@@ -53,6 +53,8 @@ jobs:
     runs-on: ubuntu-latest
     container: mcr.microsoft.com/playwright:v1.64.1-noble
     steps:
+      # better-sqlite3 publishes no prebuilt binary, so npm ci compiles it.
+      - run: apt-get update -qq && apt-get install -y -qq --no-install-recommends make g++ >/dev/null
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
