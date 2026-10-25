@@ -14,9 +14,11 @@ test.beforeEach(async ({ page }) => {
   await expect(page).toHaveURL("/");
 });
 
-test("before anything is recorded, the start page says how to connect Claude", async ({ page }) => {
+test("someone new sees the book's people and how to start telling", async ({ page }) => {
   await page.goto("/api/e2e/login?name=Neu Hier");
-  await expect(page.getByText("Noch niemand hier.")).toBeVisible();
+  // Erika signed in before: she is on the orbit as someone Neu Hier hasn't met yet.
+  await expect(page.locator('[data-unseen="true"]', { hasText: "Erika" })).toBeVisible();
+  await expect(page.getByText("Erzähl von deinem letzten Treffen")).toBeVisible();
   await expect(page.getByText(/\/mcp$/)).toBeVisible();
   await expectNoSideScroll(page);
 });
@@ -45,6 +47,10 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   await page.goto("/");
   const face = page.getByRole("link", { name: "Anna Weber" });
   await expect(face).toBeVisible();
+  // Tom was only mentioned, never met: he is on the orbit anyway, set apart, with his first name readable.
+  await expect(page.locator('[data-unseen="true"]', { hasText: "Tom" })).toBeVisible();
+  // The chat sheet shrinks with the phone's keyboard instead of the page sliding away under it.
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute("content", /interactive-widget=resizes-content/);
   await expectNoSideScroll(page);
 
   await face.click();
@@ -268,8 +274,13 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
     await new Promise((done) => setTimeout(done, 1500));
     await r.continue();
   });
+  // Enter starts a new line (on a phone there is no other way to); the button, or Ctrl+Enter, sends.
+  await field.fill("Notiz: Nele");
+  await field.press("Enter");
+  await field.pressSequentially("hat einen Hund adoptiert");
+  await expect(field).toHaveValue("Notiz: Nele\nhat einen Hund adoptiert");
   await field.fill("Notiz: Nele hat einen Hund adoptiert");
-  await sheet.getByRole("button", { name: "Senden" }).click();
+  await field.press("Control+Enter");
   await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toBeVisible();
   await expect(field).toHaveValue("");
   await expect(sheet.getByRole("status")).toHaveText(/Claude denkt nach/);

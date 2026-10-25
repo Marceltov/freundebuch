@@ -229,10 +229,10 @@ test("the orbit is per viewer: A's private conversation with Anna and Bob doesn'
   expect(await ring(s.a)).toMatchObject({ ring: 0, badges: ["promise"] });
   // B last saw Anna on 15 Oct: 8 days on a 7-day interval.
   expect(await ring(s.b)).toMatchObject({ ring: 2, badges: [] });
-  // Tom's private birthday and Lena's private coffee are A's alone.
-  const b = (await orbit(s.b, now)).map((f) => f.personId);
-  expect(b).not.toContain(s.tom);
-  expect(b).not.toContain(s.lena);
+  // Tom's private birthday and Lena's private coffee are A's alone: B sees them only as people B never met (names are shared),
+  // with no badge and no ring of their own.
+  const b = await orbit(s.b, now);
+  for (const id of [s.tom, s.lena]) expect(b.find((f) => f.personId === id), id).toMatchObject({ unseen: true, ring: 2, badges: [] });
   const a = await orbit(s.a, now);
   expect(a.find((f) => f.personId === s.tom)?.badges).toEqual(["birthday"]);
   expect(a.map((f) => f.personId)).toContain(s.lena);

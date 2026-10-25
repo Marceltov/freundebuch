@@ -19,8 +19,9 @@ const NEARLY_DUE = 0.75;
 const RING_OFFSET = [0, 40, 20] as const;
 
 export type Badge = "birthday" | "promise" | "gift";
-/** `inGroup`: only with a group filter, whether the person is in that group. */
-export type OrbitFace = { personId: string; name: string; ring: 0 | 1 | 2; angle: number; badges: Badge[]; url: string; inGroup?: boolean };
+/** `inGroup`: only with a group filter, whether the person is in that group. `unseen`: the viewer never met them; they fill free
+ * places on the outer ring, so someone new to the book sees its people at once. */
+export type OrbitFace = { personId: string; name: string; ring: 0 | 1 | 2; angle: number; badges: Badge[]; url: string; inGroup?: boolean; unseen?: boolean };
 
 // FNV-1a: a stable order within a ring that doesn't follow names or ids alphabetically.
 function hash(s: string): number {
@@ -63,13 +64,14 @@ export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Prom
     const birthday = birthdayIn.get(p.id);
     const promise = withPromise.has(p.id);
     const relevant = (ratio ?? 0) >= NEARLY_DUE || (daysSince !== null && daysSince <= RECENT_DAYS) || birthday !== undefined || promise;
-    if (!relevant && !members?.has(p.id)) continue;
+    const unseen = !relevant && daysSince === null;
+    if (!relevant && !unseen && !members?.has(p.id)) continue;
     const badges: Badge[] = [];
     if (birthday !== undefined) badges.push("birthday");
     if (promise) badges.push("promise");
     if (withGift.has(p.id)) badges.push("gift");
-    const urgency = Math.max(ratio ?? 0, promise ? 1 : 0, birthday !== undefined ? 1 + (SOON_DAYS - birthday) / SOON_DAYS : 0);
-    picked.push({ personId: p.id, name: p.name, ring: ringOf(ratio, intervalDays, daysSince), badges, urgency });
+    const urgency = unseen ? -1 : Math.max(ratio ?? 0, promise ? 1 : 0, birthday !== undefined ? 1 + (SOON_DAYS - birthday) / SOON_DAYS : 0);
+    picked.push({ personId: p.id, name: p.name, ring: ringOf(ratio, intervalDays, daysSince), badges, urgency, ...(unseen ? { unseen } : {}) });
   }
   const first = (f: { personId: string }) => (members?.has(f.personId) ? 1 : 0);
   picked.sort((a, b) => first(b) - first(a) || b.urgency - a.urgency || a.name.localeCompare(b.name) || a.personId.localeCompare(b.personId));
@@ -80,5 +82,5 @@ export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Prom
     const onRing = shown.filter((f) => f.ring === ring).sort((a, b) => hash(a.personId) - hash(b.personId));
     onRing.forEach((f, i) => angle.set(f.personId, (RING_OFFSET[ring] + (i * 360) / onRing.length) % 360));
   }
-  return shown.map((f) => ({ personId: f.personId, name: f.name, ring: f.ring, angle: angle.get(f.personId)!, badges: f.badges, url: personPath(f.personId), ...(members ? { inGroup: members.has(f.personId) } : {}) }));
+  return shown.map((f) => ({ personId: f.personId, name: f.name, ring: f.ring, angle: angle.get(f.personId)!, badges: f.badges, url: personPath(f.personId), ...(f.unseen ? { unseen: true } : {}), ...(members ? { inGroup: members.has(f.personId) } : {}) }));
 }

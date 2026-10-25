@@ -18,7 +18,7 @@ export { e2eLoginRoute } from "./auth/e2e";
 
 // What the pages read, as the viewer sees it.
 export { briefing, type Briefing } from "./briefing";
-export { getConversation, listConversations, type ConversationSummary, type ConversationView } from "./conversations";
+export { getConversation, hasRecorded, listConversations, type ConversationSummary, type ConversationView } from "./conversations";
 export { whatsDue, type DueItem } from "./due";
 export { getPerson, peopleOverview, type PersonOverview } from "./people";
 export { getGroup, listGroups, type GroupMember, type GroupView } from "./groups";

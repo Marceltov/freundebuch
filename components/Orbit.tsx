@@ -39,15 +39,15 @@ export function Orbit({ faces }: { faces: OrbitFace[] }) {
         const y = C + RADII[f.ring] * Math.sin(rad);
         const r = faceR(f.ring);
         return (
-          <Link key={f.personId} href={`/p/${f.personId}`} aria-label={f.name} data-in-group={f.inGroup} style={f.inGroup === false ? { opacity: 0.14 } : undefined}>
+          <Link key={f.personId} href={`/p/${f.personId}`} aria-label={f.name} data-in-group={f.inGroup} data-unseen={f.unseen} style={f.inGroup === false ? { opacity: 0.14 } : undefined}>
             <title>{f.name}</title>
-            <g transform={`rotate(${faceTilt(f.personId)} ${x} ${y})`}>
+            <g transform={`rotate(${faceTilt(f.personId)} ${x} ${y})`} opacity={f.unseen ? 0.5 : undefined}>
               <circle cx={x} cy={y} r={r} fill={faceColor(f.personId)} stroke="var(--rim)" strokeWidth={3} />
               <text x={x} y={y} dy="0.35em" textAnchor="middle" fontSize={Math.round(r * 0.66)} fontWeight={700} fill="#fff">
                 {initials(f.name)}
               </text>
             </g>
-            <text x={x} y={y + r + 12} textAnchor="middle" fontSize={11.5} fontWeight={600} fill="var(--ink)" stroke="var(--paper)" strokeWidth={3} paintOrder="stroke">
+            <text x={x} y={y + r + 13} textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--ink)">
               {firstName(f.name)}
             </text>
             {f.badges.map((b, i) => {

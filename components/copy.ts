@@ -21,6 +21,7 @@ export const copy = {
   // The orbit
   you: "Du",
   orbitTitle: "Deine Leute",
+  startTelling: "Erzähl von deinem letzten Treffen: hier über Erzählen, oder verbinde Claude mit dieser Adresse.",
   orbitEmpty: "Noch niemand hier. Verbinde Claude mit freundebuch und erzähl ihm von deinem letzten Treffen.",
   mcpUrl: "MCP-Adresse",
   copyText: "Kopieren",
