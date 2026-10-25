@@ -66,6 +66,14 @@ export const copy = {
   all: "Alle",
   groupFilter: "Nach Gruppe filtern",
   groupDue: "{name}: fällig",
+  groups: "Gruppen",
+  groupsHint: "Andere Namen finden die Gruppe auch, wenn du oder Claude sie benutzt.",
+  rename: "Umbenennen",
+  groupName: "Name",
+  otherName: "Anderer Name",
+  removeOtherName: "{name} entfernen",
+  mergeInto: "Zusammenführen mit …",
+  merge: "Zusammenführen",
 
   // Item actions
   actions: "Aktionen",

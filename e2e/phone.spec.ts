@@ -123,6 +123,45 @@ test("groups: tick them on the friend page, open the group's page", async ({ pag
   await expectNoSideScroll(page);
 });
 
+test("groups in settings: another name, rename, merge, delete", async ({ page, baseURL }) => {
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: { date: today, kind: "call", summary: "Anruf mit Mira.", transcript: "Anruf mit Mira Schulz.", visibility: "shared", people: [{ name: "Mira Schulz", present: true }] },
+  });
+  const mira = (await recorded.json()).people[0].id;
+  await page.goto("/einstellungen");
+  const freunde = page.getByRole("group", { name: "Freunde" });
+  await freunde.getByLabel("Anderer Name").fill("Kumpels");
+  await freunde.getByLabel("Anderer Name").press("Enter");
+  await expect(freunde.getByText("Kumpels")).toBeVisible();
+  await expectNoSideScroll(page);
+
+  // The other name now finds Freunde from the friend page.
+  await page.goto(`/p/${mira}`);
+  await page.getByRole("button", { name: "Gruppen bearbeiten" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByLabel("Neue Gruppe").fill("kumpels");
+  await sheet.getByLabel("Neue Gruppe").press("Enter");
+  await expect(sheet.getByRole("checkbox", { name: "Freunde" })).toBeChecked();
+  await sheet.getByRole("button", { name: "Fertig" }).click();
+
+  // Rename Familie, then merge Arbeit into it, then delete it.
+  await page.goto("/einstellungen");
+  const familie = page.getByRole("group", { name: "Familie" });
+  await familie.getByRole("button", { name: "Umbenennen" }).click();
+  await familie.getByLabel("Name", { exact: true }).fill("Verwandtschaft");
+  await familie.getByLabel("Name", { exact: true }).press("Enter");
+  const renamed = page.getByRole("group", { name: "Verwandtschaft" });
+  await expect(renamed.getByText("Familie")).toBeVisible();
+  await renamed.getByLabel("Zusammenführen mit …").selectOption({ label: "Arbeit" });
+  await renamed.getByRole("button", { name: "Zusammenführen" }).click();
+  await expect(page.getByRole("group", { name: "Arbeit" })).toHaveCount(0);
+  await expect(renamed.getByText("Kollegen")).toBeVisible();
+  await renamed.getByRole("button", { name: "Löschen" }).click();
+  await renamed.getByRole("button", { name: "Wirklich löschen?" }).click();
+  await expect(page.getByRole("group", { name: "Verwandtschaft" })).toHaveCount(0);
+});
+
 test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await page.getByRole("link", { name: "Einstellungen" }).click();
   await expect(page.getByLabel("Webhook für Erinnerungen")).toBeVisible();
