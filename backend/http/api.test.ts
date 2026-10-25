@@ -55,6 +55,12 @@ describe("people", () => {
     expect((await call(s.a, "GET", "/people/nope")).status).toBe(404);
   });
 
+  test("rename a person", async () => {
+    expect((await call(s.a, "PATCH", `/people/${s.lena}`, { name: "Lena Hoffmann" })).status).toBe(204);
+    expect((await call(s.b, "GET", `/people/${s.lena}`)).json.name).toBe("Lena Hoffmann");
+    expect((await call(s.a, "PATCH", `/people/${s.lena}`, { name: " " })).status).toBe(400);
+  });
+
   test("briefing", async () => {
     const res = await call(s.a, "GET", `/people/${s.anna}/briefing`);
     expect(res.status).toBe(200);

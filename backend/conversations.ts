@@ -289,6 +289,42 @@ async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, newId: str
   await tx.updateTable("facts").set({ status: "outdated", superseded_by: newId }).where("id", "=", factId).execute();
 }
 
+/** A conversation in the history: when, how, the summary, and who was there. */
+export type ConversationSummary = { id: string; date: string; kind: ConversationKind; summary: string; people: Array<{ id: string; name: string }>; url: string };
+
+/** Every conversation the viewer may see, newest first. */
+export async function listConversations(v: Viewer): Promise<ConversationSummary[]> {
+  const d = await db();
+  const convs = await d
+    .selectFrom("conversations")
+    .select(["id", "date", "kind", "summary"])
+    .$call((qb) => visible(qb, v, "conversations"))
+    .orderBy("date", "desc")
+    .orderBy("created_at", "desc")
+    .execute();
+  if (!convs.length) return [];
+  const present = await d
+    .selectFrom("participants")
+    .innerJoin("persons", "persons.id", "participants.person_id")
+    .select(["participants.conversation_id", "persons.id", "persons.name"])
+    .where(
+      "participants.conversation_id",
+      "in",
+      convs.map((c) => c.id),
+    )
+    .where("persons.id", "!=", v.personId)
+    .orderBy("persons.name")
+    .execute();
+  return convs.map((c) => ({
+    id: c.id,
+    date: c.date,
+    kind: c.kind as ConversationKind,
+    summary: c.summary,
+    people: present.filter((p) => p.conversation_id === c.id).map((p) => ({ id: p.id, name: p.name })),
+    url: conversationPath(c.id),
+  }));
+}
+
 export async function getConversation(v: Viewer, id: string): Promise<ConversationView> {
   const d = await db();
   const c = await d.selectFrom("conversations").selectAll().where("id", "=", id).$call((qb) => visible(qb, v, "conversations")).executeTakeFirst();

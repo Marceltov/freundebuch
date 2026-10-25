@@ -4,7 +4,7 @@
 import * as z from "zod";
 import { briefing } from "../briefing";
 import { IDENTITY_COOKIE } from "../auth/session";
-import { deleteItem, editItem, markDone, markOutdated, mergePeople, setVisibility, shareTranscript, type ItemTable } from "../corrections";
+import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type ItemTable } from "../corrections";
 import { getConversation, recordConversation } from "../conversations";
 import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError } from "../errors";
@@ -35,6 +35,7 @@ import {
   OrbitJson,
   PeopleQuery,
   PersonJson,
+  PersonNameJson,
   PersonListJson,
   RecordedJson,
   SentJson,
@@ -79,6 +80,22 @@ const OPS: AnyOp[] = [
     params: { id: IdParam },
     responses: { 200: { description: "The person", schema: PersonJson }, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => ({ status: 200, body: await getPerson(viewer, params.id) })),
+
+  op({
+    method: "PATCH",
+    path: `${API_PREFIX}/people/{id}`,
+    operationId: "renamePerson",
+    summary: "Rename a person",
+    description: "Names are shared: the other user sees the new name too.",
+    tags: ["People"],
+    auth: true,
+    params: { id: IdParam },
+    body: PersonNameJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await renamePerson(viewer, params.id, body.name);
+    return { status: 204, body: undefined };
+  }),
 
   op({
     method: "GET",

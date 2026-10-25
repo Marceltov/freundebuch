@@ -2,17 +2,23 @@ import { Cake, Gift, Pin, type LucideIcon } from "lucide-react";
 import type { Badge } from "@/backend";
 import { copy } from "@/components/copy";
 
-// Until there are photos, a face is a person's initials on a color of their own: a stable hash of their id picks one of 8.
+// Until there are photos, a face is a person's initials on a color of their own (a stable hash of their id picks one of 8), cut
+// out like a sticker: a light rim and a small tilt that stays the same for each person.
 export const PALETTE = ["#e07a5f", "#3d85c6", "#81b29a", "#9b72cf", "#f2a541", "#5e6472", "#d36582", "#2a9d8f"] as const;
 
 export const BADGE_ICON: Record<Badge, LucideIcon> = { birthday: Cake, promise: Pin, gift: Gift };
 
 // FNV-1a over the id.
-export function faceColor(id: string): string {
+function hash(id: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 0x01000193);
-  return PALETTE[(h >>> 0) % PALETTE.length];
+  return h >>> 0;
 }
+
+export const faceColor = (id: string): string => PALETTE[hash(id) % PALETTE.length];
+
+/** A sticker's tilt, -5° to 5°, the same for a person every time. */
+export const faceTilt = (id: string): number => ((hash(id) >>> 8) % 11) - 5;
 
 /** The first letters of the first and the last word; a single word gives its first two letters. */
 export function initials(name: string): string {
@@ -39,8 +45,15 @@ export function Face({ id, name, size = 44, ratio, badges = [] }: { id: string; 
     >
       <span
         aria-hidden
-        className="inline-flex items-center justify-center rounded-full font-semibold text-white"
-        style={{ width: size, height: size, background: faceColor(id), fontSize: Math.round(size * 0.34) }}
+        className="inline-flex items-center justify-center rounded-full font-bold text-white shadow-card"
+        style={{
+          width: size,
+          height: size,
+          background: faceColor(id),
+          fontSize: Math.round(size * 0.34),
+          border: `${size >= 56 ? 4 : size >= 32 ? 3 : 2}px solid var(--rim)`,
+          transform: `rotate(${faceTilt(id)}deg)`,
+        }}
       >
         {initials(name)}
       </span>

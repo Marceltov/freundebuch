@@ -117,6 +117,9 @@ export const DueItemJson = z
     text: z.string().optional(),
     ratio: z.number().optional(),
     byMe: z.boolean().optional().describe("On a promise: whether the caller made it (false: the person promised it to the caller). Only the caller's own promises are due"),
+    itemId: z.string().optional().describe("On a date or a promise: its id"),
+    lastSeen: z.string().nullable().optional().describe("On someone overdue: the day the caller last saw them"),
+    intervalDays: z.number().int().nullable().optional().describe("On someone overdue: the caller's check-in interval"),
     url: Url.describe("The person's page, as an absolute URL; for a date or a promise, its highlighted row there"),
   })
   .meta({ id: "DueItem" });
@@ -141,6 +144,8 @@ export const IntervalJson = z
   .meta({ id: "Interval" });
 
 export const MergeJson = z.object({ drop: PersonId.describe("The duplicate to merge into the person in the path; it is deleted") }).meta({ id: "Merge" });
+
+export const PersonNameJson = z.object({ name: z.string().describe("The person's new name") }).meta({ id: "PersonName" });
 
 export const AliasJson = z.object({ alias: z.string().describe("Another name the person goes by, e.g. a nickname") }).meta({ id: "Alias" });
 
@@ -292,7 +297,7 @@ export const SettingsJson = z
 
 export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
 
-export const COMPONENTS = [GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PersonNameJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

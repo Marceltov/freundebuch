@@ -1,21 +1,21 @@
 # The web app
 
-The web app is in German, made for a quick look on the phone before you meet someone. It has three views.
+The web app is in German, made for a quick look on the phone before you meet someone. It looks like a friendship book: every face is a sticker, every person a page. The bar at the bottom leads to its four places: **Start**, **Verlauf**, **Leute** and **Bald**.
 
-## Orbit (start page)
+## Start
 
 <div class="fb-shots" markdown>
-![The orbit in light mode](../assets/orbit.png)
-![The orbit in dark mode](../assets/orbit-dark.png)
+![The start page in light mode](../assets/orbit.png)
+![The start page in dark mode](../assets/orbit-dark.png)
 </div>
 
-You're in the middle ("Du"). Everyone you know sits on one of three rings: the inner ring for people you saw recently, the outer ring for people you're due to see. Small badges show what's waiting:
+A greeting tells you how many people would be glad to hear from you. Below it, you're in the middle ("Du"), and everyone sits on one of three rings with their first name under them: the inner ring for people you saw recently, the outer ring for people you're due to see. Small badges show what's waiting:
 
 - 🎂 a birthday coming up,
 - 📌 an open promise,
 - 🎁 a gift idea.
 
-Tap a face to open the person.
+The group chips above the orbit put a group's members first and fade everyone else. Tap a face to open the person.
 
 ## A friend's page
 
@@ -25,14 +25,26 @@ Tap a face to open the person.
 
 From top to bottom:
 
-- when you last saw them, their check-in interval, their birthday and their groups,
-- **Gerade**: what's new, as current facts,
-- **Offen**: open promises, gift ideas and other exchanges, with quick actions,
-- **Verlauf**: the conversations, newest first. Each one opens its summary and, if it's visible to you, its transcript,
-- **Ihre Leute**: a small graph of the people around them.
+- when you last saw them, their birthday, their check-in interval and their groups (**+ Gruppe** adds or removes groups),
+- **Gerade los**: what's new, as current facts,
+- **Versprochen**, **Ideen für Geschenke** and **Noch offen**: promises, gift ideas and other exchanges, with quick actions,
+- **Gespräche**: the conversations, newest first,
+- **Gehört zu**: a small graph of the people around them.
+
+The round **…** next to the name sets how often you want to see them, renames them, adds a nickname, or merges a duplicate into them.
 
 Private items have a lock icon. Only you see them.
 
+## A conversation
+
+The date and place, who was there and who was only mentioned (by name), the summary, and **Daraus gemerkt**: everything filed from it, as sentences. Every name links to the person; **›** opens an item on the person's page. Done and outdated items stay listed, marked as such. The **…** in the header changes the summary or the date, or deletes the conversation.
+
+## Verlauf, Leute, Bald
+
+- **Verlauf**: every conversation, newest first, by week and month.
+- **Leute**: everyone, A to Z, with a search over names and nicknames and the group chips.
+- **Bald**: the next two weeks: birthdays and other dates, your promises with a due day (tick them off right there), and who would be glad to hear from you.
+
 ## Settings
 
-The gear icon opens **Einstellungen**: your webhook for [notifications](notifications.md), and signing out.
+The gear icon opens **Einstellungen**: your webhook for [notifications](notifications.md), your groups and their other names, and signing out.

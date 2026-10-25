@@ -21,13 +21,13 @@ export default async function GroupPage({ params }: PageProps<"/g/[id]">) {
   return (
     <article>
       <p className="text-sm text-muted">{copy.groupPage}</p>
-      <h1 className="text-2xl leading-tight font-bold">{g.name}</h1>
+      <h1 className="font-display text-3xl leading-tight font-bold">{g.name}</h1>
       <p className="text-sm text-muted">
         {g.aliases.length > 0 && `${copy.alsoCalled.replace("{names}", g.aliases.join(", "))} · `}
         {g.count === 1 ? copy.onePerson : copy.people.replace("{n}", String(g.count))}
       </p>
       <section className="mt-6">
-        <h2 className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">{copy.members}</h2>
+        <h2 className="mb-2 font-display text-lg font-semibold">{copy.members}</h2>
         {g.members.length === 0 ? (
           <p className="text-muted">{copy.noMembers}</p>
         ) : (

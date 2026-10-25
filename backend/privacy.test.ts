@@ -2,7 +2,7 @@
 // recordings). Every later task that adds a read function adds its assertions here.
 import { beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
-import { getConversation, recordConversation } from "./conversations";
+import { getConversation, listConversations, recordConversation } from "./conversations";
 import { deleteItem, setVisibility, shareTranscript } from "./corrections";
 import { db } from "./db/testing";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
@@ -10,7 +10,7 @@ import { whatsDue } from "./due";
 import { lastSeen, setCheckInInterval } from "./intervals";
 import { orbit } from "./orbit";
 import { addToGroupById, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup } from "./groups";
-import { findPeople, getPerson, listPeople } from "./people";
+import { findPeople, getPerson, listPeople, peopleOverview } from "./people";
 import { addToGroup } from "./relationships";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
 import type { Viewer } from "./types";
@@ -303,4 +303,27 @@ test("merging never shows B a group name that was hidden from B", async () => {
   const geheim = (await listGroups(s.a)).find((g) => g.name === "Geheim")!.id;
   await expect(mergeGroups(s.a, geheim, freunde)).rejects.toThrow(InvalidInputError);
   expect(JSON.stringify(await listGroups(s.b))).not.toContain("Geheim");
+});
+
+test("the history lists only conversations the viewer may see, newest first, with who was there", async () => {
+  expect((await listConversations(s.b)).map((c) => c.id)).toEqual(expect.arrayContaining([s.dinner, s.call]));
+  expect((await listConversations(s.b)).map((c) => c.id)).not.toContain(s.coffee);
+  const a = await listConversations(s.a);
+  expect(a.map((c) => c.id)).toContain(s.coffee);
+  expect(a.map((c) => c.date)).toEqual([...a.map((c) => c.date)].sort().reverse());
+  const dinner = a.find((c) => c.id === s.dinner)!;
+  expect(dinner).toMatchObject({ url: `/c/${s.dinner}`, summary: "Dinner with Anna; she has a new job." });
+  expect(dinner.people.map((p) => p.name)).toContain("Anna");
+});
+
+test("the people overview is everyone but the viewer, with last seen and groups as the viewer sees them", async () => {
+  await addToGroup(s.a, { name: "Therapie", members: [s.lena], visibility: "private" });
+  const b = await peopleOverview(s.b);
+  expect(b.map((p) => p.id)).not.toContain(s.b.personId);
+  const lenaB = b.find((p) => p.id === s.lena)!;
+  expect(lenaB).toMatchObject({ name: "Lena", url: `/p/${s.lena}`, lastSeen: null, groups: [] });
+  const lenaA = (await peopleOverview(s.a)).find((p) => p.id === s.lena)!;
+  expect(lenaA.lastSeen).not.toBeNull();
+  expect(lenaA.groups).toHaveLength(1);
+  expect(b.map((p) => p.name)).toEqual([...b.map((p) => p.name)].sort((x, y) => x.localeCompare(y, "de")));
 });
