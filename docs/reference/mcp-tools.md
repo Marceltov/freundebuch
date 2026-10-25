@@ -18,7 +18,8 @@ The server also sends Claude instructions with the connection. In short:
 - pass the ramble verbatim as the transcript,
 - ask before filing anything sensitive as shared,
 - resolve every person with `find_person` and ask when a name is ambiguous,
-- read back what was filed, with the link to the conversation,
+- read back what was filed, with the day it happened and the link to the conversation,
+- take the day the user names ("vorgestern") as the conversation's date, and fix the date with `correct` when it was wrong,
 - give you the link whenever you may want to look at something in the web app,
 - offer suggested intervals and save them only once you agree.
 

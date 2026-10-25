@@ -100,6 +100,8 @@ describe("protocol", () => {
     const description = (name: string) => tools.find((t: { name: string }) => t.name === name).description;
     for (const phrase of ["resolve every person with find_person", "ask the user when a name fits more than one person or resembles an existing one", "keep it out of the summary"])
       expect(description("record_conversation")).toContain(phrase);
+    expect(description("correct")).toContain("the conversation was on another day");
+    expect(description("record_conversation")).toContain("when the user says when it happened");
     for (const name of ["record_conversation", "relate"]) {
       expect(description(name), name).toContain("health, relationship trouble, money, anything said in confidence");
       expect(description(name), name).toContain("ask the user whether it should be private before calling");
@@ -113,6 +115,7 @@ describe("protocol", () => {
     expect(text).toContain(V);
     expect(text).toContain("Pass the ramble verbatim as transcript, never a summary.");
     expect(text).toContain("When a briefing has suggestedInterval, offer it to the user");
+    expect(text).toContain("with the day it happened");
   });
 
   test("initialize is refused with 400", async () => {
