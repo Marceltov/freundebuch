@@ -222,7 +222,7 @@ describe("tools", () => {
     expect(group.structuredContent).toEqual({ added: 2 });
     expect((await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna], visibility: "shared" })).structuredContent).toEqual({ added: 0 });
     // The briefing's output schema carries the groups and the birthday.
-    expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.groups).toEqual(["Uni"]);
+    expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.groups.map((g: { name: string }) => g.name)).toEqual(["Uni"]);
     expect((await call(s.a, "briefing", { personId: s.tom })).structuredContent.person.birthday).toMatchObject({ date: "--10-24", age: null });
     expect((await call(s.b, "briefing", { personId: s.tom })).structuredContent.person.birthday).toBeNull();
     expect((await call(s.a, "relate", { kind: "relationship", from: s.anna, to: s.anna, type: "friend", visibility: "shared" })).isError).toBe(true);

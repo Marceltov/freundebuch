@@ -9,7 +9,9 @@ import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { whatsDue } from "./due";
 import { lastSeen, setCheckInInterval } from "./intervals";
 import { orbit } from "./orbit";
+import { getGroup, listGroups } from "./groups";
 import { findPeople, getPerson, listPeople } from "./people";
+import { addToGroup } from "./relationships";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
 import type { Viewer } from "./types";
 import { visible } from "./visibility";
@@ -135,13 +137,14 @@ test("A's private group membership neither blocks nor reveals itself to B's shar
     ).map((r) => `${r.name}/${r.visibility}`);
   expect(await seen(s.b)).toEqual(["Uni/shared"]);
   expect(await seen(s.a)).toEqual(["Uni/private", "Uni/shared"]);
-  // The briefing names the group once, for both.
-  expect((await briefing(s.b, s.anna)).groups).toEqual(["Uni"]);
-  expect((await briefing(s.a, s.anna)).groups).toEqual(["Uni"]);
+  // A's group was hidden from B, so B's "Uni" is a group of its own: B sees one, A sees both (and can merge them).
+  const names = async (v: Viewer) => (await briefing(v, s.anna)).groups.map((g) => g.name);
+  expect(await names(s.b)).toEqual(["Uni"]);
+  expect(await names(s.a)).toEqual(["Uni", "Uni"]);
   // A's private membership alone stays A's.
   await record(s.a, { groups: [{ name: "Therapy group", members: [0], private: true }] });
-  expect((await briefing(s.b, s.anna)).groups).toEqual(["Uni"]);
-  expect((await briefing(s.a, s.anna)).groups).toEqual(["Therapy group", "Uni"]);
+  expect(await names(s.b)).toEqual(["Uni"]);
+  expect(await names(s.a)).toEqual(["Therapy group", "Uni", "Uni"]);
 });
 
 test("a private fact can't outdate B's shared fact, so B's fact stays current", async () => {
@@ -256,4 +259,17 @@ test("the links B is handed never name one of A's private items or conversations
   const urls = JSON.stringify(seen).match(/"url":"[^"]*"/g) ?? [];
   expect(urls.length).toBeGreaterThan(0);
   for (const id of secret) expect(urls.join(), id).not.toContain(id);
+});
+
+test("a group made only through A's private membership doesn't exist for B", async () => {
+  await addToGroup(s.a, { name: "Therapie", members: [s.anna], visibility: "private" });
+  expect((await listGroups(s.b)).map((g) => g.name)).not.toContain("Therapie");
+  const id = (await listGroups(s.a)).find((g) => g.name === "Therapie")!.id;
+  await expect(getGroup(s.b, id)).rejects.toThrow(NotFoundError);
+  expect(JSON.stringify(await briefing(s.b, s.anna))).not.toContain("Therapie");
+  // B typing the same name makes B's own group; A's stays private and separate.
+  await addToGroup(s.b, { name: "Therapie", members: [s.anna], visibility: "shared" });
+  expect((await listGroups(s.b)).filter((g) => g.name === "Therapie")).toHaveLength(1);
+  expect((await listGroups(s.b)).find((g) => g.name === "Therapie")!.id).not.toBe(id);
+  expect((await listGroups(s.a)).filter((g) => g.name === "Therapie")).toHaveLength(2);
 });

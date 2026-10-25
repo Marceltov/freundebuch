@@ -44,8 +44,8 @@ export function FriendPage({ b, daysSince }: { b: Briefing; daysSince: number | 
               </Chip>
             ))}
             {b.groups.map((g) => (
-              <Chip key={g} icon={Users} label={copy.group}>
-                {g}
+              <Chip key={g.id} href={g.url} icon={Users} label={copy.group}>
+                {g.name}
               </Chip>
             ))}
           </div>

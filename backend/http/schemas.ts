@@ -73,7 +73,7 @@ export const BriefingJson = z
         .nullable()
         .describe("The person's birthday as the caller may see it, however far away"),
     }),
-    groups: z.array(z.string()).describe("The groups the caller may see the person in, each name once"),
+    groups: z.array(z.object({ id: z.string(), name: z.string(), url: Url })).describe("The groups the caller may see the person in, each once"),
     freshness: Freshness,
     nextDates: z.array(UpcomingDate),
     current: z.array(z.object({ id: z.string(), text: z.string(), category: z.enum(FACT_CATEGORIES), url: ItemUrl, ...Own })),

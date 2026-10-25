@@ -51,8 +51,10 @@ test("the birthday shows however far away it is, with the age when the year is k
 test("groups: the names of the groups the viewer may see the person in, each once", async () => {
   await record(s.a, { groups: [{ name: "Uni", members: [0] }, { name: "Climbing", members: [0], private: true }] });
   await record(s.b, { groups: [{ name: "Uni", members: [0] }, { name: "Choir", members: [0] }] });
-  expect((await briefing(s.a, s.anna, "2026-10-23")).groups).toEqual(["Choir", "Climbing", "Uni"]);
-  expect((await briefing(s.b, s.anna, "2026-10-23")).groups).toEqual(["Choir", "Uni"]);
+  const names = async (v: Viewer) => (await briefing(v, s.anna, "2026-10-23")).groups.map((g) => g.name);
+  expect(await names(s.a)).toEqual(["Choir", "Climbing", "Uni"]);
+  expect(await names(s.b)).toEqual(["Choir", "Uni"]);
+  for (const g of (await briefing(s.a, s.anna, "2026-10-23")).groups) expect(g.url).toBe(`/g/${g.id}`);
   expect((await briefing(s.b, s.tom, "2026-10-23")).groups).toEqual([]);
 });
 

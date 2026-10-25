@@ -20,6 +20,7 @@ export const API_PREFIX = "/api/v1";
 export type AnchoredTable = "facts" | "promises" | "dates" | "exchanges" | "relationships";
 export const personPath = (id: string) => `/p/${id}`;
 export const conversationPath = (id: string) => `/c/${id}`;
+export const groupPath = (id: string) => `/g/${id}`;
 /** The element id of an item's row on a page; a link ending in `#` + this scrolls to the row and highlights it. */
 export const anchorId = (table: AnchoredTable, id: string) => `${table}-${id}`;
 export const itemPath = (page: string, table: AnchoredTable, id: string) => `${page}#${anchorId(table, id)}`;

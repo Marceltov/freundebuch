@@ -1193,9 +1193,26 @@
           "groups": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url"
+              ]
             },
-            "description": "The groups the caller may see the person in, each name once"
+            "description": "The groups the caller may see the person in, each once"
           },
           "freshness": {
             "type": "object",

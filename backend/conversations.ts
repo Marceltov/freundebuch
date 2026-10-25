@@ -19,6 +19,7 @@ import {
   type Viewer,
   type Visibility,
 } from "./types";
+import { resolveOrCreateGroup } from "./groups";
 import { conversationPath, itemPath, personPath, type AnchoredTable } from "./urls";
 import { visible } from "./visibility";
 
@@ -158,9 +159,9 @@ export async function insertRelationship(
   return id;
 }
 
-/** Adds the people to the group with this name (created when there is none); returns how many memberships were new. */
-export async function insertMemberships(tx: Kysely<Schema>, base: ItemBase, name: string, personIds: string[], visibility: Visibility): Promise<number> {
-  const groupId = await groupNamed(tx, name.trim());
+/** Adds the people to the group this name resolves to for the viewer (created when none does); returns how many memberships were new. */
+export async function insertMemberships(tx: Kysely<Schema>, v: Viewer, base: ItemBase, name: string, personIds: string[], visibility: Visibility): Promise<number> {
+  const groupId = await resolveOrCreateGroup(tx, v, name);
   let added = 0;
   // Each user has their own membership row. One the viewer recorded before keeps its visibility; only they may change it.
   for (const m of new Set(personIds)) {
@@ -253,7 +254,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
         .execute();
     for (const r of c.relationships ?? []) await insertRelationship(tx, base, { fromId: id(r.from), toId: id(r.to), type: r.type, note: r.note, visibility: vis(r) });
     let memberships = 0;
-    for (const g of c.groups ?? []) memberships += await insertMemberships(tx, base, g.name, g.members.map(id), vis(g));
+    for (const g of c.groups ?? []) memberships += await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g));
 
     const counts = { ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]), groups: memberships };
     return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts };
@@ -279,15 +280,6 @@ async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, newId: str
   if (old.person_id !== personId) throw new InvalidInputError("A fact can only supersede a fact about the same person");
   if (visibility === "private" && old.visibility !== "private") throw new InvalidInputError(PRIVATE_REPLACES_SHARED);
   await tx.updateTable("facts").set({ status: "outdated", superseded_by: newId }).where("id", "=", factId).execute();
-}
-
-/** The group with this exact name, created when there is none. Group names carry no visibility; their memberships do. */
-async function groupNamed(tx: Kysely<Schema>, name: string): Promise<string> {
-  const found = await tx.selectFrom("groups").select("id").where("name", "=", name).executeTakeFirst();
-  if (found) return found.id;
-  const id = newId();
-  await tx.insertInto("groups").values({ id, name, created_at: now() }).execute();
-  return id;
 }
 
 export async function getConversation(v: Viewer, id: string): Promise<ConversationView> {

@@ -33,6 +33,6 @@ export async function addToGroup(v: Viewer, g: NewMembership): Promise<{ added: 
   if (!g.members.length) throw new InvalidInputError("A group membership needs at least one person");
   return (await db()).transaction().execute(async (tx) => {
     await assertPeople(tx, g.members);
-    return { added: await insertMemberships(tx, baseOf(v), g.name, g.members, g.visibility) };
+    return { added: await insertMemberships(tx, v, baseOf(v), g.name, g.members, g.visibility) };
   });
 }

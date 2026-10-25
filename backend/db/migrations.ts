@@ -166,11 +166,13 @@ const migrations: Record<string, Migration> = {
     },
   },
 
-  // Groups you manage: who made one (null for the seeded ones), and other names that resolve to it, like a person's aliases.
+  // Groups you manage: who made one (null when that isn't known, as for groups from before), whether every household starts
+  // with it, and other names that resolve to it, like a person's aliases.
   "002_groups": {
     async up(db: Kysely<any>) {
       await db.schema.alterTable("groups").addColumn("created_by", "text", (c) => c.references("users.id").onDelete("set null")).execute();
       await db.schema.alterTable("groups").addColumn("created_at", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema.alterTable("groups").addColumn("seeded", "integer", (c) => c.notNull().defaultTo(0)).execute();
       const t = Date.now();
       await db.updateTable("groups").set({ created_at: t }).execute();
       await db.schema
@@ -186,8 +188,8 @@ const migrations: Record<string, Migration> = {
         let id = existing.find((e) => norm(e.name) === norm(g.name))?.id;
         if (!id) {
           id = randomUUID();
-          await db.insertInto("groups").values({ id, name: g.name, created_by: null, created_at: t }).execute();
-        }
+          await db.insertInto("groups").values({ id, name: g.name, created_by: null, created_at: t, seeded: 1 }).execute();
+        } else await db.updateTable("groups").set({ seeded: 1 }).where("id", "=", id).execute();
         for (const alias of g.aliases)
           await db.insertInto("group_aliases").values({ group_id: id, alias, norm: norm(alias) }).onConflict((oc) => oc.doNothing()).execute();
       }
