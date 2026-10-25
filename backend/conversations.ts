@@ -159,8 +159,15 @@ export async function insertRelationship(
   return id;
 }
 
-/** Adds the people to the group this name resolves to for the viewer (created when none does); returns how many memberships were new. */
-export async function insertMemberships(tx: Kysely<Schema>, v: Viewer, base: ItemBase, name: string, personIds: string[], visibility: Visibility): Promise<number> {
+/** Adds the people to the group this name resolves to for the viewer (created when none does); returns it and how many memberships were new. */
+export async function insertMemberships(
+  tx: Kysely<Schema>,
+  v: Viewer,
+  base: ItemBase,
+  name: string,
+  personIds: string[],
+  visibility: Visibility,
+): Promise<{ added: number; groupId: string }> {
   const groupId = await resolveOrCreateGroup(tx, v, name);
   let added = 0;
   // Each user has their own membership row. One the viewer recorded before keeps its visibility; only they may change it.
@@ -172,7 +179,7 @@ export async function insertMemberships(tx: Kysely<Schema>, v: Viewer, base: Ite
       .executeTakeFirst();
     added += Number(r.numInsertedOrUpdatedRows ?? 0);
   }
-  return added;
+  return { added, groupId };
 }
 
 /**
@@ -254,7 +261,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
         .execute();
     for (const r of c.relationships ?? []) await insertRelationship(tx, base, { fromId: id(r.from), toId: id(r.to), type: r.type, note: r.note, visibility: vis(r) });
     let memberships = 0;
-    for (const g of c.groups ?? []) memberships += await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g));
+    for (const g of c.groups ?? []) memberships += (await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g))).added;
 
     const counts = { ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]), groups: memberships };
     return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts };

@@ -182,6 +182,37 @@ const migrations: Record<string, Migration> = {
         .addColumn("norm", "text", (c) => c.notNull())
         .addPrimaryKeyConstraint("group_aliases_pk", ["group_id", "norm"])
         .execute();
+      // Names are compared normalised from now on, so groups whose names differ only in case or spacing ("Uni", " uni") become
+      // one, the oldest row: memberships move over, one row per person and recorder, and shared beats private.
+      const all = await db.selectFrom("groups").select(["id", "name"]).orderBy(sql`rowid`).execute();
+      const kept = new Map<string, string>();
+      for (const g of all) {
+        const keep = kept.get(norm(g.name));
+        if (!keep) {
+          kept.set(norm(g.name), g.id);
+          continue;
+        }
+        for (const m of await db.selectFrom("group_members").selectAll().where("group_id", "=", g.id).execute()) {
+          const there = await db
+            .selectFrom("group_members")
+            .select("visibility")
+            .where("group_id", "=", keep)
+            .where("person_id", "=", m.person_id)
+            .where("recorded_by", "=", m.recorded_by)
+            .executeTakeFirst();
+          if (!there) await db.insertInto("group_members").values({ ...m, group_id: keep }).execute();
+          else if (there.visibility === "private" && m.visibility === "shared")
+            await db
+              .updateTable("group_members")
+              .set({ visibility: "shared" })
+              .where("group_id", "=", keep)
+              .where("person_id", "=", m.person_id)
+              .where("recorded_by", "=", m.recorded_by)
+              .execute();
+        }
+        await db.deleteFrom("groups").where("id", "=", g.id).execute();
+      }
+
       // A seeded name that a group already has (however it was typed) gives that group the other names instead of a second group.
       const existing = await db.selectFrom("groups").select(["id", "name"]).execute();
       for (const g of SEEDED_GROUPS) {

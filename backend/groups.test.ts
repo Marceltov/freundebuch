@@ -130,3 +130,21 @@ test("createGroup returns the group a name already means instead of a duplicate"
   expect((await createGroup(s.a, "Verwandte")).name).toBe("Familie");
   expect((await createGroup(s.a, "Chor")).count).toBe(0);
 });
+
+test("with two groups of one name in sight, a name finds the viewer's own first, then the oldest", async () => {
+  // A's private-only Uni is hidden from B, so B's Uni is a second group; A sees both.
+  await addToGroup(s.a, { name: "Uni", members: [s.anna], visibility: "private" });
+  await addToGroup(s.b, { name: "Uni", members: [s.lena], visibility: "shared" });
+  const own = async (v: typeof s.a) => (await (await db()).selectFrom("groups").select("id").where("name", "=", "Uni").where("created_by", "=", v.userId).executeTakeFirstOrThrow()).id;
+  for (let i = 0; i < 3; i++) expect(await findGroup(await db(), s.a, "uni")).toBe(await own(s.a));
+  expect(await findGroup(await db(), s.b, "uni")).toBe(await own(s.b));
+});
+
+test("a group nobody sees any more and nobody made or started with is removed once its last member goes", async () => {
+  const familie = await idOf("Familie");
+  await addToGroupById(s.a, familie, s.anna, "shared");
+  await addToGroupById(s.b, familie, s.lena, "shared");
+  await deleteGroup(s.a, familie); // stays for B, no longer seeded or anyone's own
+  await removeFromGroup(s.b, familie, s.lena);
+  expect(await (await db()).selectFrom("groups").select("id").where("id", "=", familie).execute()).toEqual([]);
+});

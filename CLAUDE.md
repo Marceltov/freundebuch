@@ -9,7 +9,7 @@ freundebuch: a personal CRM for one household, AI-first (capture happens through
 - `npm run dev` / `npm run build` / `npm start`
 - `npm run typecheck` (next typegen + tsc), `npm run lint`
 - `npm test` (vitest), `npx vitest run <file>` for one file
-- `npm run test:e2e` (Playwright, needs `npx playwright install chromium` once). It runs against `next dev`, not the built app: the e2e sign-in (`FREUNDEBUCH_E2E=1`) is compiled out of production builds.
+- `npm run test:e2e` (Playwright, needs `npx playwright install chromium` once). It runs against `next dev`, not the built app: the e2e sign-in (`FREUNDEBUCH_E2E=1`) is compiled out of production builds. Its server starts from a fresh database and a fresh `.next/dev`; if pages still reload mid-test (`ERR_ABORTED`, "navigation interrupted"), run `rm -rf .next` and retry, and don't run `next typegen` by hand while e2e runs.
 - `npm run generate` rewrites `openapi.json` from the route table (`backend/http/api.ts`); commit the result, CI fails on any difference.
 - `docker build -t freundebuch .`
 - Docs: `uvx --with mkdocs-material==9.7.7 --with 'mkdocs<2' mkdocs serve` (`build --strict` in CI); published to GitHub Pages from `main`.

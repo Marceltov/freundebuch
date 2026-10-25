@@ -28,4 +28,5 @@ Chosen option: "Groups visible by membership, names not unique across the househ
 ### Consequences
 
 * Good, because the partner learns nothing from private memberships: no name, no count, no existence, and typing a hidden group's name doesn't reveal it.
+* Migration 002 folds existing groups whose names differ only in case or spacing into the oldest one, since names are compared normalised from then on.
 * Bad, because a user who first files "Uni" privately and whose partner later files "Uni" as shared ends up seeing two "Uni" groups until they merge them.

@@ -1,7 +1,7 @@
 // Groups as the viewer sees them: which exist for them (visibleGroups), how a typed name finds one (its name or another name,
 // however it is spelled), and who is in one. Group names and other names are shared like person names; memberships carry their
 // own visibility, so counts and member lists only include what the viewer may see.
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { freshness } from "./intervals";
@@ -71,25 +71,39 @@ export async function getGroup(v: Viewer, id: string): Promise<GroupView & { mem
   return { ...view, members };
 }
 
-/** The visible group whose name or other name is `name` once normalised, or null. */
+/**
+ * The visible group whose name or other name is `name` once normalised, or null. Two visible groups may share a name (one was
+ * hidden from the partner when theirs was made): the viewer's own wins, then the oldest.
+ */
 export async function findGroup(tx: Kysely<Schema>, v: Viewer, name: string): Promise<string | null> {
   const n = norm(name);
   if (!n) return null;
-  const groups = await tx.selectFrom("groups").select(["id", "name"]).$call((qb) => visibleGroups(qb, v)).execute();
+  const groups = await tx
+    .selectFrom("groups")
+    .select(["id", "name"])
+    .$call((qb) => visibleGroups(qb, v))
+    .orderBy(sql`groups.created_by = ${v.userId}`, "desc")
+    .orderBy("created_at")
+    .orderBy("id")
+    .execute();
   const byName = groups.find((g) => norm(g.name) === n);
   if (byName) return byName.id;
   if (!groups.length) return null;
-  const alias = await tx
-    .selectFrom("group_aliases")
-    .select("group_id")
-    .where("norm", "=", n)
-    .where(
-      "group_id",
-      "in",
-      groups.map((g) => g.id),
-    )
-    .executeTakeFirst();
-  return alias?.group_id ?? null;
+  const withAlias = new Set(
+    (
+      await tx
+        .selectFrom("group_aliases")
+        .select("group_id")
+        .where("norm", "=", n)
+        .where(
+          "group_id",
+          "in",
+          groups.map((g) => g.id),
+        )
+        .execute()
+    ).map((a) => a.group_id),
+  );
+  return groups.find((g) => withAlias.has(g.id))?.id ?? null;
 }
 
 /** The visible group `name` resolves to, or a new group of the viewer's own by that name. */
@@ -258,7 +272,10 @@ export async function addToGroupById(v: Viewer, id: string, personId: string, vi
   });
 }
 
-/** Takes a person out of a group: the viewer's membership and the partner's shared one. The partner's private one stays. */
+/**
+ * Takes a person out of a group: the viewer's membership and the partner's shared one. The partner's private one stays. A group
+ * left with no members that nobody made or started with (one the partner deleted) can't be seen by anyone any more and goes.
+ */
 export async function removeFromGroup(v: Viewer, id: string, personId: string): Promise<void> {
   await tx(async (t) => {
     await seen(t, v, id);
@@ -268,5 +285,7 @@ export async function removeFromGroup(v: Viewer, id: string, personId: string): 
       .where("person_id", "=", personId)
       .where((eb) => eb.or([eb("recorded_by", "=", v.userId), eb("visibility", "=", "shared")]))
       .execute();
+    const left = await t.selectFrom("group_members").select("person_id").where("group_id", "=", id).executeTakeFirst();
+    if (!left) await t.deleteFrom("groups").where("id", "=", id).where("seeded", "=", 0).where("created_by", "is", null).execute();
   });
 }
