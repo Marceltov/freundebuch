@@ -214,7 +214,7 @@ test("mergePeople handles colliding aliases, participants, memberships and the r
   const { dup } = await duplicateAnna();
   const d = await db();
   // The same group membership for both, by the same recorder; and one conversation with both of them.
-  await d.insertInto("groups").values({ id: "g2", name: "Book club" }).execute();
+  await d.insertInto("groups").values({ id: "g2", name: "Book club", created_at: 0 }).execute();
   for (const p of [s.anna, dup])
     await d
       .insertInto("group_members")
@@ -315,7 +315,7 @@ test("mergePeople refuses itself and unknown persons", async () => {
 test("on a membership collision the less restrictive row wins", async () => {
   const { dup } = await duplicateAnna();
   const d = await db();
-  await d.insertInto("groups").values({ id: "g3", name: "Hiking" }).execute();
+  await d.insertInto("groups").values({ id: "g3", name: "Hiking", created_at: 0 }).execute();
   const row = (person_id: string, visibility: string) => ({ group_id: "g3", person_id, visibility, recorded_by: s.a.userId });
   await d
     .insertInto("group_members")

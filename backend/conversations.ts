@@ -286,7 +286,7 @@ async function groupNamed(tx: Kysely<Schema>, name: string): Promise<string> {
   const found = await tx.selectFrom("groups").select("id").where("name", "=", name).executeTakeFirst();
   if (found) return found.id;
   const id = newId();
-  await tx.insertInto("groups").values({ id, name }).execute();
+  await tx.insertInto("groups").values({ id, name, created_at: now() }).execute();
   return id;
 }
 
