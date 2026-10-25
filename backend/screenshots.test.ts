@@ -83,6 +83,12 @@ test("a screenshot is shrunk to 1080 px WebP and read; a sure one becomes a fact
   expect(await listPending(s.a)).toEqual([]);
 });
 
+test("a person named twice in one post gets one fact", async () => {
+  const shot = await shareScreenshot(s.a, await image());
+  await readScreenshot(shot.id, answering(post([{ name: "Anna", personId: s.anna }, { name: "anna", handle: "anna", personId: s.anna }])));
+  expect(await (await db()).selectFrom("facts").selectAll().where("screenshot_id", "=", shot.id).execute()).toHaveLength(1);
+});
+
 test("the same image shared twice is read once", async () => {
   const bytes = await image();
   const first = await shareScreenshot(s.a, bytes);

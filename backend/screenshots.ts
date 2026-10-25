@@ -155,7 +155,7 @@ export async function readScreenshot(id: string, model: ScreenshotModel): Promis
     return "pending";
   }
   await d.transaction().execute(async (tx) => {
-    for (const p of reading.people) await insertFact(tx, v, id, reading, p.personId!, "shared");
+    for (const personId of new Set(reading.people.map((p) => p.personId!))) await insertFact(tx, v, id, reading, personId, "shared");
     await tx.updateTable("screenshots").set({ status: "filed", reading: JSON.stringify(reading) }).where("id", "=", id).execute();
   });
   return "filed";
