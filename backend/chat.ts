@@ -113,6 +113,10 @@ export function linksOf(name: string, input: unknown, out: Record<string, unknow
       ...people.filter((p) => str(p.id) && str(p.name) && str(p.url)).map((p) => ({ kind: "person" as const, id: p.id as string, name: p.name as string, url: p.url as string })),
     ];
   }
+  if (name === "remember" && Array.isArray(out.people))
+    return (out.people as { id: unknown; name: unknown; url: unknown }[])
+      .filter((p) => str(p.id) && str(p.name) && str(p.url))
+      .map((p) => ({ kind: "person" as const, id: p.id as string, name: p.name as string, url: p.url as string }));
   const person = out.person as { id?: unknown; name?: unknown; url?: unknown } | null | undefined;
   if (name === "briefing" && person && str(person.id) && str(person.name) && str(person.url)) return [{ kind: "person", id: person.id, name: person.name, url: person.url }];
   if (name === "relate" && str(out.name) && str(out.id) && str(out.url)) return [{ kind: "group", id: out.id, name: out.name, url: out.url }];

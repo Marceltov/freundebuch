@@ -3,7 +3,7 @@
 // privacy is decided in the domain, never by Claude. Results carry paths; mcp.ts makes them absolute for its clients.
 import * as z from "zod";
 import { briefing } from "./briefing";
-import { getConversation, recordConversation } from "./conversations";
+import { getConversation, recordConversation, remember } from "./conversations";
 import { deleteItem, editItem, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
 import { whatsDue } from "./due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "./groups";
@@ -23,7 +23,7 @@ import {
 import { setCheckInInterval } from "./intervals";
 import { addAlias, findPeople } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
-import { RELATIONSHIP_TYPES, type Viewer } from "./types";
+import { EXCHANGE_KINDS, FACT_CATEGORIES, RELATIONSHIP_TYPES, type Viewer } from "./types";
 import { conversationPath, personPath } from "./urls";
 
 export type Tool = {
@@ -252,6 +252,42 @@ const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("group_delete"), id: GroupId }).describe("Delete a group for the user"),
 ]);
 
+const PrivateItem = z.boolean().optional().describe("Makes just this item private");
+const RememberInput = z.object({
+  visibility: Visibility,
+  facts: z.array(z.object({ person: PersonId, text: z.string(), category: z.enum(FACT_CATEGORIES), private: PrivateItem })).optional(),
+  promises: z.array(z.object({ person: PersonId, text: z.string(), byMe: z.boolean().describe("Whether the user made the promise"), due: Day.optional(), private: PrivateItem })).optional(),
+  dates: z
+    .array(
+      z.object({
+        person: PersonId,
+        kind: z.enum(["birthday", "anniversary", "custom"]),
+        date: z.string().describe("`YYYY-MM-DD`, or `--MM-DD` for a yearly date without a year"),
+        label: z.string().optional(),
+        yearly: z.boolean(),
+        private: PrivateItem,
+      }),
+    )
+    .optional(),
+  exchanges: z
+    .array(
+      z.object({
+        person: PersonId,
+        kind: z.enum(EXCHANGE_KINDS),
+        direction: z.enum(["to_them", "from_them"]).describe("`to_them`: the user gave; `from_them`: the person gave"),
+        text: z.string(),
+        amount: z.number().optional(),
+        currency: z.string().optional(),
+        private: PrivateItem,
+      }),
+    )
+    .optional(),
+});
+const RememberedJson = z.object({
+  counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int() }),
+  people: z.array(z.object({ id: PersonId, name: z.string(), url: z.string() })).describe("The people it is about, with a link to each"),
+});
+
 export const TOOLS: readonly Tool[] = [
   tool({
     name: "record_conversation",
@@ -261,6 +297,15 @@ export const TOOLS: readonly Tool[] = [
     output: Recorded,
     annotations: { destructiveHint: false },
     handler: async (v, c) => ok(Recorded, await recordConversation(v, c)),
+  }),
+  tool({
+    name: "remember",
+    description:
+      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record_conversation instead. If anything is sensitive, ask the user whether it should be private before calling.",
+    input: RememberInput,
+    output: RememberedJson,
+    annotations: { destructiveHint: false },
+    handler: async (v, r) => ok(RememberedJson, await remember(v, r)),
   }),
   tool({
     name: "find_person",

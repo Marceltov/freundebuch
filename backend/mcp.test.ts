@@ -71,7 +71,7 @@ const ramble = (over: object = {}) => ({
 });
 
 describe("protocol", () => {
-  test("tools/list names the nine tools with their annotations", async () => {
+  test("tools/list names the ten tools with their annotations", async () => {
     const tools = (await (await rpc(s.a, "tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "briefing",
@@ -81,13 +81,14 @@ describe("protocol", () => {
       "groups",
       "record_conversation",
       "relate",
+      "remember",
       "set_interval",
       "whats_due",
     ]);
     for (const t of tools) {
       expect(t.annotations?.readOnlyHint === true, t.name).toBe(["find_person", "briefing", "whats_due", "get_transcript", "groups"].includes(t.name));
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: only correct is.
-      const writes = ["record_conversation", "relate", "set_interval"].includes(t.name);
+      const writes = ["record_conversation", "relate", "remember", "set_interval"].includes(t.name);
       expect(t.annotations?.destructiveHint, t.name).toBe(t.name === "correct" ? true : writes ? false : undefined);
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");

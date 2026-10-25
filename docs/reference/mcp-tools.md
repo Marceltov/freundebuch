@@ -5,6 +5,7 @@ The MCP endpoint is `POST ${PUBLIC_URL}/mcp`: stateless, protocol version 2026-0
 | Tool | Kind | What it does |
 | --- | --- | --- |
 | `record_conversation` | write | Files a conversation: the verbatim transcript, a summary, who was there or mentioned, and the facts, promises, exchanges, dates and relationships learned. |
+| `remember` | write | Files a fact, a date (a birthday), a promise or a gift idea about people already in the book, without a conversation. |
 | `find_person` | read | Finds people by name or alias, tolerant of spelling, with context to tell namesakes apart. Claude calls it before referring to anyone. |
 | `briefing` | read | Everything worth knowing about one person before you meet them, including a suggested check-in interval. |
 | `whats_due` | read | Upcoming dates, promises with a due date and overdue people; 14 days ahead by default. |

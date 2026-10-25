@@ -13,7 +13,7 @@ import { absoluteUrls, publicUrl } from "./urls";
 const log = logger("mcp");
 
 export const INSTRUCTIONS = `freundebuch remembers what is going on in the lives of the people the user knows. The user rambles about a conversation; you file it with record_conversation. Before they meet someone, give them a briefing.
-Pass the ramble verbatim as transcript, never a summary.
+Pass the ramble verbatim as transcript, never a summary. What the user tells you about someone outside a conversation (a birthday, a fact, a gift idea) goes to remember.
 Before recording, look for sensitive content: health, relationship trouble, money, anything said in confidence or "between us". If you find any, ask the user whether it should be private. Default to shared otherwise. When only part is sensitive, mark only those items private and keep that part out of the summary.
 Resolve every person with find_person first. When more than one candidate fits, or a new name resembles an existing person, ask the user which one; never guess and never create a duplicate.
 After recording, read back in one or two sentences what you filed, with the day it happened and the link to the conversation.
