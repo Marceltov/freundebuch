@@ -15,4 +15,9 @@ export const copy = {
   anniversary: "Jahrestag",
   testTitle: "🔔 freundebuch-Test",
   testBody: "So sehen Benachrichtigungen aus.",
+  shotWho: "📷 Wer ist das?",
+  shotSensitive: "📷 Bitte kurz ansehen, bevor es abgelegt wird",
+  shotNothing: "📷 Auf dem Screenshot war nichts für freundebuch",
+  shotFailed: "📷 Der Screenshot konnte nicht gelesen werden",
+  shotLimit: "📷 Tageslimit erreicht, der Screenshot wartet",
 };

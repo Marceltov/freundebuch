@@ -11,6 +11,7 @@ import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
 import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, RELATIONSHIP_TYPES, VISIBILITIES, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
+import { pruneScreenshots } from "./screenshots";
 
 export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations";
 
@@ -282,6 +283,8 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
     .deleteFrom(table as "facts")
     .where("id", "=", id)
     .execute();
+  // A fact read from a screenshot takes the image with it once no other fact names it.
+  if (table === "facts") await pruneScreenshots();
 }
 
 export async function renamePerson(v: Viewer, id: string, name: string): Promise<void> {

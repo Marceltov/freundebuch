@@ -76,7 +76,18 @@ export const BriefingJson = z
     groups: z.array(z.object({ id: z.string(), name: z.string(), url: Url, private: z.boolean().describe("Whether the caller's own private membership is the only one they see") })).describe("The groups the caller may see the person in, each once"),
     freshness: Freshness,
     nextDates: z.array(UpcomingDate),
-    current: z.array(z.object({ id: z.string(), text: z.string(), category: z.enum(FACT_CATEGORIES), url: ItemUrl, ...Own })),
+    current: z.array(
+      z.object({
+        id: z.string(),
+        text: z.string(),
+        category: z.enum(FACT_CATEGORIES),
+        url: ItemUrl,
+        source: z.string().optional().describe("Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot"),
+        happenedOn: Day.optional().describe("When it happened, when the screenshot showed it"),
+        imageUrl: Url.optional().describe("The screenshot it was read from (sign-in required)"),
+        ...Own,
+      }),
+    ),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
