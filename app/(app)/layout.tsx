@@ -1,6 +1,12 @@
+import { pendingCount, sharingEnabled } from "@/backend";
 import { AppShell } from "@/components/AppShell";
 import { pageViewer } from "./viewer";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  return <AppShell userId={(await pageViewer()).userId}>{children}</AppShell>;
+  const v = await pageViewer();
+  return (
+    <AppShell userId={v.userId} pending={sharingEnabled() ? await pendingCount(v) : 0}>
+      {children}
+    </AppShell>
+  );
 }

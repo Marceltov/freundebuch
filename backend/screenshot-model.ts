@@ -80,7 +80,7 @@ export function anthropicScreenshotModel(apiKey: string, model: string): Screens
   };
 }
 
-/** The e2e stand-in: every screenshot is Anna in Lisbon, certain when exactly one person is called Anna. */
+/** The e2e stand-in: every screenshot is "Anna Reise" in Lisbon, never certain, with every Anna as a candidate. */
 export const fakeScreenshotModel: ScreenshotModel = {
   async read({ people, today }) {
     const annas = people.filter((p) => p.name.split(" ")[0] === "Anna");
@@ -91,7 +91,7 @@ export const fakeScreenshotModel: ScreenshotModel = {
       category: "travel",
       happenedOn: today,
       sensitive: false,
-      people: [annas.length === 1 ? { name: "Anna", handle: "anna.reist", personId: annas[0].id } : { name: "Anna", handle: "anna.reist", candidates: annas.map((a) => a.id) }],
+      people: [{ name: "Anna Reise", handle: "anna.reist", candidates: annas.map((a) => a.id) }],
     };
   },
 };

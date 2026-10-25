@@ -6,7 +6,7 @@ import { IDENTITY_COOKIE, identityOk, publicUrl } from "@/backend";
 // credentials themselves: redirecting them to /login would turn a client's 401 into a success-looking 307. Icons and the
 // manifest are public too, so the login page has them. Only the cookie's signature is checked here (the proxy doesn't ask
 // the database); pages get the viewer from viewerFromCookie, which also checks that the user still exists.
-const EXEMPT = /^\/(login|logout|health|mcp|favicon\.ico|icon\.svg|icon-[\w-]+\.png|apple-icon\.png|manifest\.webmanifest)$|^\/(api|oauth|\.well-known|_next)\//;
+const EXEMPT = /^\/(login|logout|health|mcp|favicon\.ico|icon\.svg|icon-[\w-]+\.png|apple-icon\.png|manifest\.webmanifest|sw\.js)$|^\/(api|oauth|\.well-known|_next)\//;
 
 export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

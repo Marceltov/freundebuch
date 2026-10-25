@@ -344,3 +344,46 @@ test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await expect(page.getByText(/\/mcp$/)).toBeVisible();
   await expectNoSideScroll(page);
 });
+
+test("a shared screenshot waits under Zu prüfen, is filed on a new person and shows on their page", async ({ page, baseURL }) => {
+  const sharp = (await import("sharp")).default;
+  const png = async (r: number) => sharp({ create: { width: 300, height: 600, channels: 3, background: { r, g: 120, b: 200 } } }).png().toBuffer();
+  const shared = await page.request.post("/api/share", { headers: { origin: baseURL! }, multipart: { image: { name: "shot.png", mimeType: "image/png", buffer: await png(1) } } });
+  expect(shared.status()).toBe(202);
+
+  // The stand-in model is never sure: the badge appears once it has read the screenshot.
+  await expect(async () => {
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "1 zu prüfen" })).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  await page.getByRole("link", { name: "1 zu prüfen" }).click();
+  await expect(page).toHaveURL("/pruefen");
+  await expect(page.getByRole("textbox").first()).toHaveValue("Urlaub in Lissabon");
+  await expectNoSideScroll(page);
+  await page.getByRole("button", { name: "Neu anlegen: Anna Reise" }).click();
+  await page.getByRole("button", { name: "Bei Anna Reise ablegen" }).click();
+  await expect(page.getByText("Nichts zu prüfen.")).toBeVisible();
+
+  const people = await (await page.request.get("/api/v1/people?q=Anna Reise")).json();
+  await page.goto(new URL(people[0].url).pathname);
+  await expect(page.getByText("Urlaub in Lissabon")).toBeVisible();
+  await expect(page.getByText(/· Instagram/)).toBeVisible();
+  await expect(page.getByRole("img", { name: "Screenshot" })).toBeVisible();
+  // the handle is one of her other names now
+  expect(people[0].aliases).toContain("anna.reist");
+});
+
+test("settings make a share key, and the key hands in a screenshot", async ({ page, baseURL }) => {
+  await page.goto("/einstellungen");
+  await expect(page.getByRole("heading", { name: "Screenshots teilen" })).toBeVisible();
+  await expect(page.getByText(/\/api\/share$/)).toBeVisible();
+  await page.getByRole("button", { name: /Schlüssel erzeugen/ }).click();
+  const key = (await page.getByText(/^fbs_/).textContent())!;
+  await expectNoSideScroll(page);
+
+  const sharp = (await import("sharp")).default;
+  const img = await sharp({ create: { width: 200, height: 400, channels: 3, background: { r: 9, g: 9, b: 9 } } }).png().toBuffer();
+  const res = await fetch(`${baseURL}/api/share`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "image/png" }, body: img });
+  expect(res.status).toBe(202);
+  expect((await res.json()).message).toBe("Danke! freundebuch liest den Screenshot.");
+});

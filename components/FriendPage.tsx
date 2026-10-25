@@ -83,6 +83,13 @@ export function FriendPage({
           {b.current.map((f) => (
             <Tile key={f.id} id={anchorId("facts", f.id)} icon={CATEGORY_ICON[f.category]} private={f.visibility === "private"} actions={<ItemActions table="facts" {...item(f)} />}>
               {f.text}
+              {(f.source || f.happenedOn) && <span className="text-muted"> · {[f.source, f.happenedOn && dayMonth(f.happenedOn)].filter(Boolean).join(", ")}</span>}
+              {f.imageUrl && (
+                <a href={f.imageUrl} target="_blank" rel="noreferrer" className="ml-2 inline-block align-middle" title={copy.screenshotOf.replace("{source}", f.source ?? "")}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a private image behind the sign-in, not for next/image */}
+                  <img src={f.imageUrl} alt={copy.screenshot} loading="lazy" className="h-9 w-9 rounded-md bg-surface-2 object-cover object-top" />
+                </a>
+              )}
             </Tile>
           ))}
         </Section>

@@ -1,7 +1,8 @@
 "use client";
 
-import { Bell, Check, Send } from "lucide-react";
+import { Bell, Check, KeyRound, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { CopyField } from "@/components/CopyButton";
 import { copy } from "@/components/copy";
 
 // The viewer's webhook for the daily reminders: saved with PUT /api/v1/me/settings, tried with POST /api/v1/me/settings/test.
@@ -71,5 +72,68 @@ export function WebhookSettings({ webhookUrl }: { webhookUrl: string | null }) {
         </span>
       </div>
     </form>
+  );
+}
+
+// Sharing screenshots: how on Android, and the share key the iPhone Shortcut sends (POST/DELETE /api/v1/me/share-key). A new
+// key is shown once, right after it was made.
+export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl: string }) {
+  const [key, setKey] = useState<string | null>(null);
+  const [active, setActive] = useState(hasKey);
+  const [failed, setFailed] = useState(false);
+
+  async function create() {
+    const res = await fetch("/api/v1/me/share-key", { method: "POST" }).catch(() => null);
+    setFailed(!res?.ok);
+    if (res?.ok) {
+      setKey(((await res.json()) as { key: string }).key);
+      setActive(true);
+    }
+  }
+  async function revoke() {
+    const res = await fetch("/api/v1/me/share-key", { method: "DELETE" }).catch(() => null);
+    setFailed(!res?.ok);
+    if (res?.ok) {
+      setKey(null);
+      setActive(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-muted">{copy.shareHint}</p>
+      <p>{copy.shareAndroid}</p>
+      <p>{copy.shareIphone}</p>
+      <ol className="list-decimal space-y-1 pl-5 text-muted">
+        {copy.shareSteps.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ol>
+      <CopyField label={copy.shareUrl} text={shareUrl} />
+      {key && (
+        <>
+          <CopyField label={copy.shareKey} text={key} />
+          <p className="text-muted">{copy.shareKeyOnce}</p>
+        </>
+      )}
+      {!key && active && <p className="text-muted">{copy.shareKeyActive}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={create} className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+          <KeyRound aria-hidden className="h-4 w-4" />
+          {active ? copy.shareKeyReplace : copy.shareKeyNew}
+        </button>
+        {active && (
+          <button type="button" onClick={revoke} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-1.5 font-bold">
+            <Trash2 aria-hidden className="h-4 w-4" />
+            {copy.shareKeyRevoke}
+          </button>
+        )}
+        {failed && (
+          <span role="status" className="text-error">
+            {copy.actionFailed}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }

@@ -1,17 +1,17 @@
 import { headers } from "next/headers";
-import { LogOut, Plug, Users } from "lucide-react";
-import { getSettings, listGroups, mcpResource } from "@/backend";
+import { ImageUp, LogOut, Plug, Users } from "lucide-react";
+import { getSettings, hasShareKey, listGroups, mcpResource, publicUrl, sharingEnabled } from "@/backend";
 import { copy } from "@/components/copy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupSettings } from "@/components/GroupSettings";
-import { WebhookSettings } from "@/components/Settings";
+import { ShareSettings, WebhookSettings } from "@/components/Settings";
 import { pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: copy.settings };
 
-// The viewer's own settings: the webhook for reminders, the groups with their other names, and the address to connect Claude with. The time of day the
+// The viewer's own settings: the webhook for reminders, sharing screenshots (when the instance can read them), the groups with their other names, and the address to connect Claude with. The time of day the
 // reminders go out is the instance's (FREUNDEBUCH_NOTIFY_AT), not a setting here.
 export default async function SettingsPage() {
   const v = await pageViewer();
@@ -22,6 +22,15 @@ export default async function SettingsPage() {
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <WebhookSettings webhookUrl={webhookUrl} />
       </section>
+      {sharingEnabled() && (
+        <section id="teilen" className="rounded-2xl bg-surface p-5 shadow-card">
+          <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
+            <ImageUp aria-hidden className="h-4 w-4" />
+            {copy.shareTitle}
+          </h2>
+          <ShareSettings hasKey={await hasShareKey(v)} shareUrl={`${publicUrl(await headers())}/api/share`} />
+        </section>
+      )}
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
           <Users aria-hidden className="h-4 w-4" />
