@@ -3,7 +3,7 @@
 // revealed; one they can see but someone else recorded is forbidden to edit, re-share or delete. Marking done is open to either
 // user for a shared item, and a private item is only ever visible to its recorder anyway.
 import type { Kysely } from "kysely";
-import { assertDay, isDay, isYearless } from "./dates";
+import { assertDay, isDay, isYearless, notFuture } from "./dates";
 import { MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED } from "./conversations";
 import { db, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
@@ -92,6 +92,11 @@ const day = (value: unknown, what: string): string => {
   assertDay(value, what);
   return value;
 };
+const conversationDay = (value: unknown, what: string): string => {
+  const d = day(value, what);
+  notFuture(d, what);
+  return d;
+};
 const upTo =
   (max: number) =>
   (value: unknown, what: string): string => {
@@ -137,7 +142,7 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     note: { column: "note", check: optionalText },
   },
   conversations: {
-    date: { column: "date", check: day },
+    date: { column: "date", check: conversationDay },
     kind: { column: "kind", check: oneOf(CONVERSATION_KINDS) },
     place: { column: "place", check: optionalText },
     summary: { column: "summary", check: upTo(MAX_SUMMARY) },

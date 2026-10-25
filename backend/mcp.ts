@@ -23,7 +23,7 @@ export const INSTRUCTIONS = `freundebuch remembers what is going on in the lives
 Pass the ramble verbatim as transcript, never a summary.
 Before recording, look for sensitive content: health, relationship trouble, money, anything said in confidence or "between us". If you find any, ask the user whether it should be private. Default to shared otherwise. When only part is sensitive, mark only those items private and keep that part out of the summary.
 Resolve every person with find_person first. When more than one candidate fits, or a new name resembles an existing person, ask the user which one; never guess and never create a duplicate.
-After recording, read back in one or two sentences what you filed, with the link to the conversation.
+After recording, read back in one or two sentences what you filed, with the day it happened and the link to the conversation.
 Every person, conversation and item comes with a url to it in the web app; give the user the link whenever they may want to look at something there.
 When a briefing has suggestedInterval, offer it to the user and save it with set_interval once they agree.`;
 
@@ -146,7 +146,7 @@ function server(v: Viewer, base: string): McpServer {
     "record_conversation",
     {
       description:
-        "File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary.",
+        "File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise: when the user says when it happened (\"the day before yesterday\"), pass that day. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary.",
       inputSchema: NewConversation,
       outputSchema: Recorded,
       annotations: { destructiveHint: false },
@@ -236,7 +236,7 @@ function server(v: Viewer, base: string): McpServer {
     "correct",
     {
       description:
-        "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person or add an alias, merge a duplicate or let the partner read a transcript. Use it when the user says something is done, no longer true or wrong.",
+        "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person or add an alias, merge a duplicate or let the partner read a transcript. Use it when the user says something is done, no longer true or wrong. If the conversation was on another day: edit, table conversations, patch { date }.",
       inputSchema: CorrectInput,
       outputSchema: CorrectedJson,
       annotations: { destructiveHint: true },

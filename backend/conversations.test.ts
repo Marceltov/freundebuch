@@ -187,7 +187,7 @@ test("validates date formats", async () => {
   ];
   for (const c of bad) await expect(recordConversation(a, c)).rejects.toBeInstanceOf(InvalidInputError);
   await expect(recordConversation(a, base({ dates: [{ person: 0, kind: "birthday", date: "1990-10-24", yearly: true }] }))).resolves.toBeDefined();
-  await expect(recordConversation(a, base({ date: "2028-02-29", people: [{ name: "Ben", present: true }], dates: [{ person: 0, kind: "birthday", date: "--02-29", yearly: true }] }))).resolves.toBeDefined();
+  await expect(recordConversation(a, base({ date: "2024-02-29", people: [{ name: "Ben", present: true }], dates: [{ person: 0, kind: "birthday", date: "--02-29", yearly: true }] }))).resolves.toBeDefined();
 });
 
 test("rejects a people entry with neither id nor name, a bad person ref and unknown vocabulary", async () => {
@@ -217,4 +217,8 @@ test("a conversation's items link to their rows on its page, done and outdated o
   for (const x of [...c.facts, ...c.promises]) expect(x.url).toBe(`/c/${c.id}#${"category" in x ? "facts" : "promises"}-${x.id}`);
   expect(c.promises[0].name).toBe("Anna");
   expect(c.participants[0].url).toBe(`/p/${c.participants[0].id}`);
+});
+
+test("a conversation can't be dated after today", async () => {
+  await expect(recordConversation(a, base({ date: "2999-01-01" }))).rejects.toThrow(InvalidInputError);
 });

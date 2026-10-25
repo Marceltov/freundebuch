@@ -55,6 +55,7 @@ export const copy = {
   done: "Erledigt",
   outdated: "Veraltet",
   edit: "Bearbeiten",
+  changeDate: "Datum ändern",
   save: "Speichern",
   cancel: "Abbrechen",
   makePrivate: "Privat machen",
