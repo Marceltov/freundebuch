@@ -1,7 +1,9 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import { chatEnabled } from "./chat-route";
 import { config } from "./config";
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const k of ["FREUNDEBUCH_NOTIFY_AT", "FREUNDEBUCH_OIDC_ALLOW", "FREUNDEBUCH_TRUST_PROXY", "FREUNDEBUCH_RATE_LIMIT", "FREUNDEBUCH_SECRET", "PUBLIC_URL", "DATA_DIR", "TZ"]) delete process.env[k];
 });
 
@@ -67,5 +69,28 @@ test("timeZone is TZ, Europe/Berlin when unset or empty, and an invalid one thro
   for (const v of ["Mars/Base", "nonsense"]) {
     process.env.TZ = v;
     expect(() => config.timeZone()).toThrow(/TZ/);
+  }
+});
+
+test("the chat: no key means off; the model and the daily limit have defaults", () => {
+  vi.stubEnv("FREUNDEBUCH_ANTHROPIC_API_KEY", " ");
+  expect(config.anthropicKey()).toBeUndefined();
+  expect(chatEnabled()).toBe(false);
+  vi.stubEnv("FREUNDEBUCH_ANTHROPIC_API_KEY", "sk-ant-x");
+  expect(chatEnabled()).toBe(true);
+  expect(config.anthropicModel()).toBe("claude-sonnet-5-5");
+  expect(config.chatDailyLimit()).toBe(100);
+  vi.stubEnv("FREUNDEBUCH_ANTHROPIC_MODEL", "claude-opus-5-5");
+  vi.stubEnv("FREUNDEBUCH_CHAT_DAILY_LIMIT", "20");
+  expect([config.anthropicModel(), config.chatDailyLimit()]).toEqual(["claude-opus-5-5", 20]);
+  vi.stubEnv("FREUNDEBUCH_CHAT_DAILY_LIMIT", "lots");
+  expect(config.chatDailyLimit()).toBe(100);
+});
+
+test(".env.example, compose.yaml and the configuration docs name every chat variable", async () => {
+  const { readFile } = await import("node:fs/promises");
+  for (const file of [".env.example", "compose.yaml", "docs/self-hosting/configuration.md"]) {
+    const text = await readFile(file, "utf8");
+    for (const name of ["FREUNDEBUCH_ANTHROPIC_API_KEY", "FREUNDEBUCH_ANTHROPIC_MODEL", "FREUNDEBUCH_CHAT_DAILY_LIMIT"]) expect(text, `${file} ${name}`).toContain(name);
   }
 });

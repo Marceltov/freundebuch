@@ -252,6 +252,70 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
   await expect(page.getByRole("link", { name: /Leah B\./ })).toHaveCount(0);
 });
 
+test("Erzählen files from a friend's page and keeps the chat across pages", async ({ page, baseURL }) => {
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: { date: today, kind: "call", summary: "Anruf mit Nele.", transcript: "Anruf mit Nele Sommer.", visibility: "shared", people: [{ name: "Nele Sommer", present: true }] },
+  });
+  const nele = (await recorded.json()).people[0].id;
+  await page.goto(`/p/${nele}`);
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  const sheet = page.getByRole("dialog", { name: "Erzählen" });
+  // Sent right away: the page it was opened on goes along even before the chip has its name.
+  const field = sheet.getByLabel("Nachricht");
+  await field.fill("Notiz: Nele hat einen Hund adoptiert");
+  await sheet.getByRole("button", { name: "Senden" }).click();
+  await expect(sheet.getByText("Erfasst.")).toBeVisible();
+  await expect(sheet.getByText("Es geht um Nele Sommer")).toBeVisible();
+  await expectNoSideScroll(page);
+  await sheet.getByRole("link", { name: /Gespräch am/ }).click();
+  await expect(page.getByText("Nele hat einen Hund adoptiert").first()).toBeVisible();
+
+  // The chat is still there on another page; an unreachable Claude keeps the text in the field.
+  await page.goto("/leute");
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toBeVisible();
+  await field.fill("Fehlertest");
+  await sheet.getByRole("button", { name: "Senden" }).click();
+  await expect(sheet.getByRole("alert")).toHaveText("Claude ist gerade nicht erreichbar. Dein Text ist noch da, versuch es gleich noch mal.");
+  await expect(field).toHaveValue("Fehlertest");
+
+  // The keyboard stays in the sheet while it is open, and Escape takes it back to the button.
+  await expect(field).toBeFocused();
+  for (let i = 0; i < 8; i++) await page.keyboard.press("Tab");
+  expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" })).toBeFocused();
+
+  // Moving to another friend with the sheet open names that friend, never the one before.
+  await page.goto(`/p/${nele}`);
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  await expect(sheet.getByText("Es geht um Nele Sommer")).toBeVisible();
+  const other = (await (await page.request.get("/api/v1/people?q=Kai")).json())[0]?.id ?? (await (await page.request.get("/api/v1/people")).json()).find((p: { id: string }) => p.id !== nele).id;
+  // The new name takes a while to load; until then the chip must not keep the old one.
+  await page.route(`**/api/v1/people/${other}`, async (r) => {
+    await new Promise((done) => setTimeout(done, 2000));
+    await r.continue();
+  });
+  await page.evaluate((id) => (window as unknown as { next: { router: { push(u: string): void } } }).next.router.push(`/p/${id}`), other);
+  await expect(page).toHaveURL(new RegExp(`/p/${other}`));
+  await expect(sheet.getByText("Es geht um diese Person")).toBeVisible();
+  await expect(sheet.getByText("Es geht um Nele Sommer")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Someone else signing in on this device doesn't see this chat.
+  await page.goto("/api/e2e/login?name=Bodo Gast");
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toHaveCount(0);
+  await page.goto("/api/e2e/login?name=Erika Muster");
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toBeVisible();
+
+  await sheet.getByRole("button", { name: "Neues Gespräch" }).click();
+  await expect(sheet.getByText("Erfasst.")).toHaveCount(0);
+});
+
 test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await page.getByRole("link", { name: "Einstellungen" }).click();
   await expect(page.getByLabel("Webhook für Erinnerungen")).toBeVisible();

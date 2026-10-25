@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/AppShell";
+import { pageViewer } from "./viewer";
 
-export default function AppLayout({ children }: LayoutProps<"/">) {
-  return <AppShell>{children}</AppShell>;
+export default async function AppLayout({ children }: LayoutProps<"/">) {
+  return <AppShell userId={(await pageViewer()).userId}>{children}</AppShell>;
 }

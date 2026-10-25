@@ -226,6 +226,19 @@ const migrations: Record<string, Migration> = {
       }
     },
   },
+
+  // How many messages each user sent the in-app chat on a day, for its daily limit.
+  "003_chat_usage": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("chat_usage")
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("day", "text", (c) => c.notNull())
+        .addColumn("count", "integer", (c) => c.notNull())
+        .addPrimaryKeyConstraint("chat_usage_pk", ["user_id", "day"])
+        .execute();
+    },
+  },
 };
 
 /** The groups every household starts with, and their other names. */

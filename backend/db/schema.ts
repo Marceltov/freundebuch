@@ -54,6 +54,7 @@ export interface Schema {
   groups: { id: string; name: string; created_by: string | null; created_at: number; seeded: Flag };
   group_aliases: { group_id: string; alias: string; norm: string };
   group_members: { group_id: string; person_id: string; visibility: string; recorded_by: string; conversation_id: string | null };
+  chat_usage: { user_id: string; day: string; count: number };
   user_settings: { user_id: string; webhook_url: string | null };
   meta: { key: string; value: string };
 }
