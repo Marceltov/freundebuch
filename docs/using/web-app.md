@@ -9,13 +9,13 @@ The web app is in German, made for a quick look on the phone before you meet som
 ![The start page in dark mode](../assets/orbit-dark.png)
 </div>
 
-A greeting tells you how many people would be glad to hear from you. Below it, you're in the middle ("Du"), and everyone sits on one of three rings with their first name under them: the inner ring for people you saw recently, the outer ring for people you're due to see. Small badges show what's waiting:
+A greeting tells you how many people would be glad to hear from you. Below it, you're in the middle ("Du"), and everyone sits on one of three rings with their first name under them: the inner ring for people you saw recently, the outer ring for people you're due to see. People you haven't met yourself yet (someone your partner filed, or someone who was only mentioned) fill the free places on the outer ring with a faded face, so a new member of the household sees its people right away. Small badges show what's waiting:
 
 - 🎂 a birthday coming up,
 - 📌 an open promise,
 - 🎁 a gift idea.
 
-The group chips above the orbit put a group's members first and fade everyone else. Tap a face to open the person.
+The group chips above the orbit put a group's members first and fade everyone else. Tap a face to open the person. Until you've filed something yourself, a hint below the orbit says how to start: tell it in **Erzählen**, or connect Claude.
 
 ## A friend's page
 
@@ -25,7 +25,7 @@ The group chips above the orbit put a group's members first and fade everyone el
 
 From top to bottom:
 
-- when you last saw them, their birthday, their check-in interval and their groups (**+ Gruppe** adds or removes groups),
+- when you last saw them, their birthday with their age today ("12. Juli 1994 · 32 Jahre"), their check-in interval and their groups (**+ Gruppe** adds or removes groups),
 - **Gerade los**: what's new, as current facts,
 - **Versprochen**, **Ideen für Geschenke** and **Noch offen**: promises, gift ideas and other exchanges, with quick actions,
 - **Gespräche**: the conversations, newest first,
@@ -41,9 +41,11 @@ The date and place, who was there and who was only mentioned (by name), the summ
 
 ## Erzählen
 
-When your instance has an Anthropic API key ([configuration](../self-hosting/configuration.md)), a raised **Erzählen** button sits in the middle of the bottom bar. It opens a chat with Claude over whatever page you're on. Tell it what happened (type or dictate) and it files it, just as Claude does over MCP: it asks before filing anything sensitive as shared, asks which Anna you mean, and reads back what it filed with links under its reply. Ask it about someone ("Was war nochmal mit Marvins Spiegel?") and it looks them up.
+When your instance has an Anthropic API key ([configuration](../self-hosting/configuration.md)), a raised **Erzählen** button sits in the middle of the bottom bar. It opens a chat with Claude over whatever page you're on. Tell it what happened (type or dictate) and it files it, just as Claude does over MCP: it asks before filing anything sensitive as shared, asks which Anna you mean, and reads back what it filed with links under its reply. It also takes things that aren't a conversation, like "Malou hat am 7.2.2024 Geburtstag". Ask it about someone ("Was war nochmal mit Marvins Spiegel?") and it looks them up.
 
-Opened on someone's page, the chat knows who you probably mean ("Es geht um Marvin"); tap the chip away if not. The conversation stays on your phone until you start a new one; the server keeps only what gets filed. Claude acts as you, so it never sees your partner's private items.
+Your message moves into the chat as soon as you send it, and a bubble shows while Claude thinks. **Enter** starts a new line; the send button sends (on a computer also Ctrl+Enter or ⌘+Enter). With the phone's keyboard open, the chat shrinks to the space above it.
+
+Opened on someone's page, the chat knows who you probably mean ("Es geht um Marvin"); tap the chip away if not. The conversation stays on your device until you start a new one, kept apart per user, so your partner signing in on the same device doesn't see it; the server keeps only what gets filed. Claude acts as you, so it never sees your partner's private items.
 
 ## Verlauf, Leute, Bald
 
