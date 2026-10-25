@@ -263,9 +263,19 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   const sheet = page.getByRole("dialog", { name: "Erzählen" });
   // Sent right away: the page it was opened on goes along even before the chip has its name.
   const field = sheet.getByLabel("Nachricht");
+  // While Claude works, the message already sits in the chat, the field is empty and Claude is shown thinking.
+  await page.route("**/api/chat", async (r) => {
+    await new Promise((done) => setTimeout(done, 1500));
+    await r.continue();
+  });
   await field.fill("Notiz: Nele hat einen Hund adoptiert");
   await sheet.getByRole("button", { name: "Senden" }).click();
+  await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toBeVisible();
+  await expect(field).toHaveValue("");
+  await expect(sheet.getByRole("status")).toHaveText(/Claude denkt nach/);
   await expect(sheet.getByText("Erfasst.")).toBeVisible();
+  await expect(sheet.getByRole("status")).toHaveCount(0);
+  await page.unroute("**/api/chat");
   await expect(sheet.getByText("Es geht um Nele Sommer")).toBeVisible();
   await expectNoSideScroll(page);
   await sheet.getByRole("link", { name: /Gespräch am/ }).click();
@@ -279,6 +289,7 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await sheet.getByRole("button", { name: "Senden" }).click();
   await expect(sheet.getByRole("alert")).toHaveText("Claude ist gerade nicht erreichbar. Dein Text ist noch da, versuch es gleich noch mal.");
   await expect(field).toHaveValue("Fehlertest");
+  await expect(sheet.locator("p", { hasText: /^Fehlertest$/ })).toHaveCount(0);
 
   // The keyboard stays in the sheet while it is open, and Escape takes it back to the button.
   await expect(field).toBeFocused();
