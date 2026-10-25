@@ -3,10 +3,10 @@
 // own visibility, so counts and member lists only include what the viewer may see.
 import type { Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
-import { NotFoundError } from "./errors";
+import { InvalidInputError, NotFoundError } from "./errors";
 import { freshness } from "./intervals";
 import { norm } from "./names";
-import type { Viewer } from "./types";
+import type { Viewer, Visibility } from "./types";
 import { groupPath, personPath } from "./urls";
 import { visible, visibleGroups } from "./visibility";
 
@@ -99,4 +99,150 @@ export async function resolveOrCreateGroup(tx: Kysely<Schema>, v: Viewer, name: 
   const id = newId();
   await tx.insertInto("groups").values({ id, name: name.trim(), created_by: v.userId, created_at: now() }).execute();
   return id;
+}
+
+type Slot = { group_id: string; person_id: string };
+
+/**
+ * Moves one user's membership row from one group and person to another. Memberships are keyed by (group, person, recorder): a row
+ * already at the target wins over the moved one, except that shared beats private.
+ */
+export async function moveMembership(tx: Kysely<Schema>, recordedBy: string, from: Slot, to: Slot): Promise<void> {
+  const at = (x: Slot) => tx.selectFrom("group_members").select("visibility").where("group_id", "=", x.group_id).where("person_id", "=", x.person_id).where("recorded_by", "=", recordedBy);
+  const moved = await at(from).executeTakeFirst();
+  if (!moved) return;
+  const there = await at(to).executeTakeFirst();
+  const fromRow = tx.deleteFrom("group_members").where("group_id", "=", from.group_id).where("person_id", "=", from.person_id).where("recorded_by", "=", recordedBy);
+  if (!there) {
+    await tx
+      .updateTable("group_members")
+      .set(to)
+      .where("group_id", "=", from.group_id)
+      .where("person_id", "=", from.person_id)
+      .where("recorded_by", "=", recordedBy)
+      .execute();
+    return;
+  }
+  if (there.visibility === "private" && moved.visibility === "shared")
+    await tx
+      .updateTable("group_members")
+      .set({ visibility: "shared" })
+      .where("group_id", "=", to.group_id)
+      .where("person_id", "=", to.person_id)
+      .where("recorded_by", "=", recordedBy)
+      .execute();
+  await fromRow.execute();
+}
+
+/** A visible group, or NotFoundError. */
+async function seen(tx: Kysely<Schema>, v: Viewer, id: string): Promise<{ id: string; name: string; created_by: string | null }> {
+  const g = await tx.selectFrom("groups").select(["id", "name", "created_by"]).where("id", "=", id).$call((qb) => visibleGroups(qb, v)).executeTakeFirst();
+  if (!g) throw new NotFoundError("No such group");
+  return g;
+}
+
+/** Refuses `name` when it already means another visible group: two groups must be merged, not given the same name. */
+async function assertFree(tx: Kysely<Schema>, v: Viewer, id: string, name: string): Promise<void> {
+  if (!norm(name)) throw new InvalidInputError("A group's name can't be empty");
+  const other = await findGroup(tx, v, name);
+  if (other && other !== id) {
+    const o = await tx.selectFrom("groups").select("name").where("id", "=", other).executeTakeFirstOrThrow();
+    throw new InvalidInputError(`"${name.trim()}" is already the group ${o.name}; merge the two groups instead`);
+  }
+}
+
+async function addAlias(tx: Kysely<Schema>, id: string, alias: string): Promise<void> {
+  const g = await tx.selectFrom("groups").select("name").where("id", "=", id).executeTakeFirstOrThrow();
+  if (norm(g.name) === norm(alias)) return;
+  await tx.insertInto("group_aliases").values({ group_id: id, alias: alias.trim(), norm: norm(alias) }).onConflict((oc) => oc.doNothing()).execute();
+}
+
+const tx = async <T>(f: (tx: Kysely<Schema>) => Promise<T>): Promise<T> => (await db()).transaction().execute(f);
+
+/** The group `name` already means for the viewer, or a new one of theirs. */
+export async function createGroup(v: Viewer, name: string): Promise<GroupView> {
+  if (!norm(name)) throw new InvalidInputError("A group's name can't be empty");
+  const id = await tx((t) => resolveOrCreateGroup(t, v, name));
+  return (await listGroups(v)).find((g) => g.id === id)!;
+}
+
+/** Renames a group; the old name becomes another name, so it still finds the group. */
+export async function renameGroup(v: Viewer, id: string, name: string): Promise<void> {
+  await tx(async (t) => {
+    const g = await seen(t, v, id);
+    await assertFree(t, v, id, name);
+    await t.updateTable("groups").set({ name: name.trim() }).where("id", "=", id).execute();
+    await t.deleteFrom("group_aliases").where("group_id", "=", id).where("norm", "=", norm(name)).execute();
+    await addAlias(t, id, g.name);
+  });
+}
+
+export async function addGroupAlias(v: Viewer, id: string, alias: string): Promise<void> {
+  await tx(async (t) => {
+    await seen(t, v, id);
+    await assertFree(t, v, id, alias);
+    await addAlias(t, id, alias);
+  });
+}
+
+export async function removeGroupAlias(v: Viewer, id: string, alias: string): Promise<void> {
+  await tx(async (t) => {
+    await seen(t, v, id);
+    await t.deleteFrom("group_aliases").where("group_id", "=", id).where("norm", "=", norm(alias)).execute();
+  });
+}
+
+/** Merges `dropId` into `keepId`: every membership moves (the partner's private ones too, unseen), drop's names become other names of keep. */
+export async function mergeGroups(v: Viewer, keepId: string, dropId: string): Promise<void> {
+  if (keepId === dropId) throw new InvalidInputError("A group can't be merged into itself");
+  await tx(async (t) => {
+    await seen(t, v, keepId);
+    const drop = await seen(t, v, dropId);
+    for (const m of await t.selectFrom("group_members").select(["person_id", "recorded_by"]).where("group_id", "=", dropId).execute())
+      await moveMembership(t, m.recorded_by, { group_id: dropId, person_id: m.person_id }, { group_id: keepId, person_id: m.person_id });
+    const aliases = await t.selectFrom("group_aliases").select("alias").where("group_id", "=", dropId).execute();
+    await t.deleteFrom("groups").where("id", "=", dropId).execute();
+    for (const a of [drop.name, ...aliases.map((x) => x.alias)]) await addAlias(t, keepId, a);
+  });
+}
+
+/**
+ * Deletes a group for the viewer: their own memberships go. While the partner still has memberships, the group stays for them,
+ * no longer seeded or the viewer's own; once none are left, it goes with its other names.
+ */
+export async function deleteGroup(v: Viewer, id: string): Promise<void> {
+  await tx(async (t) => {
+    await seen(t, v, id);
+    await t.deleteFrom("group_members").where("group_id", "=", id).where("recorded_by", "=", v.userId).execute();
+    const left = await t.selectFrom("group_members").select("person_id").where("group_id", "=", id).executeTakeFirst();
+    if (!left) await t.deleteFrom("groups").where("id", "=", id).execute();
+    else await t.updateTable("groups").set({ seeded: 0, created_by: null }).where("id", "=", id).execute();
+  });
+}
+
+/** Puts a person in a group as the viewer; true when the membership is new. */
+export async function addToGroupById(v: Viewer, id: string, personId: string, visibility: Visibility): Promise<boolean> {
+  return tx(async (t) => {
+    await seen(t, v, id);
+    if (!(await t.selectFrom("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
+    const r = await t
+      .insertInto("group_members")
+      .values({ group_id: id, person_id: personId, visibility, recorded_by: v.userId, conversation_id: null })
+      .onConflict((oc) => oc.doNothing())
+      .executeTakeFirst();
+    return Number(r.numInsertedOrUpdatedRows ?? 0) > 0;
+  });
+}
+
+/** Takes a person out of a group: the viewer's membership and the partner's shared one. The partner's private one stays. */
+export async function removeFromGroup(v: Viewer, id: string, personId: string): Promise<void> {
+  await tx(async (t) => {
+    await seen(t, v, id);
+    await t
+      .deleteFrom("group_members")
+      .where("group_id", "=", id)
+      .where("person_id", "=", personId)
+      .where((eb) => eb.or([eb("recorded_by", "=", v.userId), eb("visibility", "=", "shared")]))
+      .execute();
+  });
 }

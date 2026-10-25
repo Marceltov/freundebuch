@@ -9,7 +9,7 @@ import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { whatsDue } from "./due";
 import { lastSeen, setCheckInInterval } from "./intervals";
 import { orbit } from "./orbit";
-import { getGroup, listGroups } from "./groups";
+import { addToGroupById, deleteGroup, getGroup, listGroups, removeFromGroup } from "./groups";
 import { findPeople, getPerson, listPeople } from "./people";
 import { addToGroup } from "./relationships";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
@@ -272,4 +272,19 @@ test("a group made only through A's private membership doesn't exist for B", asy
   expect((await listGroups(s.b)).filter((g) => g.name === "Therapie")).toHaveLength(1);
   expect((await listGroups(s.b)).find((g) => g.name === "Therapie")!.id).not.toBe(id);
   expect((await listGroups(s.a)).filter((g) => g.name === "Therapie")).toHaveLength(2);
+});
+
+test("removing and deleting never touch or reveal A's private memberships to B", async () => {
+  const familie = (await listGroups(s.a)).find((g) => g.name === "Familie")!.id;
+  await addToGroupById(s.a, familie, s.anna, "private");
+  await addToGroupById(s.b, familie, s.anna, "shared");
+  await removeFromGroup(s.b, familie, s.anna);
+  expect((await getGroup(s.b, familie)).members).toEqual([]);
+  expect((await getGroup(s.a, familie)).members.map((m) => [m.name, m.private])).toEqual([["Anna", true]]);
+  // B never added Lena and can't see A's private membership of her: removing her is no error and changes nothing.
+  await addToGroupById(s.a, familie, s.lena, "private");
+  await removeFromGroup(s.b, familie, s.lena);
+  await deleteGroup(s.b, familie);
+  expect((await getGroup(s.a, familie)).members.map((m) => m.name).sort()).toEqual(["Anna", "Lena"]);
+  expect((await listGroups(s.b)).map((g) => g.name)).not.toContain("Familie");
 });

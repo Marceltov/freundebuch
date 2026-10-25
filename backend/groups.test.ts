@@ -1,7 +1,20 @@
 import { beforeEach, expect, test } from "vitest";
 import { db } from "./db/testing";
-import { NotFoundError } from "./errors";
-import { findGroup, getGroup, listGroups, resolveOrCreateGroup } from "./groups";
+import { InvalidInputError, NotFoundError } from "./errors";
+import {
+  addGroupAlias,
+  addToGroupById,
+  createGroup,
+  deleteGroup,
+  findGroup,
+  getGroup,
+  listGroups,
+  mergeGroups,
+  removeFromGroup,
+  removeGroupAlias,
+  renameGroup,
+  resolveOrCreateGroup,
+} from "./groups";
 import { setCheckInInterval } from "./intervals";
 import { addToGroup } from "./relationships";
 import { seed, type Seed } from "./testing/fixtures";
@@ -55,4 +68,65 @@ test("getGroup lists members most due first, with last seen", async () => {
   expect(g.members[0]).toMatchObject({ personId: s.anna, url: `/p/${s.anna}`, private: false });
   expect(g.members[0].lastSeen).not.toBeNull();
   await expect(getGroup(s.a, "nope")).rejects.toThrow(NotFoundError);
+});
+
+test("rename keeps the old name as another name", async () => {
+  const id = await idOf("Arbeit");
+  await renameGroup(s.a, id, "Job & Kollegen");
+  const g = (await listGroups(s.b)).find((x) => x.id === id)!;
+  expect(g.name).toBe("Job & Kollegen");
+  expect(g.aliases).toEqual(["Arbeit", "Job", "Kollegen"]);
+  expect(await findGroup(await db(), s.b, "arbeit")).toBe(id);
+});
+
+test("an other name or a new name that names another group is refused, so merging is the way", async () => {
+  await expect(addGroupAlias(s.a, await idOf("Freunde"), "kollegen")).rejects.toThrow(InvalidInputError);
+  await expect(renameGroup(s.a, await idOf("Freunde"), "Familie")).rejects.toThrow(InvalidInputError);
+  await addGroupAlias(s.a, await idOf("Freunde"), "Kumpels");
+  expect(await findGroup(await db(), s.b, "kumpels")).toBe(await idOf("Freunde"));
+  await removeGroupAlias(s.a, await idOf("Freunde"), "KUMPELS");
+  expect(await findGroup(await db(), s.b, "kumpels")).toBeNull();
+});
+
+test("merge moves memberships, keeps one row per person and recorder, and turns the dropped names into other names", async () => {
+  const [freunde, chor] = [await idOf("Freunde"), await resolveOrCreateGroup(await db(), s.a, "Chor")];
+  await addGroupAlias(s.a, chor, "Singen");
+  await addToGroupById(s.a, freunde, s.anna, "shared");
+  await addToGroupById(s.a, chor, s.anna, "shared");
+  await addToGroupById(s.b, chor, s.lena, "shared");
+  await mergeGroups(s.a, freunde, chor);
+  const g = await getGroup(s.b, freunde);
+  expect(g.members.map((m) => m.name).sort()).toEqual(["Anna", "Lena"]);
+  expect(g.aliases).toEqual(["Chor", "Freundeskreis", "Singen"]);
+  expect(await (await db()).selectFrom("group_members").select("person_id").where("group_id", "=", freunde).where("person_id", "=", s.anna).execute()).toHaveLength(1);
+  await expect(getGroup(s.a, chor)).rejects.toThrow(NotFoundError);
+});
+
+test("merging a group into itself is refused", async () => {
+  const id = await idOf("Familie");
+  await expect(mergeGroups(s.a, id, id)).rejects.toThrow(InvalidInputError);
+});
+
+test("delete removes only the viewer's memberships; the group stays while the partner still has some", async () => {
+  const familie = await idOf("Familie");
+  await addToGroupById(s.a, familie, s.anna, "shared");
+  await addToGroupById(s.b, familie, s.lena, "shared");
+  await deleteGroup(s.a, familie);
+  expect((await getGroup(s.b, familie)).members.map((m) => m.name)).toEqual(["Lena"]);
+  await deleteGroup(s.b, familie);
+  expect(await (await db()).selectFrom("groups").select("id").where("id", "=", familie).execute()).toEqual([]);
+  expect((await listGroups(s.a)).map((g) => g.name)).not.toContain("Familie");
+});
+
+test("remove takes out the viewer's and the partner's shared membership", async () => {
+  const arbeit = await idOf("Arbeit");
+  await addToGroupById(s.a, arbeit, s.anna, "shared");
+  await addToGroupById(s.b, arbeit, s.anna, "shared");
+  await removeFromGroup(s.b, arbeit, s.anna);
+  expect((await getGroup(s.a, arbeit)).members).toEqual([]);
+});
+
+test("createGroup returns the group a name already means instead of a duplicate", async () => {
+  expect((await createGroup(s.a, "Verwandte")).name).toBe("Familie");
+  expect((await createGroup(s.a, "Chor")).count).toBe(0);
 });
