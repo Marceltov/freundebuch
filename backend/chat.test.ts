@@ -188,3 +188,7 @@ test("link chips never fail a tool call: an output of an unexpected shape gives 
   expect(linksOf("briefing", {}, { person: null })).toEqual([]);
   expect(linksOf("relate", {}, { added: 1 })).toEqual([]);
 });
+
+test("what remember filed shows its people as link chips", () => {
+  expect(linksOf("remember", {}, { counts: {}, people: [{ id: "p1", name: "Malou", url: "/p/p1" }] })).toEqual([{ kind: "person", id: "p1", name: "Malou", url: "/p/p1" }]);
+});

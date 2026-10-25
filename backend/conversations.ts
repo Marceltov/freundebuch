@@ -105,6 +105,20 @@ function validate(c: NewConversation): void {
   const ref = (r: PersonRef) => {
     if (!Number.isInteger(r) || r < 0 || r >= c.people.length) throw new InvalidInputError(`Person ${r} is not in people`);
   };
+  validateItems(c, ref);
+  for (const r of c.relationships ?? []) checkRelationship(r, ref);
+  for (const g of c.groups ?? []) checkGroup(g, ref);
+}
+
+type Items<P> = {
+  facts?: Array<{ person: P; text: string; category: string; private?: boolean; supersedes?: string }>;
+  promises?: Array<{ person: P; text: string; byMe: boolean; due?: string; private?: boolean }>;
+  dates?: Array<{ person: P; kind: string; date: string; label?: string; yearly: boolean; private?: boolean }>;
+  exchanges?: Array<{ person: P; kind: string; direction: string; text: string; amount?: number; currency?: string; private?: boolean }>;
+};
+
+/** The checks of facts, promises, dates and exchanges, shared with remember(). `ref` checks one person reference. */
+function validateItems<P>(c: Items<P>, ref: (p: P) => void): void {
   for (const f of c.facts ?? []) {
     ref(f.person);
     oneOf(f.category, FACT_CATEGORIES, "fact category");
@@ -123,8 +137,51 @@ function validate(c: NewConversation): void {
     oneOf(e.kind, EXCHANGE_KINDS, "exchange kind");
     oneOf(e.direction, ["to_them", "from_them"], "direction");
   }
-  for (const r of c.relationships ?? []) checkRelationship(r, ref);
-  for (const g of c.groups ?? []) checkGroup(g, ref);
+}
+
+/** Writes facts, promises, dates and exchanges, with or without a conversation (`base.conversation_id`); shared with remember(). */
+async function insertItems<P>(tx: Kysely<Schema>, v: Viewer, base: ItemBase, c: Items<P>, id: (p: P) => string, vis: (item: { private?: boolean }) => Visibility): Promise<void> {
+  for (const f of c.facts ?? []) {
+    const factId = newId();
+    await tx.insertInto("facts").values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, visibility: vis(f) }).execute();
+    if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
+  }
+  for (const p of c.promises ?? [])
+    await tx.insertInto("promises").values({ ...base, id: newId(), person_id: id(p.person), text: p.text, by_me: p.byMe ? 1 : 0, due: p.due ?? null, visibility: vis(p) }).execute();
+  for (const d of c.dates ?? [])
+    await tx
+      .insertInto("dates")
+      .values({ ...base, id: newId(), person_id: id(d.person), kind: d.kind as DateKind, date: d.date, label: d.label ?? null, yearly: d.yearly ? 1 : 0, visibility: vis(d) })
+      .execute();
+  for (const e of c.exchanges ?? [])
+    await tx
+      .insertInto("exchanges")
+      .values({ ...base, id: newId(), person_id: id(e.person), kind: e.kind, direction: e.direction as "to_them" | "from_them", text: e.text, amount: e.amount ?? null, currency: e.currency ?? null, visibility: vis(e) })
+      .execute();
+}
+
+/** Facts, promises, dates and exchanges about people the book already has, filed without a conversation: "Malou's birthday is 7 February". */
+export type Remembered = { visibility: Visibility } & Items<string>;
+
+export async function remember(v: Viewer, r: Remembered): Promise<{ counts: { facts: number; promises: number; dates: number; exchanges: number }; people: Array<{ id: string; name: string; url: string }> }> {
+  checkVisibility(r.visibility);
+  const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0);
+  if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date or exchange");
+  validateItems(r, (p) => {
+    if (typeof p !== "string" || !p) throw new InvalidInputError("Each item needs the id of an existing person");
+  });
+  const vis = (item: { private?: boolean }): Visibility => (r.visibility === "private" || item.private ? "private" : "shared");
+  const base: ItemBase = { recorded_by: v.userId, conversation_id: null, created_at: now() };
+  return (await db()).transaction().execute(async (tx) => {
+    const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? [])].map((i) => i.person))];
+    const people = await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute();
+    if (people.length !== ids.length) throw new NotFoundError("No such person");
+    await insertItems(tx, v, base, r, (p) => p, vis);
+    return {
+      counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0 },
+      people: people.map((p) => ({ id: p.id, name: p.name, url: personPath(p.id) })),
+    };
+  });
 }
 
 // The checks and writers of relationships and group memberships, shared with relate (relationships.ts), which records them
@@ -242,23 +299,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     const present = new Set([v.personId, ...c.people.flatMap((p, r) => (p.present ? [id(r)] : []))]);
     for (const personId of present) await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).execute();
 
-    for (const f of c.facts ?? []) {
-      const factId = newId();
-      await tx.insertInto("facts").values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, visibility: vis(f) }).execute();
-      if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
-    }
-    for (const p of c.promises ?? [])
-      await tx.insertInto("promises").values({ ...base, id: newId(), person_id: id(p.person), text: p.text, by_me: p.byMe ? 1 : 0, due: p.due ?? null, visibility: vis(p) }).execute();
-    for (const d of c.dates ?? [])
-      await tx
-        .insertInto("dates")
-        .values({ ...base, id: newId(), person_id: id(d.person), kind: d.kind, date: d.date, label: d.label ?? null, yearly: d.yearly ? 1 : 0, visibility: vis(d) })
-        .execute();
-    for (const e of c.exchanges ?? [])
-      await tx
-        .insertInto("exchanges")
-        .values({ ...base, id: newId(), person_id: id(e.person), kind: e.kind, direction: e.direction, text: e.text, amount: e.amount ?? null, currency: e.currency ?? null, visibility: vis(e) })
-        .execute();
+    await insertItems(tx, v, base, c, id, vis);
     for (const r of c.relationships ?? []) await insertRelationship(tx, base, { fromId: id(r.from), toId: id(r.to), type: r.type, note: r.note, visibility: vis(r) });
     let memberships = 0;
     for (const g of c.groups ?? []) memberships += (await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g))).added;
