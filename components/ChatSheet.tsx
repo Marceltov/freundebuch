@@ -86,6 +86,24 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
     if (!busy) field.current?.focus();
   }, [busy]);
 
+  // Where the browser doesn't shrink the page for the keyboard (Safari on iOS), the sheet follows the visible area itself:
+  // it sits on the keyboard and fits above it.
+  const [visible, setVisible] = useState<{ height: number; bottom: number } | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const fit = () => {
+      const bottom = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setVisible(bottom > 0 ? { height: vv.height, bottom } : null);
+    };
+    vv.addEventListener("resize", fit);
+    vv.addEventListener("scroll", fit);
+    return () => {
+      vv.removeEventListener("resize", fit);
+      vv.removeEventListener("scroll", fit);
+    };
+  }, []);
+
   // Escape closes the sheet wherever the focus is.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -153,6 +171,7 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
         aria-modal="true"
         aria-label={copy.tell}
         className="absolute inset-x-0 bottom-0 mx-auto flex h-[85dvh] max-w-2xl flex-col rounded-t-3xl bg-paper shadow-float"
+        style={visible ? { bottom: visible.bottom, height: Math.round(visible.height * 0.92) } : undefined}
       >
         <header className="flex items-center gap-2 px-4 pt-4 pb-2">
           <h2 className="flex-1 font-display text-2xl font-bold">{copy.tell}</h2>
@@ -231,11 +250,13 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
               e.target.style.height = `${e.target.scrollHeight}px`;
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              // Enter starts a new line, as on a phone it has to; Ctrl+Enter or ⌘+Enter sends from a keyboard.
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 send();
               }
             }}
+            enterKeyHint="enter"
             aria-label={copy.message}
             placeholder={copy.tellPlaceholder}
             rows={1}

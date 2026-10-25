@@ -8,8 +8,9 @@ export const metadata: Metadata = {
   description: copy.tagline,
 };
 
-// `viewportFit: "cover"`: phone first, the page reaches into the screen's rounded corners.
-export const viewport: Viewport = { viewportFit: "cover", themeColor: [{ color: "#f4f6fb", media: "(prefers-color-scheme: light)" }, { color: "#1b1726", media: "(prefers-color-scheme: dark)" }] };
+// `viewportFit: "cover"`: phone first, the page reaches into the screen's rounded corners. `interactiveWidget`: the on-screen
+// keyboard shrinks the page instead of sliding it up, so the chat sheet stays above it with its messages in view.
+export const viewport: Viewport = { viewportFit: "cover", interactiveWidget: "resizes-content", themeColor: [{ color: "#f4f6fb", media: "(prefers-color-scheme: light)" }, { color: "#1b1726", media: "(prefers-color-scheme: dark)" }] };
 
 // Fraunces for names and headings, Atkinson Hyperlegible for everything read in between; both served from the app itself.
 const fraunces = Fraunces({ subsets: ["latin"], axes: ["SOFT", "WONK", "opsz"], variable: "--font-fraunces", display: "swap" });

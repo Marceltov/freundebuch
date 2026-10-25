@@ -63,8 +63,26 @@ test("the subset: overdue, nearly due, seen within 14 days, a birthday within 14
   await met("donePromise", null, { promises: [{ person: 0, text: "done already", byMe: true }] });
   await markDone(me, "promises", (await (await db()).selectFrom("promises").select("id").where("text", "=", "done already").executeTakeFirstOrThrow()).id);
   await met("giftOnly", null, { exchanges: [{ person: 0, kind: "gift_idea", direction: "to_them", text: "a book" }] });
-  const names = (await orbit(me, NOW)).map((f) => f.name).sort();
-  expect(names).toEqual(["birthday", "nearlyDue", "overdue", "promised", "recent"]);
+  const faces = await orbit(me, NOW);
+  expect(faces.filter((f) => !f.unseen).map((f) => f.name).sort()).toEqual(["birthday", "nearlyDue", "overdue", "promised", "recent"]);
+  // People the viewer never met fill the free places on the outer ring, marked as such; people seen a while ago with nothing
+  // going on stay off.
+  expect(faces.filter((f) => f.unseen).map((f) => [f.name, f.ring])).toEqual(
+    expect.arrayContaining([
+      ["donePromise", 2],
+      ["giftOnly", 2],
+      ["laterBirthday", 2],
+    ]),
+  );
+  expect(faces.map((f) => f.name)).not.toContain("fine");
+  expect(faces.map((f) => f.name)).not.toContain("faded");
+});
+
+test("someone new to the book sees its people at once, the ones they haven't met themselves marked unseen", async () => {
+  await met("Anni", null);
+  await met("Ramon", null);
+  const faces = await orbit(me, NOW);
+  expect(faces.map((f) => [f.name, f.unseen])).toEqual(expect.arrayContaining([["Anni", true], ["Ramon", true]]));
 });
 
 test("badges: birthday soon, open promise, gift idea; the viewer is never a face", async () => {
