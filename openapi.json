@@ -1969,12 +1969,17 @@
                 "url": {
                   "type": "string",
                   "description": "Where it opens in the web app, as an absolute URL"
+                },
+                "private": {
+                  "type": "boolean",
+                  "description": "Whether the caller's own private membership is the only one they see"
                 }
               },
               "required": [
                 "id",
                 "name",
-                "url"
+                "url",
+                "private"
               ]
             },
             "description": "The groups the caller may see the person in, each once"

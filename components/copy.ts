@@ -72,8 +72,11 @@ export const copy = {
   groupName: "Name",
   otherName: "Anderer Name",
   removeOtherName: "{name} entfernen",
-  mergeInto: "Zusammenführen mit …",
-  merge: "Zusammenführen",
+  mergeInto: "Andere Gruppe hierher übernehmen …",
+  merge: "Übernehmen",
+  confirmMerge: "{drop} wird Teil von {keep}. Sicher?",
+  groupNameTaken: "Diesen Namen hat schon eine andere Gruppe. Führe die beiden zusammen.",
+  mergeRefused: "Die andere Person in deinem Haushalt sieht diese Gruppe nicht. Übernimm sie andersherum.",
 
   // Item actions
   actions: "Aktionen",

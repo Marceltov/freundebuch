@@ -9,7 +9,7 @@ type Group = { id: string; name: string; aliases: string[]; count: number };
 
 // Settings, "Gruppen": one card per group with its other names. Rename (the old name stays as another name), add or drop other
 // names, merge another group into this one, delete it for the viewer. Each change goes to the groups API, then the page reloads.
-// A refusal shows the server's reason, e.g. that a name already means another group.
+// A refusal (400) shows what it means for that action in German; anything else the general failure.
 export function GroupSettings({ groups }: { groups: Group[] }) {
   return (
     <ul className="space-y-3">
@@ -27,9 +27,10 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
   const [alias, setAlias] = useState("");
   const [drop, setDrop] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [confirmingMerge, setConfirmingMerge] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function send(method: string, path: string, body?: object): Promise<boolean> {
+  async function send(method: string, path: string, body?: object, refused = copy.actionFailed): Promise<boolean> {
     setError(null);
     const res = await fetch(`/api/v1/groups/${g.id}${path}`, {
       method,
@@ -37,7 +38,7 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
       body: body ? JSON.stringify(body) : undefined,
     }).catch(() => null);
     if (!res?.ok) {
-      setError((res && (await res.json().catch(() => null))?.error) || copy.actionFailed);
+      setError(res?.status === 400 ? refused : copy.actionFailed);
       return false;
     }
     router.refresh();
@@ -53,7 +54,7 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
             className="flex min-w-0 flex-1 gap-2"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (name.trim() && (await send("PATCH", "", { name: name.trim() }))) setRenaming(false);
+              if (name.trim() && (await send("PATCH", "", { name: name.trim() }, copy.groupNameTaken))) setRenaming(false);
             }}
           >
             <input value={name} onChange={(e) => setName(e.target.value)} aria-label={copy.groupName} autoFocus className="min-w-0 flex-1 rounded-lg border border-rule bg-surface px-2 py-1" />
@@ -88,7 +89,7 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            if (alias.trim() && (await send("POST", "/aliases", { alias: alias.trim() }))) setAlias("");
+            if (alias.trim() && (await send("POST", "/aliases", { alias: alias.trim() }, copy.groupNameTaken))) setAlias("");
           }}
         >
           <input
@@ -103,7 +104,13 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
 
       {others.length > 0 && (
         <div className="mt-2 flex items-center gap-2">
-          <select value={drop} onChange={(e) => setDrop(e.target.value)} aria-label={copy.mergeInto} className="min-w-0 flex-1 rounded-lg border border-rule bg-surface px-2 py-1 text-sm">
+          <select
+            value={drop}
+            onChange={(e) => {
+              setDrop(e.target.value);
+              setConfirmingMerge(false);
+            }}
+            aria-label={copy.mergeInto} className="min-w-0 flex-1 rounded-lg border border-rule bg-surface px-2 py-1 text-sm">
             <option value="">{copy.mergeInto}</option>
             {others.map((o) => (
               <option key={o.id} value={o.id}>
@@ -111,15 +118,28 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            disabled={!drop}
-            onClick={async () => (await send("POST", "/merge", { drop })) && setDrop("")}
-            className="inline-flex items-center gap-1 rounded-full bg-surface px-3 py-1 text-sm disabled:opacity-40"
-          >
-            <Merge aria-hidden className="h-4 w-4" />
-            {copy.merge}
-          </button>
+          {confirmingMerge ? (
+            <button
+              type="button"
+              onClick={async () => {
+                if (await send("POST", "/merge", { drop }, copy.mergeRefused)) setDrop("");
+                setConfirmingMerge(false);
+              }}
+              className="rounded-full bg-carbon px-3 py-1 text-sm font-semibold text-on-carbon"
+            >
+              {copy.confirmMerge.replace("{drop}", others.find((o) => o.id === drop)?.name ?? "").replace("{keep}", g.name)}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={!drop}
+              onClick={() => setConfirmingMerge(true)}
+              className="inline-flex items-center gap-1 rounded-full bg-surface px-3 py-1 text-sm disabled:opacity-40"
+            >
+              <Merge aria-hidden className="h-4 w-4" />
+              {copy.merge}
+            </button>
+          )}
         </div>
       )}
 

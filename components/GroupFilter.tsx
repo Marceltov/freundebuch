@@ -23,7 +23,7 @@ const write = (id: string | null) => {
 };
 
 // The group chips above the orbit. The choice lives in the URL (?gruppe=<id>) and is remembered on this device: opening the start
-// page without one brings back the last group chosen here.
+// page without one brings back the last group chosen here. Choosing the active group again clears the filter.
 export function GroupFilter({ groups, current }: { groups: { id: string; name: string; count: number }[]; current: string | null }) {
   const router = useRouter();
   useEffect(() => {
@@ -40,7 +40,13 @@ export function GroupFilter({ groups, current }: { groups: { id: string; name: s
         {copy.all}
       </Link>
       {groups.map((g) => (
-        <Link key={g.id} href={`/?gruppe=${g.id}`} aria-current={current === g.id ? "true" : undefined} className={chip(current === g.id)}>
+        <Link
+          key={g.id}
+          href={current === g.id ? "/" : `/?gruppe=${g.id}`}
+          onClick={() => current === g.id && write(null)}
+          aria-current={current === g.id ? "true" : undefined}
+          className={chip(current === g.id)}
+        >
           {g.name}
           <span className="opacity-70 tabular-nums">{g.count}</span>
         </Link>

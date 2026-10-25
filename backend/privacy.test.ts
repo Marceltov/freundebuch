@@ -9,7 +9,7 @@ import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { whatsDue } from "./due";
 import { lastSeen, setCheckInInterval } from "./intervals";
 import { orbit } from "./orbit";
-import { addToGroupById, deleteGroup, getGroup, listGroups, removeFromGroup } from "./groups";
+import { addToGroupById, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup } from "./groups";
 import { findPeople, getPerson, listPeople } from "./people";
 import { addToGroup } from "./relationships";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
@@ -287,4 +287,20 @@ test("removing and deleting never touch or reveal A's private memberships to B",
   await deleteGroup(s.b, familie);
   expect((await getGroup(s.a, familie)).members.map((m) => m.name).sort()).toEqual(["Anna", "Lena"]);
   expect((await listGroups(s.b)).map((g) => g.name)).not.toContain("Familie");
+});
+
+test("merging never shows B a group name that was hidden from B", async () => {
+  // A's private-only "Therapie" merged into the shared Freunde: its name does not become another name B can read.
+  const freunde = (await listGroups(s.a)).find((g) => g.name === "Freunde")!.id;
+  await addToGroup(s.a, { name: "Therapie", members: [s.anna], visibility: "private" });
+  const therapie = (await listGroups(s.a)).find((g) => g.name === "Therapie")!.id;
+  await mergeGroups(s.a, freunde, therapie);
+  expect(JSON.stringify(await listGroups(s.b))).not.toContain("Therapie");
+  expect((await listGroups(s.a)).find((g) => g.id === freunde)!.aliases).not.toContain("Therapie");
+  // Merging the shared Freunde, which B uses, into A's hidden "Geheim" is refused: B's memberships would reveal it.
+  await addToGroupById(s.b, freunde, s.lena, "shared");
+  await addToGroup(s.a, { name: "Geheim", members: [s.tom], visibility: "private" });
+  const geheim = (await listGroups(s.a)).find((g) => g.name === "Geheim")!.id;
+  await expect(mergeGroups(s.a, geheim, freunde)).rejects.toThrow(InvalidInputError);
+  expect(JSON.stringify(await listGroups(s.b))).not.toContain("Geheim");
 });

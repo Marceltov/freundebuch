@@ -9,8 +9,8 @@ const own = { visibility: "shared" as const, mine: false };
 const b: Briefing = {
   person: { id: "p1", name: "Sarah", aliases: [], url: "/p/p1", birthday: { id: "d1", date: "1990-03-15", next: "2027-03-15", age: 37 } },
   groups: [
-    { id: "g1", name: "Choir", url: "/g/g1" },
-    { id: "g2", name: "Uni", url: "/g/g2" },
+    { id: "g1", name: "Choir", url: "/g/g1", private: true },
+    { id: "g2", name: "Uni", url: "/g/g2", private: false },
   ],
   freshness: { lastSeen: null, intervalDays: null, ratio: null },
   nextDates: [],
@@ -53,4 +53,6 @@ test("each group chip links to the group's page", () => {
   const html = renderToStaticMarkup(<FriendPage b={b} daysSince={null} />);
   expect(html).toContain('href="/g/g1"');
   expect(html).toContain('href="/g/g2"');
+  expect(html).toMatch(/Choir<span[^>]*title="Privat: nur du siehst das"/);
+  expect(html).not.toMatch(/Uni<span[^>]*title="Privat/);
 });

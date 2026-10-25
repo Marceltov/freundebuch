@@ -192,16 +192,40 @@ export async function removeGroupAlias(v: Viewer, id: string, alias: string): Pr
   });
 }
 
-/** Merges `dropId` into `keepId`: every membership moves (the partner's private ones too, unseen), drop's names become other names of keep. */
+/** The other users of the household who don't see the group. */
+async function blindTo(t: Kysely<Schema>, v: Viewer, id: string): Promise<string[]> {
+  const others = await t.selectFrom("users").select("id").where("id", "!=", v.userId).execute();
+  const blind: string[] = [];
+  for (const u of others) {
+    const sees = await t
+      .selectFrom("groups")
+      .select("id")
+      .where("id", "=", id)
+      .$call((qb) => visibleGroups(qb, { userId: u.id, personId: "" }))
+      .executeTakeFirst();
+    if (!sees) blind.push(u.id);
+  }
+  return blind;
+}
+
+/**
+ * Merges `dropId` into `keepId`: every membership moves (the partner's private ones too, unseen), and drop's names become other
+ * names of keep. Neither may show the partner a name hidden from them: drop's names stay behind when the partner doesn't see
+ * drop, and a group the partner uses can't be merged into one they don't see.
+ */
 export async function mergeGroups(v: Viewer, keepId: string, dropId: string): Promise<void> {
   if (keepId === dropId) throw new InvalidInputError("A group can't be merged into itself");
   await tx(async (t) => {
     await seen(t, v, keepId);
     const drop = await seen(t, v, dropId);
+    const [blindToKeep, blindToDrop] = await Promise.all([blindTo(t, v, keepId), blindTo(t, v, dropId)]);
+    if (blindToKeep.some((u) => !blindToDrop.includes(u)))
+      throw new InvalidInputError("The other user uses this group but can't see the one to keep; merge them the other way round");
     for (const m of await t.selectFrom("group_members").select(["person_id", "recorded_by"]).where("group_id", "=", dropId).execute())
       await moveMembership(t, m.recorded_by, { group_id: dropId, person_id: m.person_id }, { group_id: keepId, person_id: m.person_id });
     const aliases = await t.selectFrom("group_aliases").select("alias").where("group_id", "=", dropId).execute();
     await t.deleteFrom("groups").where("id", "=", dropId).execute();
+    if (blindToDrop.length) return;
     for (const a of [drop.name, ...aliases.map((x) => x.alias)]) await addAlias(t, keepId, a);
   });
 }

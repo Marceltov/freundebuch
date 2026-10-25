@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeftRight, Cake, CalendarDays, Coffee, Gift, Mic, Pin, Repeat, Users } from "lucide-react";
+import { ArrowLeftRight, Cake, CalendarDays, Coffee, Gift, Lock, Mic, Pin, Repeat, Users } from "lucide-react";
 import { anchorId, type Briefing } from "@/backend";
 import { copy, kindName } from "@/components/copy";
 import { Face } from "@/components/Face";
@@ -47,6 +47,11 @@ export function FriendPage({ b, daysSince, allGroups = [] }: { b: Briefing; days
             {b.groups.map((g) => (
               <Chip key={g.id} href={g.url} icon={Users} label={copy.group}>
                 {g.name}
+                {g.private && (
+                  <span title={copy.privateItem} className="inline-flex">
+                    <Lock aria-label={copy.privateItem} className="h-3 w-3" />
+                  </span>
+                )}
               </Chip>
             ))}
             <GroupPicker personId={b.person.id} personName={b.person.name} groups={allGroups} member={b.groups.map((g) => g.id)} />

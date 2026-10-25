@@ -118,8 +118,10 @@ test("groups: tick them on the friend page, open the group's page", async ({ pag
   await expect(page.locator('[data-in-group="true"]', { hasText: "JK" })).toBeVisible();
   await page.goto("/");
   await expect(page).toHaveURL(/gruppe=/);
-  await page.getByRole("link", { name: "Alle" }).click();
+  // Choosing the active group again clears the filter.
+  await page.getByRole("link", { name: /^Arbeit/ }).click();
   await expect(page).not.toHaveURL(/gruppe=/);
+  await expect(page.getByRole("link", { name: "Alle" })).toHaveAttribute("aria-current", "true");
   await expectNoSideScroll(page);
 });
 
@@ -134,6 +136,10 @@ test("groups in settings: another name, rename, merge, delete", async ({ page, b
   await freunde.getByLabel("Anderer Name").fill("Kumpels");
   await freunde.getByLabel("Anderer Name").press("Enter");
   await expect(freunde.getByText("Kumpels")).toBeVisible();
+  // A name another group already has is refused, in German.
+  await freunde.getByLabel("Anderer Name").fill("Kollegen");
+  await freunde.getByLabel("Anderer Name").press("Enter");
+  await expect(freunde.getByRole("alert")).toHaveText("Diesen Namen hat schon eine andere Gruppe. Führe die beiden zusammen.");
   await expectNoSideScroll(page);
 
   // The other name now finds Freunde from the friend page.
@@ -153,8 +159,9 @@ test("groups in settings: another name, rename, merge, delete", async ({ page, b
   await familie.getByLabel("Name", { exact: true }).press("Enter");
   const renamed = page.getByRole("group", { name: "Verwandtschaft" });
   await expect(renamed.getByText("Familie")).toBeVisible();
-  await renamed.getByLabel("Zusammenführen mit …").selectOption({ label: "Arbeit" });
-  await renamed.getByRole("button", { name: "Zusammenführen" }).click();
+  await renamed.getByLabel("Andere Gruppe hierher übernehmen …").selectOption({ label: "Arbeit" });
+  await renamed.getByRole("button", { name: "Übernehmen" }).click();
+  await renamed.getByRole("button", { name: "Arbeit wird Teil von Verwandtschaft. Sicher?" }).click();
   await expect(page.getByRole("group", { name: "Arbeit" })).toHaveCount(0);
   await expect(renamed.getByText("Kollegen")).toBeVisible();
   await renamed.getByRole("button", { name: "Löschen" }).click();
