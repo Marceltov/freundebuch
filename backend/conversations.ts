@@ -289,6 +289,11 @@ async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, newId: str
   await tx.updateTable("facts").set({ status: "outdated", superseded_by: newId }).where("id", "=", factId).execute();
 }
 
+/** Whether the viewer has filed anything yet; until then the start page says how to begin. */
+export async function hasRecorded(v: Viewer): Promise<boolean> {
+  return !!(await (await db()).selectFrom("conversations").select("id").where("recorded_by", "=", v.userId).limit(1).executeTakeFirst());
+}
+
 /** A conversation in the history: when, how, the summary, and who was there. */
 export type ConversationSummary = { id: string; date: string; kind: ConversationKind; summary: string; people: Array<{ id: string; name: string }>; url: string };
 

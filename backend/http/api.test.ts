@@ -101,7 +101,8 @@ describe("people", () => {
     const res = await call(s.a, "GET", "/orbit");
     expect(res.status).toBe(200);
     expect(res.json.find((f: { name: string }) => f.name === "Max")).toMatchObject({ ring: expect.any(Number), angle: expect.any(Number), badges: ["promise"] });
-    expect((await call(s.b, "GET", "/orbit")).json.map((f: { name: string }) => f.name)).not.toContain("Max");
+    // For B, Max is only someone B never met: no promise badge.
+    expect((await call(s.b, "GET", "/orbit")).json.find((f: { name: string }) => f.name === "Max")).toMatchObject({ unseen: true, badges: [] });
     expect((await call(null, "GET", "/orbit")).status).toBe(401);
   });
 

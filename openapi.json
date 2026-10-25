@@ -2623,6 +2623,10 @@
           "inGroup": {
             "description": "Only with a group filter: whether the person is in that group",
             "type": "boolean"
+          },
+          "unseen": {
+            "description": "The caller never met them; they fill free places on the outer ring",
+            "type": "boolean"
           }
         },
         "required": [

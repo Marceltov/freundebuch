@@ -133,6 +133,7 @@ export const OrbitFaceJson = z
     badges: z.array(z.enum(["birthday", "promise", "gift"])).describe("A birthday within 14 days, an open promise, a gift idea"),
     url: Url,
     inGroup: z.boolean().optional().describe("Only with a group filter: whether the person is in that group"),
+    unseen: z.boolean().optional().describe("The caller never met them; they fill free places on the outer ring"),
   })
   .meta({ id: "OrbitFace" });
 
