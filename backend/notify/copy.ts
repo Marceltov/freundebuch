@@ -15,6 +15,8 @@ export const copy = {
   anniversary: "Jahrestag",
   testTitle: "🔔 freundebuch-Test",
   testBody: "So sehen Benachrichtigungen aus.",
+  shareThanks: "Danke! freundebuch liest den Screenshot.",
+  shareDuplicate: "Diesen Screenshot hat freundebuch schon.",
   shotWho: "📷 Wer ist das?",
   shotSensitive: "📷 Bitte kurz ansehen, bevor es abgelegt wird",
   shotNothing: "📷 Auf dem Screenshot war nichts für freundebuch",

@@ -12,6 +12,7 @@ export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRo
 export { dispatch } from "./http/api";
 export { mcpRoute } from "./mcp";
 export { chatEnabled, chatRoute } from "./chat-route";
+export { screenshotRoute, shareRoute, sharingEnabled } from "./share-route";
 export type { ChatContext, ChatLink, ChatTurn } from "./chat";
 export { anchorId, itemPath, mcpResource, personPath, publicUrl, safeNext } from "./urls";
 export { e2eLoginRoute } from "./auth/e2e";
@@ -26,6 +27,7 @@ export { daysBetween, today } from "./dates";
 export { NotFoundError } from "./errors";
 export { orbit, type Badge, type OrbitFace } from "./orbit";
 export { getSettings } from "./settings";
+export { hasShareKey, listPending, pendingCount, type PendingScreenshot } from "./screenshots";
 export type { Viewer } from "./types";
 
 // The health probe asks the database a trivial question; opening it (and migrating) is part of answering.

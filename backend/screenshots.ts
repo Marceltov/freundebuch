@@ -80,10 +80,14 @@ export function queueRead(id: string, model: ScreenshotModel): Promise<void> {
 
 /** At start-up: reads again what a restart interrupted, and drops images no fact needs any more. */
 export async function resumeReading(model: ScreenshotModel | null = screenshotModel()): Promise<void> {
-  await pruneScreenshots();
-  if (!model) return;
-  const rows = await (await db()).selectFrom("screenshots").select("id").where("status", "=", "reading").orderBy("created_at").execute();
-  for (const r of rows) void queueRead(r.id, model);
+  try {
+    await pruneScreenshots();
+    if (!model) return;
+    const rows = await (await db()).selectFrom("screenshots").select("id").where("status", "=", "reading").orderBy("created_at").execute();
+    for (const r of rows) void queueRead(r.id, model);
+  } catch (e) {
+    log.error({ err: e }, "resuming the screenshots failed");
+  }
 }
 
 async function knownPeople(): Promise<KnownPerson[]> {

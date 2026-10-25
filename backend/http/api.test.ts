@@ -314,3 +314,38 @@ describe("settings", () => {
     expect((await call(s.b, "POST", "/me/settings/test")).json).toEqual({ sent: false });
   });
 });
+
+describe("screenshots", () => {
+  test("list, resolve and discard the caller's waiting screenshots; the share key is made and revoked", async () => {
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const sharp = (await import("sharp")).default;
+    const { readScreenshot, shareScreenshot } = await import("../screenshots");
+    vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-api-")));
+    const img = async (r: number) => new Uint8Array(await sharp({ create: { width: 20, height: 20, channels: 3, background: { r, g: 0, b: 0 } } }).png().toBuffer());
+    const unsure = { read: async () => ({ kind: "post" as const, platform: "LinkedIn", text: "Neuer Job", category: "work" as const, happenedOn: null, sensitive: false, people: [{ name: "Anna", candidates: [s.anna] }] }) };
+    const one = await shareScreenshot(s.a, await img(1));
+    const two = await shareScreenshot(s.a, await img(2));
+    await readScreenshot(one.id, unsure);
+    await readScreenshot(two.id, unsure);
+
+    const list = await call(s.a, "GET", "/screenshots");
+    expect(list.status).toBe(200);
+    expect(list.json).toHaveLength(2);
+    expect(list.json[0].imageUrl).toBe(`${BASE}/api/screenshots/${two.id}`);
+    expect(list.json[0].reading.people[0].candidates[0]).toEqual({ id: s.anna, name: "Anna", url: `${BASE}/p/${s.anna}` });
+    expect((await call(s.b, "GET", "/screenshots")).json).toEqual([]);
+
+    const done = await call(s.a, "POST", `/screenshots/${one.id}/resolve`, { personId: s.anna });
+    expect(done.status).toBe(200);
+    expect(done.json.url).toBe(`${BASE}/p/${s.anna}#facts-${done.json.factId}`);
+    expect((await call(s.b, "DELETE", `/screenshots/${two.id}`)).status).toBe(404);
+    expect((await call(s.a, "DELETE", `/screenshots/${two.id}`)).status).toBe(204);
+    expect((await call(s.a, "GET", "/screenshots")).json).toEqual([]);
+
+    const key = await call(s.a, "POST", "/me/share-key");
+    expect(key.json.key).toMatch(/^fbs_/);
+    expect((await call(s.a, "DELETE", "/me/share-key")).status).toBe(204);
+  });
+});

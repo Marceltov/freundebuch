@@ -7,12 +7,13 @@ import { IDENTITY_COOKIE } from "../auth/session";
 import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type ItemTable } from "../corrections";
 import { getConversation, recordConversation } from "../conversations";
 import { whatsDue } from "../due";
-import { InvalidInputError, InvalidRequestError } from "../errors";
+import { InvalidInputError, InvalidRequestError, NotFoundError } from "../errors";
 import { addGroupAlias, addToGroupById, createGroup, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../groups";
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { addAlias, findPeople, getPerson, listPeople } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
+import { createShareKey, discardScreenshot, listPending, resolveScreenshot, retryScreenshot, revokeShareKey, screenshotModel } from "../screenshots";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
@@ -33,13 +34,17 @@ import {
   MergeJson,
   NewConversationJson,
   OrbitJson,
+  PendingScreenshotListJson,
   PeopleQuery,
   PersonJson,
   PersonNameJson,
   PersonListJson,
   RecordedJson,
+  ResolutionJson,
+  ResolvedJson,
   SentJson,
   SettingsJson,
+  ShareKeyJson,
   TableParam,
 } from "./schemas";
 
@@ -436,6 +441,87 @@ const OPS: AnyOp[] = [
     params: {},
     responses: { 200: { description: "Whether it was sent", schema: SentJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: { sent: await testWebhook(viewer) } })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/screenshots`,
+    operationId: "listPendingScreenshots",
+    summary: "The caller's shared screenshots that wait for them",
+    description: "Being read, waiting for a decision, or failed; newest first. Only the caller's own: the other user's never show.",
+    tags: ["Screenshots"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "Waiting screenshots", schema: PendingScreenshotListJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: await listPending(viewer) })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/screenshots/{id}/resolve`,
+    operationId: "resolveScreenshot",
+    summary: "File a waiting screenshot on a person",
+    description: "Give `personId` or the `name` of a new person. The handle Claude read becomes one of the person's other names.",
+    tags: ["Screenshots"],
+    auth: true,
+    params: { id: IdParam },
+    body: ResolutionJson,
+    responses: { 200: { description: "Filed", schema: ResolvedJson }, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => ({ status: 200, body: await resolveScreenshot(viewer, params.id, body) })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/screenshots/{id}/retry`,
+    operationId: "retryScreenshot",
+    summary: "Read a failed screenshot again",
+    tags: ["Screenshots"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    const model = screenshotModel();
+    if (!model) throw new NotFoundError("Sharing screenshots is off on this instance");
+    await retryScreenshot(viewer, params.id, model);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/screenshots/{id}`,
+    operationId: "discardScreenshot",
+    summary: "Throw a waiting screenshot away",
+    tags: ["Screenshots"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await discardScreenshot(viewer, params.id);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/me/share-key`,
+    operationId: "createShareKey",
+    summary: "A new share key for the iPhone Shortcut",
+    description: "The key can only hand in screenshots (POST /api/share). A new one replaces the old one.",
+    tags: ["Screenshots"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The new key", schema: ShareKeyJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: { key: await createShareKey(viewer) } })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/me/share-key`,
+    operationId: "revokeShareKey",
+    summary: "Turn the caller's share key off",
+    tags: ["Screenshots"],
+    auth: true,
+    params: {},
+    responses: { 204: NO_CONTENT, 401: E401 },
+  }).handle(async ({ viewer }) => {
+    await revokeShareKey(viewer);
+    return { status: 204, body: undefined };
+  }),
 
   op({
     method: "GET",
