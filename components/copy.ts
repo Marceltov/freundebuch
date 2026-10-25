@@ -52,6 +52,25 @@ export const copy = {
   group: "Gruppe",
   age: "wird {n}",
 
+  // Erzählen, the chat
+  tell: "Erzählen",
+  message: "Nachricht",
+  tellPlaceholder: "Erzähl, was los war, oder frag …",
+  send: "Senden",
+  newChat: "Neues Gespräch",
+  closeChat: "Schließen",
+  aboutPerson: "Es geht um {name}",
+  aboutConversation: "Es geht um dieses Gespräch",
+  aboutThisPerson: "Es geht um diese Person",
+  removeContext: "Nicht darum",
+  chatHello: "Erzähl mir, was passiert ist, oder frag nach jemandem.",
+  conversationOn: "Gespräch am {day}",
+  thinking: "Claude denkt nach …",
+  chatLimit: "Für heute ist das Limit erreicht. Morgen geht's weiter.",
+  chatUnavailable: "Claude ist gerade nicht erreichbar. Dein Text ist noch da, versuch es gleich noch mal.",
+  chatRefused: "Darauf kann Claude nicht antworten.",
+  chatTooLong: "Das wurde zu lang. Versuch es in kürzeren Schritten.",
+
   // The tab bar
   mainMenu: "Hauptmenü",
   tabStart: "Start",

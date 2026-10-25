@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import type { ReactNode } from "react";
+import { chatEnabled } from "@/backend";
 import { copy } from "@/components/copy";
 import { TabBar } from "@/components/TabBar";
 
@@ -18,7 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
       </div>
       <main className="min-w-0 px-4 pt-2 pb-32">{children}</main>
-      <TabBar />
+      <TabBar chat={chatEnabled()} />
     </div>
   );
 }

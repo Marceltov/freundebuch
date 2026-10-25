@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarHeart, History, House, Users, type LucideIcon } from "lucide-react";
+import { CalendarHeart, History, House, MessageCirclePlus, Users, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { ChatSheet } from "@/components/ChatSheet";
 import { copy } from "@/components/copy";
 
 // The four places, floating at the bottom on a phone: the current one in the accent. A friend's page counts as Leute, a
-// conversation as Verlauf, a group as Start (where groups filter the orbit).
+// conversation as Verlauf, a group as Start (where groups filter the orbit). With `chat` (an API key is set), a raised
+// "Erzählen" button in the middle opens the chat over the current page.
 const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] = [
   { href: "/", label: copy.tabStart, icon: House, also: ["/g/"] },
   { href: "/verlauf", label: copy.tabHistory, icon: History, also: ["/c/"] },
@@ -14,18 +17,19 @@ const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] 
   { href: "/bald", label: copy.tabSoon, icon: CalendarHeart, also: [] },
 ];
 
-export function TabBar() {
+export function TabBar({ chat = false }: { chat?: boolean }) {
   const path = usePathname();
+  const [talking, setTalking] = useState(false);
   const current = (t: (typeof TABS)[number]) => (t.href === "/" ? path === "/" : path.startsWith(t.href)) || t.also.some((p) => path.startsWith(p));
   return (
     <nav
       aria-label={copy.mainMenu}
       className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-2xl px-3 pr-[max(0.75rem,env(safe-area-inset-right))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))]"
     >
-      <ul className="grid grid-cols-4 rounded-3xl bg-surface p-1.5 shadow-float">
-        {TABS.map((t) => {
+      <ul className={`grid ${chat ? "grid-cols-5" : "grid-cols-4"} rounded-3xl bg-surface p-1.5 shadow-float`}>
+        {TABS.flatMap((t, i) => {
           const on = current(t);
-          return (
+          const tab = (
             <li key={t.href}>
               <Link
                 href={t.href}
@@ -37,8 +41,25 @@ export function TabBar() {
               </Link>
             </li>
           );
+          if (!chat || i !== 2) return [tab];
+          return [
+            <li key="tell" className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setTalking(true)}
+                className="-mt-5 flex flex-col items-center gap-0.5 text-xs font-bold text-carbon"
+              >
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-carbon text-on-carbon shadow-float ring-4 ring-paper">
+                  <MessageCirclePlus aria-hidden className="h-6 w-6" />
+                </span>
+                {copy.tell}
+              </button>
+            </li>,
+            tab,
+          ];
         })}
       </ul>
+      {talking && <ChatSheet onClose={() => setTalking(false)} />}
     </nav>
   );
 }
