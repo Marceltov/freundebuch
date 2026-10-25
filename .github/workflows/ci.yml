@@ -7,7 +7,14 @@ permissions:
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "mkdocs.yml"]
   pull_request:
+    paths-ignore: ["docs/**", "mkdocs.yml"]
+
+# A new push to a pull request cancels the run it supersedes; main runs every push to the end.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -94,9 +101,9 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/health)" = 200
 
   # Pushes to main publish :main for amd64 and arm64. Each platform builds natively on its own runner (arm64 under emulation
-  # took four minutes for `next build` alone), pushes by digest, and `image` joins the two into one tag.
+  # took four minutes for `next build` alone), pushes by digest, and `image` joins the two into one tag. The builds run
+  # alongside the tests; only the tag waits for them, so an untested image is never :main.
   image-build:
-    needs: [check, generate, e2e, image-smoke]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     strategy:
       matrix:
@@ -138,7 +145,7 @@ jobs:
           retention-days: 1
 
   image:
-    needs: [image-build]
+    needs: [image-build, check, generate, e2e, image-smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: read
