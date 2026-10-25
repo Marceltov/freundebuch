@@ -44,7 +44,7 @@ export function FriendPage({
             {birthday && (
               <Chip id={anchorId("dates", birthday.id)} icon={Cake} tone="bg-sun font-bold text-on-sun">
                 {dayMonth(birthday.next)}
-                {birthday.age !== null && ` · ${birthday.age}`}
+                {birthday.age !== null && ` · ${copy.age.replace("{n}", String(birthday.age))}`}
               </Chip>
             )}
             {b.freshness.intervalDays !== null && (

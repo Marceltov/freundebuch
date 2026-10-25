@@ -30,7 +30,8 @@ const b: Briefing = {
 
 test("the header shows the birthday however far away, with the age, and the groups as chips", () => {
   const html = renderToStaticMarkup(<FriendPage b={b} daysSince={null} />);
-  expect(html).toContain("15. März · 37");
+  // The age is the one reached on that day, so it says so: today she may still be 36.
+  expect(html).toContain("15. März · wird 37");
   expect(html).toMatch(/Gruppe: <\/span>Choir/);
   expect(html).toMatch(/Gruppe: <\/span>Uni/);
 });
