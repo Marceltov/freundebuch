@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { ArrowLeftRight, Cake, CalendarDays, Coffee, Gift, Handshake, Lock, MessagesSquare, Mic, Pin, Repeat, Sparkles, Users } from "lucide-react";
 import { anchorId, type Briefing } from "@/backend";
-import { copy, kindName } from "@/components/copy";
+import { copy, kindName, relationName } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { ago, dayMonth, every, shortDay } from "@/components/format";
 import { GroupPicker } from "@/components/GroupPicker";
 import { CATEGORY_ICON, EXCHANGE_ICON, KIND_ICON } from "@/components/icons";
 import { ItemActions } from "@/components/ItemActions";
-import { MiniGraph } from "@/components/MiniGraph";
 import { PersonMenu } from "@/components/PersonMenu";
 import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
 
@@ -144,7 +143,19 @@ export function FriendPage({
 
       {b.relationships.length > 0 && (
         <Section title={copy.theirPeople} icon={Users} plain>
-          <MiniGraph person={b.person} relationships={b.relationships} />
+          <ul className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
+            {b.relationships.map((r) => (
+              <li key={r.personId + r.type}>
+                <Link href={r.url} className="flex items-center gap-3 rounded-2xl bg-surface px-3 py-2 shadow-card hover:bg-surface-2/60">
+                  <Face id={r.personId} name={r.name} size={38} />
+                  <span className="min-w-0">
+                    <span className="block truncate font-display text-lg leading-tight font-semibold">{r.name}</span>
+                    {relationName[r.type]?.[r.direction] && <span className="block text-sm text-muted">{relationName[r.type][r.direction]}</span>}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </Section>
       )}
     </article>

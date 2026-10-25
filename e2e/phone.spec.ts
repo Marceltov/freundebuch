@@ -65,8 +65,10 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   const header = page.locator("header");
   await header.getByRole("button", { name: "Aktionen" }).click();
   await header.getByRole("button", { name: "Datum ändern" }).click();
-  await header.getByLabel("Datum ändern").fill(yesterday);
-  await header.getByRole("button", { name: "Speichern" }).click();
+  // Editing opens a sheet of its own: the heading keeps its width instead of being squeezed beside the field.
+  expect((await page.getByRole("heading", { level: 1 }).boundingBox())!.width).toBeGreaterThan(150);
+  await page.getByRole("dialog", { name: "Datum ändern" }).getByLabel("Datum ändern").fill(yesterday);
+  await page.getByRole("dialog", { name: "Datum ändern" }).getByRole("button", { name: "Speichern" }).click();
   const day = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${yesterday}T00:00:00Z`));
   await expect(page.getByRole("heading", { name: day })).toBeVisible();
 

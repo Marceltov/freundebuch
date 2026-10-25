@@ -29,7 +29,7 @@ From top to bottom:
 - **Gerade los**: what's new, as current facts,
 - **Versprochen**, **Ideen für Geschenke** and **Noch offen**: promises, gift ideas and other exchanges, with quick actions,
 - **Gespräche**: the conversations, newest first,
-- **Gehört zu**: a small graph of the people around them.
+- **Gehört zu**: the people around them, each with what they are to this person.
 
 The round **…** next to the name sets how often you want to see them, renames them, adds a nickname, or merges a duplicate into them.
 
