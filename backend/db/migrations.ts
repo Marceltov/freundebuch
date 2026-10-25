@@ -239,6 +239,33 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+
+  // Screenshots of social media posts that a user shared in (screenshots.ts). The image itself is in the blob store under
+  // `screenshots/<id>.webp`. `reading` is what Claude read from it, as JSON, once it has. The same image shared twice by one
+  // user (same sha256) is one row. A fact filed from a screenshot names it, with where it was posted and when it happened.
+  // `share_key_hash`: the sha256 of the user's share key, the credential of the iPhone Shortcut; null when they have none.
+  "004_screenshots": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("screenshots")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("sha256", "text", (c) => c.notNull())
+        .addColumn("status", "text", (c) => c.notNull().check(oneOf("status", ["reading", "pending", "filed", "nothing", "failed"])))
+        .addColumn("reading", "text")
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .addUniqueConstraint("screenshots_user_sha", ["user_id", "sha256"])
+        .execute();
+      await db.schema.alterTable("facts").addColumn("source", "text").execute();
+      await db.schema.alterTable("facts").addColumn("happened_on", "text").execute();
+      await db.schema
+        .alterTable("facts")
+        .addColumn("screenshot_id", "text", (c) => c.references("screenshots.id").onDelete("set null"))
+        .execute();
+      await db.schema.alterTable("user_settings").addColumn("share_key_hash", "text").execute();
+      await db.schema.createIndex("user_settings_share_key").on("user_settings").column("share_key_hash").unique().execute();
+    },
+  },
 };
 
 /** The groups every household starts with, and their other names. */
