@@ -364,3 +364,10 @@ test("editItem rejects inherited property names as fields", async () => {
   await expect(editItem(s.a, "facts", id, { constructor: "x" })).rejects.toBeInstanceOf(InvalidInputError);
   await expect(editItem(s.a, "facts", id, { toString: "x" })).rejects.toBeInstanceOf(InvalidInputError);
 });
+
+test("the recorder can move a conversation to an earlier day, not to a future one", async () => {
+  await editItem(s.a, "conversations", s.dinner, { date: "2026-10-18" });
+  expect((await getConversation(s.a, s.dinner)).date).toBe("2026-10-18");
+  await expect(editItem(s.a, "conversations", s.dinner, { date: "2999-01-01" })).rejects.toThrow(InvalidInputError);
+  await expect(editItem(s.b, "conversations", s.dinner, { date: "2026-10-18" })).rejects.toThrow(ForbiddenError);
+});

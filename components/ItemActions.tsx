@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Check, Ellipsis, Lock, LockOpen, Pencil, Trash2, X } from "lucide-react";
+import { Archive, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { copy } from "@/components/copy";
@@ -10,7 +10,8 @@ type Table = "facts" | "promises" | "exchanges" | "conversations";
 // What can be done to one item, behind a "…" button: mark it done (a promise, an exchange or a gift idea) or outdated (a fact),
 // which either user may; and edit its text, make it private or shared, or delete it, which only its recorder may (`mine`; the
 // server checks again). Each goes to PATCH or DELETE /api/v1/items/{table}/{id}, then the page reloads its data.
-// `field`: what "edit" changes (`text`, or `summary` for a conversation). `after`: where to go once it is deleted.
+// `field`: what "edit" changes (`text`, or `summary` for a conversation). `after`: where to go once it is deleted. `date` (a
+// conversation's day) adds "change the date", up to `today` (the server's, in the configured time zone).
 export function ItemActions({
   table,
   id,
@@ -19,6 +20,8 @@ export function ItemActions({
   text,
   field = "text",
   after,
+  date,
+  today,
 }: {
   table: Table;
   id: string;
@@ -27,11 +30,14 @@ export function ItemActions({
   text: string;
   field?: "text" | "summary";
   after?: string;
+  date?: string;
+  today?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<false | "text" | "date">(false);
   const [draft, setDraft] = useState(text);
+  const [day, setDay] = useState(date ?? "");
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -50,6 +56,25 @@ export function ItemActions({
     if (method === "DELETE" && after) router.push(after);
     else router.refresh();
   }
+
+  if (editing === "date")
+    return (
+      <form
+        className="flex items-center gap-1"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (day) send("PATCH", { patch: { date: day } });
+        }}
+      >
+        <input type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} aria-label={copy.changeDate} autoFocus className="rounded-lg border border-rule bg-surface px-2 py-1 text-sm" />
+        <Action label={copy.save} disabled={busy} submit>
+          <Check />
+        </Action>
+        <Action label={copy.cancel} onClick={() => setEditing(false)}>
+          <X />
+        </Action>
+      </form>
+    );
 
   if (editing)
     return (
@@ -89,9 +114,14 @@ export function ItemActions({
           )}
           {mine && (
             <>
-              <Action label={copy.edit} onClick={() => setEditing(true)}>
+              <Action label={copy.edit} onClick={() => setEditing("text")}>
                 <Pencil />
               </Action>
+              {date && (
+                <Action label={copy.changeDate} onClick={() => setEditing("date")}>
+                  <CalendarDays />
+                </Action>
+              )}
               <Action
                 label={visibility === "private" ? copy.makeShared : copy.makePrivate}
                 disabled={busy}

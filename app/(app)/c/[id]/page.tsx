@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeftRight, Cake, CalendarDays, Coffee, Lock, MapPin, Pin, Users } from "lucide-react";
-import { anchorId, getConversation, type ConversationView } from "@/backend";
+import { anchorId, getConversation, today, type ConversationView } from "@/backend";
 import { copy, dateKindName, kindName, relationName } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { dayMonth, shortDay } from "@/components/format";
@@ -37,7 +37,7 @@ export default async function ConversationPage({ params }: PageProps<"/c/[id]">)
           )}
         </div>
         {c.visibility === "private" && <Lock aria-label={copy.privateItem} className="h-4 w-4 text-muted" />}
-        <ItemActions table="conversations" id={c.id} mine={c.recordedBy === v.userId} visibility={c.visibility} text={c.summary} field="summary" after="/" />
+        <ItemActions table="conversations" id={c.id} mine={c.recordedBy === v.userId} visibility={c.visibility} text={c.summary} field="summary" after="/" date={c.date} today={today()} />
       </header>
 
       {others.length > 0 && (

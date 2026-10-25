@@ -49,6 +49,11 @@ export function today(now = Date.now()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: config.timeZone(), year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
+/** Refuses a day after today: a conversation can't have happened yet. */
+export function notFuture(day: string, what: string): void {
+  if (day > today()) throw new InvalidInputError(`${what} can't be after today (${today()}); got ${day}`);
+}
+
 /** Whole days from `a` to `b`; negative when `b` is earlier. */
 export function daysBetween(a: string, b: string): number {
   const x = parse(a);

@@ -60,6 +60,16 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   await expect(page.getByText("Sie hat einen neuen Job im Museum, ab November.")).toBeVisible();
   await expectNoSideScroll(page);
 
+  // Filed a day late: the recorder moves the conversation to yesterday.
+  const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const header = page.locator("header");
+  await header.getByRole("button", { name: "Aktionen" }).click();
+  await header.getByRole("button", { name: "Datum ändern" }).click();
+  await header.getByLabel("Datum ändern").fill(yesterday);
+  await header.getByRole("button", { name: "Speichern" }).click();
+  const day = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${yesterday}T00:00:00Z`));
+  await expect(page.getByRole("heading", { name: day })).toBeVisible();
+
   // Done: the promise leaves the "Offen" section.
   await page.goBack();
   const promise = page.locator("div", { hasText: /^Du: Umzugsfirma schicken/ }).last();

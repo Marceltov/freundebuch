@@ -2,7 +2,7 @@
 // bad item leaves nothing behind. Privacy is decided here once: a private conversation makes every item private, and any private
 // item makes the verbatim transcript private to the recorder (it contains the private part).
 import type { Kysely } from "kysely";
-import { assertDay, isDay, isYearless } from "./dates";
+import { assertDay, isDay, isYearless, notFuture } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { insertPerson, namedLike } from "./people";
@@ -95,6 +95,7 @@ function oneOf<T extends string>(value: string, allowed: readonly T[], what: str
 /** Everything that can be checked without the database, so most bad input fails before the transaction starts. */
 function validate(c: NewConversation): void {
   assertDay(c.date, "The conversation date");
+  notFuture(c.date, "The conversation date");
   oneOf(c.kind, CONVERSATION_KINDS, "conversation kind");
   checkVisibility(c.visibility);
   if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
