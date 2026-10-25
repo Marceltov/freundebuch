@@ -113,7 +113,10 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
     if (!text || busy) return;
     setBusy(true);
     setError(null);
+    // The message moves into the chat at once; the field is free while Claude works.
     const asked: Turn[] = [...turns, { role: "user", content: text }];
+    setTurns(asked);
+    setDraft("");
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -123,12 +126,15 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
     setBusy(false);
     const failed = !res || !body || "code" in body || !res.ok;
     const message = failed ? (body && ERRORS[body.code]) || copy.chatUnavailable : null;
-    // Nothing filed: the text stays in the field to send again. Filed before the failure: say so, so it isn't sent twice.
-    if (failed && !body?.filed) return setError(message);
+    // Nothing filed: the message goes back into the field to send again. Filed before the failure: say so, so it isn't sent twice.
+    if (failed && !body?.filed) {
+      setTurns(turns);
+      setDraft(text);
+      return setError(message);
+    }
     const next: Turn[] = [...asked, { role: "assistant", content: failed ? copy.filedThenFailed.replace("{error}", message!) : body.reply, links: body.links, filed: body.filed }];
     setTurns(next);
     save(userId, next);
-    setDraft("");
     if (body.filed) router.refresh();
   }
 
@@ -189,7 +195,16 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
               </div>
             ),
           )}
-          {busy && <p className="self-start text-sm text-muted">{copy.thinking}</p>}
+          {busy && (
+            <p role="status" className="flex items-center gap-2 self-start rounded-2xl rounded-bl-md bg-surface px-3.5 py-3 shadow-card">
+              <span aria-hidden className="flex gap-1">
+                {[0, 150, 300].map((d) => (
+                  <span key={d} className="h-2 w-2 rounded-full bg-carbon/70 motion-safe:animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                ))}
+              </span>
+              <span className="text-sm text-muted">{copy.thinking}</span>
+            </p>
+          )}
           <div ref={end} />
         </div>
 
@@ -199,7 +214,7 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
           </p>
         )}
         <form
-          className="m-3 flex items-end gap-2 rounded-3xl border-2 border-rule bg-surface p-1.5 pl-4 focus-within:border-carbon"
+          className="m-3 flex items-end gap-2 rounded-3xl border-2 border-rule bg-surface py-1.5 pr-1.5 pl-4 focus-within:border-carbon"
           style={{ marginBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
           onSubmit={(e) => {
             e.preventDefault();
@@ -209,7 +224,12 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
           <textarea
             ref={field}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              // One line to start with, growing with the text up to max-h-40.
+              e.target.style.height = "auto";
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -218,12 +238,11 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
             }}
             aria-label={copy.message}
             placeholder={copy.tellPlaceholder}
-            rows={2}
-            disabled={busy}
-            className="max-h-40 min-w-0 flex-1 resize-none bg-transparent py-1.5 outline-none"
+            rows={1}
+            className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent py-2 leading-6 outline-none"
           />
           <button type="submit" aria-label={copy.send} disabled={busy || !draft.trim()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon disabled:opacity-40">
-            <SendHorizontal aria-hidden className="h-5 w-5" />
+            <SendHorizontal aria-hidden className="h-5 w-5 translate-x-px -rotate-[25deg]" />
           </button>
         </form>
       </section>
