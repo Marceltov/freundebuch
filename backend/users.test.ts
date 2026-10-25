@@ -1,5 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { db, resetDbForTests } from "./db/testing";
+import { renamePerson } from "./corrections";
+import { findPeople } from "./people";
 import { userFromOidc, viewerById } from "./users";
 
 beforeEach(() => resetDbForTests());
@@ -29,4 +31,14 @@ test("viewerById finds a user and returns null for an unknown id", async () => {
   const a = await userFromOidc({ sub: "s1", name: "A" });
   expect(await viewerById(a.userId)).toEqual(a);
   expect(await viewerById("nope")).toBeNull();
+});
+
+test("a person renamed in freundebuch keeps that name when the user signs in again; the sign-in name is kept as another name", async () => {
+  const v = await userFromOidc({ sub: "bille", name: "Bille" });
+  await renamePerson(v, v.personId, "Sybille");
+  await userFromOidc({ sub: "bille", name: "Bille" });
+  const d = await db();
+  expect((await d.selectFrom("persons").select("name").where("id", "=", v.personId).executeTakeFirstOrThrow()).name).toBe("Sybille");
+  expect((await d.selectFrom("users").select("name").where("id", "=", v.userId).executeTakeFirstOrThrow()).name).toBe("Bille");
+  expect((await findPeople(v, "Bille"))[0]?.id).toBe(v.personId);
 });

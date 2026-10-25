@@ -1,14 +1,19 @@
 // Users come from the OIDC provider. The first login also creates the user's own Person, so "me" is a person like any other.
+// The person's name follows the sign-in name until someone renames the person in freundebuch (Bille signs in, the book knows
+// her as Sybille); from then on the sign-in name only finds her, as another name.
 import { db, newId, now } from "./db";
+import { insertAlias } from "./people";
 import type { Viewer } from "./types";
 
 export async function userFromOidc(c: { sub: string; name: string; email?: string }): Promise<Viewer> {
   const d = await db();
   return d.transaction().execute(async (tx) => {
-    const user = await tx.selectFrom("users").select(["id", "person_id"]).where("oidc_sub", "=", c.sub).executeTakeFirst();
+    const user = await tx.selectFrom("users").select(["id", "person_id", "name"]).where("oidc_sub", "=", c.sub).executeTakeFirst();
     if (user?.person_id) {
+      const person = await tx.selectFrom("persons").select("name").where("id", "=", user.person_id).executeTakeFirstOrThrow();
       await tx.updateTable("users").set({ name: c.name }).where("id", "=", user.id).execute();
-      await tx.updateTable("persons").set({ name: c.name }).where("id", "=", user.person_id).execute();
+      if (person.name === user.name) await tx.updateTable("persons").set({ name: c.name }).where("id", "=", user.person_id).execute();
+      else await insertAlias(tx, user.person_id, person.name, c.name);
       return { userId: user.id, personId: user.person_id };
     }
     const userId = user?.id ?? newId();
