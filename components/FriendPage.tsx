@@ -14,16 +14,20 @@ import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
 // groups), then the fields filled in: what's going on, what was promised, gift ideas, what's still open, the conversations and
 // who they belong with. Fields without content are left out. `daysSince`: since the viewer last saw them, null for never.
 // `allGroups`: every group the viewer sees, for "+ Gruppe". `others`: everyone else, for merging a duplicate in the menu.
+// `today` (YYYY-MM-DD, the server's) turns the age reached on the next birthday into the age the person is now; the birthday
+// chip shows the year of birth when it is known.
 export function FriendPage({
   b,
   daysSince,
   allGroups = [],
   others = [],
+  today,
 }: {
   b: Briefing;
   daysSince: number | null;
   allGroups?: { id: string; name: string }[];
   others?: { id: string; name: string }[];
+  today?: string;
 }) {
   const birthday = b.person.birthday;
   const otherDates = b.nextDates.filter((d) => d.kind !== "birthday");
@@ -44,7 +48,8 @@ export function FriendPage({
             {birthday && (
               <Chip id={anchorId("dates", birthday.id)} icon={Cake} tone="bg-sun font-bold text-on-sun">
                 {dayMonth(birthday.next)}
-                {birthday.age !== null && ` · ${birthday.age}`}
+                {/^\d{4}-/.test(birthday.date) && ` ${birthday.date.slice(0, 4)}`}
+                {birthday.age !== null && ` · ${copy.ageYears.replace("{n}", String(birthday.next === today ? birthday.age : birthday.age - 1))}`}
               </Chip>
             )}
             {b.freshness.intervalDays !== null && (
