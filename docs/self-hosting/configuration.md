@@ -17,3 +17,6 @@ Everything is an environment variable. [`.env.example`](https://github.com/Marce
 | `FREUNDEBUCH_TRUST_PROXY` | off | Set to `1` behind a reverse proxy that sets `X-Forwarded-For/-Proto/-Host`. Without it those headers are ignored and every client shares one failed-sign-in bucket. |
 | `FREUNDEBUCH_RATE_LIMIT` | `60` | Failed sign-ins per minute and client IP; `0` turns the limit off. |
 | `FREUNDEBUCH_LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug` or `silent`. |
+| `FREUNDEBUCH_ANTHROPIC_API_KEY` | none | An Anthropic API key (console.anthropic.com) turns on the chat in the web app ("Erzählen"). Without it the app has no chat; Claude over MCP works either way. Usage is billed to the key's account. |
+| `FREUNDEBUCH_ANTHROPIC_MODEL` | `claude-sonnet-5-5` | The Claude model the chat uses. |
+| `FREUNDEBUCH_CHAT_DAILY_LIMIT` | `100` | Messages each user may send the chat per day. |

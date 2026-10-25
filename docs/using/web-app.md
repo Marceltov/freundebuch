@@ -39,6 +39,12 @@ Private items have a lock icon. Only you see them.
 
 The date and place, who was there and who was only mentioned (by name), the summary, and **Daraus gemerkt**: everything filed from it, as sentences. Every name links to the person; **›** opens an item on the person's page. Done and outdated items stay listed, marked as such. The **…** in the header changes the summary or the date, or deletes the conversation.
 
+## Erzählen
+
+When your instance has an Anthropic API key ([configuration](../self-hosting/configuration.md)), a raised **Erzählen** button sits in the middle of the bottom bar. It opens a chat with Claude over whatever page you're on. Tell it what happened (type or dictate) and it files it, just as Claude does over MCP: it asks before filing anything sensitive as shared, asks which Anna you mean, and reads back what it filed with links under its reply. Ask it about someone ("Was war nochmal mit Marvins Spiegel?") and it looks them up.
+
+Opened on someone's page, the chat knows who you probably mean ("Es geht um Marvin"); tap the chip away if not. The conversation stays on your phone until you start a new one; the server keeps only what gets filed. Claude acts as you, so it never sees your partner's private items.
+
 ## Verlauf, Leute, Bald
 
 - **Verlauf**: every conversation, newest first, by week and month.
