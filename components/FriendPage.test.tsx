@@ -56,3 +56,21 @@ test("each group chip links to the group's page", () => {
   expect(html).toMatch(/Choir<span[^>]*title="Privat: nur du siehst das"/);
   expect(html).not.toMatch(/Uni<span[^>]*title="Privat/);
 });
+
+test("Gehört zu lists each person by name with what they are to this one, linking to them", () => {
+  const html = renderToStaticMarkup(
+    <FriendPage
+      b={{
+        ...b,
+        relationships: [
+          { personId: "r1", name: "Ramona", type: "parent", direction: "in", url: "/p/r1" },
+          { personId: "r2", name: "Andreas", type: "parent", direction: "in", url: "/p/r2" },
+        ],
+      }}
+      daysSince={null}
+    />,
+  );
+  expect(html).toMatch(/href="\/p\/r1"[^>]*>.*Ramona.*Elternteil/s);
+  expect(html).toMatch(/href="\/p\/r2"[^>]*>.*Andreas.*Elternteil/s);
+  expect(html).not.toContain("<svg viewBox=\"0 0 320 150\"");
+});
