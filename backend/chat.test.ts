@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { chat, type ChatModel } from "./chat";
+import { chat, linksOf, type ChatModel } from "./chat";
 import { getConversation } from "./conversations";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -169,4 +169,22 @@ test("a long history is cut to its last turns, starting with one of the user's",
   expect(sent.length).toBeLessThanOrEqual(40);
   expect(sent[0].role).toBe("user");
   expect(sent[sent.length - 1].content).toBe("t42");
+});
+
+test("messages sent at the same moment can't get past the daily limit", async () => {
+  vi.stubEnv("FREUNDEBUCH_CHAT_DAILY_LIMIT", "2");
+  const { model, calls } = fake(() => text("Ok"));
+  const replies = await Promise.all([1, 2, 3, 4].map(() => chat(s.a, [{ role: "user", content: "Hallo" }], {}, model)));
+  expect(calls).toHaveLength(2);
+  expect(replies.filter((r) => "code" in r && r.code === "chat_limit")).toHaveLength(2);
+});
+
+test("a reply cut off by the context window says it got too long, not that Claude refused", async () => {
+  expect(await chat(s.a, [{ role: "user", content: "x" }], {}, fake([text("", "model_context_window_exceeded" as Anthropic.Beta.BetaStopReason)]).model)).toEqual({ code: "chat_too_long" });
+});
+
+test("link chips never fail a tool call: an output of an unexpected shape gives no links", () => {
+  expect(linksOf("record_conversation", {}, {})).toEqual([]);
+  expect(linksOf("briefing", {}, { person: null })).toEqual([]);
+  expect(linksOf("relate", {}, { added: 1 })).toEqual([]);
 });

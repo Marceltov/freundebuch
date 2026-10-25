@@ -74,17 +74,19 @@ function recent(turns: ChatTurn[]): ChatTurn[] {
   return first < 0 ? [] : last.slice(first);
 }
 
-/** Counts this message against the user's daily limit; false when it is used up. */
+/** Counts this message against the user's daily limit; false when it is used up. One conditional UPDATE, so messages sent at
+ * the same moment can't both slip past the last free one. */
 async function spend(v: Viewer, day: string): Promise<boolean> {
   const d = await db();
-  const row = await d.selectFrom("chat_usage").select("count").where("user_id", "=", v.userId).where("day", "=", day).executeTakeFirst();
-  if ((row?.count ?? 0) >= config.chatDailyLimit()) return false;
-  await d
-    .insertInto("chat_usage")
-    .values({ user_id: v.userId, day, count: 1 })
-    .onConflict((oc) => oc.columns(["user_id", "day"]).doUpdateSet((eb) => ({ count: eb("chat_usage.count", "+", 1) })))
-    .execute();
-  return true;
+  await d.insertInto("chat_usage").values({ user_id: v.userId, day, count: 0 }).onConflict((oc) => oc.doNothing()).execute();
+  const r = await d
+    .updateTable("chat_usage")
+    .set((eb) => ({ count: eb("count", "+", 1) }))
+    .where("user_id", "=", v.userId)
+    .where("day", "=", day)
+    .where("count", "<", config.chatDailyLimit())
+    .executeTakeFirst();
+  return Number(r.numUpdatedRows) === 1;
 }
 
 async function situation(v: Viewer, context: ChatContext, day: string): Promise<string> {
@@ -100,19 +102,20 @@ async function situation(v: Viewer, context: ChatContext, day: string): Promise<
   return lines.filter(Boolean).join("\n");
 }
 
-// What a tool's result adds to the link chips.
-function linksOf(name: string, input: unknown, out: Record<string, unknown>): ChatLink[] {
-  if (name === "record_conversation") {
-    const r = out as { conversationId: string; url: string; people: { id: string; name: string; url: string }[] };
-    const date = (input as { date?: string }).date;
-    return [{ kind: "conversation", id: r.conversationId, date, url: r.url }, ...r.people.map((p) => ({ kind: "person" as const, id: p.id, name: p.name, url: p.url }))];
+// What a tool's result adds to the link chips. Never throws: an output of another shape just adds none.
+export function linksOf(name: string, input: unknown, out: Record<string, unknown>): ChatLink[] {
+  const str = (x: unknown): x is string => typeof x === "string";
+  if (name === "record_conversation" && str(out.conversationId) && str(out.url)) {
+    const date = (input as { date?: unknown }).date;
+    const people = Array.isArray(out.people) ? (out.people as { id: unknown; name: unknown; url: unknown }[]) : [];
+    return [
+      { kind: "conversation", id: out.conversationId, date: str(date) ? date : undefined, url: out.url },
+      ...people.filter((p) => str(p.id) && str(p.name) && str(p.url)).map((p) => ({ kind: "person" as const, id: p.id as string, name: p.name as string, url: p.url as string })),
+    ];
   }
-  if (name === "briefing") {
-    const p = (out as { person: { id: string; name: string; url: string } }).person;
-    return [{ kind: "person", id: p.id, name: p.name, url: p.url }];
-  }
-  if (name === "relate" && typeof out.name === "string" && typeof out.id === "string" && typeof out.url === "string")
-    return [{ kind: "group", id: out.id, name: out.name, url: out.url }];
+  const person = out.person as { id?: unknown; name?: unknown; url?: unknown } | null | undefined;
+  if (name === "briefing" && person && str(person.id) && str(person.name) && str(person.url)) return [{ kind: "person", id: person.id, name: person.name, url: person.url }];
+  if (name === "relate" && str(out.name) && str(out.id) && str(out.url)) return [{ kind: "group", id: out.id, name: out.name, url: out.url }];
   return [];
 }
 
@@ -153,7 +156,7 @@ export async function chat(v: Viewer, turns: ChatTurn[], context: ChatContext, m
       throw e;
     }
     if (response.stop_reason === "refusal") return fail("chat_refused");
-    if (response.stop_reason === "max_tokens") return fail("chat_too_long");
+    if (response.stop_reason === "max_tokens" || response.stop_reason === "model_context_window_exceeded") return fail("chat_too_long");
 
     const uses = response.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
     if (response.stop_reason !== "tool_use" || uses.length === 0) {
@@ -175,8 +178,8 @@ export async function chat(v: Viewer, turns: ChatTurn[], context: ChatContext, m
         const input = use.name === "record_conversation" ? { ...(use.input as object), transcript } : use.input;
         const out = await tool.run(v, input);
         if (!tool.annotations.readOnlyHint) filed = true;
-        for (const l of linksOf(use.name, input, out)) links.set(l.url, l);
         results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(out) });
+        for (const l of linksOf(use.name, input, out)) links.set(l.url, l);
       } catch (e) {
         if (!(e instanceof FreundebuchError)) log.error({ err: e, tool: use.name }, "tool failed");
         results.push({ type: "tool_result", tool_use_id: use.id, content: e instanceof FreundebuchError ? e.message : "internal error", is_error: true });

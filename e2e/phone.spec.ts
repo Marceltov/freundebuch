@@ -280,6 +280,30 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await expect(sheet.getByRole("alert")).toHaveText("Claude ist gerade nicht erreichbar. Dein Text ist noch da, versuch es gleich noch mal.");
   await expect(field).toHaveValue("Fehlertest");
 
+  // The keyboard stays in the sheet while it is open, and Escape takes it back to the button.
+  await expect(field).toBeFocused();
+  for (let i = 0; i < 8; i++) await page.keyboard.press("Tab");
+  expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" })).toBeFocused();
+
+  // Moving to another friend with the sheet open names that friend, never the one before.
+  await page.goto(`/p/${nele}`);
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  await expect(sheet.getByText("Es geht um Nele Sommer")).toBeVisible();
+  const other = (await (await page.request.get("/api/v1/people?q=Kai")).json())[0]?.id ?? (await (await page.request.get("/api/v1/people")).json()).find((p: { id: string }) => p.id !== nele).id;
+  // The new name takes a while to load; until then the chip must not keep the old one.
+  await page.route(`**/api/v1/people/${other}`, async (r) => {
+    await new Promise((done) => setTimeout(done, 2000));
+    await r.continue();
+  });
+  await page.evaluate((id) => (window as unknown as { next: { router: { push(u: string): void } } }).next.router.push(`/p/${id}`), other);
+  await expect(page).toHaveURL(new RegExp(`/p/${other}`));
+  await expect(sheet.getByText("Es geht um diese Person")).toBeVisible();
+  await expect(sheet.getByText("Es geht um Nele Sommer")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
   // Someone else signing in on this device doesn't see this chat.
   await page.goto("/api/e2e/login?name=Bodo Gast");
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();

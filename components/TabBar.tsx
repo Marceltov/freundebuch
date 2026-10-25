@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarHeart, History, House, MessageCirclePlus, Users, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ChatSheet } from "@/components/ChatSheet";
 import { copy } from "@/components/copy";
 
@@ -20,6 +20,12 @@ const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] 
 export function TabBar({ chat = null }: { chat?: { userId: string } | null }) {
   const path = usePathname();
   const [talking, setTalking] = useState(false);
+  const tellButton = useRef<HTMLButtonElement>(null);
+  // Closing the chat hands the keyboard back to the button that opened it.
+  const closeChat = useCallback(() => {
+    setTalking(false);
+    tellButton.current?.focus();
+  }, []);
   const current = (t: (typeof TABS)[number]) => (t.href === "/" ? path === "/" : path.startsWith(t.href)) || t.also.some((p) => path.startsWith(p));
   return (
     <nav
@@ -45,6 +51,7 @@ export function TabBar({ chat = null }: { chat?: { userId: string } | null }) {
           return [
             <li key="tell" className="flex justify-center">
               <button
+                ref={tellButton}
                 type="button"
                 onClick={() => setTalking(true)}
                 className="-mt-5 flex flex-col items-center gap-0.5 text-xs font-bold text-carbon"
@@ -59,7 +66,7 @@ export function TabBar({ chat = null }: { chat?: { userId: string } | null }) {
           ];
         })}
       </ul>
-      {talking && chat && <ChatSheet userId={chat.userId} onClose={() => setTalking(false)} />}
+      {talking && chat && <ChatSheet userId={chat.userId} onClose={closeChat} />}
     </nav>
   );
 }

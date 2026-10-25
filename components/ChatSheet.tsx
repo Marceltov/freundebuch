@@ -51,9 +51,13 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [personName, setPersonName] = useState<string | null>(null);
+  // The name belongs to the person it was loaded for, so moving to another page never shows the one before.
+  const [loaded, setLoaded] = useState<{ id: string; name: string } | null>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const sheet = useRef<HTMLElement>(null);
   const [dismissed, setDismissed] = useState(false);
   const end = useRef<HTMLDivElement>(null);
+  const personName = loaded && loaded.id === path.match(/^\/p\/([^/]+)$/)?.[1] ? loaded.name : null;
   const person = path.match(/^\/p\/([^/]+)$/)?.[1];
   const conversation = path.match(/^\/c\/([^/]+)$/)?.[1];
   // The page goes along at once; the chip shows the person's name once it has loaded.
@@ -69,13 +73,40 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
     if (!person) return;
     fetch(`/api/v1/people/${person}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((p: { name: string } | null) => p && setPersonName(p.name))
+      .then((p: { name: string } | null) => p && setLoaded({ id: person, name: p.name }))
       .catch(() => {});
   }, [person]);
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
   }, [turns, busy]);
+
+  // The keyboard starts in the field, and comes back to it once a reply is in.
+  useEffect(() => {
+    if (!busy) field.current?.focus();
+  }, [busy]);
+
+  // Escape closes the sheet wherever the focus is.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Tab and Shift+Tab go round inside the sheet while it is open.
+  function trap(e: React.KeyboardEvent) {
+    if (e.key !== "Tab" || !sheet.current) return;
+    const all = [...sheet.current.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), textarea:not([disabled])")];
+    if (!all.length) return;
+    const [first, last] = [all[0], all[all.length - 1]];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   async function send() {
     const text = draft.trim();
@@ -108,9 +139,10 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-40" onKeyDown={(e) => e.key === "Escape" && onClose()}>
+    <div className="fixed inset-0 z-40" onKeyDown={trap}>
       <div className="absolute inset-0 bg-black/35" onClick={onClose} />
       <section
+        ref={sheet}
         role="dialog"
         aria-modal="true"
         aria-label={copy.tell}
@@ -175,6 +207,7 @@ export function ChatSheet({ userId, onClose }: { userId: string; onClose: () => 
           }}
         >
           <textarea
+            ref={field}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
