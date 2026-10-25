@@ -88,6 +88,30 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   await expectNoSideScroll(page);
 });
 
+test("groups: tick them on the friend page, open the group's page", async ({ page, baseURL }) => {
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: { date: today, kind: "call", summary: "Anruf mit Jonas.", transcript: "Anruf mit Jonas Keller.", visibility: "shared", people: [{ name: "Jonas Keller", present: true }] },
+  });
+  const jonas = (await recorded.json()).people[0].id;
+  await page.goto(`/p/${jonas}`);
+  await page.getByRole("button", { name: "Gruppen bearbeiten" }).click();
+  const sheet = page.getByRole("dialog", { name: "Gruppen für Jonas Keller" });
+  await sheet.getByRole("checkbox", { name: "Familie" }).check();
+  // Another name of a group ticks that group instead of making a new one.
+  await sheet.getByLabel("Neue Gruppe").fill("kollegen");
+  await sheet.getByLabel("Neue Gruppe").press("Enter");
+  await expect(sheet.getByRole("checkbox", { name: "Arbeit" })).toBeChecked();
+  await expectNoSideScroll(page);
+  await sheet.getByRole("button", { name: "Fertig" }).click();
+
+  await page.getByRole("link", { name: /Arbeit/ }).click();
+  await expect(page.getByRole("heading", { name: "Arbeit" })).toBeVisible();
+  await expect(page.getByText("auch: Job, Kollegen")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Jonas Keller/ })).toBeVisible();
+  await expectNoSideScroll(page);
+});
+
 test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await page.getByRole("link", { name: "Einstellungen" }).click();
   await expect(page.getByLabel("Webhook für Erinnerungen")).toBeVisible();

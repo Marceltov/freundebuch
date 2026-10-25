@@ -50,6 +50,20 @@ export const copy = {
   group: "Gruppe",
   age: "wird {n}",
 
+  // Groups
+  groupPage: "Gruppe",
+  alsoCalled: "auch: {names}",
+  people: "{n} Leute",
+  onePerson: "1 Person",
+  members: "Mitglieder",
+  noMembers: "Noch niemand in dieser Gruppe.",
+  addGroup: "Gruppe",
+  editGroups: "Gruppen bearbeiten",
+  groupsFor: "Gruppen für {name}",
+  newGroup: "Neue Gruppe",
+  newGroupHint: "Neue Gruppe …",
+  close: "Fertig",
+
   // Item actions
   actions: "Aktionen",
   done: "Erledigt",
