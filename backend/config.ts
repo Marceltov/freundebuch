@@ -49,6 +49,10 @@ export const config = {
   // X-Forwarded-For/-Proto/-Host are believed only behind a proxy that sets them (see limits.ts and urls.ts).
   trustProxy: () => env("FREUNDEBUCH_TRUST_PROXY") === "1",
   // Failed sign-ins per minute and IP; 0 or below turns the limit off. Unset or not a number → 60.
+  // The in-app chat (chat.ts): on only with an API key. The model and how many messages each user may send a day.
+  anthropicKey: (): string | undefined => env("FREUNDEBUCH_ANTHROPIC_API_KEY").trim() || undefined,
+  anthropicModel: (): string => env("FREUNDEBUCH_ANTHROPIC_MODEL").trim() || "claude-sonnet-5-5",
+  chatDailyLimit: (): number => ((n) => (Number.isInteger(n) && n >= 0 ? n : 100))(Number.parseInt(env("FREUNDEBUCH_CHAT_DAILY_LIMIT").trim(), 10)),
   rateLimit: (): number => ((n) => (Number.isInteger(n) ? n : 60))(Number.parseInt(env("FREUNDEBUCH_RATE_LIMIT").trim(), 10)),
   // Unset, empty or not a level → info.
   // The Playwright tests' sign-in without authentik (auth/e2e.ts). Never in a production build: Next inlines NODE_ENV when it
