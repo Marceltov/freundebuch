@@ -8,8 +8,9 @@ import { briefing } from "./briefing";
 import { getConversation, recordConversation } from "./conversations";
 import { deleteItem, editItem, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
 import { whatsDue } from "./due";
+import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "./groups";
 import { FreundebuchError, InvalidInputError } from "./errors";
-import { BriefingJson, Day, DueItemJson, IntervalJson, NewConversationJson, PersonId, PersonJson, RecordedJson, Visibility } from "./http/schemas";
+import { BriefingJson, Day, DueItemJson, GroupJson, IntervalJson, NewConversationJson, PersonId, PersonJson, RecordedJson, Visibility } from "./http/schemas";
 import { setCheckInInterval } from "./intervals";
 import { logger } from "./log";
 import { addAlias, findPeople } from "./people";
@@ -25,7 +26,8 @@ Before recording, look for sensitive content: health, relationship trouble, mone
 Resolve every person with find_person first. When more than one candidate fits, or a new name resembles an existing person, ask the user which one; never guess and never create a duplicate.
 After recording, read back in one or two sentences what you filed, with the day it happened and the link to the conversation.
 Every person, conversation and item comes with a url to it in the web app; give the user the link whenever they may want to look at something there.
-When a briefing has suggestedInterval, offer it to the user and save it with set_interval once they agree.`;
+When a briefing has suggestedInterval, offer it to the user and save it with set_interval once they agree.
+Prefer an existing group, by name or other name, over a new one; when none fits, ask before creating one.`;
 
 // A tool result: the body as structured content and, for clients that only read text, as JSON text. The body goes through the
 // tool's output schema first, which drops every field the schema doesn't name: what leaves is only what was declared. Its links
@@ -55,6 +57,7 @@ const NewConversation = NewConversationJson.extend({});
 const Recorded = RecordedJson.extend({});
 const BriefingOut = BriefingJson.extend({});
 
+const GroupId = z.string().describe("A group's id, as groups or relate return it");
 const ConversationId = z.string().describe("A conversation's id, as a briefing's recent conversations or record_conversation return it");
 const Table = z.enum(ITEM_TABLES).describe("The kind of item");
 const ItemId = z.string().describe("The item's id, as a briefing shows it");
@@ -62,10 +65,12 @@ const ItemId = z.string().describe("The item's id, as a briefing shows it");
 const FoundJson = z.object({ people: z.array(PersonJson).describe("Best matches first, at most 5") });
 const DueJson = z.object({ items: z.array(DueItemJson).describe("Most pressing first") });
 const RelatedJson = z.object({
-  id: z.string().optional().describe("The new relationship's id"),
+  id: z.string().optional().describe("The new relationship's id, or the group's"),
   added: z.number().int().optional().describe("How many group memberships were new; one the user already recorded is kept as it was"),
-  url: z.string().optional().describe("For a relationship: the page of `from`, which shows it, as an absolute URL"),
+  url: z.string().optional().describe("For a relationship: the page of `from`, which shows it; for a group: the group's page. An absolute URL"),
+  name: z.string().optional().describe("group: the group's own name; the name given may have been another name of it"),
 });
+const GroupsJson = z.object({ groups: z.array(GroupJson.extend({})).describe("By name") });
 const SetIntervalJson = IntervalJson.extend({ personId: PersonId, url: z.string().describe("The person's page, as an absolute URL") });
 const CorrectedJson = z.object({ corrected: z.literal(true) });
 const TranscriptJson = z.object({
@@ -108,20 +113,21 @@ const RelateArgs = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("group"), name: z.string().describe("The group's name, e.g. Uni or Climbing"), members: z.array(PersonId).min(1), visibility: Visibility }),
 ]);
 
-const CORRECT_ACTIONS = ["done", "outdated", "edit", "visibility", "delete", "rename", "alias", "merge", "share_transcript"] as const;
+const CORRECT_ACTIONS = ["done", "outdated", "edit", "visibility", "delete", "rename", "alias", "merge", "share_transcript", "ungroup", "group_rename", "group_alias", "group_unalias", "group_merge", "group_delete"] as const;
 const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded, a conversation with its items (table, id). rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a conversation the user recorded, once nothing in it is private any more (id); a transcript never turns shared on its own",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded, a conversation with its items (table, id). rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a conversation the user recorded, once nothing in it is private any more (id); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id)",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
-  id: z.string().describe("The item's id as a briefing shows it; for rename, alias and merge, a person's id (merge: the person to keep); for share_transcript, a conversation's id"),
+  id: z.string().describe("The item's id as a briefing shows it; for rename, alias and merge, a person's id (merge: the person to keep); for share_transcript, a conversation's id; for the group actions, the group's id (group_merge: the group to keep)"),
+  person: PersonId.optional().describe("ungroup: the person to take out"),
   patch: z.record(z.string(), z.unknown()).optional().describe("edit: new values for the item's own fields"),
   visibility: Visibility.optional().describe("visibility: who may see the item from now on"),
   name: z.string().optional().describe("rename: the person's new name"),
   alias: z.string().optional().describe("alias: another name the person goes by, e.g. a nickname"),
-  drop: PersonId.optional().describe("merge: the duplicate person; it is deleted"),
+  drop: z.string().optional().describe("merge: the duplicate person; group_merge: the group to merge in. It is deleted"),
 });
 
 const CorrectArgs = z.discriminatedUnion("action", [
@@ -136,6 +142,12 @@ const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("alias"), id: PersonId, alias: z.string() }).describe("Add another name a person goes by"),
   z.object({ action: z.literal("merge"), id: PersonId.describe("The person to keep"), drop: PersonId.describe("The duplicate; it is deleted") }).describe("Merge a duplicate person"),
   z.object({ action: z.literal("share_transcript"), id: ConversationId }).describe("Let the partner read a conversation's transcript"),
+  z.object({ action: z.literal("ungroup"), id: GroupId, person: PersonId }).describe("Take a person out of a group"),
+  z.object({ action: z.literal("group_rename"), id: GroupId, name: z.string() }).describe("Rename a group"),
+  z.object({ action: z.literal("group_alias"), id: GroupId, alias: z.string() }).describe("Add another name of a group"),
+  z.object({ action: z.literal("group_unalias"), id: GroupId, alias: z.string() }).describe("Drop another name of a group"),
+  z.object({ action: z.literal("group_merge"), id: GroupId.describe("The group to keep"), drop: GroupId.describe("The group to merge in; it is deleted") }).describe("Merge two groups"),
+  z.object({ action: z.literal("group_delete"), id: GroupId }).describe("Delete a group for the user"),
 ]);
 
 function server(v: Viewer, base: string): McpServer {
@@ -271,9 +283,39 @@ function server(v: Viewer, base: string): McpServer {
         case "share_transcript":
           await shareTranscript(v, a.id);
           break;
+        case "ungroup":
+          await removeFromGroup(v, a.id, a.person);
+          break;
+        case "group_rename":
+          await renameGroup(v, a.id, a.name);
+          break;
+        case "group_alias":
+          await addGroupAlias(v, a.id, a.alias);
+          break;
+        case "group_unalias":
+          await removeGroupAlias(v, a.id, a.alias);
+          break;
+        case "group_merge":
+          await mergeGroups(v, a.id, a.drop);
+          break;
+        case "group_delete":
+          await deleteGroup(v, a.id);
+          break;
       }
       return ok(CorrectedJson, { corrected: true as const });
     }),
+  );
+
+  s.registerTool(
+    "groups",
+    {
+      description:
+        "Every group the user sees, with its other names and how many people are in it. Call it before putting someone in a group, and reuse a group whose name or other name fits.",
+      inputSchema: z.object({}),
+      outputSchema: GroupsJson,
+      annotations: { readOnlyHint: true },
+    },
+    guard(async () => ok(GroupsJson, { groups: await listGroups(v) })),
   );
 
   s.registerTool(

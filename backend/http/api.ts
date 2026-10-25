@@ -8,6 +8,7 @@ import { deleteItem, editItem, markDone, markOutdated, mergePeople, setVisibilit
 import { getConversation, recordConversation } from "../conversations";
 import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError } from "../errors";
+import { addGroupAlias, addToGroupById, createGroup, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../groups";
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { addAlias, findPeople, getPerson, listPeople } from "../people";
@@ -21,6 +22,11 @@ import {
   ConversationJson,
   DueListJson,
   ErrorJson,
+  GroupDetailJson,
+  GroupListJson,
+  GroupJson,
+  GroupMergeJson,
+  GroupNameJson,
   IdParam,
   IntervalJson,
   ItemPatchJson,
@@ -131,6 +137,149 @@ const OPS: AnyOp[] = [
     responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params, body }) => {
     await addAlias(viewer, params.id, body.alias);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/groups`,
+    operationId: "listGroups",
+    summary: "List groups",
+    description: "Every group the caller sees: the ones every household starts with, their own, and any with a member they may see.",
+    tags: ["Groups"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "Groups by name", schema: GroupListJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: await listGroups(viewer) })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/groups`,
+    operationId: "createGroup",
+    summary: "Create a group",
+    description: "A name that already names a group, or is one of its other names, returns that group instead of a duplicate.",
+    tags: ["Groups"],
+    auth: true,
+    params: {},
+    body: GroupNameJson,
+    responses: { 201: { description: "The group", schema: GroupJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => ({ status: 201, body: await createGroup(viewer, body.name) })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/groups/{id}`,
+    operationId: "getGroup",
+    summary: "A group with its members",
+    description: "Members never seen first, then the most overdue.",
+    tags: ["Groups"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 200: { description: "The group", schema: GroupDetailJson }, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => ({ status: 200, body: await getGroup(viewer, params.id) })),
+
+  op({
+    method: "PATCH",
+    path: `${API_PREFIX}/groups/{id}`,
+    operationId: "renameGroup",
+    summary: "Rename a group",
+    description: "The old name becomes another name of the group. A name that already means another group is `invalid_input`: merge them instead.",
+    tags: ["Groups"],
+    auth: true,
+    params: { id: IdParam },
+    body: GroupNameJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await renameGroup(viewer, params.id, body.name);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/groups/{id}/aliases`,
+    operationId: "addGroupAlias",
+    summary: "Add another name for a group",
+    tags: ["Groups"],
+    auth: true,
+    params: { id: IdParam },
+    body: AliasJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await addGroupAlias(viewer, params.id, body.alias);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/groups/{id}/aliases/{alias}`,
+    operationId: "removeGroupAlias",
+    summary: "Remove another name of a group",
+    tags: ["Groups"],
+    auth: true,
+    params: { id: IdParam, alias: z.string().describe("The other name, however it is spelled") },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await removeGroupAlias(viewer, params.id, params.alias);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/groups/{id}/merge`,
+    operationId: "mergeGroups",
+    summary: "Merge a group into this one",
+    description: "Every membership moves here and `drop`'s names become other names of this group; `drop` is deleted.",
+    tags: ["Groups"],
+    auth: true,
+    params: { id: IdParam },
+    body: GroupMergeJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await mergeGroups(viewer, params.id, body.drop);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/groups/{id}`,
+    operationId: "deleteGroup",
+    summary: "Delete a group for the caller",
+    description: "Removes the caller's own memberships; the group stays while the other user still has some.",
+    tags: ["Groups"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await deleteGroup(viewer, params.id);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/groups/{id}/members/{personId}`,
+    operationId: "addGroupMember",
+    summary: "Put a person in a group",
+    description: "A shared membership recorded by the caller.",
+    tags: ["Groups"],
+    auth: true,
+    params: { id: IdParam, personId: IdParam },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await addToGroupById(viewer, params.id, params.personId, "shared");
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/groups/{id}/members/{personId}`,
+    operationId: "removeGroupMember",
+    summary: "Take a person out of a group",
+    description: "Removes the caller's membership and the other user's shared one; the other user's private one stays.",
+    tags: ["Groups"],
+    auth: true,
+    params: { id: IdParam, personId: IdParam },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await removeFromGroup(viewer, params.id, params.personId);
     return { status: 204, body: undefined };
   }),
 
@@ -359,6 +508,7 @@ export function openApiDocument(serverUrl: string): Json {
     tags: [
       { name: "People", description: "Who is in the book, and what to know before meeting them." },
       { name: "Conversations", description: "Recording what was said, and reading it back." },
+      { name: "Groups", description: "Groups of people, with other names that find them." },
       { name: "Items", description: "Corrections after the fact: facts, promises, dates, exchanges, relationships and conversations." },
       { name: "Meta", description: "About the API itself." },
     ],

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Lock, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { copy } from "@/components/copy";
@@ -5,12 +6,23 @@ import { copy } from "@/components/copy";
 // The building blocks of the friend and conversation pages. `id` on a chip or a tile is its item's anchor (anchorId()): a link
 // ending in it scrolls there and the row is highlighted (`:target` in globals.css).
 
-export function Chip({ id, icon: Icon, label, children }: { id?: string; icon: LucideIcon; label?: string; children: ReactNode }) {
-  return (
-    <span id={id} title={label} className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-0.5 text-xs">
+// `href`: the chip is a link, e.g. a group chip to the group's page.
+export function Chip({ id, href, icon: Icon, label, children }: { id?: string; href?: string; icon: LucideIcon; label?: string; children: ReactNode }) {
+  const inner = (
+    <>
       <Icon aria-hidden className="h-3.5 w-3.5" />
       {label && <span className="sr-only">{label}: </span>}
       {children}
+    </>
+  );
+  const cls = "inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-0.5 text-xs";
+  return href ? (
+    <Link id={id} href={href} title={label} className={`${cls} hover:bg-rule/60`}>
+      {inner}
+    </Link>
+  ) : (
+    <span id={id} title={label} className={cls}>
+      {inner}
     </span>
   );
 }

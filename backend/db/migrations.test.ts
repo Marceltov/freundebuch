@@ -1,7 +1,7 @@
 import { Kysely, SqliteDialect, sql } from "kysely";
 import Database from "better-sqlite3";
 import { beforeEach, expect, test } from "vitest";
-import { MIGRATION_NAMES, NEWER, migrate } from "./migrations";
+import { MIGRATION_NAMES, NEWER, migrate, migrateTo } from "./migrations";
 import { CONVERSATION_KINDS, EXCHANGE_KINDS, RELATIONSHIP_TYPES } from "../types";
 import { db, newId, now, resetDbForTests } from "./index";
 
@@ -97,7 +97,7 @@ test("CHECK constraints refuse values outside the vocabularies", async () => {
   await d.insertInto("conversations").values(conversation).execute();
   for (const [what, insert] of bad) await expect(insert(), what).rejects.toThrow(/CHECK constraint failed/);
   const group = newId();
-  await d.insertInto("groups").values({ id: group, name: "Uni" }).execute();
+  await d.insertInto("groups").values({ id: group, name: "Uni", created_at: 0 }).execute();
   await expect(d.insertInto("group_members").values({ group_id: group, person_id: person, visibility: "x", recorded_by: user, conversation_id: null }).execute()).rejects.toThrow(
     /CHECK constraint failed/,
   );
@@ -107,4 +107,46 @@ test("CHECK constraints refuse values outside the vocabularies", async () => {
   for (const type of RELATIONSHIP_TYPES) await d.insertInto("relationships").values({ ...rel, id: newId(), type }).execute();
   for (const kind of ["birthday", "anniversary", "custom"] as const) await d.insertInto("dates").values({ ...date, id: newId(), kind }).execute();
   await d.insertInto("facts").values({ ...fact, id: newId(), status: "outdated", visibility: "private" }).execute();
+});
+
+test("002 seeds Freunde, Familie and Arbeit with their other names", async () => {
+  const d = fresh();
+  await migrate(d);
+  const groups = await d.selectFrom("groups").select(["id", "name", "created_by"]).orderBy("name").execute();
+  expect(groups.map((g) => [g.name, g.created_by])).toEqual([
+    ["Arbeit", null],
+    ["Familie", null],
+    ["Freunde", null],
+  ]);
+  const arbeit = groups.find((g) => g.name === "Arbeit")!.id;
+  const norms = await d.selectFrom("group_aliases").select("norm").where("group_id", "=", arbeit).orderBy("norm").execute();
+  expect(norms.map((n) => n.norm)).toEqual(["job", "kollegen"]);
+});
+
+test("002 keeps an existing group of a seeded name and gives it the seeded other names", async () => {
+  const d = fresh();
+  await migrateTo(d, "001_initial");
+  await d.insertInto("groups").values({ id: "g", name: "familie" }).execute();
+  await migrate(d);
+  const familie = await d.selectFrom("groups").select(["id", "name"]).where("name", "in", ["Familie", "familie"]).execute();
+  expect(familie).toEqual([{ id: "g", name: "familie" }]);
+  expect((await d.selectFrom("group_aliases").select("alias").where("group_id", "=", "g").execute()).map((a) => a.alias)).toEqual(["Verwandte"]);
+});
+
+test("002 folds groups whose names differ only in case or spacing into one, keeping every membership", async () => {
+  const d = fresh();
+  await migrateTo(d, "001_initial");
+  const t = Date.now();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: t }).execute();
+  for (const p of ["p1", "p2"]) await d.insertInto("persons").values({ id: p, name: p, created_by: "u", created_from: null, created_at: t }).execute();
+  await d.insertInto("groups").values([{ id: "g1", name: "Uni" }, { id: "g2", name: " uni" }]).execute();
+  const m = (group_id: string, person_id: string, visibility: string) => ({ group_id, person_id, visibility, recorded_by: "u", conversation_id: null });
+  await d.insertInto("group_members").values([m("g1", "p1", "private"), m("g2", "p1", "shared"), m("g2", "p2", "shared")]).execute();
+  await migrate(d);
+  expect(await d.selectFrom("groups").select("id").where("id", "in", ["g1", "g2"]).execute()).toEqual([{ id: "g1" }]);
+  const rows = await d.selectFrom("group_members").select(["group_id", "person_id", "visibility"]).orderBy("person_id").execute();
+  expect(rows).toEqual([
+    { group_id: "g1", person_id: "p1", visibility: "shared" },
+    { group_id: "g1", person_id: "p2", visibility: "shared" },
+  ]);
 });

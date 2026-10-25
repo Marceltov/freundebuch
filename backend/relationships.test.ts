@@ -24,10 +24,10 @@ test("a relationship is checked like one recorded with a conversation", async ()
 });
 
 test("group memberships without a conversation; adding the same one again is a no-op", async () => {
-  expect(await addToGroup(s.a, { name: " Uni ", members: [s.anna, s.lena, s.anna], visibility: "private" })).toEqual({ added: 2 });
-  expect(await addToGroup(s.a, { name: "Uni", members: [s.anna], visibility: "shared" })).toEqual({ added: 0 });
+  expect(await addToGroup(s.a, { name: " Uni ", members: [s.anna, s.lena, s.anna], visibility: "private" })).toMatchObject({ added: 2, name: "Uni" });
+  expect(await addToGroup(s.a, { name: "Uni", members: [s.anna], visibility: "shared" })).toMatchObject({ added: 0 });
   // B's own membership of the same person is a row of its own.
-  expect(await addToGroup(s.b, { name: "Uni", members: [s.anna], visibility: "shared" })).toEqual({ added: 1 });
+  expect(await addToGroup(s.b, { name: "Uni", members: [s.anna], visibility: "shared" })).toMatchObject({ added: 1 });
   const rows = await (await db()).selectFrom("group_members").innerJoin("groups", "groups.id", "group_members.group_id").selectAll().execute();
   expect(rows.map((r) => [r.name, r.recorded_by === s.a.userId ? "a" : "b", r.visibility, r.conversation_id])).toEqual([
     ["Uni", "a", "private", null],

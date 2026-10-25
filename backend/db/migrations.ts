@@ -4,6 +4,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Kysely, sql } from "kysely";
 import { Migrator, type Migration } from "kysely/migration";
+import { randomUUID } from "node:crypto";
+import { norm } from "../names";
 
 // The vocabularies of backend/types.ts as they were when this migration was written, checked by the database as well: a write
 // path that forgets to check a value still can't store a bad one.
@@ -163,13 +165,87 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+
+  // Groups you manage: who made one (null when that isn't known, as for groups from before), whether every household starts
+  // with it, and other names that resolve to it, like a person's aliases.
+  "002_groups": {
+    async up(db: Kysely<any>) {
+      await db.schema.alterTable("groups").addColumn("created_by", "text", (c) => c.references("users.id").onDelete("set null")).execute();
+      await db.schema.alterTable("groups").addColumn("created_at", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema.alterTable("groups").addColumn("seeded", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      const t = Date.now();
+      await db.updateTable("groups").set({ created_at: t }).execute();
+      await db.schema
+        .createTable("group_aliases")
+        .addColumn("group_id", "text", (c) => c.notNull().references("groups.id").onDelete("cascade"))
+        .addColumn("alias", "text", (c) => c.notNull())
+        .addColumn("norm", "text", (c) => c.notNull())
+        .addPrimaryKeyConstraint("group_aliases_pk", ["group_id", "norm"])
+        .execute();
+      // Names are compared normalised from now on, so groups whose names differ only in case or spacing ("Uni", " uni") become
+      // one, the oldest row: memberships move over, one row per person and recorder, and shared beats private.
+      const all = await db.selectFrom("groups").select(["id", "name"]).orderBy(sql`rowid`).execute();
+      const kept = new Map<string, string>();
+      for (const g of all) {
+        const keep = kept.get(norm(g.name));
+        if (!keep) {
+          kept.set(norm(g.name), g.id);
+          continue;
+        }
+        for (const m of await db.selectFrom("group_members").selectAll().where("group_id", "=", g.id).execute()) {
+          const there = await db
+            .selectFrom("group_members")
+            .select("visibility")
+            .where("group_id", "=", keep)
+            .where("person_id", "=", m.person_id)
+            .where("recorded_by", "=", m.recorded_by)
+            .executeTakeFirst();
+          if (!there) await db.insertInto("group_members").values({ ...m, group_id: keep }).execute();
+          else if (there.visibility === "private" && m.visibility === "shared")
+            await db
+              .updateTable("group_members")
+              .set({ visibility: "shared" })
+              .where("group_id", "=", keep)
+              .where("person_id", "=", m.person_id)
+              .where("recorded_by", "=", m.recorded_by)
+              .execute();
+        }
+        await db.deleteFrom("groups").where("id", "=", g.id).execute();
+      }
+
+      // A seeded name that a group already has (however it was typed) gives that group the other names instead of a second group.
+      const existing = await db.selectFrom("groups").select(["id", "name"]).execute();
+      for (const g of SEEDED_GROUPS) {
+        let id = existing.find((e) => norm(e.name) === norm(g.name))?.id;
+        if (!id) {
+          id = randomUUID();
+          await db.insertInto("groups").values({ id, name: g.name, created_by: null, created_at: t, seeded: 1 }).execute();
+        } else await db.updateTable("groups").set({ seeded: 1 }).where("id", "=", id).execute();
+        for (const alias of g.aliases)
+          await db.insertInto("group_aliases").values({ group_id: id, alias, norm: norm(alias) }).onConflict((oc) => oc.doNothing()).execute();
+      }
+    },
+  },
 };
+
+/** The groups every household starts with, and their other names. */
+export const SEEDED_GROUPS: readonly { name: string; aliases: string[] }[] = [
+  { name: "Freunde", aliases: ["Freundeskreis"] },
+  { name: "Familie", aliases: ["Verwandte"] },
+  { name: "Arbeit", aliases: ["Kollegen", "Job"] },
+];
 
 /** Every migration's name, in order; the tests check the count the migrator recorded against it, so a new one changes no test. */
 export const MIGRATION_NAMES: readonly string[] = Object.keys(migrations);
 
 // A migration table that names one this code does not have: the database was made by a newer freundebuch.
 export const NEWER = "the database was made by a newer freundebuch than this one; upgrade freundebuch, do not point an older one at it";
+
+/** Migrates up to and including `name`; for tests of a later migration against data an earlier one left. */
+export async function migrateTo(db: Kysely<any>, name: string): Promise<void> {
+  const { error } = await new Migrator({ db, provider: { getMigrations: async () => migrations } }).migrateTo(name);
+  if (error) throw error;
+}
 
 export async function migrate(db: Kysely<any>): Promise<void> {
   const migrator = new Migrator({ db, provider: { getMigrations: async () => migrations } });

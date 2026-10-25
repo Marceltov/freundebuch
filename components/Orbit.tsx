@@ -32,7 +32,7 @@ export function Orbit({ faces }: { faces: OrbitFace[] }) {
         const y = C + RADII[f.ring] * Math.sin(rad);
         const r = faceR(f.ring);
         return (
-          <Link key={f.personId} href={`/p/${f.personId}`} aria-label={f.name}>
+          <Link key={f.personId} href={`/p/${f.personId}`} aria-label={f.name} data-in-group={f.inGroup} style={f.inGroup === false ? { opacity: 0.14 } : undefined}>
             <title>{f.name}</title>
             <circle cx={x} cy={y} r={r} fill={faceColor(f.personId)} opacity={f.ring === 2 ? 0.75 : 1} />
             <text x={x} y={y} dy="0.35em" textAnchor="middle" fontSize={Math.round(r * 0.72)} fontWeight={600} fill="#fff">

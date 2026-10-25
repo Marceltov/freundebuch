@@ -4,6 +4,7 @@
 // user for a shared item, and a private item is only ever visible to its recorder anyway.
 import type { Kysely } from "kysely";
 import { assertDay, isDay, isYearless, notFuture } from "./dates";
+import { moveMembership } from "./groups";
 import { MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED } from "./conversations";
 import { db, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
@@ -345,46 +346,8 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
         .execute();
     await tx.deleteFrom("participants").where("person_id", "=", dropId).execute();
 
-    // Memberships are keyed by (group, person, recorder): keep's own row wins over a moved duplicate, except that shared wins over private.
-    for (const m of await tx.selectFrom("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute()) {
-      const exists = await tx
-        .selectFrom("group_members")
-        .select(["group_id", "visibility"])
-        .where("group_id", "=", m.group_id)
-        .where("recorded_by", "=", m.recorded_by)
-        .where("person_id", "=", keepId)
-        .executeTakeFirst();
-      const dropped = tx
-        .deleteFrom("group_members")
-        .where("group_id", "=", m.group_id)
-        .where("recorded_by", "=", m.recorded_by)
-        .where("person_id", "=", dropId);
-      if (exists) {
-        const theirs = await tx
-          .selectFrom("group_members")
-          .select("visibility")
-          .where("group_id", "=", m.group_id)
-          .where("recorded_by", "=", m.recorded_by)
-          .where("person_id", "=", dropId)
-          .executeTakeFirstOrThrow();
-        if (exists.visibility === "private" && theirs.visibility === "shared")
-          await tx
-            .updateTable("group_members")
-            .set({ visibility: "shared" })
-            .where("group_id", "=", m.group_id)
-            .where("recorded_by", "=", m.recorded_by)
-            .where("person_id", "=", keepId)
-            .execute();
-        await dropped.execute();
-      } else
-        await tx
-          .updateTable("group_members")
-          .set({ person_id: keepId })
-          .where("group_id", "=", m.group_id)
-          .where("recorded_by", "=", m.recorded_by)
-          .where("person_id", "=", dropId)
-          .execute();
-    }
+    for (const m of await tx.selectFrom("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute())
+      await moveMembership(tx, m.recorded_by, { group_id: m.group_id, person_id: dropId }, { group_id: m.group_id, person_id: keepId });
 
     // Settings are per user. The confirmed interval wins; with both or neither confirmed, the smaller one does.
     for (const dropped of await tx.selectFrom("person_settings").selectAll().where("person_id", "=", dropId).execute()) {

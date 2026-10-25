@@ -13,8 +13,9 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   projects: [{ name: "phone", testMatch: "phone.spec.ts", use: { ...devices["Pixel 7"], viewport: { width: 390, height: 844 } } }],
   webServer: {
-    // A fresh database on every start.
-    command: `rm -rf ${DATA_DIR} && next dev -p ${PORT}`,
+    // A fresh database and a fresh dev build on every start: a dev build left from before source edits makes the first pages
+    // reload themselves (Fast Refresh) mid-test.
+    command: `rm -rf ${DATA_DIR} .next/dev && next dev -p ${PORT}`,
     url: `http://localhost:${PORT}/health`,
     reuseExistingServer: false,
     timeout: 120_000,

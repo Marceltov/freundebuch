@@ -1,4 +1,4 @@
-import { briefing, daysBetween, today } from "@/backend";
+import { briefing, daysBetween, listGroups, today } from "@/backend";
 import { FriendPage } from "@/components/FriendPage";
 import { orNotFound, pageViewer } from "../../viewer";
 
@@ -10,7 +10,9 @@ export async function generateMetadata({ params }: PageProps<"/p/[id]">) {
 }
 
 export default async function PersonPage({ params }: PageProps<"/p/[id]">) {
-  const b = await orNotFound(briefing(await pageViewer(), (await params).id));
+  const v = await pageViewer();
+  const b = await orNotFound(briefing(v, (await params).id));
   const seen = b.freshness.lastSeen;
-  return <FriendPage b={b} daysSince={seen ? daysBetween(seen, today()) : null} />;
+  const groups = (await listGroups(v)).map((g) => ({ id: g.id, name: g.name }));
+  return <FriendPage b={b} daysSince={seen ? daysBetween(seen, today()) : null} allGroups={groups} />;
 }

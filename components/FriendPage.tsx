@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ArrowLeftRight, Cake, CalendarDays, Coffee, Gift, Mic, Pin, Repeat, Users } from "lucide-react";
+import { ArrowLeftRight, Cake, CalendarDays, Coffee, Gift, Lock, Mic, Pin, Repeat, Users } from "lucide-react";
 import { anchorId, type Briefing } from "@/backend";
 import { copy, kindName } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { ago, dayMonth, every, shortDay } from "@/components/format";
+import { GroupPicker } from "@/components/GroupPicker";
 import { CATEGORY_ICON, EXCHANGE_ICON, KIND_ICON } from "@/components/icons";
 import { ItemActions } from "@/components/ItemActions";
 import { MiniGraph } from "@/components/MiniGraph";
@@ -11,8 +12,8 @@ import { Chip, Section, Tile } from "@/components/Tiles";
 
 // One friend, as the approved mockup: who (face, freshness ring, chips), what's going on now (tiles), what's open, what happened
 // (the timeline, each entry linking to its conversation), and who they're connected to. Sections without content are left out.
-// `daysSince`: since the viewer last saw them, null for never.
-export function FriendPage({ b, daysSince }: { b: Briefing; daysSince: number | null }) {
+// `daysSince`: since the viewer last saw them, null for never. `allGroups`: every group the viewer sees, for "+ Gruppe".
+export function FriendPage({ b, daysSince, allGroups = [] }: { b: Briefing; daysSince: number | null; allGroups?: { id: string; name: string }[] }) {
   const birthday = b.person.birthday;
   const otherDates = b.nextDates.filter((d) => d.kind !== "birthday");
   const { promises, exchanges, giftIdeas } = b.open;
@@ -44,10 +45,16 @@ export function FriendPage({ b, daysSince }: { b: Briefing; daysSince: number | 
               </Chip>
             ))}
             {b.groups.map((g) => (
-              <Chip key={g} icon={Users} label={copy.group}>
-                {g}
+              <Chip key={g.id} href={g.url} icon={Users} label={copy.group}>
+                {g.name}
+                {g.private && (
+                  <span title={copy.privateItem} className="inline-flex">
+                    <Lock aria-label={copy.privateItem} className="h-3 w-3" />
+                  </span>
+                )}
               </Chip>
             ))}
+            <GroupPicker personId={b.person.id} personName={b.person.name} groups={allGroups} member={b.groups.map((g) => g.id)} />
           </div>
         </div>
       </header>

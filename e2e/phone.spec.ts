@@ -88,6 +88,87 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   await expectNoSideScroll(page);
 });
 
+test("groups: tick them on the friend page, open the group's page", async ({ page, baseURL }) => {
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: { date: today, kind: "call", summary: "Anruf mit Jonas.", transcript: "Anruf mit Jonas Keller.", visibility: "shared", people: [{ name: "Jonas Keller", present: true }] },
+  });
+  const jonas = (await recorded.json()).people[0].id;
+  await page.goto(`/p/${jonas}`);
+  await page.getByRole("button", { name: "Gruppen bearbeiten" }).click();
+  const sheet = page.getByRole("dialog", { name: "Gruppen für Jonas Keller" });
+  await sheet.getByRole("checkbox", { name: "Familie" }).check();
+  // Another name of a group ticks that group instead of making a new one.
+  await sheet.getByLabel("Neue Gruppe").fill("kollegen");
+  await sheet.getByLabel("Neue Gruppe").press("Enter");
+  await expect(sheet.getByRole("checkbox", { name: "Arbeit" })).toBeChecked();
+  await expectNoSideScroll(page);
+  await sheet.getByRole("button", { name: "Fertig" }).click();
+
+  await page.getByRole("link", { name: /Arbeit/ }).click();
+  await expect(page.getByRole("heading", { name: "Arbeit" })).toBeVisible();
+  await expect(page.getByText("auch: Job, Kollegen")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Jonas Keller/ })).toBeVisible();
+  await expectNoSideScroll(page);
+
+  // The start page filtered by the group: Jonas stays, the chip says which filter is on, and the phone remembers it.
+  await page.goto("/");
+  await page.getByRole("link", { name: /^Arbeit/ }).click();
+  await expect(page.getByRole("link", { name: /^Arbeit/ })).toHaveAttribute("aria-current", "true");
+  await expect(page.locator('[data-in-group="true"]', { hasText: "JK" })).toBeVisible();
+  await page.goto("/");
+  await expect(page).toHaveURL(/gruppe=/);
+  // Choosing the active group again clears the filter.
+  await page.getByRole("link", { name: /^Arbeit/ }).click();
+  await expect(page).not.toHaveURL(/gruppe=/);
+  await expect(page.getByRole("link", { name: "Alle" })).toHaveAttribute("aria-current", "true");
+  await expectNoSideScroll(page);
+});
+
+test("groups in settings: another name, rename, merge, delete", async ({ page, baseURL }) => {
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: { date: today, kind: "call", summary: "Anruf mit Mira.", transcript: "Anruf mit Mira Schulz.", visibility: "shared", people: [{ name: "Mira Schulz", present: true }] },
+  });
+  const mira = (await recorded.json()).people[0].id;
+  await page.goto("/einstellungen");
+  const freunde = page.getByRole("group", { name: "Freunde" });
+  await freunde.getByLabel("Anderer Name").fill("Kumpels");
+  await freunde.getByLabel("Anderer Name").press("Enter");
+  await expect(freunde.getByText("Kumpels")).toBeVisible();
+  // A name another group already has is refused, in German.
+  await freunde.getByLabel("Anderer Name").fill("Kollegen");
+  await freunde.getByLabel("Anderer Name").press("Enter");
+  await expect(freunde.getByRole("alert")).toHaveText("Diesen Namen hat schon eine andere Gruppe. Führe die beiden zusammen.");
+  await expectNoSideScroll(page);
+
+  // The other name now finds Freunde from the friend page.
+  await page.goto(`/p/${mira}`);
+  await page.getByRole("button", { name: "Gruppen bearbeiten" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByLabel("Neue Gruppe").fill("kumpels");
+  await sheet.getByLabel("Neue Gruppe").press("Enter");
+  await expect(sheet.getByRole("checkbox", { name: "Freunde" })).toBeChecked();
+  await sheet.getByRole("button", { name: "Fertig" }).click();
+
+  // Rename Familie, then merge Arbeit into it, then delete it.
+  await page.goto("/einstellungen");
+  const familie = page.getByRole("group", { name: "Familie" });
+  await familie.getByRole("button", { name: "Umbenennen" }).click();
+  await familie.getByLabel("Name", { exact: true }).fill("Verwandtschaft");
+  await familie.getByLabel("Name", { exact: true }).press("Enter");
+  const renamed = page.getByRole("group", { name: "Verwandtschaft" });
+  await expect(renamed.getByText("Familie")).toBeVisible();
+  await renamed.getByLabel("Andere Gruppe hierher übernehmen …").selectOption({ label: "Arbeit" });
+  await renamed.getByRole("button", { name: "Übernehmen" }).click();
+  await renamed.getByRole("button", { name: "Arbeit wird Teil von Verwandtschaft. Sicher?" }).click();
+  await expect(page.getByRole("group", { name: "Arbeit" })).toHaveCount(0);
+  await expect(renamed.getByText("Kollegen")).toBeVisible();
+  await renamed.getByRole("button", { name: "Löschen" }).click();
+  await renamed.getByRole("button", { name: "Wirklich löschen?" }).click();
+  await expect(page.getByRole("group", { name: "Verwandtschaft" })).toHaveCount(0);
+});
+
 test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await page.getByRole("link", { name: "Einstellungen" }).click();
   await expect(page.getByLabel("Webhook für Erinnerungen")).toBeVisible();

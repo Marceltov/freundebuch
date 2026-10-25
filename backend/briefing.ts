@@ -6,7 +6,7 @@ import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "./intervals";
 import { getPerson } from "./people";
 import type { ExchangeKind, FactCategory, RelationshipType, Viewer, Visibility } from "./types";
-import { conversationPath, itemPath, personPath } from "./urls";
+import { conversationPath, groupPath, itemPath, personPath } from "./urls";
 import { visible } from "./visibility";
 
 const NEXT_DATES_DAYS = 60;
@@ -21,8 +21,8 @@ export type Birthday = { id: string; date: string; next: string; age: number | n
 export type Briefing = {
   /** `birthday` however far away it is; the viewer's own record of it wins over the partner's shared one. */
   person: { id: string; name: string; aliases: string[]; url: string; birthday: Birthday | null };
-  /** The names of the groups the viewer may see the person in, each once. */
-  groups: string[];
+  /** The groups the viewer may see the person in, each once. `private`: the viewer's own private membership is the only one they see. */
+  groups: Array<{ id: string; name: string; url: string; private: boolean }>;
   freshness: Freshness;
   nextDates: UpcomingDate[];
   current: Array<Own & { id: string; text: string; category: FactCategory; url: string }>;
@@ -71,8 +71,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     d
       .selectFrom("group_members")
       .innerJoin("groups", "groups.id", "group_members.group_id")
-      .select("groups.name")
-      .distinct()
+      .select(["groups.id", "groups.name", "group_members.visibility"])
       .where("group_members.person_id", "=", personId)
       .$call((qb) => visible(qb, v, "group_members"))
       .orderBy("groups.name")
@@ -104,7 +103,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
   return {
     person: { id: person.id, name: person.name, aliases: person.aliases, url: page, birthday: bday ? { id: bday.id, date: bday.date, next, age: ageOn(bday.date, next) } : null },
-    groups: groups.map((g) => g.name),
+    groups: [...new Map(groups.map((g) => [g.id, g])).values()].map((g) => ({ id: g.id, name: g.name, url: groupPath(g.id), private: groups.every((x) => x.id !== g.id || x.visibility === "private") })),
     freshness: fresh,
     nextDates,
     current: facts.map((f) => ({ id: f.id, text: f.text, category: f.category as FactCategory, url: itemPath(page, "facts", f.id), ...own(f) })),
