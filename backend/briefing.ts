@@ -6,7 +6,7 @@ import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "./intervals";
 import { getPerson } from "./people";
 import type { ExchangeKind, FactCategory, RelationshipType, Viewer, Visibility } from "./types";
-import { conversationPath, groupPath, itemPath, personPath } from "./urls";
+import { conversationPath, groupPath, itemPath, personPath, screenshotPath } from "./urls";
 import { visible } from "./visibility";
 
 const NEXT_DATES_DAYS = 60;
@@ -25,7 +25,9 @@ export type Briefing = {
   groups: Array<{ id: string; name: string; url: string; private: boolean }>;
   freshness: Freshness;
   nextDates: UpcomingDate[];
-  current: Array<Own & { id: string; text: string; category: FactCategory; url: string }>;
+  /** `source`, `happenedOn` and `imageUrl` for a fact read from a shared screenshot: where it was posted, when it happened
+   * (when known), and the screenshot. */
+  current: Array<Own & { id: string; text: string; category: FactCategory; url: string; source?: string; happenedOn?: string; imageUrl?: string }>;
   open: {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
     promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null; url: string }>;
@@ -35,7 +37,7 @@ export type Briefing = {
   };
   recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[]; url: string }>;
   /** `direction` is `out` when the person is the `from` side of the relationship (see `RelationshipType`), `in` otherwise. */
-  relationships: Array<{ personId: string; name: string; type: RelationshipType; direction: "out" | "in"; url: string }>;
+  relationships: Array<Own & { id: string; personId: string; name: string; type: RelationshipType; note: string | null; direction: "out" | "in"; url: string }>;
   /** Only while the interval isn't confirmed, and only when the history is long enough to suggest one. */
   suggestedInterval?: number;
 };
@@ -106,7 +108,16 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     groups: [...new Map(groups.map((g) => [g.id, g])).values()].map((g) => ({ id: g.id, name: g.name, url: groupPath(g.id), private: groups.every((x) => x.id !== g.id || x.visibility === "private") })),
     freshness: fresh,
     nextDates,
-    current: facts.map((f) => ({ id: f.id, text: f.text, category: f.category as FactCategory, url: itemPath(page, "facts", f.id), ...own(f) })),
+    current: facts.map((f) => ({
+      id: f.id,
+      text: f.text,
+      category: f.category as FactCategory,
+      url: itemPath(page, "facts", f.id),
+      ...(f.source ? { source: f.source } : {}),
+      ...(f.happened_on ? { happenedOn: f.happened_on } : {}),
+      ...(f.screenshot_id ? { imageUrl: screenshotPath(f.screenshot_id) } : {}),
+      ...own(f),
+    })),
     open: {
       promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),
       exchanges: exchanges
@@ -118,7 +129,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     relationships: rels.map((r) => {
       const out = r.from_id === personId;
       const other = out ? r.to_id : r.from_id;
-      return { personId: other, name: names.get(other) ?? "", type: r.type as RelationshipType, direction: out ? "out" : "in", url: personPath(other) };
+      return { id: r.id, personId: other, name: names.get(other) ?? "", type: r.type as RelationshipType, note: r.note, direction: out ? "out" : "in", url: personPath(other), ...own(r) };
     }),
     ...(suggested !== null ? { suggestedInterval: suggested } : {}),
   };

@@ -17,7 +17,7 @@ const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] 
   { href: "/bald", label: copy.tabSoon, icon: CalendarHeart, also: [] },
 ];
 
-export function TabBar({ chat = null }: { chat?: { userId: string } | null }) {
+export function TabBar({ chat = null }: { chat?: { userId: string; sharing: boolean } | null }) {
   const path = usePathname();
   const [talking, setTalking] = useState(false);
   const tellButton = useRef<HTMLButtonElement>(null);
@@ -66,7 +66,7 @@ export function TabBar({ chat = null }: { chat?: { userId: string } | null }) {
           ];
         })}
       </ul>
-      {talking && chat && <ChatSheet userId={chat.userId} onClose={closeChat} />}
+      {talking && chat && <ChatSheet userId={chat.userId} sharing={chat.sharing} onClose={closeChat} />}
     </nav>
   );
 }

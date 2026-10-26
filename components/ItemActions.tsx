@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { copy } from "@/components/copy";
 
-type Table = "facts" | "promises" | "exchanges" | "conversations";
+type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversations";
 
 // What can be done to one item, behind a "…" button that opens a small menu over the page, each action with its icon and its
 // name: mark it done (a promise, an exchange or a gift idea) or outdated (a fact), which either user may; and edit its text,
 // change its date, make it private or shared, or delete it, which only its recorder may (`mine`; the server checks again).
 // Editing opens a sheet from the bottom, so the row or header it belongs to keeps its layout. Deleting asks once more in the
 // menu itself. Each goes to PATCH or DELETE /api/v1/items/{table}/{id}, then the page reloads its data.
-// `field`: what "edit" changes (`text`, or `summary` for a conversation). `after`: where to go once it is deleted. `date` (a
+// `field`: what "edit" changes (`text`, `summary` for a conversation, `note` for a relationship). `after`: where to go once it is deleted. `date` (a
 // conversation's day) adds "change the date", up to `today` (the server's, in the configured time zone).
 export function ItemActions({
   table,
@@ -30,7 +30,7 @@ export function ItemActions({
   mine: boolean;
   visibility: "shared" | "private";
   text: string;
-  field?: "text" | "summary";
+  field?: "text" | "summary" | "note";
   after?: string;
   date?: string;
   today?: string;

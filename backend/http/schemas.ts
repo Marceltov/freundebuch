@@ -76,7 +76,18 @@ export const BriefingJson = z
     groups: z.array(z.object({ id: z.string(), name: z.string(), url: Url, private: z.boolean().describe("Whether the caller's own private membership is the only one they see") })).describe("The groups the caller may see the person in, each once"),
     freshness: Freshness,
     nextDates: z.array(UpcomingDate),
-    current: z.array(z.object({ id: z.string(), text: z.string(), category: z.enum(FACT_CATEGORIES), url: ItemUrl, ...Own })),
+    current: z.array(
+      z.object({
+        id: z.string(),
+        text: z.string(),
+        category: z.enum(FACT_CATEGORIES),
+        url: ItemUrl,
+        source: z.string().optional().describe("Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot"),
+        happenedOn: Day.optional().describe("When it happened, when the screenshot showed it"),
+        imageUrl: Url.optional().describe("The screenshot it was read from (sign-in required)"),
+        ...Own,
+      }),
+    ),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
@@ -97,9 +108,12 @@ export const BriefingJson = z
     recent: z.array(z.object({ id: z.string(), date: Day, kind: z.string(), summary: z.string(), withOthers: z.array(z.string()), url: Url })),
     relationships: z.array(
       z.object({
+        id: z.string().describe("The relationship's id, for correct/the items operations (table `relationships`)"),
         personId: PersonId,
         name: z.string(),
         type: z.enum(RELATIONSHIP_TYPES),
+        note: z.string().nullable().describe("What the relationship is, in words, above all for `other` (\"Patentante\")"),
+        ...Own,
         direction: z.enum(["out", "in"]).describe("`out` when the person is the `from` side of the relationship"),
         url: Url.describe("The other person's page, as an absolute URL"),
       }),
@@ -298,7 +312,43 @@ export const SettingsJson = z
 
 export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
 
-export const COMPONENTS = [PersonNameJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+const Candidate = z.object({ id: z.string(), name: Name, url: Url });
+export const PendingScreenshotListJson = z
+  .array(
+    z.object({
+      id: z.string(),
+      status: z.enum(["reading", "pending", "failed"]).describe("`reading`: Claude is on it; `pending`: waits for the caller to decide; `failed`: couldn't be read (retry or discard)"),
+      createdAt: z.number().int().describe("When it was shared, ms since the epoch"),
+      imageUrl: Url.describe("The screenshot (sign-in required)"),
+      reading: z
+        .object({
+          kind: z.enum(["post", "nothing"]),
+          platform: z.string().nullable(),
+          text: z.string(),
+          category: z.enum(FACT_CATEGORIES),
+          happenedOn: Day.nullable(),
+          sensitive: z.boolean(),
+          people: z.array(z.object({ name: z.string(), handle: z.string().optional(), person: Candidate.nullable(), candidates: z.array(Candidate) })),
+        })
+        .nullable()
+        .describe("What Claude read; null while reading or when it failed"),
+    }),
+  )
+  .meta({ id: "PendingScreenshotList" });
+
+export const ResolutionJson = z
+  .object({
+    personId: z.string().optional().describe("The person it is about"),
+    name: z.string().optional().describe("Or the name of a new person"),
+    text: z.string().optional().describe("Replaces what Claude read"),
+    visibility: z.enum(VISIBILITIES).optional().describe("Default shared"),
+  })
+  .meta({ id: "Resolution" });
+
+export const ResolvedJson = z.object({ factId: z.string(), personId: z.string(), url: ItemUrl }).meta({ id: "Resolved" });
+export const ShareKeyJson = z.object({ key: z.string().describe("The share key; shown only now. Send it as `Authorization: Bearer <key>` to /api/share") }).meta({ id: "ShareKey" });
+
+export const COMPONENTS = [PendingScreenshotListJson, ResolutionJson, ResolvedJson, ShareKeyJson, PersonNameJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

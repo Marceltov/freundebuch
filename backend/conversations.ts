@@ -206,11 +206,40 @@ export function checkGroup<P>(g: { name: string; members: P[] }, ref: (p: P) => 
 /** Who recorded an item, when, and with which conversation (null for one set directly). */
 export type ItemBase = { recorded_by: string; conversation_id: string | null; created_at: number };
 
+const SYMMETRIC: ReadonlySet<string> = new Set(["partner", "spouse", "sibling", "friend", "colleague", "other"]);
+
+/** The same for every way of writing one relationship: parent A→B is child B→A, a symmetric one reads both ways. */
+export function relationshipKey(fromId: string, toId: string, type: string): string {
+  if (type === "child") return `parent:${toId}:${fromId}`;
+  if (SYMMETRIC.has(type)) return `${type}:${[fromId, toId].sort().join(":")}`;
+  return `${type}:${fromId}:${toId}`;
+}
+
+const sameNote = (a: string | null | undefined, b: string | null | undefined) => !a?.trim() || !b?.trim() || a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * Records a relationship, unless the recorder already sees the same one (theirs, or a shared one): then that one's id comes
+ * back, and it takes the note if it had none and is the recorder's. Two `other` relationships are the same only when their
+ * notes agree; for the rest the type says what they are.
+ */
 export async function insertRelationship(
   tx: Kysely<Schema>,
   base: ItemBase,
   r: { fromId: string; toId: string; type: RelationshipType; note?: string; visibility: Visibility },
 ): Promise<string> {
+  const key = relationshipKey(r.fromId, r.toId, r.type);
+  const known = await tx
+    .selectFrom("relationships")
+    .select(["id", "from_id", "to_id", "type", "note", "recorded_by"])
+    .where((eb) => eb.or([eb.and([eb("from_id", "=", r.fromId), eb("to_id", "=", r.toId)]), eb.and([eb("from_id", "=", r.toId), eb("to_id", "=", r.fromId)])]))
+    .where((eb) => eb.or([eb("recorded_by", "=", base.recorded_by), eb("visibility", "=", "shared")]))
+    .orderBy("created_at")
+    .execute();
+  const same = known.find((k) => relationshipKey(k.from_id, k.to_id, k.type) === key && (r.type !== "other" || sameNote(k.note, r.note)));
+  if (same) {
+    if (!same.note?.trim() && r.note?.trim() && same.recorded_by === base.recorded_by) await tx.updateTable("relationships").set({ note: r.note }).where("id", "=", same.id).execute();
+    return same.id;
+  }
   const id = newId();
   await tx.insertInto("relationships").values({ ...base, id, from_id: r.fromId, to_id: r.toId, type: r.type, note: r.note ?? null, visibility: r.visibility }).execute();
   return id;

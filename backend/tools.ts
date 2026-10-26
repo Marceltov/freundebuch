@@ -321,7 +321,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "briefing",
     description:
-      "Everything worth knowing about a person: when the user last saw them, recent conversations, current facts, open promises and exchanges, gift ideas, upcoming dates and relationships. Use it before the user meets someone, or when they ask about a person.",
+      "Everything worth knowing about a person: when the user last saw them, recent conversations, current facts, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`: say where and when you know it from. Each relationship has its id and note, so a wrong or doubled one can be fixed with correct (table `relationships`). Use it before the user meets someone, or when they ask about a person.",
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },

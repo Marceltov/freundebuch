@@ -20,7 +20,7 @@ test("A's briefing on Anna holds everything, B's only the shared part", async ()
   const a = await briefing(s.a, s.anna, "2026-10-23");
   expect(a.person).toEqual({ id: s.anna, name: "Anna", aliases: [], url: `/p/${s.anna}`, birthday: null });
   expect(a.current.map((f) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
-  expect(a.relationships).toEqual([{ personId: s.tom, name: "Tom", type: "partner", direction: "out", url: `/p/${s.tom}` }]);
+  expect(a.relationships).toEqual([{ id: expect.any(String), personId: s.tom, name: "Tom", type: "partner", note: null, direction: "out", url: `/p/${s.tom}`, visibility: "private", mine: true }]);
   expect(a.freshness).toEqual({ lastSeen: "2026-10-20", intervalDays: null, ratio: null });
   const b = await briefing(s.b, s.anna, "2026-10-23");
   expect(b.current.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);

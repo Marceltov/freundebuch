@@ -1653,6 +1653,313 @@
         }
       }
     },
+    "/api/v1/screenshots": {
+      "get": {
+        "operationId": "listPendingScreenshots",
+        "summary": "The caller's shared screenshots that wait for them",
+        "description": "Being read, waiting for a decision, or failed; newest first. Only the caller's own: the other user's never show.",
+        "tags": [
+          "Screenshots"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Waiting screenshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingScreenshotList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/screenshots/{id}/resolve": {
+      "post": {
+        "operationId": "resolveScreenshot",
+        "summary": "File a waiting screenshot on a person",
+        "description": "Give `personId` or the `name` of a new person. The handle Claude read becomes one of the person's other names.",
+        "tags": [
+          "Screenshots"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Resolution"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Filed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resolved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/screenshots/{id}/retry": {
+      "post": {
+        "operationId": "retryScreenshot",
+        "summary": "Read a failed screenshot again",
+        "tags": [
+          "Screenshots"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/screenshots/{id}": {
+      "delete": {
+        "operationId": "discardScreenshot",
+        "summary": "Throw a waiting screenshot away",
+        "tags": [
+          "Screenshots"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/share-key": {
+      "post": {
+        "operationId": "createShareKey",
+        "summary": "A new share key for the iPhone Shortcut",
+        "description": "The key can only hand in screenshots (POST /api/share). A new one replaces the old one.",
+        "tags": [
+          "Screenshots"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareKey"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeShareKey",
+        "summary": "Turn the caller's share key off",
+        "tags": [
+          "Screenshots"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/openapi.json": {
       "get": {
         "operationId": "getOpenApi",
@@ -1700,6 +2007,235 @@
   },
   "components": {
     "schemas": {
+      "PendingScreenshotList": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "reading",
+                "pending",
+                "failed"
+              ],
+              "description": "`reading`: Claude is on it; `pending`: waits for the caller to decide; `failed`: couldn't be read (retry or discard)"
+            },
+            "createdAt": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "When it was shared, ms since the epoch"
+            },
+            "imageUrl": {
+              "type": "string",
+              "description": "The screenshot (sign-in required)"
+            },
+            "reading": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "post",
+                        "nothing"
+                      ]
+                    },
+                    "platform": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "work",
+                        "home",
+                        "family",
+                        "health",
+                        "hobby",
+                        "travel",
+                        "other"
+                      ]
+                    },
+                    "happenedOn": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "A day, `YYYY-MM-DD`"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "sensitive": {
+                      "type": "boolean"
+                    },
+                    "people": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "handle": {
+                            "type": "string"
+                          },
+                          "person": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "description": "The name of the person it is about"
+                                  },
+                                  "url": {
+                                    "type": "string",
+                                    "description": "Where it opens in the web app, as an absolute URL"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "url"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "candidates": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "description": "The name of the person it is about"
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "description": "Where it opens in the web app, as an absolute URL"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "url"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "person",
+                          "candidates"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "platform",
+                    "text",
+                    "category",
+                    "happenedOn",
+                    "sensitive",
+                    "people"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "What Claude read; null while reading or when it failed"
+            }
+          },
+          "required": [
+            "id",
+            "status",
+            "createdAt",
+            "imageUrl",
+            "reading"
+          ]
+        }
+      },
+      "Resolution": {
+        "type": "object",
+        "properties": {
+          "personId": {
+            "description": "The person it is about",
+            "type": "string"
+          },
+          "name": {
+            "description": "Or the name of a new person",
+            "type": "string"
+          },
+          "text": {
+            "description": "Replaces what Claude read",
+            "type": "string"
+          },
+          "visibility": {
+            "description": "Default shared",
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ]
+          }
+        }
+      },
+      "Resolved": {
+        "type": "object",
+        "properties": {
+          "factId": {
+            "type": "string"
+          },
+          "personId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+          }
+        },
+        "required": [
+          "factId",
+          "personId",
+          "url"
+        ]
+      },
+      "ShareKey": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The share key; shown only now. Send it as `Authorization: Bearer <key>` to /api/share"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
       "PersonName": {
         "type": "object",
         "properties": {
@@ -2197,6 +2733,18 @@
                   "type": "string",
                   "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                 },
+                "source": {
+                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                  "type": "string"
+                },
+                "happenedOn": {
+                  "description": "When it happened, when the screenshot showed it",
+                  "type": "string"
+                },
+                "imageUrl": {
+                  "description": "The screenshot it was read from (sign-in required)",
+                  "type": "string"
+                },
                 "visibility": {
                   "type": "string",
                   "enum": [
@@ -2439,6 +2987,10 @@
             "items": {
               "type": "object",
               "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The relationship's id, for correct/the items operations (table `relationships`)"
+                },
                 "personId": {
                   "type": "string",
                   "description": "A person's id"
@@ -2460,6 +3012,25 @@
                     "other"
                   ]
                 },
+                "note": {
+                  "description": "What the relationship is, in words, above all for `other` (\"Patentante\")",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                },
                 "direction": {
                   "type": "string",
                   "enum": [
@@ -2474,9 +3045,13 @@
                 }
               },
               "required": [
+                "id",
                 "personId",
                 "name",
                 "type",
+                "note",
+                "visibility",
+                "mine",
                 "direction",
                 "url"
               ]

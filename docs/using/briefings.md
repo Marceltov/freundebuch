@@ -10,7 +10,7 @@ The briefing has:
 
 - when **you** last saw her (your partner's meetings don't count for you),
 - the most recent conversations with their summaries,
-- current facts (outdated ones are left out),
+- current facts (outdated ones are left out), including what you [shared from social media](sharing.md), with where and when it was posted,
 - open promises, both yours and hers,
 - gift ideas and other open exchanges,
 - upcoming dates such as her birthday,

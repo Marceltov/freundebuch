@@ -6,13 +6,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import * as z from "zod";
 import { config } from "./config";
 import { getConversation } from "./conversations";
-import { db } from "./db";
 import { today } from "./dates";
 import { FreundebuchError } from "./errors";
 import { logger } from "./log";
 import { INSTRUCTIONS } from "./mcp";
 import { getPerson } from "./people";
 import { TOOLS, toolByName } from "./tools";
+import { spend } from "./usage";
 import type { Viewer } from "./types";
 
 const log = logger("chat");
@@ -72,21 +72,6 @@ function recent(turns: ChatTurn[]): ChatTurn[] {
   const last = turns.slice(-MAX_TURNS);
   const first = last.findIndex((t) => t.role === "user");
   return first < 0 ? [] : last.slice(first);
-}
-
-/** Counts this message against the user's daily limit; false when it is used up. One conditional UPDATE, so messages sent at
- * the same moment can't both slip past the last free one. */
-async function spend(v: Viewer, day: string): Promise<boolean> {
-  const d = await db();
-  await d.insertInto("chat_usage").values({ user_id: v.userId, day, count: 0 }).onConflict((oc) => oc.doNothing()).execute();
-  const r = await d
-    .updateTable("chat_usage")
-    .set((eb) => ({ count: eb("count", "+", 1) }))
-    .where("user_id", "=", v.userId)
-    .where("day", "=", day)
-    .where("count", "<", config.chatDailyLimit())
-    .executeTakeFirst();
-  return Number(r.numUpdatedRows) === 1;
 }
 
 async function situation(v: Viewer, context: ChatContext, day: string): Promise<string> {

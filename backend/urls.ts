@@ -21,16 +21,17 @@ export type AnchoredTable = "facts" | "promises" | "dates" | "exchanges" | "rela
 export const personPath = (id: string) => `/p/${id}`;
 export const conversationPath = (id: string) => `/c/${id}`;
 export const groupPath = (id: string) => `/g/${id}`;
+export const screenshotPath = (id: string) => `/api/screenshots/${id}`;
 /** The element id of an item's row on a page; a link ending in `#` + this scrolls to the row and highlights it. */
 export const anchorId = (table: AnchoredTable, id: string) => `${table}-${id}`;
 export const itemPath = (page: string, table: AnchoredTable, id: string) => `${page}#${anchorId(table, id)}`;
 
-/** A copy of `body` with every `url` that is a path prefixed with `base`. */
+/** A copy of `body` with every `url` (and `imageUrl`) that is a path prefixed with `base`. */
 export function absoluteUrls<T>(base: string, body: T): T {
   const walk = (x: unknown): unknown => {
     if (Array.isArray(x)) return x.map(walk);
     if (x === null || typeof x !== "object") return x;
-    return Object.fromEntries(Object.entries(x).map(([k, val]) => [k, k === "url" && typeof val === "string" && val.startsWith("/") ? base + val : walk(val)]));
+    return Object.fromEntries(Object.entries(x).map(([k, val]) => [k, (k === "url" || k === "imageUrl") && typeof val === "string" && val.startsWith("/") ? base + val : walk(val)]));
   };
   return walk(body) as T;
 }

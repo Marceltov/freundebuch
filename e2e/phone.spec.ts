@@ -212,6 +212,19 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
   await expect(page).toHaveURL(new RegExp(`/p/${kai}#facts-`));
   await expect(page.locator(":target")).toHaveText(/Läuft einen Marathon/);
 
+  // Gehört zu: a relationship gets a note, and a wrong one goes through its menu.
+  const uwe = page.locator("li", { has: page.getByRole("link", { name: /Uwe Roth/ }) });
+  await uwe.getByRole("button", { name: "Aktionen" }).click();
+  await uwe.getByRole("button", { name: "Bearbeiten" }).click();
+  await page.getByRole("dialog", { name: "Bearbeiten" }).getByRole("textbox").fill("vom Bau");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(uwe).toContainText("Kolleg:in · vom Bau");
+  await uwe.getByRole("button", { name: "Aktionen" }).click();
+  await uwe.getByRole("button", { name: "Löschen" }).click();
+  await uwe.getByRole("button", { name: "Wirklich löschen?" }).click();
+  await expect(page.getByRole("link", { name: /Uwe Roth/ })).toHaveCount(0);
+  await expect(page.locator("li", { has: page.getByRole("link", { name: /Lea Brandt/ }) })).toContainText("Geschwister");
+
   const nav = page.getByRole("navigation", { name: "Hauptmenü" });
   // Leute: anyone, by name or part of it.
   await nav.getByRole("link", { name: "Leute" }).click();
@@ -343,4 +356,52 @@ test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await expect(page.getByLabel("Webhook für Erinnerungen")).toBeVisible();
   await expect(page.getByText(/\/mcp$/)).toBeVisible();
   await expectNoSideScroll(page);
+});
+
+test("a screenshot added in Erzählen waits under Zu prüfen, is filed on a new person and shows on their page", async ({ page }) => {
+  const sharp = (await import("sharp")).default;
+  const png = await sharp({ create: { width: 300, height: 600, channels: 3, background: { r: 1, g: 120, b: 200 } } }).png().toBuffer();
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  const sheet = page.getByRole("dialog", { name: "Erzählen" });
+  await expect(sheet.getByRole("button", { name: "Screenshot hinzufügen" })).toBeVisible();
+  await sheet.locator('input[type="file"]').setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png });
+  await expect(sheet.getByRole("status")).toContainText("Danke! freundebuch liest den Screenshot.");
+  await sheet.getByRole("button", { name: "Schließen" }).click();
+
+  // The stand-in model is never sure: the badge appears once it has read the screenshot.
+  await expect(async () => {
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "1 zu prüfen" })).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  await page.getByRole("link", { name: "1 zu prüfen" }).click();
+  await expect(page).toHaveURL("/pruefen");
+  await expect(page.getByRole("textbox").first()).toHaveValue("Urlaub in Lissabon");
+  await expectNoSideScroll(page);
+  await page.getByRole("button", { name: "Neu anlegen: Anna Reise" }).click();
+  await page.getByRole("button", { name: "Bei Anna Reise ablegen" }).click();
+  await expect(page.getByText("Nichts zu prüfen.")).toBeVisible();
+
+  const people = await (await page.request.get("/api/v1/people?q=Anna Reise")).json();
+  await page.goto(new URL(people[0].url).pathname);
+  await expect(page.getByText("Urlaub in Lissabon")).toBeVisible();
+  await expect(page.getByText(/· Instagram/)).toBeVisible();
+  await expect(page.getByRole("img", { name: "Screenshot" })).toBeVisible();
+  // the handle is one of her other names now
+  expect(people[0].aliases).toContain("anna.reist");
+});
+
+test("settings make a share key, and the key hands in a screenshot", async ({ page, baseURL }) => {
+  await page.goto("/einstellungen");
+  await expect(page.getByRole("heading", { name: "Screenshots teilen" })).toBeVisible();
+  await expect(page.getByText(/\/api\/share$/)).toBeVisible();
+  await page.getByRole("button", { name: /Schlüssel erzeugen/ }).click();
+  const key = (await page.getByText(/^fbs_/).textContent())!;
+  await expectNoSideScroll(page);
+
+  const sharp = (await import("sharp")).default;
+  const img = await sharp({ create: { width: 200, height: 400, channels: 3, background: { r: 9, g: 9, b: 9 } } }).png().toBuffer();
+  const res = await fetch(`${baseURL}/api/share`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "image/png" }, body: img });
+  expect(res.status).toBe(202);
+  expect((await res.json()).message).toBe("Danke! freundebuch liest den Screenshot.");
 });

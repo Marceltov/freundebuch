@@ -37,3 +37,27 @@ test("group memberships without a conversation; adding the same one again is a n
   await expect(addToGroup(s.a, { name: " ", members: [s.anna], visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
   await expect(addToGroup(s.a, { name: "Uni", members: ["nope"], visibility: "shared" })).rejects.toBeInstanceOf(NotFoundError);
 });
+
+test("the same relationship again is not recorded twice, however it is written", async () => {
+  const { id } = await addRelationship(s.a, { from: s.anna, to: s.lena, type: "other", visibility: "shared" });
+  expect(await addRelationship(s.a, { from: s.lena, to: s.anna, type: "other", note: "Patentante", visibility: "shared" })).toEqual({ id });
+  expect(await addRelationship(s.a, { from: s.anna, to: s.lena, type: "other", note: "patentante ", visibility: "shared" })).toEqual({ id });
+  // the note it lacked is taken over; another note is another relationship
+  expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", id).executeTakeFirstOrThrow()).note).toBe("Patentante");
+  expect(await addRelationship(s.a, { from: s.anna, to: s.lena, type: "other", note: "Nachbarin", visibility: "shared" })).not.toEqual({ id });
+
+  const parent = await addRelationship(s.a, { from: s.anna, to: s.tom, type: "parent", visibility: "shared" });
+  expect(await addRelationship(s.a, { from: s.tom, to: s.anna, type: "child", visibility: "shared" })).toEqual(parent);
+  expect(await addRelationship(s.a, { from: s.tom, to: s.anna, type: "parent", visibility: "shared" })).not.toEqual(parent);
+  const friends = await addRelationship(s.a, { from: s.anna, to: s.tom, type: "friend", visibility: "shared" });
+  expect(await addRelationship(s.a, { from: s.tom, to: s.anna, type: "friend", visibility: "shared" })).toEqual(friends);
+});
+
+test("a shared relationship of the partner counts; a private one doesn't, and isn't touched", async () => {
+  const shared = await addRelationship(s.b, { from: s.anna, to: s.lena, type: "sibling", visibility: "shared" });
+  expect(await addRelationship(s.a, { from: s.lena, to: s.anna, type: "sibling", note: "Zwilling", visibility: "shared" })).toEqual(shared);
+  expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", shared.id).executeTakeFirstOrThrow()).note).toBeNull();
+
+  const secret = await addRelationship(s.b, { from: s.anna, to: s.tom, type: "partner", visibility: "private" });
+  expect(await addRelationship(s.a, { from: s.anna, to: s.tom, type: "partner", visibility: "shared" })).not.toEqual(secret);
+});

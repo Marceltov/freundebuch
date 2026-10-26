@@ -239,6 +239,64 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+
+  // Screenshots of social media posts that a user shared in (screenshots.ts). The image itself is in the blob store under
+  // `screenshots/<id>.webp`. `reading` is what Claude read from it, as JSON, once it has. The same image shared twice by one
+  // user (same sha256) is one row. A fact filed from a screenshot names it, with where it was posted and when it happened.
+  // `share_key_hash`: the sha256 of the user's share key, the credential of the iPhone Shortcut; null when they have none.
+  "004_screenshots": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("screenshots")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("sha256", "text", (c) => c.notNull())
+        .addColumn("status", "text", (c) => c.notNull().check(oneOf("status", ["reading", "pending", "filed", "nothing", "failed"])))
+        .addColumn("reading", "text")
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .addUniqueConstraint("screenshots_user_sha", ["user_id", "sha256"])
+        .execute();
+      await db.schema.alterTable("facts").addColumn("source", "text").execute();
+      await db.schema.alterTable("facts").addColumn("happened_on", "text").execute();
+      await db.schema
+        .alterTable("facts")
+        .addColumn("screenshot_id", "text", (c) => c.references("screenshots.id").onDelete("set null"))
+        .execute();
+      await db.schema.alterTable("user_settings").addColumn("share_key_hash", "text").execute();
+      await db.schema.createIndex("user_settings_share_key").on("user_settings").column("share_key_hash").unique().execute();
+    },
+  },
+  // The same relationship recorded twice by one user (a chat that filed it again, parent and child both ways) is kept once:
+  // the oldest, with a note taken from a dropped one if it had none. Self-contained, as the rules may change later.
+  "005_relationship_duplicates": {
+    async up(db) {
+      const symmetric = new Set(["partner", "spouse", "sibling", "friend", "colleague", "other"]);
+      const key = (r: { from_id: string; to_id: string; type: string }) =>
+        r.type === "child" ? `parent:${r.to_id}:${r.from_id}` : symmetric.has(r.type) ? `${r.type}:${[r.from_id, r.to_id].sort().join(":")}` : `${r.type}:${r.from_id}:${r.to_id}`;
+      const norm = (n: string | null) => (n ?? "").trim().toLowerCase();
+      const rows: { id: string; from_id: string; to_id: string; type: string; note: string | null; recorded_by: string; visibility: string }[] = await db
+        .selectFrom("relationships")
+        .select(["id", "from_id", "to_id", "type", "note", "recorded_by", "visibility"])
+        .orderBy("created_at")
+        .orderBy("id")
+        .execute();
+      const kept: typeof rows = [];
+      for (const r of rows) {
+        const same = kept.find(
+          (k) => k.recorded_by === r.recorded_by && k.visibility === r.visibility && key(k) === key(r) && (r.type !== "other" || !norm(k.note) || !norm(r.note) || norm(k.note) === norm(r.note)),
+        );
+        if (!same) {
+          kept.push(r);
+          continue;
+        }
+        if (!norm(same.note) && norm(r.note)) {
+          same.note = r.note;
+          await db.updateTable("relationships").set({ note: r.note }).where("id", "=", same.id).execute();
+        }
+        await db.deleteFrom("relationships").where("id", "=", r.id).execute();
+      }
+    },
+  },
 };
 
 /** The groups every household starts with, and their other names. */

@@ -26,6 +26,28 @@ function timeZone(): string {
   return tz;
 }
 
+export type S3Config = { kind: "s3"; endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string; pathStyle: boolean };
+export type StorageConfig = { kind: "files" } | S3Config;
+
+// Where shared screenshots are kept (storage.ts): `files` (default, under DATA_DIR) or `s3`, which needs all of its values.
+function storage(): StorageConfig {
+  const kind = env("FREUNDEBUCH_STORAGE").trim().toLowerCase() || "files";
+  if (kind === "files") return { kind };
+  if (kind !== "s3") throw new Error(`FREUNDEBUCH_STORAGE must be files or s3, got "${kind}"`);
+  const v = (name: string) => env(`FREUNDEBUCH_S3_${name}`).trim();
+  const missing = ["ENDPOINT", "BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY"].filter((n) => !v(n));
+  if (missing.length) throw new Error(`FREUNDEBUCH_STORAGE=s3 needs ${missing.map((n) => `FREUNDEBUCH_S3_${n}`).join(", ")}`);
+  return {
+    kind,
+    endpoint: v("ENDPOINT").replace(/\/+$/, ""),
+    bucket: v("BUCKET"),
+    region: v("REGION") || "us-east-1",
+    accessKeyId: v("ACCESS_KEY_ID"),
+    secretAccessKey: v("SECRET_ACCESS_KEY"),
+    pathStyle: v("PATH_STYLE") === "1",
+  };
+}
+
 export const config = {
   // Where the database (freundebuch.db) and the generated secret live.
   dataDir: () => env("DATA_DIR") || "/data",
@@ -35,6 +57,7 @@ export const config = {
   secret: (): string | undefined => env("FREUNDEBUCH_SECRET") || undefined,
   notifyAt,
   timeZone,
+  storage,
   // Who signs in: authentik (or any OIDC provider), see oidc/config.ts. `allow` is a comma-separated list of addresses,
   // @domain entries or *, trimmed and lowercased; unset or empty means * (authentik alone decides who gets in).
   oidc: () => {
