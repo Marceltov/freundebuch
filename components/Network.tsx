@@ -11,7 +11,7 @@ import { faceColor, initials } from "@/components/Face";
 
 type Net = Briefing["network"];
 type Box = { x: number; y: number; w: number; h: number };
-type Placed = { id: string; x: number; y: number; r: number; name: string; url: string; color: string; initials: string };
+type Placed = { id: string; x: number; y: number; r: number; name: string; fullName: string; url: string; color: string; initials: string };
 export type Layout = { height: number; nodes: Placed[]; lines: { x1: number; y1: number; x2: number; y2: number }[]; pills: (Box & { text: string })[]; names: (Box & { text: string })[] };
 
 const W = 360;
@@ -56,6 +56,7 @@ export function layoutNetwork(network: Net, viewerPersonId: string): Layout | nu
     y,
     r,
     name: n.id === viewerPersonId ? copy.byMe : n.name.trim().split(/\s+/)[0],
+    fullName: n.name,
     url: n.url,
     color: faceColor(n.id),
     initials: initials(n.name),
@@ -113,8 +114,8 @@ export function Network({ network, viewerPersonId }: { network: Net; viewerPerso
         {self.initials}
       </text>
       {rest.map((n, i) => (
-        <Link key={n.id} href={n.url} aria-label={n.name}>
-          <title>{n.name}</title>
+        <Link key={n.id} href={n.url} aria-label={n.fullName}>
+          <title>{n.fullName}</title>
           <circle cx={n.x} cy={n.y} r={n.r} fill={n.color} />
           <text x={n.x} y={n.y} dy="0.35em" textAnchor="middle" fontSize={11} fontWeight={700} fill="#fff">
             {n.initials}

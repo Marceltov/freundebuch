@@ -228,7 +228,9 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
   await expect(page).toHaveURL(new RegExp(`/p/${kai}#facts-`));
   await expect(page.locator(":target")).toHaveText(/Läuft einen Marathon/);
 
-  // Gehört zu: a relationship gets a note, and a wrong one goes through its menu.
+  // Gehört zu: the diagram, and under it the list, where a relationship gets a note and a wrong one goes through its menu.
+  await expect(page.getByRole("img", { name: "Wer zu Kai Brandt gehört" })).toContainText("Kolleg:in");
+  await page.getByText(/^Alle Verbindungen/).click();
   const uwe = page.locator("li", { has: page.getByRole("link", { name: /Uwe Roth/ }) });
   await uwe.getByRole("button", { name: "Aktionen" }).click();
   await uwe.getByRole("button", { name: "Bearbeiten" }).click();
