@@ -14,6 +14,7 @@ The MCP endpoint is `POST ${PUBLIC_URL}/mcp`: stateless, protocol version 2026-0
 | `set_interval` | write | Saves how often you want to see a person, in days, or none. |
 | `correct` | destructive | Marks done or outdated, edits (including a conversation's date), deletes, changes visibility, renames, adds an alias, merges duplicates, shares a transcript; takes someone out of a group, renames, merges or deletes a group and adds or drops its other names. |
 | `get_transcript` | read | The verbatim ramble a conversation was recorded from. |
+| `calendar_feed` | destructive | Gives you the secret URL of your [calendar feed](../using/calendar.md), making one when you have none; replaces or revokes it, which ends the old URL. Not in the in-app chat. |
 
 The server also sends Claude instructions with the connection. In short:
 

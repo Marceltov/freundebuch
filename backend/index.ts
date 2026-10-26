@@ -26,6 +26,7 @@ export { getGroup, listGroups, type GroupMember, type GroupView } from "./groups
 export { daysBetween, today } from "./dates";
 export { NotFoundError } from "./errors";
 export { orbit, type Badge, type OrbitFace } from "./orbit";
+export { calendarRoute, hasCalendarKey } from "./calendar";
 export { getSettings } from "./settings";
 export { hasShareKey, listPending, pendingCount, type PendingScreenshot } from "./screenshots";
 export type { Viewer } from "./types";

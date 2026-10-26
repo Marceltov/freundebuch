@@ -297,6 +297,13 @@ const migrations: Record<string, Migration> = {
       }
     },
   },
+  // `calendar_key_hash`: the sha256 of the user's calendar key, the secret in their ICS feed's URL; null when they have none.
+  "006_calendar_key": {
+    async up(db) {
+      await db.schema.alterTable("user_settings").addColumn("calendar_key_hash", "text").execute();
+      await db.schema.createIndex("user_settings_calendar_key").on("user_settings").column("calendar_key_hash").unique().execute();
+    },
+  },
 };
 
 /** The groups every household starts with, and their other names. */

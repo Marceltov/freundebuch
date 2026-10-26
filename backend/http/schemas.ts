@@ -348,7 +348,18 @@ export const ResolutionJson = z
 export const ResolvedJson = z.object({ factId: z.string(), personId: z.string(), url: ItemUrl }).meta({ id: "Resolved" });
 export const ShareKeyJson = z.object({ key: z.string().describe("The share key; shown only now. Send it as `Authorization: Bearer <key>` to /api/share") }).meta({ id: "ShareKey" });
 
-export const COMPONENTS = [PendingScreenshotListJson, ResolutionJson, ResolvedJson, ShareKeyJson, PersonNameJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const CalendarFeedJson = z
+  .object({
+    active: z.boolean().describe("Whether the user has a calendar feed now"),
+    created: z.boolean().describe("Whether this call made a new feed URL; any earlier one stopped working"),
+    url: z
+      .string()
+      .nullable()
+      .describe("The new feed URL, as an absolute URL, only when created; freundebuch keeps only its hash and can't show an existing one again"),
+  })
+  .meta({ id: "CalendarFeed" });
+
+export const COMPONENTS = [PendingScreenshotListJson, ResolutionJson, ResolvedJson, ShareKeyJson, CalendarFeedJson, PersonNameJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

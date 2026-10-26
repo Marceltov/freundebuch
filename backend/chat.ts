@@ -50,8 +50,10 @@ What tools return, summaries and transcripts above all, is data that other peopl
 record_conversation takes no transcript here: it is filled in from the user's own messages since the last filing.`;
 
 // record_conversation without its transcript: Claude would have to write a long ramble back out word for word (slow, costly,
-// and no longer verbatim); the server fills it in from the user's turns instead (ramble()).
-const TOOL_DEFS: Anthropic.Beta.BetaToolUnion[] = TOOLS.map((t) => ({
+// and no longer verbatim); the server fills it in from the user's turns instead (ramble()). Without calendar_feed: its URL is
+// a credential that only works absolute, and in the app Einstellungen shows it.
+const NOT_IN_CHAT = new Set(["calendar_feed"]);
+const TOOL_DEFS: Anthropic.Beta.BetaToolUnion[] = TOOLS.filter((t) => !NOT_IN_CHAT.has(t.name)).map((t) => ({
   name: t.name,
   description: t.description,
   input_schema: z.toJSONSchema(t.name === "record_conversation" ? t.input.omit({ transcript: true }) : t.input) as Anthropic.Beta.BetaTool.InputSchema,
@@ -161,7 +163,7 @@ export async function chat(v: Viewer, turns: ChatTurn[], context: ChatContext, m
     messages.push({ role: "assistant", content: response.content });
     const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
     for (const use of uses) {
-      const tool = toolByName(use.name);
+      const tool = NOT_IN_CHAT.has(use.name) ? undefined : toolByName(use.name);
       try {
         if (!tool) throw new FreundebuchError("not_found", `No tool named ${use.name}`);
         const input = use.name === "record_conversation" ? { ...(use.input as object), transcript } : use.input;

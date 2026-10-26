@@ -3,6 +3,7 @@
 // privacy is decided in the domain, never by Claude. Results carry paths; mcp.ts makes them absolute for its clients.
 import * as z from "zod";
 import { briefing } from "./briefing";
+import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "./calendar";
 import { getConversation, recordConversation, remember } from "./conversations";
 import { deleteItem, editItem, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
 import { whatsDue } from "./due";
@@ -10,6 +11,7 @@ import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, r
 import { InvalidInputError } from "./errors";
 import {
   BriefingJson,
+  CalendarFeedJson,
   Day,
   DueItemJson,
   GroupJson,
@@ -69,6 +71,7 @@ function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
 const NewConversation = NewConversationJson.extend({});
 const Recorded = RecordedJson.extend({});
 const BriefingOut = BriefingJson.extend({});
+const CalendarFeed = CalendarFeedJson.extend({});
 
 const GroupId = z.string().describe("A group's id, as groups or relate return it");
 const ConversationId = z.string().describe("A conversation's id, as a briefing's recent conversations or record_conversation return it");
@@ -94,6 +97,7 @@ const SetIntervalJson = IntervalJson.extend({
   personId: PersonId,
   url: z.string().describe("The person's page, as an absolute URL"),
 });
+const CALENDAR_ACTIONS = ["show", "replace", "revoke"] as const;
 const CorrectedJson = z.object({ corrected: z.literal(true) });
 const TranscriptJson = z.object({
   conversationId: z.string(),
@@ -388,6 +392,24 @@ export const TOOLS: readonly Tool[] = [
         confirmed,
         url: personPath(personId),
       });
+    },
+  }),
+  tool({
+    name: "calendar_feed",
+    description:
+      "The user's calendar feed: a secret ICS URL with every birthday (yearly, with the age when the year is known), the other dates and their own promises with a due date, to subscribe to in Google Calendar (\"From URL\") or any calendar app. `show` makes one when the user has none; when they already have one it can't be shown again (only its hash is kept), so tell them and offer `replace`. `replace` makes a new URL and `revoke` turns the feed off; both stop the old URL at once, so calendars subscribed to it go empty: ask the user before either. The URL lets anyone who has it read these dates, so give it only to the user. Google Calendar refreshes a subscribed feed only every few hours.",
+    input: z.object({
+      action: z.enum(CALENDAR_ACTIONS).default("show").describe("`show` (default) makes a feed when there is none; `replace` makes a new URL; `revoke` turns it off"),
+    }),
+    output: CalendarFeed,
+    annotations: { destructiveHint: true },
+    handler: async (v, { action }) => {
+      if (action === "revoke") {
+        await revokeCalendarKey(v);
+        return ok(CalendarFeed, { active: false, created: false, url: null });
+      }
+      if (action === "show" && (await hasCalendarKey(v))) return ok(CalendarFeed, { active: true, created: false, url: null });
+      return ok(CalendarFeed, { active: true, created: true, url: feedPath(await createCalendarKey(v)) });
     },
   }),
   tool({

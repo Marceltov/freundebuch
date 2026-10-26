@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { sign } from "./auth/tokens";
+import { calendarRoute } from "./calendar";
 import { db } from "./db/testing";
 import { logTo } from "./log";
 import { mcpRoute } from "./mcp";
@@ -71,10 +72,11 @@ const ramble = (over: object = {}) => ({
 });
 
 describe("protocol", () => {
-  test("tools/list names the ten tools with their annotations", async () => {
+  test("tools/list names the eleven tools with their annotations", async () => {
     const tools = (await (await rpc(s.a, "tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "briefing",
+      "calendar_feed",
       "correct",
       "find_person",
       "get_transcript",
@@ -87,9 +89,10 @@ describe("protocol", () => {
     ]);
     for (const t of tools) {
       expect(t.annotations?.readOnlyHint === true, t.name).toBe(["find_person", "briefing", "whats_due", "get_transcript", "groups"].includes(t.name));
-      // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: only correct is.
+      // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
+      // calendar_feed, which can end a calendar's subscription.
       const writes = ["record_conversation", "relate", "remember", "set_interval"].includes(t.name);
-      expect(t.annotations?.destructiveHint, t.name).toBe(t.name === "correct" ? true : writes ? false : undefined);
+      expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed"].includes(t.name) ? true : writes ? false : undefined);
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");
       // The Anthropic API refuses a tool whose input schema combines schemas at its root.
@@ -333,5 +336,27 @@ describe("privacy over MCP", () => {
     const r = await call(s.b, "find_person", { name: "Tom" });
     expect(Object.keys(r.structuredContent)).toEqual(["people"]);
     expect(Object.keys(r.structuredContent.people[0]).sort()).toEqual(["aliases", "context", "id", "name", "url"]);
+  });
+});
+
+describe("calendar feed over MCP", () => {
+  test("gives the user a feed URL once, keeps it until replaced, and revokes it", async () => {
+    const first = (await call(s.a, "calendar_feed", {})).structuredContent;
+    expect(first).toMatchObject({ active: true, created: true });
+    expect(first.url).toMatch(/^http:\/\/localhost:3000\/api\/calendar\/fbc_[\w-]{43}\.ics$/);
+    const feed = await calendarRoute(new Request(first.url), first.url.split("/").pop());
+    expect(feed.status).toBe(200);
+
+    // Only the hash is kept: asked again, it says there is one, and doesn't silently break the subscription.
+    expect((await call(s.a, "calendar_feed", { action: "show" })).structuredContent).toEqual({ active: true, created: false, url: null });
+
+    const next = (await call(s.a, "calendar_feed", { action: "replace" })).structuredContent;
+    expect(next.url).not.toBe(first.url);
+    expect((await calendarRoute(new Request(first.url), first.url.split("/").pop())).status).toBe(404);
+
+    expect((await call(s.a, "calendar_feed", { action: "revoke" })).structuredContent).toEqual({ active: false, created: false, url: null });
+    expect((await calendarRoute(new Request(next.url), next.url.split("/").pop())).status).toBe(404);
+    // Each user has their own.
+    expect((await call(s.b, "calendar_feed", { action: "show" })).structuredContent.created).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check, KeyRound, Send, Trash2 } from "lucide-react";
+import { Bell, CalendarPlus, Check, KeyRound, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { CopyField } from "@/components/CopyButton";
 import { copy } from "@/components/copy";
@@ -126,6 +126,64 @@ export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl:
           <button type="button" onClick={revoke} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-1.5 font-bold">
             <Trash2 aria-hidden className="h-4 w-4" />
             {copy.shareKeyRevoke}
+          </button>
+        )}
+        {failed && (
+          <span role="status" className="text-error">
+            {copy.actionFailed}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The calendar feed (POST/DELETE /api/v1/me/calendar-feed): a secret URL to subscribe to. A new one is shown once, right after
+// it was made, with a webcal:// link that opens the phone's calendar app.
+export function CalendarSettings({ hasFeed }: { hasFeed: boolean }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [active, setActive] = useState(hasFeed);
+  const [failed, setFailed] = useState(false);
+
+  async function create() {
+    const res = await fetch("/api/v1/me/calendar-feed", { method: "POST" }).catch(() => null);
+    setFailed(!res?.ok);
+    if (res?.ok) {
+      setUrl(((await res.json()) as { url: string }).url);
+      setActive(true);
+    }
+  }
+  async function revoke() {
+    const res = await fetch("/api/v1/me/calendar-feed", { method: "DELETE" }).catch(() => null);
+    setFailed(!res?.ok);
+    if (res?.ok) {
+      setUrl(null);
+      setActive(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-muted">{copy.calendarHint}</p>
+      {url && (
+        <>
+          <CopyField label={copy.calendarUrl} text={url} />
+          <p className="text-muted">{copy.calendarOnce}</p>
+          <a href={url.replace(/^https?:/, "webcal:")} className="inline-block font-bold text-carbon">
+            {copy.calendarOpen}
+          </a>
+        </>
+      )}
+      {!url && active && <p className="text-muted">{copy.calendarActive}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={create} className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+          <CalendarPlus aria-hidden className="h-4 w-4" />
+          {active ? copy.calendarReplace : copy.calendarNew}
+        </button>
+        {active && (
+          <button type="button" onClick={revoke} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-1.5 font-bold">
+            <Trash2 aria-hidden className="h-4 w-4" />
+            {copy.calendarRevoke}
           </button>
         )}
         {failed && (

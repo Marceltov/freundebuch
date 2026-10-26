@@ -20,6 +20,7 @@ nav:
       - Fixing mistakes: using/corrections.md
       - Notifications: using/notifications.md
       - Sharing screenshots: using/sharing.md
+      - Calendar: using/calendar.md
       - The web app: using/web-app.md
   - Self-hosting:
       - Configuration: self-hosting/configuration.md

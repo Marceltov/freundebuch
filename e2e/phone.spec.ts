@@ -421,3 +421,32 @@ test("settings make a share key, and the key hands in a screenshot", async ({ pa
   expect(res.status).toBe(202);
   expect((await res.json()).message).toBe("Danke! freundebuch liest den Screenshot.");
 });
+
+test("settings make a calendar feed that a calendar app can read, and end it", async ({ page, baseURL }) => {
+  await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: {
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Kai.",
+      transcript: "Kai hat am 3. März Geburtstag, er wird 40.",
+      visibility: "shared",
+      people: [{ name: "Kai Kalender", present: true }],
+      dates: [{ person: 0, kind: "birthday", date: "1987-03-03", yearly: true }],
+    },
+  });
+  await page.goto("/einstellungen");
+  await expect(page.getByRole("heading", { name: "Kalender abonnieren" })).toBeVisible();
+  await page.getByRole("button", { name: "Adresse erzeugen" }).click();
+  const url = (await page.getByText(/\/api\/calendar\/fbc_.+\.ics$/).textContent())!;
+  await expectNoSideScroll(page);
+
+  const res = await fetch(url);
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toBe("text/calendar; charset=utf-8");
+  expect(await res.text()).toContain("SUMMARY:🎂 Kai Kalender wird ");
+
+  await page.getByRole("button", { name: "Abo beenden" }).click();
+  await expect(page.getByRole("button", { name: "Adresse erzeugen" })).toBeVisible();
+  expect((await fetch(url)).status).toBe(404);
+});

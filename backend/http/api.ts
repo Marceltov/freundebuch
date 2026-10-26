@@ -3,6 +3,7 @@
 // its own declared responses (see op() in dispatch.ts). Adding a route is adding an entry to OPS.
 import * as z from "zod";
 import { briefing } from "../briefing";
+import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../calendar";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type ItemTable } from "../corrections";
 import { getConversation, recordConversation } from "../conversations";
@@ -19,6 +20,7 @@ import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch"
 import {
   AliasJson,
   BriefingJson,
+  CalendarFeedJson,
   COMPONENTS,
   ConversationJson,
   DueListJson,
@@ -525,6 +527,45 @@ const OPS: AnyOp[] = [
 
   op({
     method: "GET",
+    path: `${API_PREFIX}/me/calendar-feed`,
+    operationId: "getCalendarFeed",
+    summary: "Whether the caller has a calendar feed",
+    description: "The URL itself is shown only when it is made: only its hash is kept.",
+    tags: ["Calendar"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The feed's state; `url` is always null here", schema: CalendarFeedJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: { active: await hasCalendarKey(viewer), created: false, url: null } })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/me/calendar-feed`,
+    operationId: "createCalendarFeed",
+    summary: "A new secret URL for the caller's calendar feed",
+    description:
+      "An ICS feed of the birthdays, other dates and the caller's own promises with a due date that the caller may see, for Google Calendar or any calendar app. Anyone with the URL can read it. A new one replaces the old one, which stops working.",
+    tags: ["Calendar"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The new feed URL", schema: CalendarFeedJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: { active: true, created: true, url: feedPath(await createCalendarKey(viewer)) } })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/me/calendar-feed`,
+    operationId: "revokeCalendarFeed",
+    summary: "Turn the caller's calendar feed off",
+    tags: ["Calendar"],
+    auth: true,
+    params: {},
+    responses: { 204: NO_CONTENT, 401: E401 },
+  }).handle(async ({ viewer }) => {
+    await revokeCalendarKey(viewer);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
     path: `${API_PREFIX}/openapi.json`,
     operationId: "getOpenApi",
     summary: "This API's OpenAPI document",
@@ -613,6 +654,7 @@ export function openApiDocument(serverUrl: string): Json {
       { name: "Conversations", description: "Recording what was said, and reading it back." },
       { name: "Groups", description: "Groups of people, with other names that find them." },
       { name: "Items", description: "Corrections after the fact: facts, promises, dates, exchanges, relationships and conversations." },
+      { name: "Calendar", description: "The secret URL of the caller's calendar feed (ICS), served at /api/calendar/{key}.ics." },
       { name: "Meta", description: "About the API itself." },
     ],
     paths,
