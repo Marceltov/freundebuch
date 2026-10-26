@@ -3503,8 +3503,10 @@
             "enum": [
               "date",
               "promise",
-              "overdue"
-            ]
+              "overdue",
+              "situation"
+            ],
+            "description": "`situation`: something going on whose checkAfter has come; ask how it went"
           },
           "personId": {
             "type": "string",
@@ -3527,7 +3529,7 @@
             "type": "boolean"
           },
           "itemId": {
-            "description": "On a date or a promise: its id",
+            "description": "On a date, a promise or a situation (a fact): its id",
             "type": "string"
           },
           "lastSeen": {
@@ -3552,7 +3554,7 @@
           },
           "url": {
             "type": "string",
-            "description": "The person's page, as an absolute URL; for a date or a promise, its highlighted row there"
+            "description": "The person's page, as an absolute URL; for a date, a promise or a situation, its highlighted row there"
           }
         },
         "required": [
@@ -3750,6 +3752,15 @@
                 "confirmedNew": {
                   "description": "A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`",
                   "type": "boolean"
+                },
+                "gender": {
+                  "type": "string",
+                  "enum": [
+                    "female",
+                    "male",
+                    "nonbinary"
+                  ],
+                  "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
                 }
               },
               "required": [
@@ -3788,8 +3799,20 @@
                   "type": "boolean"
                 },
                 "supersedes": {
-                  "description": "The id of the fact this replaces",
+                  "description": "The id of the fact this replaces: news about a situation, or a lasting fact that ends it",
                   "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "lasting",
+                    "situation"
+                  ],
+                  "description": "`situation`: going on and will end (moving, a new dog, looking for a car); `lasting` (default): stays true. A fact that supersedes another keeps its kind unless given"
+                },
+                "checkAfter": {
+                  "type": "string",
+                  "description": "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out"
                 }
               },
               "required": [
@@ -3925,21 +3948,46 @@
             }
           },
           "relationships": {
+            "description": "How people are related, and who someone is to the household: a role (\"our landlady\") goes to \"us\" or \"me\", never into a fact",
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
                 "from": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "description": "An index into `people`"
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "An index into `people`"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "me",
+                        "us"
+                      ],
+                      "description": "\"me\": the user's own person; \"us\": both of the household, one relationship each"
+                    }
+                  ]
                 },
                 "to": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "description": "An index into `people`"
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "An index into `people`"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "me",
+                        "us"
+                      ],
+                      "description": "\"me\": the user's own person; \"us\": both of the household, one relationship each"
+                    }
+                  ]
                 },
                 "type": {
                   "type": "string",
@@ -3957,9 +4005,11 @@
                     "neighbour",
                     "doctor",
                     "service"
-                  ]
+                  ],
+                  "description": "`from` is `type` of `to`: with `parent`, from is the parent of to; with `landlord` or `doctor`, from is that to to; with `service`, from works for to"
                 },
                 "note": {
+                  "description": "What it is in words, above all for `other` and `service` (\"Klempner\")",
                   "type": "string"
                 },
                 "private": {

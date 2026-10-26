@@ -8,11 +8,12 @@ import { itemPath, personPath } from "./urls";
 import { visible } from "./visibility";
 
 /**
- * `byMe`, on a promise: the viewer made it; false when the person promised it to the viewer. `itemId`: the date's or promise's id.
+ * `byMe`, on a promise: the viewer made it; false when the person promised it to the viewer. `itemId`: the date's, promise's or
+ * situation's id; on a situation, `date` is its checkAfter, the day it turned into a nudge to ask how it went.
  * `lastSeen` and `intervalDays`: for someone overdue.
  */
 export type DueItem = {
-  kind: "date" | "promise" | "overdue";
+  kind: "date" | "promise" | "overdue" | "situation";
   personId: string;
   name: string;
   date?: string;
@@ -54,8 +55,9 @@ export async function upcomingDates(v: Viewer, from: string, horizonDays: number
 }
 
 /**
- * Dates by closeness, then people past their interval by how far past (ratio, largest first), then promises by due date. Only the
- * viewer's own promises count: one the partner recorded is between them and the person, even when it is shared.
+ * Dates by closeness, then people past their interval by how far past (ratio, largest first), then situations to ask about (their
+ * checkAfter has come, oldest first), then promises by due date. Only the viewer's own promises count: one the partner recorded is
+ * between them and the person, even when it is shared. A shared situation nudges both users, a private one only its recorder.
  */
 export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Promise<DueItem[]> {
   const d = await db();
@@ -97,5 +99,18 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
       .execute()
   ).map((p) => ({ kind: "promise", personId: p.person_id, name: name(p.person_id), date: p.due!, text: p.text, byMe: !!p.by_me, itemId: p.id, url: itemPath(personPath(p.person_id), "promises", p.id) }));
 
-  return [...dates, ...overdue, ...promises];
+  const situations: DueItem[] = (
+    await d
+      .selectFrom("facts")
+      .select(["id", "person_id", "text", "check_after"])
+      .where("kind", "=", "situation")
+      .where("status", "=", "current")
+      .where("check_after", "<=", from)
+      .$call((qb) => visible(qb, v, "facts"))
+      .orderBy("check_after")
+      .orderBy("created_at")
+      .execute()
+  ).map((f) => ({ kind: "situation", personId: f.person_id, name: name(f.person_id), date: f.check_after!, text: f.text, itemId: f.id, url: itemPath(personPath(f.person_id), "facts", f.id) }));
+
+  return [...dates, ...overdue, ...situations, ...promises];
 }

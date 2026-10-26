@@ -76,6 +76,16 @@ describe("runDaily", () => {
     expect(JSON.stringify(sent)).not.toContain("Bobs Besorgung");
   });
 
+  test("a situation past its day nudges to ask", async () => {
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+    await (await db())
+      .insertInto("facts")
+      .values({ id: "f1", person_id: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", check_after: "2026-10-20", visibility: "shared", recorded_by: s.a.userId, conversation_id: null, created_at: 1 })
+      .execute();
+    await runDaily(NOW, fetchFn);
+    expect(sent.map((m) => m.title)).toContain("💬 Frag mal nach: Anna – sucht ein Auto");
+  });
+
   test("more than 10 items: nine singles and a '+N weitere' summary", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     const d = await db();

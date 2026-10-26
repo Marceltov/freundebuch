@@ -105,3 +105,18 @@ test("due items carry what the Bald page shows: a promise's id, and for someone 
   expect(items.find((i) => i.kind === "date")!.itemId).toEqual(expect.any(String));
   expect(items.find((i) => i.kind === "overdue" && i.personId === s.anna)).toMatchObject({ lastSeen: expect.any(String), intervalDays: 1 });
 });
+
+test("a situation past its nudge date is due, for whoever may see it", async () => {
+  const before = (await whatsDue(s.b, "2026-11-10")).length;
+  await record(s.a, { facts: [{ person: 0, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-11-01" }] });
+  await record(s.a, { facts: [{ person: 0, text: "sucht heimlich einen Job", category: "work", kind: "situation", checkAfter: "2026-11-01", private: true }] });
+  await record(s.a, { facts: [{ person: 0, text: "renoviert", category: "home", kind: "situation", checkAfter: "2026-12-01" }] });
+  const mine = (await whatsDue(s.a, "2026-11-10")).filter((i) => i.kind === "situation");
+  expect(mine.map((i) => i.text).sort()).toEqual(["sucht ein Auto", "sucht heimlich einen Job"]);
+  expect(mine[0]).toMatchObject({ personId: s.anna, name: "Anna", date: "2026-11-01", url: `/p/${s.anna}#facts-${mine[0].itemId}` });
+  const theirs = (await whatsDue(s.b, "2026-11-10")).filter((i) => i.kind === "situation");
+  expect(theirs.map((i) => i.text)).toEqual(["sucht ein Auto"]);
+  expect((await whatsDue(s.b, "2026-11-10")).length).toBe(before + 1);
+  // Not before its day, and never once it is outdated.
+  expect((await whatsDue(s.a, "2026-10-31")).filter((i) => i.kind === "situation")).toEqual([]);
+});

@@ -262,6 +262,37 @@ describe("tools", () => {
     expect(await call(s.a, "correct", { action: "merge", id: s.anna })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^drop: /) }] });
   });
 
+  test("relate files a role to us over MCP and the briefing leads with it", async () => {
+    const rel = await call(s.a, "relate", { kind: "relationship", from: s.lena, to: "us", type: "landlord", visibility: "shared" });
+    expect(rel.isError).toBeUndefined();
+    expect(rel.structuredContent.ids).toHaveLength(2);
+    expect(rel.structuredContent.url).toBe(`http://localhost:3000/p/${s.lena}`);
+    const b = (await call(s.b, "briefing", { personId: s.lena })).structuredContent;
+    expect(b.roles).toMatchObject([{ type: "landlord", direction: "out", with: "us" }]);
+    expect(b.network.nodes).toHaveLength(3);
+    for (const n of b.network.nodes) expect(n.url).toMatch(/^http:\/\/localhost:3000\/p\//);
+    expect(await call(s.a, "relate", { kind: "relationship", from: "me", to: "us", type: "friend", visibility: "shared" })).toMatchObject({ isError: true });
+  });
+
+  test("correct to_relationship and gender over MCP; facts take a kind", async () => {
+    await call(s.a, "remember", { visibility: "shared", facts: [{ person: s.lena, text: "unsere Nachbarin", category: "home" }, { person: s.lena, text: "sucht einen Hund", category: "hobby", kind: "situation", checkAfter: "2026-12-01" }] });
+    const d = await db();
+    const id = (await d.selectFrom("facts").select("id").where("text", "=", "unsere Nachbarin").executeTakeFirstOrThrow()).id;
+    const ok = { structuredContent: { corrected: true } };
+    expect(await call(s.a, "correct", { action: "to_relationship", id, from: s.lena, to: "us", type: "neighbour" })).toMatchObject(ok);
+    expect(await call(s.a, "correct", { action: "gender", id: s.lena, gender: "female" })).toMatchObject(ok);
+    const b = (await call(s.b, "briefing", { personId: s.lena })).structuredContent;
+    expect(b.person.gender).toBe("female");
+    expect(b.roles).toMatchObject([{ type: "neighbour", with: "us" }]);
+    expect(b.known).toEqual([]);
+    expect(b.situations).toMatchObject([{ text: "sucht einen Hund", checkAfter: "2026-12-01", nudge: false }]);
+    expect(await call(s.a, "correct", { action: "gender", id: s.lena, gender: null })).toMatchObject(ok);
+    expect((await call(s.a, "briefing", { personId: s.lena })).structuredContent.person.gender).toBeNull();
+    expect(await call(s.a, "correct", { action: "to_relationship", id })).toMatchObject({ isError: true });
+    const rec = await call(s.a, "record_conversation", ramble({ people: [{ name: "Marina", present: true, gender: "female", confirmedNew: true }], facts: [], relationships: [{ from: 0, to: "us", type: "landlord" }] }));
+    expect(rec.structuredContent.counts.relationships).toBe(2);
+  });
+
   test("an unexpected failure is logged, and the client only gets 'internal error'", async () => {
     await sql`drop table person_settings`.execute(await db());
     const r = await call(s.a, "whats_due", {});

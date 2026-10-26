@@ -3,7 +3,7 @@
 // vocabularies come from backend/types.ts; the rules on the values stay in the domain functions,
 // which answer a bad value with `invalid_input`.
 import * as z from "zod";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, GENDERS, RELATIONSHIP_TYPES, VISIBILITIES } from "../types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, RELATIONSHIP_TYPES, VISIBILITIES } from "../types";
 import { ERROR_CODES } from "./errors";
 
 export const ErrorJson = z
@@ -162,17 +162,17 @@ export const BriefingJson = z
 
 export const DueItemJson = z
   .object({
-    kind: z.enum(["date", "promise", "overdue"]),
+    kind: z.enum(["date", "promise", "overdue", "situation"]).describe("`situation`: something going on whose checkAfter has come; ask how it went"),
     personId: PersonId,
     name: z.string(),
     date: z.string().optional(),
     text: z.string().optional(),
     ratio: z.number().optional(),
     byMe: z.boolean().optional().describe("On a promise: whether the caller made it (false: the person promised it to the caller). Only the caller's own promises are due"),
-    itemId: z.string().optional().describe("On a date or a promise: its id"),
+    itemId: z.string().optional().describe("On a date, a promise or a situation (a fact): its id"),
     lastSeen: z.string().nullable().optional().describe("On someone overdue: the day the caller last saw them"),
     intervalDays: z.number().int().nullable().optional().describe("On someone overdue: the caller's check-in interval"),
-    url: Url.describe("The person's page, as an absolute URL; for a date or a promise, its highlighted row there"),
+    url: Url.describe("The person's page, as an absolute URL; for a date, a promise or a situation, its highlighted row there"),
   })
   .meta({ id: "DueItem" });
 
@@ -204,6 +204,14 @@ export const AliasJson = z.object({ alias: z.string().describe("Another name the
 
 // A conversation as it is recorded. `people` entries are referred to by their index in the other lists.
 const Ref = z.number().int().describe("An index into `people`");
+/** A relationship's end: a person, or the household. */
+export const HOUSEHOLD_TARGET = z.enum(["me", "us"]).describe('"me": the user\'s own person; "us": both of the household, one relationship each');
+export const FactKind = z
+  .enum(FACT_KINDS)
+  .describe("`situation`: going on and will end (moving, a new dog, looking for a car); `lasting` (default): stays true. A fact that supersedes another keeps its kind unless given");
+export const CheckAfter = Day.describe(
+  "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out",
+);
 const Private = z.boolean().optional().describe("Makes just this item private; a private conversation makes every item private");
 
 export const NewConversationJson = z
@@ -224,9 +232,22 @@ export const NewConversationJson = z
           .boolean()
           .optional()
           .describe("A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`"),
+        gender: Gender.optional(),
       }),
     ),
-    facts: z.array(z.object({ person: Ref, text: z.string(), category: z.enum(FACT_CATEGORIES), private: Private, supersedes: z.string().optional().describe("The id of the fact this replaces") })).optional(),
+    facts: z
+      .array(
+        z.object({
+          person: Ref,
+          text: z.string(),
+          category: z.enum(FACT_CATEGORIES),
+          private: Private,
+          supersedes: z.string().optional().describe("The id of the fact this replaces: news about a situation, or a lasting fact that ends it"),
+          kind: FactKind.optional(),
+          checkAfter: CheckAfter.optional(),
+        }),
+      )
+      .optional(),
     promises: z.array(z.object({ person: Ref, text: z.string(), byMe: z.boolean(), due: Day.optional(), private: Private })).optional(),
     dates: z
       .array(
@@ -243,7 +264,18 @@ export const NewConversationJson = z
     exchanges: z
       .array(z.object({ person: Ref, kind: z.enum(EXCHANGE_KINDS), direction: Direction, text: z.string(), amount: z.number().optional(), currency: z.string().optional(), private: Private }))
       .optional(),
-    relationships: z.array(z.object({ from: Ref, to: Ref, type: z.enum(RELATIONSHIP_TYPES), note: z.string().optional(), private: Private })).optional(),
+    relationships: z
+      .array(
+        z.object({
+          from: z.union([Ref, HOUSEHOLD_TARGET]),
+          to: z.union([Ref, HOUSEHOLD_TARGET]),
+          type: z.enum(RELATIONSHIP_TYPES).describe("`from` is `type` of `to`: with `parent`, from is the parent of to; with `landlord` or `doctor`, from is that to to; with `service`, from works for to"),
+          note: z.string().optional().describe("What it is in words, above all for `other` and `service` (\"Klempner\")"),
+          private: Private,
+        }),
+      )
+      .optional()
+      .describe('How people are related, and who someone is to the household: a role ("our landlady") goes to "us" or "me", never into a fact'),
     groups: z.array(z.object({ name: z.string(), members: z.array(Ref), private: Private })).optional(),
   })
   .meta({ id: "NewConversation" });
