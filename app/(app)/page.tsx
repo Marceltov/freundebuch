@@ -4,13 +4,14 @@ import { getPerson, hasRecorded, listGroups, mcpResource, orbit, whatsDue } from
 import { copy } from "@/components/copy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupFilter } from "@/components/GroupFilter";
+import { Nudges } from "@/components/Nudges";
 import { Orbit } from "@/components/Orbit";
 import { pageViewer } from "./viewer";
 
 export const dynamic = "force-dynamic";
 
 // The start page: a greeting that says who would be glad to hear from the viewer, the viewer's orbit, filtered by a group when
-// one is chosen (?gruppe=<id>), with that group's due people below; before anything is recorded, how to connect Claude.
+// one is chosen (?gruppe=<id>), with that group's due people below, then the situations to ask about; before anything is recorded, how to connect Claude.
 export default async function OrbitPage({ searchParams }: PageProps<"/">) {
   const v = await pageViewer();
   const groups = (await listGroups(v)).filter((g) => g.count > 0);
@@ -26,11 +27,8 @@ export default async function OrbitPage({ searchParams }: PageProps<"/">) {
       </div>
     );
   const due = group ? faces.filter((f) => f.inGroup && f.ring === 2) : [];
-  const [me, waiting, recorded] = await Promise.all([
-    getPerson(v, v.personId).catch(() => null),
-    whatsDue(v).then((d) => d.filter((i) => i.kind === "overdue").length),
-    hasRecorded(v),
-  ]);
+  const [me, dueItems, recorded] = await Promise.all([getPerson(v, v.personId).catch(() => null), whatsDue(v), hasRecorded(v)]);
+  const waiting = dueItems.filter((i) => i.kind === "overdue").length;
   const first = me?.name.trim().split(/\s+/)[0];
   return (
     <>
@@ -61,6 +59,7 @@ export default async function OrbitPage({ searchParams }: PageProps<"/">) {
           </ul>
         </section>
       )}
+      <Nudges items={dueItems.filter((i) => i.kind === "situation")} />
     </>
   );
 }

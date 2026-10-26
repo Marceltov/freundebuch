@@ -450,3 +450,55 @@ test("settings make a calendar feed that a calendar app can read, and end it", a
   await expect(page.getByRole("button", { name: "Adresse erzeugen" })).toBeVisible();
   expect((await fetch(url)).status).toBe(404);
 });
+
+test("a role to us shows first and in the network; a situation nudges on the page and on Start", async ({ page, baseURL }) => {
+  // A household of two: the partner signs in once.
+  await page.goto("/api/e2e/login?name=Bodo Gast");
+  await page.goto("/api/e2e/login?name=Erika Muster");
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: {
+      date: today,
+      kind: "in_person",
+      summary: "Marina kam vorbei.",
+      transcript: "Marina, unsere Vermieterin, kam mit Tom vorbei. Sie sucht ein neues Auto.",
+      visibility: "shared",
+      people: [
+        { name: "Marina Reichardt", present: true },
+        { name: "Tom Reichardt", present: true },
+      ],
+      relationships: [
+        { from: 0, to: "us", type: "landlord" },
+        { from: 0, to: 1, type: "partner" },
+      ],
+      facts: [
+        { person: 0, text: "sucht ein neues Auto", category: "other", kind: "situation", checkAfter: today },
+        { person: 0, text: "arbeitet bei Hornbach", category: "work" },
+      ],
+    },
+  });
+  expect(recorded.ok()).toBe(true);
+  const marina = (await recorded.json()).people[0].id;
+  await page.goto(`/p/${marina}`);
+  const roleLine = page.locator("[data-role-line]");
+  await expect(roleLine).toHaveText("Unsere Vermieter:in");
+  const [roleBox, nowBox] = [await roleLine.boundingBox(), await page.getByRole("heading", { name: "Gerade los" }).boundingBox()];
+  expect(roleBox!.y).toBeLessThan(nowBox!.y);
+  await expect(page.getByText("Frag mal nach")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Gut zu wissen" })).toBeVisible();
+  const network = page.getByRole("img", { name: "Wer zu Marina Reichardt gehört" });
+  await expect(network).toContainText("Du");
+  await expect(network).toContainText("Tom");
+  await expect(network).toContainText("Partner:in");
+  await expect(network).toContainText("Vermieter:in");
+  await expectNoSideScroll(page);
+
+  // Her gender, from the person menu, and the role reads as she is.
+  await page.getByRole("button", { name: "Mehr zu Marina Reichardt" }).click();
+  await page.getByRole("dialog", { name: "Mehr zu Marina Reichardt" }).getByText("weiblich").click();
+  await expect(roleLine).toHaveText("Unsere Vermieterin");
+
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: /Marina Reichardt: sucht ein neues Auto/ })).toBeVisible();
+  await expectNoSideScroll(page);
+});

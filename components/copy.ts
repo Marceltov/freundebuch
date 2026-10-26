@@ -32,6 +32,8 @@ export const copy = {
   // The friend page
   now: "Gerade los",
   known: "Gut zu wissen",
+  networkOf: "Wer zu {name} gehört",
+  allLinks: "Alle Verbindungen ({n})",
   roleUs: "Unsere {role}",
   roleUsM: "Unser {role}",
   roleMe: "{role} von dir",
@@ -39,6 +41,8 @@ export const copy = {
   nudge: "Frag mal nach – seit {weeks} Wochen nichts gehört",
   nudgeWeek: "Frag mal nach – seit einer Woche nichts gehört",
   nudgeSoon: "Frag mal nach",
+  askAbout: "Frag mal nach",
+  askAboutWhat: "{name}: {text}",
   askFrom: "nachfragen ab {date}",
   makeSituation: "Ist gerade los",
   makeLasting: "Gut zu wissen",

@@ -4,6 +4,7 @@ import { daysBetween, today, whatsDue } from "@/backend";
 import { copy, dateKindName } from "@/components/copy";
 import { DoneButton } from "@/components/DoneButton";
 import { Face } from "@/components/Face";
+import { Nudges } from "@/components/Nudges";
 import { ago, every, longDay, shortDay } from "@/components/format";
 import { Section } from "@/components/Tiles";
 import { pageViewer } from "../viewer";
@@ -15,7 +16,7 @@ export const metadata = { title: copy.tabSoon };
 const inDays = (n: number) => (n === 0 ? copy.today : n === 1 ? copy.tomorrow : copy.inDays.replace("{n}", String(n)));
 
 // The next two weeks: birthdays and other dates, the viewer's own promises with a due day (ticked off right here), and who
-// would be glad to hear from them, as the reminder sends it.
+// would be glad to hear from them, and the situations to ask about, as the reminder sends it.
 export default async function SoonPage() {
   const v = await pageViewer();
   const now = today();
@@ -23,6 +24,7 @@ export default async function SoonPage() {
   const dates = items.filter((i) => i.kind === "date");
   const promises = items.filter((i) => i.kind === "promise");
   const overdue = items.filter((i) => i.kind === "overdue");
+  const situations = items.filter((i) => i.kind === "situation");
   return (
     <div>
       <h1 className="font-display text-3xl font-bold">{copy.tabSoon}</h1>
@@ -96,6 +98,8 @@ export default async function SoonPage() {
           </ul>
         </Section>
       )}
+
+      <Nudges items={situations} />
     </div>
   );
 }
