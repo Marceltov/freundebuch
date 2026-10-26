@@ -20,6 +20,7 @@ import {
   type Visibility,
 } from "./types";
 import { resolveOrCreateGroup } from "./groups";
+import { isHouseholdWord, resolvePairs, type Target } from "./household";
 import { conversationPath, itemPath, personPath, type AnchoredTable } from "./urls";
 import { visible } from "./visibility";
 
@@ -45,7 +46,8 @@ export type NewConversation = {
   /** `date` is `YYYY-MM-DD`, or `--MM-DD` for a yearly date without a year. */
   dates?: Array<{ person: PersonRef; kind: DateKind; date: string; label?: string; yearly: boolean; private?: boolean }>;
   exchanges?: Array<{ person: PersonRef; kind: ExchangeKind; direction: Direction; text: string; amount?: number; currency?: string; private?: boolean }>;
-  relationships?: Array<{ from: PersonRef; to: PersonRef; type: RelationshipType; note?: string; private?: boolean }>;
+  /** "me" is the viewer's person, "us" every household person (one relationship each): a role to us ("our landlady"). */
+  relationships?: Array<{ from: PersonRef | "me" | "us"; to: PersonRef | "me" | "us"; type: RelationshipType; note?: string; private?: boolean }>;
   groups?: Array<{ name: string; members: PersonRef[]; private?: boolean }>;
 };
 
@@ -191,9 +193,11 @@ export function checkVisibility(visibility: string): void {
   oneOf(visibility, VISIBILITIES, "visibility");
 }
 
-export function checkRelationship<P>(r: { from: P; to: P; type: string }, ref: (p: P) => void): void {
-  ref(r.from);
-  ref(r.to);
+/** `from` and `to` may be "me" or "us" (household.ts), but not both. */
+export function checkRelationship<P>(r: { from: P | "me" | "us"; to: P | "me" | "us"; type: string }, ref: (p: P) => void): void {
+  if (isHouseholdWord(r.from) && isHouseholdWord(r.to)) throw new InvalidInputError('A relationship needs someone outside the household on one end: "me" and "us" can\'t both be used');
+  if (!isHouseholdWord(r.from)) ref(r.from);
+  if (!isHouseholdWord(r.to)) ref(r.to);
   oneOf(r.type, RELATIONSHIP_TYPES, "relationship type");
   if (r.from === r.to) throw new InvalidInputError("A relationship needs two different people");
 }
@@ -206,7 +210,7 @@ export function checkGroup<P>(g: { name: string; members: P[] }, ref: (p: P) => 
 /** Who recorded an item, when, and with which conversation (null for one set directly). */
 export type ItemBase = { recorded_by: string; conversation_id: string | null; created_at: number };
 
-const SYMMETRIC: ReadonlySet<string> = new Set(["partner", "spouse", "sibling", "friend", "colleague", "other"]);
+const SYMMETRIC: ReadonlySet<string> = new Set(["partner", "spouse", "sibling", "friend", "colleague", "neighbour", "other"]);
 
 /** The same for every way of writing one relationship: parent A→B is child B→A, a symmetric one reads both ways. */
 export function relationshipKey(fromId: string, toId: string, type: string): string {
@@ -243,6 +247,20 @@ export async function insertRelationship(
   const id = newId();
   await tx.insertInto("relationships").values({ ...base, id, from_id: r.fromId, to_id: r.toId, type: r.type, note: r.note ?? null, visibility: r.visibility }).execute();
   return id;
+}
+
+/** Records a relationship between targets (household.ts), one per pair they stand for, each deduped by insertRelationship. */
+export async function insertRelationships(
+  tx: Kysely<Schema>,
+  v: Viewer,
+  base: ItemBase,
+  r: { from: Target; to: Target; type: RelationshipType; note?: string; visibility: Visibility },
+): Promise<string[]> {
+  const pairs = await resolvePairs(tx, v, r.from, r.to);
+  if (!pairs.length) throw new InvalidInputError("A relationship needs two different people");
+  const ids: string[] = [];
+  for (const [fromId, toId] of pairs) ids.push(await insertRelationship(tx, base, { fromId, toId, type: r.type, note: r.note, visibility: r.visibility }));
+  return ids;
 }
 
 /** Adds the people to the group this name resolves to for the viewer (created when none does); returns it and how many memberships were new. */
@@ -329,11 +347,13 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     for (const personId of present) await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).execute();
 
     await insertItems(tx, v, base, c, id, vis);
-    for (const r of c.relationships ?? []) await insertRelationship(tx, base, { fromId: id(r.from), toId: id(r.to), type: r.type, note: r.note, visibility: vis(r) });
+    const target = (t: PersonRef | "me" | "us") => (isHouseholdWord(t) ? t : id(t));
+    let relationships = 0;
+    for (const r of c.relationships ?? []) relationships += (await insertRelationships(tx, v, base, { from: target(r.from), to: target(r.to), type: r.type, note: r.note, visibility: vis(r) })).length;
     let memberships = 0;
     for (const g of c.groups ?? []) memberships += (await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g))).added;
 
-    const counts = { ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]), groups: memberships };
+    const counts = { ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]), relationships, groups: memberships };
     return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts };
   });
 }

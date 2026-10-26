@@ -3146,7 +3146,11 @@
                     "friend",
                     "colleague",
                     "introduced_by",
-                    "other"
+                    "other",
+                    "landlord",
+                    "neighbour",
+                    "doctor",
+                    "service"
                   ]
                 },
                 "note": {
@@ -3669,7 +3673,11 @@
                     "friend",
                     "colleague",
                     "introduced_by",
-                    "other"
+                    "other",
+                    "landlord",
+                    "neighbour",
+                    "doctor",
+                    "service"
                   ]
                 },
                 "note": {
@@ -4237,7 +4245,11 @@
                     "friend",
                     "colleague",
                     "introduced_by",
-                    "other"
+                    "other",
+                    "landlord",
+                    "neighbour",
+                    "doctor",
+                    "service"
                   ]
                 },
                 "note": {

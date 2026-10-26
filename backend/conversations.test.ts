@@ -222,3 +222,12 @@ test("a conversation's items link to their rows on its page, done and outdated o
 test("a conversation can't be dated after today", async () => {
   await expect(recordConversation(a, base({ date: "2999-01-01" }))).rejects.toThrow(InvalidInputError);
 });
+
+test("a conversation files a role to us", async () => {
+  const b = await userFromOidc({ sub: "b", name: "Bob" });
+  const r = await recordConversation(a, base({ relationships: [{ from: 0, to: "us", type: "landlord" }] }));
+  expect(r.counts.relationships).toBe(2);
+  const rows = await (await db()).selectFrom("relationships").select(["from_id", "to_id", "conversation_id"]).execute();
+  expect(rows.map((x) => x.to_id).sort()).toEqual([a.personId, b.personId].sort());
+  expect(rows.every((x) => x.from_id === r.people[0].id && x.conversation_id === r.conversationId)).toBe(true);
+});
