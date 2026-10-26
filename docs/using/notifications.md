@@ -4,7 +4,8 @@ freundebuch can remind you every day about:
 
 - birthdays and other dates, today and tomorrow (with the age, when the year is known),
 - promises due today or tomorrow,
-- people you're overdue to see.
+- people you're overdue to see,
+- situations to ask about ("💬 Frag mal nach: Jonas – sucht ein Auto").
 
 Notifications are optional, and each person sets their own. You only ever get your own reminders: your partner's private items never show up in yours.
 

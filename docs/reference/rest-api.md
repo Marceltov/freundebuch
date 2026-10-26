@@ -24,3 +24,10 @@ The same privacy rules apply as everywhere else: a request sees what the token's
 ## Calendar feed
 
 `POST /api/v1/me/calendar-feed` makes the caller's [calendar feed](../using/calendar.md) URL (and replaces an older one), `DELETE` turns it off, `GET` says whether there is one. The feed itself is served at `${PUBLIC_URL}/api/calendar/{key}.ics` without a sign-in: the key in the URL is the credential ([ADR 0008](../adr/0008-calendar-feed-through-a-secret-url.md)).
+
+## Roles, situations and gender
+
+- `PATCH /api/v1/people/{id}` takes `{ name?, gender? }`; `gender` is `female`, `male`, `nonbinary` or `null`.
+- `POST /api/v1/items/facts/{id}/relationship` with `{ from, to, type, note? }` turns a fact into a relationship and deletes the fact; `from` and `to` take a person id, `"me"` or `"us"`. It answers `201 { ids }`.
+- `PATCH /api/v1/items/facts/{id}` with `{ patch: { kind, checkAfter } }` moves a fact between lasting and situation.
+- `POST /api/v1/conversations` takes `kind` and `checkAfter` on facts, `gender` on people, and `"me"` / `"us"` as a relationship's end. The briefing has `roles`, `situations`, `known` and `network`; `/due` has items of kind `situation`.

@@ -8,13 +8,15 @@ Before you meet someone, ask Claude:
 
 The briefing has:
 
+- who she is to you ("your landlady", "Sybille's colleague"): ask "how do I know Marina?" and Claude starts there,
+- what is going on in her life (situations), the ones nobody has asked about for a while first,
 - when **you** last saw her (your partner's meetings don't count for you),
 - the most recent conversations with their summaries,
-- current facts (outdated ones are left out), including what you [shared from social media](sharing.md), with where and when it was posted,
+- what stays true about her (outdated facts are left out), including what you [shared from social media](sharing.md), with where and when it was posted,
 - open promises, both yours and hers,
 - gift ideas and other open exchanges,
 - upcoming dates such as her birthday,
-- relationships and groups,
+- her people, your relationships to her and her groups,
 - her check-in interval, or a suggestion for one.
 
 When the summary isn't enough, ask what exactly was said. Claude can fetch the verbatim transcript.
@@ -27,7 +29,8 @@ Claude asks freundebuch what needs attention in the next 14 days (or any range y
 
 - birthdays, anniversaries and other dates,
 - promises with a due date (only yours count as yours; your partner's shared promises are shown with their name),
-- people you're overdue to see: your last meeting is longer ago than the interval you set.
+- people you're overdue to see: your last meeting is longer ago than the interval you set,
+- situations to ask about: "ask Jonas whether he found a car". Each situation has a day to ask again, which Claude estimates when filing it (a car: a few weeks, a house: months) and you can change ("frag in einem Monat nach"). Your partner's shared situations nudge you too; private ones only their recorder.
 
 ## Check-in intervals
 
