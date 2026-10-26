@@ -304,6 +304,43 @@ const migrations: Record<string, Migration> = {
       await db.schema.createIndex("user_settings_calendar_key").on("user_settings").column("calendar_key_hash").unique().execute();
     },
   },
+  // Roles to the household (landlord, neighbour, doctor, service), so relationships is rebuilt for its type CHECK; nothing
+  // references relationships.id. Facts are lasting or a situation with a day to ask again (`check_after`); every existing fact
+  // is lasting. Persons get an optional gender, which the role labels follow.
+  "007_roles_situations_gender": {
+    async up(db) {
+      const types = ["partner", "spouse", "parent", "child", "sibling", "friend", "colleague", "introduced_by", "other", "landlord", "neighbour", "doctor", "service"];
+      const person = (c: any) => c.notNull().references("persons.id").onDelete("cascade");
+      await db.schema
+        .createTable("relationships_007")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("from_id", "text", person)
+        .addColumn("to_id", "text", person)
+        .addColumn("type", "text", (c) => c.notNull().check(oneOf("type", types)))
+        .addColumn("note", "text")
+        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+        .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("conversation_id", "text", (c) => c.references("conversations.id").onDelete("cascade"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      const columns = sql.raw("id, from_id, to_id, type, note, visibility, recorded_by, conversation_id, created_at");
+      await sql`insert into relationships_007 (${columns}) select ${columns} from relationships`.execute(db);
+      await db.schema.dropTable("relationships").execute();
+      await db.schema.alterTable("relationships_007").renameTo("relationships").execute();
+      await db.schema.createIndex("relationships_by_from").on("relationships").column("from_id").execute();
+      await db.schema.createIndex("relationships_by_to").on("relationships").column("to_id").execute();
+
+      await db.schema
+        .alterTable("facts")
+        .addColumn("kind", "text", (c) => c.notNull().defaultTo("lasting").check(oneOf("kind", ["lasting", "situation"])))
+        .execute();
+      await db.schema.alterTable("facts").addColumn("check_after", "text").execute();
+      await db.schema
+        .alterTable("persons")
+        .addColumn("gender", "text", (c) => c.check(oneOf("gender", ["female", "male", "nonbinary"])))
+        .execute();
+    },
+  },
 };
 
 /** The groups every household starts with, and their other names. */

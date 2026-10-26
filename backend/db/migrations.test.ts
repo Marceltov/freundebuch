@@ -212,3 +212,47 @@ test("005 keeps one of the same relationship recorded twice by one user, with th
     { id: "r8", note: null },
   ]);
 });
+
+// A database at 006 with two users, two persons and one relationship and fact, for the tests of 007.
+async function at006() {
+  const d = fresh();
+  await migrateTo(d, "006_calendar_key");
+  const t = Date.now();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "u", email: null, person_id: null, created_at: t }).execute();
+  for (const p of ["anna", "tom"]) await d.insertInto("persons").values({ id: p, name: p, created_by: "u", created_from: null, created_at: t }).execute();
+  await d
+    .insertInto("relationships")
+    .values({ id: "r1", from_id: "anna", to_id: "tom", type: "friend", note: "Uni", visibility: "private", recorded_by: "u", conversation_id: null, created_at: t })
+    .execute();
+  await d
+    .insertInto("facts")
+    .values({ id: "f1", person_id: "anna", text: "a", category: "work", status: "current", visibility: "shared", recorded_by: "u", conversation_id: null, created_at: t })
+    .execute();
+  await migrate(d);
+  return d;
+}
+const rel = (id: string, type: string) => ({ id, from_id: "anna", to_id: "tom", type, note: null, visibility: "shared", recorded_by: "u", conversation_id: null, created_at: 0 });
+
+test("007 keeps every relationship and accepts the new types", async () => {
+  const d = await at006();
+  expect(await d.selectFrom("relationships").select(["id", "type", "note", "visibility"]).execute()).toEqual([{ id: "r1", type: "friend", note: "Uni", visibility: "private" }]);
+  for (const type of ["landlord", "neighbour", "doctor", "service"]) await d.insertInto("relationships").values(rel(`r-${type}`, type)).execute();
+  await expect(d.insertInto("relationships").values(rel("r-boss", "boss")).execute()).rejects.toThrow(/CHECK constraint failed/);
+  const { rows } = await sql<{ name: string }>`pragma index_list(relationships)`.execute(d);
+  expect(rows.map((r) => r.name).filter((n) => !n.startsWith("sqlite_")).sort()).toEqual(["relationships_by_from", "relationships_by_to"]);
+});
+
+test("007 makes every existing fact lasting", async () => {
+  const d = await at006();
+  expect(await d.selectFrom("facts").select(["kind", "check_after"]).execute()).toEqual([{ kind: "lasting", check_after: null }]);
+  const f = { person_id: "anna", text: "a", category: "work", status: "current", visibility: "shared", recorded_by: "u", conversation_id: null, created_at: 0 };
+  await d.insertInto("facts").values({ ...f, id: "f2", kind: "situation", check_after: "2026-12-01" }).execute();
+  await expect(d.insertInto("facts").values({ ...f, id: "f3", kind: "rumour" }).execute()).rejects.toThrow(/CHECK constraint failed/);
+});
+
+test("007 adds an optional gender", async () => {
+  const d = await at006();
+  expect(await d.selectFrom("persons").select("gender").where("id", "=", "anna").executeTakeFirst()).toEqual({ gender: null });
+  await d.updateTable("persons").set({ gender: "nonbinary" }).where("id", "=", "anna").execute();
+  await expect(d.updateTable("persons").set({ gender: "other" }).where("id", "=", "tom").execute()).rejects.toThrow(/CHECK constraint failed/);
+});

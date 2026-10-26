@@ -97,6 +97,10 @@ const LABELS: Record<RelationshipType, { out: string; in: string }> = {
   child: { out: "child of", in: "parent of" },
   introduced_by: { out: "introduced by", in: "introduced" },
   other: { out: "knows", in: "knows" },
+  landlord: { out: "landlord of", in: "tenant of" },
+  neighbour: { out: "neighbour of", in: "neighbour of" },
+  doctor: { out: "doctor of", in: "patient of" },
+  service: { out: "works for", in: "customer of" },
 };
 
 /** Hints that help tell two people with the same name apart, built only from what the viewer can see. */

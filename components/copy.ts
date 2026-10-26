@@ -272,4 +272,8 @@ export const relationName: Record<string, { out: string; in: string }> = {
   colleague: { out: "Kolleg:in", in: "Kolleg:in" },
   introduced_by: { out: "hat vorgestellt", in: "vorgestellt" },
   other: { out: "", in: "" },
+  landlord: { out: "Mieter:in", in: "Vermieter:in" },
+  neighbour: { out: "Nachbar:in", in: "Nachbar:in" },
+  doctor: { out: "Patient:in", in: "Ärzt:in" },
+  service: { out: "Kund:in", in: "Dienstleister:in" },
 };
