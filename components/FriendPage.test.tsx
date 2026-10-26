@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import type { Briefing } from "@/backend";
+import { relationLabel } from "./copy";
 import { FriendPage } from "./FriendPage";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -84,4 +85,60 @@ test("Gehört zu lists each person by name with what they are to this one, linki
   const tile = (id: string) => html.match(new RegExp(`id="relationships-${id}".*?</li>`, "s"))![0];
   expect(tile("x1")).toContain('aria-label="Aktionen"');
   expect(tile("x2")).not.toContain('aria-label="Aktionen"');
+});
+
+const fact = (id: string, text: string, category: "home" | "other" | "work" = "other") => ({ id, text, category, url: `/p/p1#facts-${id}`, ...own });
+const role = (over: Partial<Briefing["roles"][number]> = {}): Briefing["roles"][number] => ({ type: "landlord", direction: "out", with: "us", note: null, ids: ["r1", "r2"], ...over });
+
+test("the role line comes first, in the person's gender", () => {
+  const page = (over: Partial<Briefing>) => renderToStaticMarkup(<FriendPage b={{ ...b, situations: [{ ...fact("s1", "sucht ein Auto"), since: "2026-09-01", checkAfter: "2026-12-01", nudge: false }], ...over }} daysSince={null} today="2026-10-25" />);
+  const html = page({ roles: [role()], person: { ...b.person, gender: "female" } });
+  expect(html).toContain("Unsere Vermieterin");
+  expect(html.indexOf("Unsere Vermieterin")).toBeLessThan(html.indexOf("Gerade los"));
+  expect(page({ roles: [role()] })).toContain("Unsere Vermieter:in");
+  expect(page({ roles: [role()], person: { ...b.person, gender: "male" } })).toContain("Unser Vermieter");
+  expect(page({ roles: [role({ type: "colleague", with: "me" })], person: { ...b.person, gender: "female" } })).toContain("Kollegin von dir");
+  expect(page({ roles: [role({ type: "colleague", with: "partner", partnerName: "Marcel" }), role({ type: "neighbour", with: "us" })] })).toContain("Kolleg:in von Marcel · Unsere Nachbar:in");
+  // The page's person is the tenant: we are their landlords.
+  expect(page({ roles: [role({ direction: "in", with: "me" })], person: { ...b.person, gender: "male" } })).toContain("Mieter von dir");
+  expect(page({ roles: [role({ type: "service", note: "Klempner", with: "us" })], person: { ...b.person, gender: "male" } })).toContain("Unser Klempner");
+  expect(page({ roles: [] })).not.toContain('data-role-line');
+});
+
+test("Gerade los shows situations, nudges first; lasting facts go under Gut zu wissen", () => {
+  const html = renderToStaticMarkup(
+    <FriendPage
+      b={{
+        ...b,
+        situations: [
+          { ...fact("s1", "sucht ein Auto"), since: "2026-09-01", checkAfter: "2026-10-13", nudge: true },
+          { ...fact("s2", "renoviert das Bad", "home"), since: "2026-10-20", checkAfter: "2026-12-01", nudge: false },
+        ],
+        known: [fact("k1", "arbeitet bei Hornbach", "work")],
+      }}
+      daysSince={null}
+      today="2026-10-27"
+    />,
+  );
+  const now = html.indexOf("Gerade los");
+  const known = html.indexOf("Gut zu wissen");
+  expect(now).toBeGreaterThan(-1);
+  expect(known).toBeGreaterThan(now);
+  expect(html).toContain("Frag mal nach – seit 8 Wochen nichts gehört");
+  expect(html.indexOf("sucht ein Auto")).toBeLessThan(html.indexOf("renoviert das Bad"));
+  expect(html.indexOf("renoviert das Bad")).toBeLessThan(known);
+  expect(html.indexOf("arbeitet bei Hornbach")).toBeGreaterThan(known);
+  const none = renderToStaticMarkup(<FriendPage b={b} daysSince={null} />);
+  expect(none).not.toContain("Gerade los");
+  expect(none).not.toContain("Gut zu wissen");
+});
+
+test("relationLabel names the person at one end, in their gender", () => {
+  expect(relationLabel("landlord", "from", "female")).toBe("Vermieterin");
+  expect(relationLabel("landlord", "to", null)).toBe("Mieter:in");
+  expect(relationLabel("parent", "to", "male")).toBe("Sohn");
+  expect(relationLabel("child", "to", "female")).toBe("Mutter");
+  expect(relationLabel("doctor", "from", "male")).toBe("Arzt");
+  expect(relationLabel("spouse", "from", "nonbinary")).toBe("Ehepartner:in");
+  expect(relationLabel("other", "from", null)).toBe("");
 });

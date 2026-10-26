@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ArrowLeftRight, Cake, CalendarDays, Coffee, Gift, Handshake, Lock, MessagesSquare, Mic, Pin, Repeat, Sparkles, Users } from "lucide-react";
+import { ArrowLeftRight, BookOpen, Cake, CalendarDays, Coffee, Gift, Handshake, Lock, MessageCircleQuestionMark, MessagesSquare, Mic, Pin, Repeat, Sparkles, Users } from "lucide-react";
 import { anchorId, type Briefing } from "@/backend";
-import { copy, kindName, relationName } from "@/components/copy";
+import { copy, kindName, relationLabel, roleLine } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { ago, dayMonth, every, shortDay } from "@/components/format";
 import { GroupPicker } from "@/components/GroupPicker";
@@ -10,8 +10,8 @@ import { ItemActions } from "@/components/ItemActions";
 import { PersonMenu } from "@/components/PersonMenu";
 import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
 
-// One friend, as a page of the friendship book: the sticker and the name, the chips (last seen, birthday, interval, dates,
-// groups), then the fields filled in: what's going on, what was promised, gift ideas, what's still open, the conversations and
+// One friend, as a page of the friendship book: the sticker, the name and who they are to us, the chips (last seen, birthday, interval, dates,
+// groups), then the fields filled in: what's going on (a situation to ask about first), what stays true, what was promised, gift ideas, what's still open, the conversations and
 // who they belong with. Fields without content are left out. `daysSince`: since the viewer last saw them, null for never.
 // `allGroups`: every group the viewer sees, for "+ Gruppe". `others`: everyone else, for merging a duplicate in the menu.
 // `today` (YYYY-MM-DD, the server's) turns the age reached on the next birthday into the age the person is now; the birthday
@@ -32,13 +32,22 @@ export function FriendPage({
   const birthday = b.person.birthday;
   const otherDates = b.nextDates.filter((d) => d.kind !== "birthday");
   const { promises, exchanges, giftIdeas } = b.open;
+  const roles = roleLine(b.roles, b.person.gender);
+  const gender = new Map(b.network.nodes.map((n) => [n.id, n.gender]));
   return (
     <article>
       <header>
         <div className="flex items-center gap-4">
           <Face id={b.person.id} name={b.person.name} size={80} ratio={b.freshness.ratio} />
-          <h1 className="min-w-0 font-display text-3xl leading-tight font-bold">{b.person.name}</h1>
-          <PersonMenu id={b.person.id} name={b.person.name} intervalDays={b.freshness.intervalDays} others={others} />
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl leading-tight font-bold">{b.person.name}</h1>
+            {roles && (
+              <p data-role-line className="mt-0.5 font-display text-lg leading-snug text-carbon italic">
+                {roles}
+              </p>
+            )}
+          </div>
+          <PersonMenu id={b.person.id} name={b.person.name} gender={b.person.gender} intervalDays={b.freshness.intervalDays} others={others} />
         </div>
         <div>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -78,18 +87,36 @@ export function FriendPage({
         </div>
       </header>
 
-      {b.situations.length + b.known.length > 0 && (
+      {b.situations.length > 0 && (
         <Section title={copy.now} icon={Sparkles}>
-          {[...b.situations, ...b.known].map((f) => (
-            <Tile key={f.id} id={anchorId("facts", f.id)} icon={CATEGORY_ICON[f.category]} private={f.visibility === "private"} actions={<ItemActions table="facts" {...item(f)} />}>
-              {f.text}
-              {(f.source || f.happenedOn) && <span className="text-muted"> · {[f.source, f.happenedOn && dayMonth(f.happenedOn)].filter(Boolean).join(", ")}</span>}
-              {f.imageUrl && (
-                <a href={f.imageUrl} target="_blank" rel="noreferrer" className="ml-2 inline-block align-middle" title={copy.screenshotOf.replace("{source}", f.source ?? "")}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- a private image behind the sign-in, not for next/image */}
-                  <img src={f.imageUrl} alt={copy.screenshot} loading="lazy" className="h-9 w-9 rounded-md bg-surface-2 object-cover object-top" />
-                </a>
+          {b.situations.map((f) => (
+            <Tile
+              key={f.id}
+              id={anchorId("facts", f.id)}
+              icon={CATEGORY_ICON[f.category]}
+              private={f.visibility === "private"}
+              tone={f.nudge ? "bg-sun/25 ring-1 ring-sun" : "bg-surface"}
+              actions={<ItemActions table="facts" kind="situation" checkAfter={f.checkAfter} {...item(f)} />}
+            >
+              <FactText f={f} />
+              {f.nudge ? (
+                <span className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
+                  <MessageCircleQuestionMark aria-hidden className="h-4 w-4 shrink-0 text-carbon" />
+                  {nudge(f.since, today)}
+                </span>
+              ) : (
+                <span className="text-muted"> · {copy.askFrom.replace("{date}", dayMonth(f.checkAfter))}</span>
               )}
+            </Tile>
+          ))}
+        </Section>
+      )}
+
+      {b.known.length > 0 && (
+        <Section title={copy.known} icon={BookOpen}>
+          {b.known.map((f) => (
+            <Tile key={f.id} id={anchorId("facts", f.id)} icon={CATEGORY_ICON[f.category]} private={f.visibility === "private"} actions={<ItemActions table="facts" kind="lasting" {...item(f)} />}>
+              <FactText f={f} />
             </Tile>
           ))}
         </Section>
@@ -157,7 +184,7 @@ export function FriendPage({
         <Section title={copy.theirPeople} icon={Users} plain>
           <ul className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
             {b.relationships.map((r) => {
-              const what = [relationName[r.type]?.[r.direction], r.note].filter(Boolean).join(" · ");
+              const what = [relationLabel(r.type, r.direction === "out" ? "to" : "from", gender.get(r.personId) ?? null), r.note].filter(Boolean).join(" · ");
               return (
                 <li key={r.id} id={anchorId("relationships", r.id)} className="flex items-center rounded-2xl bg-surface pr-1 shadow-card">
                   <Link href={r.url} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2 hover:bg-surface-2/60">
@@ -179,6 +206,28 @@ export function FriendPage({
       )}
     </article>
   );
+}
+
+// A fact's text, where it was read from and when, and the screenshot it came from.
+function FactText({ f }: { f: Briefing["known"][number] }) {
+  return (
+    <>
+      {f.text}
+      {(f.source || f.happenedOn) && <span className="text-muted"> · {[f.source, f.happenedOn && dayMonth(f.happenedOn)].filter(Boolean).join(", ")}</span>}
+      {f.imageUrl && (
+        <a href={f.imageUrl} target="_blank" rel="noreferrer" className="ml-2 inline-block align-middle" title={copy.screenshotOf.replace("{source}", f.source ?? "")}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- a private image behind the sign-in, not for next/image */}
+          <img src={f.imageUrl} alt={copy.screenshot} loading="lazy" className="h-9 w-9 rounded-md bg-surface-2 object-cover object-top" />
+        </a>
+      )}
+    </>
+  );
+}
+
+// How long nothing was heard of a situation that nudges: from the day its latest news was filed.
+function nudge(since: string, today?: string): string {
+  const weeks = today ? Math.floor((Date.parse(today) - Date.parse(since)) / (7 * 86_400_000)) : 0;
+  return weeks >= 2 ? copy.nudge.replace("{weeks}", String(weeks)) : weeks === 1 ? copy.nudgeWeek : copy.nudgeSoon;
 }
 
 // What ItemActions needs of an item, and no more: it is a client component, so its props travel to the browser.

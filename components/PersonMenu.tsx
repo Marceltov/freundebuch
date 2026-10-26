@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { copy } from "@/components/copy";
 
+const GENDERS: { value: "female" | "male" | "nonbinary" | null; label: string }[] = [
+  { value: "female", label: copy.genderF },
+  { value: "male", label: copy.genderM },
+  { value: "nonbinary", label: copy.genderX },
+  { value: null, label: copy.genderNone },
+];
+
 const INTERVALS: { days: number | null; label: string }[] = [
   { days: 14, label: copy.twoWeeks },
   { days: 30, label: copy.month },
@@ -12,9 +19,21 @@ const INTERVALS: { days: number | null; label: string }[] = [
   { days: null, label: copy.never },
 ];
 
-// The round "…" on a friend's page: a sheet with what only Claude could do before. How often to see them, a new name, a
-// nickname that finds them too, and merging a duplicate into them. Each change closes the sheet and reloads the page.
-export function PersonMenu({ id, name, intervalDays, others }: { id: string; name: string; intervalDays: number | null; others: { id: string; name: string }[] }) {
+// The round "…" on a friend's page: a sheet with what only Claude could do before. How often to see them, a new name, their
+// gender (which the role labels follow), a nickname that finds them too, and merging a duplicate into them. Each change closes the sheet and reloads the page.
+export function PersonMenu({
+  id,
+  name,
+  gender = null,
+  intervalDays,
+  others,
+}: {
+  id: string;
+  name: string;
+  gender?: "female" | "male" | "nonbinary" | null;
+  intervalDays: number | null;
+  others: { id: string; name: string }[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState(name);
@@ -92,6 +111,19 @@ export function PersonMenu({ id, name, intervalDays, others }: { id: string; nam
               >
                 <input value={newName} onChange={(e) => setNewName(e.target.value)} aria-label={copy.groupName} className="w-full rounded-xl border border-rule bg-paper px-3 py-2" />
               </form>
+            </Part>
+
+            <Part title={copy.gender}>
+              <div role="radiogroup" aria-label={copy.gender} className="grid grid-cols-4 gap-1 rounded-2xl bg-surface-2 p-1">
+                {GENDERS.map((g) => (
+                  <label key={g.label} className="cursor-pointer">
+                    <input type="radio" name="gender" className="peer sr-only" checked={gender === g.value} onChange={() => send("PATCH", "", { gender: g.value })} />
+                    <span className="block rounded-xl py-2 text-center text-sm peer-checked:bg-carbon peer-checked:font-bold peer-checked:text-on-carbon peer-focus-visible:outline-2 peer-focus-visible:outline-carbon">
+                      {g.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </Part>
 
             <Part title={copy.addNickname} hint={copy.nicknameHint}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Trash2, X, type LucideIcon } from "lucide-react";
+import { Archive, BookOpen, CalendarClock, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { copy } from "@/components/copy";
@@ -13,7 +13,15 @@ type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversatio
 // Editing opens a sheet from the bottom, so the row or header it belongs to keeps its layout. Deleting asks once more in the
 // menu itself. Each goes to PATCH or DELETE /api/v1/items/{table}/{id}, then the page reloads its data.
 // `field`: what "edit" changes (`text`, `summary` for a conversation, `note` for a relationship). `after`: where to go once it is deleted. `date` (a
-// conversation's day) adds "change the date", up to `today` (the server's, in the configured time zone).
+// conversation's day) adds "change the date", up to `today` (the server's, in the configured time zone). `kind`, on a fact,
+// lets its recorder move it between Gerade los and Gut zu wissen, and set the day to ask about a situation (`checkAfter`).
+
+/** The kind entries of a fact's menu: only its recorder moves it. */
+export function factKindActions(kind: "lasting" | "situation" | undefined, mine: boolean): string[] {
+  if (!mine || !kind) return [];
+  return kind === "lasting" ? [copy.makeSituation] : [copy.makeLasting, copy.askOn];
+}
+
 export function ItemActions({
   table,
   id,
@@ -24,6 +32,8 @@ export function ItemActions({
   after,
   date,
   today,
+  kind,
+  checkAfter,
 }: {
   table: Table;
   id: string;
@@ -34,11 +44,13 @@ export function ItemActions({
   after?: string;
   date?: string;
   today?: string;
+  kind?: "lasting" | "situation";
+  checkAfter?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [editing, setEditing] = useState<false | "text" | "date">(false);
+  const [editing, setEditing] = useState<false | "text" | "date" | "ask">(false);
   const [draft, setDraft] = useState(text);
   const [day, setDay] = useState(date ?? "");
   const [busy, setBusy] = useState(false);
@@ -65,15 +77,16 @@ export function ItemActions({
     setConfirming(false);
   }
 
-  function edit(what: "text" | "date") {
+  function edit(what: "text" | "date" | "ask") {
     close();
     setFailed(false);
     setDraft(text);
-    setDay(date ?? "");
+    setDay((what === "ask" ? checkAfter : date) ?? "");
     setEditing(what);
   }
 
   const done = table === "promises" || table === "exchanges";
+  const title = editing === "date" ? copy.changeDate : editing === "ask" ? copy.askOnTitle : copy.edit;
   // The partner's conversation: nothing either user may do to it, so no empty menu.
   if (!done && table !== "facts" && !mine) return null;
   return (
@@ -98,6 +111,19 @@ export function ItemActions({
             {mine && (
               <>
                 <Item icon={Pencil} label={copy.edit} onClick={() => edit("text")} />
+                {factKindActions(kind, mine).map((label) =>
+                  label === copy.askOn ? (
+                    <Item key={label} icon={CalendarClock} label={label} onClick={() => edit("ask")} />
+                  ) : (
+                    <Item
+                      key={label}
+                      icon={kind === "lasting" ? Sparkles : BookOpen}
+                      label={label}
+                      disabled={busy}
+                      onClick={() => send("PATCH", { patch: { kind: kind === "lasting" ? "situation" : "lasting" } })}
+                    />
+                  ),
+                )}
                 {date && <Item icon={CalendarDays} label={copy.changeDate} onClick={() => edit("date")} />}
                 <Item
                   icon={visibility === "private" ? LockOpen : Lock}
@@ -127,16 +153,24 @@ export function ItemActions({
           <form
             role="dialog"
             aria-modal="true"
-            aria-label={editing === "date" ? copy.changeDate : copy.edit}
+            aria-label={title}
             onSubmit={(e) => {
               e.preventDefault();
-              if (editing === "date" ? day : draft.trim()) send("PATCH", { patch: editing === "date" ? { date: day } : { [field]: draft.trim() } });
+              if (editing === "text" ? draft.trim() : day) send("PATCH", { patch: editing === "date" ? { date: day } : editing === "ask" ? { checkAfter: day } : { [field]: draft.trim() } });
             }}
             className="absolute inset-x-0 bottom-0 mx-auto max-w-2xl space-y-3 rounded-t-3xl bg-surface px-5 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-float"
           >
-            <h2 className="font-display text-xl font-bold">{editing === "date" ? copy.changeDate : copy.edit}</h2>
-            {editing === "date" ? (
-              <input type="date" value={day} max={today} onChange={(e) => setDay(e.target.value)} aria-label={copy.changeDate} autoFocus className="w-full rounded-xl border border-rule bg-paper px-3 py-2" />
+            <h2 className="font-display text-xl font-bold">{title}</h2>
+            {editing !== "text" ? (
+              <input
+                type="date"
+                value={day}
+                max={editing === "date" ? today : undefined}
+                onChange={(e) => setDay(e.target.value)}
+                aria-label={title}
+                autoFocus
+                className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
+              />
             ) : (
               <textarea
                 value={draft}
