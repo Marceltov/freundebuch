@@ -162,9 +162,9 @@
         }
       },
       "patch": {
-        "operationId": "renamePerson",
-        "summary": "Rename a person",
-        "description": "Names are shared: the other user sees the new name too.",
+        "operationId": "updatePerson",
+        "summary": "Rename a person, or set their gender",
+        "description": "Names and gender are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
         "tags": [
           "People"
         ],
@@ -192,7 +192,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PersonName"
+                "$ref": "#/components/schemas/PersonPatch"
               }
             }
           }
@@ -1528,6 +1528,97 @@
         }
       }
     },
+    "/api/v1/items/facts/{id}/relationship": {
+      "post": {
+        "operationId": "factToRelationship",
+        "summary": "Turn a fact into a relationship",
+        "description": "For a fact that says who someone is (\"unsere Vermieterin\"): it becomes a relationship with the fact's visibility, and the fact is deleted. `from` and `to` take a person id, \"me\" or \"us\". Only the fact's recorder may.",
+        "tags": [
+          "Items"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactRelationship"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The relationships",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationshipIds"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The item is visible to the caller but only its recorder may change it (`forbidden`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/settings": {
       "get": {
         "operationId": "getSettings",
@@ -2373,16 +2464,110 @@
           "url"
         ]
       },
-      "PersonName": {
+      "PersonPatch": {
         "type": "object",
         "properties": {
           "name": {
+            "description": "The person's new name",
+            "type": "string"
+          },
+          "gender": {
+            "description": "The person's gender; null clears it",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "female",
+                  "male",
+                  "nonbinary"
+                ],
+                "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "FactRelationship": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A person's id"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "me",
+                  "us"
+                ],
+                "description": "\"me\": the user's own person; \"us\": both of the household, one relationship each"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A person's id"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "me",
+                  "us"
+                ],
+                "description": "\"me\": the user's own person; \"us\": both of the household, one relationship each"
+              }
+            ]
+          },
+          "type": {
             "type": "string",
-            "description": "The person's new name"
+            "enum": [
+              "partner",
+              "spouse",
+              "parent",
+              "child",
+              "sibling",
+              "friend",
+              "colleague",
+              "introduced_by",
+              "other",
+              "landlord",
+              "neighbour",
+              "doctor",
+              "service"
+            ],
+            "description": "`from` is `type` of `to`, as in a relationship"
+          },
+          "note": {
+            "type": "string"
           }
         },
         "required": [
-          "name"
+          "from",
+          "to",
+          "type"
+        ],
+        "description": "The relationship a fact becomes; one end is the fact's person"
+      },
+      "RelationshipIds": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One per pair; \"us\" is one per household person"
+          }
+        },
+        "required": [
+          "ids"
         ]
       },
       "Group": {
@@ -2621,6 +2806,23 @@
             "items": {
               "type": "string"
             }
+          },
+          "gender": {
+            "description": "null when it isn't known; absent in a search",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "female",
+                  "male",
+                  "nonbinary"
+                ],
+                "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

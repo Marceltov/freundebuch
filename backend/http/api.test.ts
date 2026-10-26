@@ -364,3 +364,35 @@ describe("calendar feed", () => {
     expect((await call(null, "POST", "/me/calendar-feed")).status).toBe(401);
   });
 });
+
+describe("roles and situations", () => {
+  test("PATCH a person's gender, and the briefing carries it", async () => {
+    expect((await call(s.a, "PATCH", `/people/${s.anna}`, { gender: "female" })).status).toBe(204);
+    expect((await call(s.b, "GET", `/people/${s.anna}/briefing`)).json.person.gender).toBe("female");
+    expect((await call(s.b, "GET", `/people/${s.anna}`)).json.gender).toBe("female");
+    expect((await call(s.a, "PATCH", `/people/${s.anna}`, { gender: null, name: "Anna B." })).status).toBe(204);
+    expect((await call(s.a, "GET", `/people/${s.anna}`)).json).toMatchObject({ name: "Anna B.", gender: null });
+    expect((await call(s.a, "PATCH", `/people/${s.anna}`, {})).status).toBe(400);
+    expect((await call(s.a, "PATCH", `/people/${s.anna}`, { gender: "x" })).status).toBe(400);
+  });
+
+  test("a fact becomes a relationship to us; a fact's kind is patched; a conversation files a role", async () => {
+    const r = await call(s.a, "POST", "/conversations", lunch({ facts: [{ person: 0, text: "unser Vermieter", category: "home" }] }));
+    expect(r.status).toBe(201);
+    const max = r.json.people[0].id;
+    const fact = (await call(s.a, "GET", `/people/${max}/briefing`)).json.known[0].id;
+    const moved = await call(s.a, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", type: "landlord" });
+    expect(moved.status).toBe(201);
+    expect(moved.json.ids).toHaveLength(2);
+    expect((await call(s.b, "GET", `/people/${max}/briefing`)).json.roles).toMatchObject([{ type: "landlord", with: "us" }]);
+    expect((await call(s.b, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", type: "landlord" })).status).toBe(404);
+
+    const again = await call(s.a, "POST", "/conversations", lunch({ people: [{ id: max, present: true }], facts: [{ person: 0, text: "sucht ein Auto", category: "other" }], relationships: [{ from: 0, to: "me", type: "neighbour" }] }));
+    expect(again.json.counts.relationships).toBe(1);
+    const car = (await call(s.a, "GET", `/people/${max}/briefing`)).json.known.find((f: { text: string }) => f.text === "sucht ein Auto").id;
+    expect((await call(s.a, "PATCH", `/items/facts/${car}`, { patch: { kind: "situation", checkAfter: "2026-10-01" } })).status).toBe(204);
+    const b = (await call(s.a, "GET", `/people/${max}/briefing`)).json;
+    expect(b.situations).toMatchObject([{ text: "sucht ein Auto", checkAfter: "2026-10-01", nudge: true }]);
+    expect((await call(s.a, "GET", "/due")).json.find((i: { kind: string }) => i.kind === "situation")).toMatchObject({ text: "sucht ein Auto", url: `${BASE}/p/${max}#facts-${car}` });
+  });
+});
