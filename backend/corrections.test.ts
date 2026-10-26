@@ -1,11 +1,12 @@
 import { beforeEach, expect, test } from "vitest";
 import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
 import { briefing } from "./briefing";
-import { getConversation, recordConversation } from "./conversations";
+import { getConversation, recordConversation, remember } from "./conversations";
 import { db } from "./db/testing";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { setCheckInInterval } from "./intervals";
 import { getPerson } from "./people";
+import { addDays, today } from "./dates";
 import { seed, type Seed } from "./testing/fixtures";
 
 let s: Seed;
@@ -370,4 +371,22 @@ test("the recorder can move a conversation to an earlier day, not to a future on
   expect((await getConversation(s.a, s.dinner)).date).toBe("2026-10-18");
   await expect(editItem(s.a, "conversations", s.dinner, { date: "2999-01-01" })).rejects.toThrow(InvalidInputError);
   await expect(editItem(s.b, "conversations", s.dinner, { date: "2026-10-18" })).rejects.toThrow(ForbiddenError);
+});
+
+test("edit moves a fact between lasting and situation", async () => {
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "renoviert das Bad", category: "home" }] });
+  const id = await factId("renoviert das Bad");
+  const row = async () => (await db()).selectFrom("facts").select(["kind", "check_after"]).where("id", "=", id).executeTakeFirstOrThrow();
+  await editItem(s.a, "facts", id, { kind: "situation", checkAfter: "2026-11-30" });
+  expect(await row()).toEqual({ kind: "situation", check_after: "2026-11-30" });
+  await editItem(s.a, "facts", id, { checkAfter: "2026-12-24" });
+  expect(await row()).toEqual({ kind: "situation", check_after: "2026-12-24" });
+  await editItem(s.a, "facts", id, { kind: "lasting" });
+  expect(await row()).toEqual({ kind: "lasting", check_after: null });
+  await editItem(s.a, "facts", id, { kind: "situation" });
+  expect(await row()).toEqual({ kind: "situation", check_after: addDays(today(), 42) });
+  await expect(editItem(s.a, "facts", id, { checkAfter: "x" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(editItem(s.a, "facts", id, { kind: "rumour" })).rejects.toBeInstanceOf(InvalidInputError);
+  await editItem(s.a, "facts", id, { kind: "lasting" });
+  await expect(editItem(s.a, "facts", id, { checkAfter: "2026-12-24" })).rejects.toBeInstanceOf(InvalidInputError);
 });

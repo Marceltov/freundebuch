@@ -3,13 +3,13 @@
 // revealed; one they can see but someone else recorded is forbidden to edit, re-share or delete. Marking done is open to either
 // user for a shared item, and a private item is only ever visible to its recorder anyway.
 import type { Kysely } from "kysely";
-import { assertDay, isDay, isYearless, notFuture } from "./dates";
+import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { moveMembership } from "./groups";
-import { MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED } from "./conversations";
+import { MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS } from "./conversations";
 import { db, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, RELATIONSHIP_TYPES, VISIBILITIES, type Viewer, type Visibility } from "./types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, RELATIONSHIP_TYPES, VISIBILITIES, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
 import { pruneScreenshots } from "./screenshots";
 
@@ -111,6 +111,8 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
   facts: {
     text: { column: "text", check: text },
     category: { column: "category", check: oneOf(FACT_CATEGORIES) },
+    kind: { column: "kind", check: oneOf(FACT_KINDS) },
+    checkAfter: { column: "check_after", check: (v, w) => (v === null ? null : day(v, w)) },
   },
   promises: {
     text: { column: "text", check: text },
@@ -172,6 +174,15 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
     const yearly = (set.yearly ?? old.yearly) === 1;
     if (!isDay(date) && !(yearly && isYearless(date)))
       throw new InvalidInputError(`A date must be a real date as YYYY-MM-DD, or --MM-DD when yearly; got "${date}"`);
+  }
+  // A lasting fact has no day to ask again; a situation always has one, the default when it just became one.
+  if (table === "facts") {
+    const kind = (set.kind ?? (row as unknown as { kind: string }).kind) as string;
+    if (kind === "lasting") {
+      if ("check_after" in set && set.check_after !== null) throw new InvalidInputError("checkAfter is for a situation; make it one with kind: situation");
+      set.check_after = null;
+    } else if (set.check_after === null) throw new InvalidInputError("A situation needs a checkAfter day; make it lasting to drop it");
+    else if (set.kind && !("check_after" in set)) set.check_after = addDays(today(), SITUATION_DAYS);
   }
   await d
     .updateTable(table as "facts")

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "vitest";
-import { ageOn, daysBetween, nextOccurrence, today } from "./dates";
+import { addDays, ageOn, daysBetween, nextOccurrence, today } from "./dates";
 import { InvalidInputError } from "./errors";
 
 const tz = process.env.TZ;
@@ -66,4 +66,10 @@ test("impossible dates are rejected", () => {
   }
   expect(() => nextOccurrence("--10-24", "2026-02-30")).toThrow(InvalidInputError);
   expect(() => nextOccurrence("--10-24", "--10-24")).toThrow(InvalidInputError);
+});
+
+test("addDays crosses months, years and leap days", () => {
+  expect(addDays("2026-10-26", 42)).toBe("2026-12-07");
+  expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+  expect(addDays("2028-03-01", -1)).toBe("2028-02-29");
 });

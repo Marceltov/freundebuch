@@ -3,6 +3,7 @@ import { briefing } from "./briefing";
 import { remember } from "./conversations";
 import { db } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
+import { addDays, today } from "./dates";
 import { seed, type Seed } from "./testing/fixtures";
 
 let s: Seed;
@@ -38,4 +39,32 @@ test("an unknown person or a bad date is refused, and nothing is filed", async (
   await expect(remember(s.a, { visibility: "shared", facts: [{ person: "nope", text: "x", category: "other" }] })).rejects.toThrow(NotFoundError);
   await expect(remember(s.a, { visibility: "shared", dates: [{ person: s.anna, kind: "birthday", date: "7.2.2024", yearly: true }] })).rejects.toThrow(InvalidInputError);
   await expect(remember(s.a, { visibility: "shared" })).rejects.toThrow(InvalidInputError);
+});
+
+const fact = async (text: string) => (await db()).selectFrom("facts").select(["id", "kind", "check_after", "status"]).where("text", "=", text).executeTakeFirstOrThrow();
+
+test("a situation gets a nudge date, six weeks out by default", async () => {
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation" }] });
+  expect(await fact("sucht ein Auto")).toMatchObject({ kind: "situation", check_after: addDays(today(), 42) });
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht eine Wohnung", category: "home", kind: "situation", checkAfter: "2026-12-01" }] });
+  expect(await fact("sucht eine Wohnung")).toMatchObject({ kind: "situation", check_after: "2026-12-01" });
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "mag Riesling", category: "other" }] });
+  expect(await fact("mag Riesling")).toMatchObject({ kind: "lasting", check_after: null });
+  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", checkAfter: "2026-12-01" }] })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", kind: "situation", checkAfter: "soon" }] })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", kind: "rumour" as "lasting" }] })).rejects.toBeInstanceOf(InvalidInputError);
+});
+
+test("superseding keeps a situation going and resets its nudge, unless it is lasting", async () => {
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-11-01" }] });
+  const old = await fact("sucht ein Auto");
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "hat zwei Autos in der engeren Wahl", category: "other", supersedes: old.id }] });
+  expect(await fact("hat zwei Autos in der engeren Wahl")).toMatchObject({ kind: "situation", check_after: addDays(today(), 42) });
+  expect(await fact("sucht ein Auto")).toMatchObject({ status: "outdated" });
+  const news = await fact("hat zwei Autos in der engeren Wahl");
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "fährt einen Golf", category: "other", kind: "lasting", supersedes: news.id }] });
+  expect(await fact("fährt einen Golf")).toMatchObject({ kind: "lasting", check_after: null });
+  // Superseding a lasting fact without a kind keeps it lasting.
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "fährt einen Polo", category: "other", supersedes: (await fact("fährt einen Golf")).id }] });
+  expect(await fact("fährt einen Polo")).toMatchObject({ kind: "lasting", check_after: null });
 });

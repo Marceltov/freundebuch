@@ -2,7 +2,7 @@
 // bad item leaves nothing behind. Privacy is decided here once: a private conversation makes every item private, and any private
 // item makes the verbatim transcript private to the recorder (it contains the private part).
 import type { Kysely } from "kysely";
-import { assertDay, isDay, isYearless, notFuture } from "./dates";
+import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { insertPerson, namedLike } from "./people";
@@ -10,11 +10,13 @@ import {
   CONVERSATION_KINDS,
   EXCHANGE_KINDS,
   FACT_CATEGORIES,
+  FACT_KINDS,
   RELATIONSHIP_TYPES,
   VISIBILITIES,
   type ConversationKind,
   type ExchangeKind,
   type FactCategory,
+  type FactKind,
   type RelationshipType,
   type Viewer,
   type Visibility,
@@ -41,7 +43,7 @@ export type NewConversation = {
    * person's name or alias is refused as ambiguous unless `confirmedNew`.
    */
   people: Array<{ id?: string; name?: string; aliases?: string[]; present: boolean; confirmedNew?: boolean }>;
-  facts?: Array<{ person: PersonRef; text: string; category: FactCategory; private?: boolean; supersedes?: string }>;
+  facts?: Array<{ person: PersonRef; text: string; category: FactCategory; private?: boolean; supersedes?: string; kind?: FactKind; checkAfter?: string }>;
   promises?: Array<{ person: PersonRef; text: string; byMe: boolean; due?: string; private?: boolean }>;
   /** `date` is `YYYY-MM-DD`, or `--MM-DD` for a yearly date without a year. */
   dates?: Array<{ person: PersonRef; kind: DateKind; date: string; label?: string; yearly: boolean; private?: boolean }>;
@@ -89,6 +91,8 @@ export type ConversationView = {
 };
 
 export const MAX_TRANSCRIPT = 200_000;
+/** How long after filing a situation without a `checkAfter` it turns into a nudge to ask how it went. */
+export const SITUATION_DAYS = 42;
 export const MAX_SUMMARY = 2_000;
 
 function oneOf<T extends string>(value: string, allowed: readonly T[], what: string): void {
@@ -112,8 +116,12 @@ function validate(c: NewConversation): void {
   for (const g of c.groups ?? []) checkGroup(g, ref);
 }
 
+/**
+ * A fact is `lasting` or a `situation` (going on, will end) with `checkAfter`, the day to ask how it went; SITUATION_DAYS after it
+ * was filed when not given. A fact that supersedes another takes its kind unless it gives one, so news keeps a situation going.
+ */
 type Items<P> = {
-  facts?: Array<{ person: P; text: string; category: string; private?: boolean; supersedes?: string }>;
+  facts?: Array<{ person: P; text: string; category: string; private?: boolean; supersedes?: string; kind?: string; checkAfter?: string }>;
   promises?: Array<{ person: P; text: string; byMe: boolean; due?: string; private?: boolean }>;
   dates?: Array<{ person: P; kind: string; date: string; label?: string; yearly: boolean; private?: boolean }>;
   exchanges?: Array<{ person: P; kind: string; direction: string; text: string; amount?: number; currency?: string; private?: boolean }>;
@@ -124,6 +132,8 @@ function validateItems<P>(c: Items<P>, ref: (p: P) => void): void {
   for (const f of c.facts ?? []) {
     ref(f.person);
     oneOf(f.category, FACT_CATEGORIES, "fact category");
+    if (f.kind !== undefined) oneOf(f.kind, FACT_KINDS, "fact kind");
+    if (f.checkAfter !== undefined) assertDay(f.checkAfter, "A situation's checkAfter");
   }
   for (const p of c.promises ?? []) {
     ref(p.person);
@@ -145,7 +155,16 @@ function validateItems<P>(c: Items<P>, ref: (p: P) => void): void {
 async function insertItems<P>(tx: Kysely<Schema>, v: Viewer, base: ItemBase, c: Items<P>, id: (p: P) => string, vis: (item: { private?: boolean }) => Visibility): Promise<void> {
   for (const f of c.facts ?? []) {
     const factId = newId();
-    await tx.insertInto("facts").values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, visibility: vis(f) }).execute();
+    const replaced = f.supersedes
+      ? await tx.selectFrom("facts").select("kind").where("id", "=", f.supersedes).$call((qb) => visible(qb, v, "facts")).executeTakeFirst()
+      : undefined;
+    const kind = (f.kind ?? replaced?.kind ?? "lasting") as FactKind;
+    if (kind === "lasting" && f.checkAfter !== undefined) throw new InvalidInputError("checkAfter is for a situation; a lasting fact has none");
+    const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), SITUATION_DAYS)) : null;
+    await tx
+      .insertInto("facts")
+      .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f) })
+      .execute();
     if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
   }
   for (const p of c.promises ?? [])
