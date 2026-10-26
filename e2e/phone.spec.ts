@@ -23,6 +23,22 @@ test("someone new sees the book's people and how to start telling", async ({ pag
   await expectNoSideScroll(page);
 });
 
+test("soft colour bubbles behind the page, still when the phone asks for less motion", async ({ page }) => {
+  const layer = () =>
+    page.evaluate(() => {
+      const style = getComputedStyle(document.body, "::before");
+      return { image: style.backgroundImage, position: style.position, animation: style.animationName };
+    });
+  const moving = await layer();
+  expect(moving.image).toContain("radial-gradient");
+  expect(moving.position).toBe("fixed");
+  expect(moving.animation).not.toBe("none");
+  await expectNoSideScroll(page);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  expect((await layer()).animation).toBe("none");
+});
+
 test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/conversations", {
     headers: { origin: baseURL! },

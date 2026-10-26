@@ -12,7 +12,7 @@ import { TabBar } from "@/components/TabBar";
 export function AppShell({ userId, pending = 0, children }: { userId: string; pending?: number; children: ReactNode }) {
   return (
     <div className="mx-auto min-h-dvh max-w-2xl pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
-      <div className="sticky top-0 z-30 flex items-center justify-between bg-paper/95 px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
+      <div className="sticky top-0 z-30 flex items-center justify-between bg-paper/70 backdrop-blur-md px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
         <Link href="/" aria-label={copy.home} className="font-display text-xl font-bold">
           freunde<span className="text-carbon">buch</span>
         </Link>

@@ -22,6 +22,10 @@
   --g2: #dff3ea;
   --g3: #e3e8ff;
   --g4: #fff1cc;
+  --bubble-berry: rgb(200 50 106 / 0.2);
+  --bubble-sun: rgb(255 201 77 / 0.34);
+  --bubble-mint: rgb(47 158 119 / 0.18);
+  --bubble-sky: rgb(111 125 255 / 0.2);
   color-scheme: light;
 }
 
@@ -46,6 +50,10 @@
     --g2: #1f3d33;
     --g3: #2b3159;
     --g4: #4a3b16;
+    --bubble-berry: rgb(255 107 154 / 0.2);
+    --bubble-sun: rgb(255 212 102 / 0.12);
+    --bubble-mint: rgb(79 209 165 / 0.15);
+    --bubble-sky: rgb(130 140 255 / 0.24);
     color-scheme: dark;
   }
 }
@@ -80,6 +88,43 @@ body {
   background: var(--paper);
   color: var(--ink);
   overflow-wrap: break-word;
+}
+
+/* Behind everything, a few large soft bubbles in the book's colours (berry, sunflower, mint, sky) that fade into each other.
+   Gradients only, on two fixed layers: nothing to lay out, nothing that widens the page, and the drift is a transform the
+   phone's compositor does on its own. Content keeps its own surfaces on top. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+body::before {
+  background:
+    radial-gradient(circle 17rem at 4% 10%, var(--bubble-berry), var(--bubble-berry) 25%, transparent 70%),
+    radial-gradient(circle 15rem at 100% 34%, var(--bubble-sun), var(--bubble-sun) 25%, transparent 70%),
+    radial-gradient(circle 19rem at 10% 88%, var(--bubble-sky), var(--bubble-sky) 25%, transparent 70%);
+  animation: bubbles-drift 48s ease-in-out infinite alternate;
+}
+body::after {
+  background:
+    radial-gradient(circle 12rem at 76% 4%, var(--bubble-sky), var(--bubble-sky) 25%, transparent 70%),
+    radial-gradient(circle 16rem at 92% 82%, var(--bubble-mint), var(--bubble-mint) 25%, transparent 70%),
+    radial-gradient(circle 11rem at 40% 56%, var(--bubble-sun), var(--bubble-sun) 25%, transparent 70%);
+  animation: bubbles-drift 64s ease-in-out -20s infinite alternate-reverse;
+}
+@keyframes bubbles-drift {
+  to {
+    transform: translate3d(3vw, -4vh, 0) scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    animation: none;
+  }
 }
 
 /* iOS Safari zooms into a text field under 16px when it gets the focus, so below lg no field is smaller. */
