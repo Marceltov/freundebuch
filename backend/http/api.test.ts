@@ -349,3 +349,18 @@ describe("screenshots", () => {
     expect((await call(s.a, "DELETE", "/me/share-key")).status).toBe(204);
   });
 });
+
+describe("calendar feed", () => {
+  test("make, look at and revoke the caller's feed URL", async () => {
+    expect((await call(s.a, "GET", "/me/calendar-feed")).json).toEqual({ active: false, created: false, url: null });
+    const made = await call(s.a, "POST", "/me/calendar-feed");
+    expect(made.status).toBe(200);
+    expect(made.json).toMatchObject({ active: true, created: true });
+    expect(made.json.url).toMatch(new RegExp(`^${BASE}/api/calendar/fbc_[\\w-]{43}\\.ics$`));
+    expect((await call(s.a, "GET", "/me/calendar-feed")).json).toEqual({ active: true, created: false, url: null });
+    expect((await call(s.b, "GET", "/me/calendar-feed")).json.active).toBe(false);
+    expect((await call(s.a, "DELETE", "/me/calendar-feed")).status).toBe(204);
+    expect((await call(s.a, "GET", "/me/calendar-feed")).json.active).toBe(false);
+    expect((await call(null, "POST", "/me/calendar-feed")).status).toBe(401);
+  });
+});

@@ -55,4 +55,4 @@ Opened on someone's page, the chat knows who you probably mean ("Es geht um Marv
 
 ## Settings
 
-The gear icon opens **Einstellungen**: your webhook for [notifications](notifications.md), your groups and their other names, and signing out.
+The gear icon opens **Einstellungen**: your webhook for [notifications](notifications.md), your [calendar feed](calendar.md), your groups and their other names, and signing out.

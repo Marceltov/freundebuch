@@ -20,3 +20,7 @@ curl -H "Authorization: Bearer $TOKEN" https://freundebuch.example.com/api/v1/pe
 ```
 
 The same privacy rules apply as everywhere else: a request sees what the token's person may see.
+
+## Calendar feed
+
+`POST /api/v1/me/calendar-feed` makes the caller's [calendar feed](../using/calendar.md) URL (and replaces an older one), `DELETE` turns it off, `GET` says whether there is one. The feed itself is served at `${PUBLIC_URL}/api/calendar/{key}.ics` without a sign-in: the key in the URL is the credential ([ADR 0008](../adr/0008-calendar-feed-through-a-secret-url.md)).

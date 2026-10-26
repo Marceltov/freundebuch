@@ -1,4 +1,4 @@
-// The German text of the reminders. It lives here, not in components/copy.ts: backend/ never imports the frontend.
+// The German text of the reminders and the calendar feed. It lives here, not in components/copy.ts: backend/ never imports the frontend.
 // `{name}` placeholders are filled by daily.ts.
 export const copy = {
   birthday: "🎂 {name} hat {when} Geburtstag",
@@ -21,5 +21,11 @@ export const copy = {
   shotSensitive: "📷 Bitte kurz ansehen, bevor es abgelegt wird",
   shotNothing: "📷 Auf dem Screenshot war nichts für freundebuch",
   shotFailed: "📷 Der Screenshot konnte nicht gelesen werden",
+  calendarName: "freundebuch",
+  calendarBirthday: "🎂 {name}",
+  calendarBirthdayAge: "🎂 {name} wird {age}",
+  calendarDate: "📅 {label}: {name}",
+  calendarPromise: "📌 Versprochen: {text} ({name})",
+  calendarPromiseTheirs: "📌 {name} wollte: {text}",
   shotLimit: "📷 Tageslimit erreicht, der Screenshot wartet",
 };

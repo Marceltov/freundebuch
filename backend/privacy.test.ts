@@ -2,6 +2,7 @@
 // recordings). Every later task that adds a read function adds its assertions here.
 import { beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
+import { calendarFeed } from "./calendar";
 import { getConversation, listConversations, recordConversation } from "./conversations";
 import { deleteItem, setVisibility, shareTranscript } from "./corrections";
 import { db } from "./db/testing";
@@ -200,6 +201,14 @@ test("B's briefing on Anna and Tom and B's whatsDue never contain A's private it
   expect(await whatsDue(s.b, "2026-10-23")).toEqual([]);
   expect(JSON.stringify(await whatsDue(s.b, "2026-10-23"))).not.toContain("Tom");
   expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "date").map((i) => i.date)).toEqual(["2026-10-24"]);
+  // The calendar feed: no event, title or busy slot of A's for B; A's own feed has the birthday and the promise.
+  const now = Date.parse("2026-10-23T12:00:00Z");
+  const forB = await calendarFeed(s.b, "https://fb.example", now);
+  expect(forB).not.toContain("BEGIN:VEVENT");
+  for (const secret of ["Tom", "wine", s.tom]) expect(forB, secret).not.toContain(secret);
+  const forA = await calendarFeed(s.a, "https://fb.example", now);
+  expect(forA).toContain("SUMMARY:🎂 Tom");
+  expect(forA).toContain("bring the wine");
 });
 
 test("last seen and the interval are per user: B's call changes nothing for A, and a private conversation is not B's", async () => {

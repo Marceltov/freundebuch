@@ -122,6 +122,8 @@ test("the system prompt has a cached stable block, and names today, the user and
   expect(system[0].text).toContain("only when the user asked for it in their latest message");
   expect(system[0].text).toContain("instead of giving the user links");
   expect(p.tools!.map((t) => (t as { name: string }).name)).toContain("record_conversation");
+  // The feed URL is a credential that has to be absolute to paste into a calendar; in the app, Einstellungen shows it.
+  expect(p.tools!.map((t) => (t as { name: string }).name)).not.toContain("calendar_feed");
 });
 
 test("the transcript is the user's own words since the last filing, never Claude's retelling", async () => {

@@ -32,6 +32,10 @@
       "description": "Corrections after the fact: facts, promises, dates, exchanges, relationships and conversations."
     },
     {
+      "name": "Calendar",
+      "description": "The secret URL of the caller's calendar feed (ICS), served at /api/calendar/{key}.ics."
+    },
+    {
       "name": "Meta",
       "description": "About the API itself."
     }
@@ -1960,6 +1964,114 @@
         }
       }
     },
+    "/api/v1/me/calendar-feed": {
+      "get": {
+        "operationId": "getCalendarFeed",
+        "summary": "Whether the caller has a calendar feed",
+        "description": "The URL itself is shown only when it is made: only its hash is kept.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The feed's state; `url` is always null here",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarFeed"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCalendarFeed",
+        "summary": "A new secret URL for the caller's calendar feed",
+        "description": "An ICS feed of the birthdays, other dates and the caller's own promises with a due date that the caller may see, for Google Calendar or any calendar app. Anyone with the URL can read it. A new one replaces the old one, which stops working.",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new feed URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarFeed"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeCalendarFeed",
+        "summary": "Turn the caller's calendar feed off",
+        "tags": [
+          "Calendar"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/openapi.json": {
       "get": {
         "operationId": "getOpenApi",
@@ -2234,6 +2346,31 @@
         },
         "required": [
           "key"
+        ]
+      },
+      "CalendarFeed": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "Whether the user has a calendar feed now"
+          },
+          "created": {
+            "type": "boolean",
+            "description": "Whether this call made a new feed URL; any earlier one stopped working"
+          },
+          "url": {
+            "description": "The new feed URL, as an absolute URL, only when created; freundebuch keeps only its hash and can't show an existing one again",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "active",
+          "created",
+          "url"
         ]
       },
       "PersonName": {

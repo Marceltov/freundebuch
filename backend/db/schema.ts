@@ -60,7 +60,12 @@ export interface Schema {
   group_aliases: { group_id: string; alias: string; norm: string };
   group_members: { group_id: string; person_id: string; visibility: string; recorded_by: string; conversation_id: string | null };
   chat_usage: { user_id: string; day: string; count: number };
-  user_settings: { user_id: string; webhook_url: string | null; share_key_hash: ColumnType<string | null, string | null | undefined, string | null> };
+  user_settings: {
+    user_id: string;
+    webhook_url: string | null;
+    share_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
+    calendar_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
+  };
   screenshots: {
     id: string;
     user_id: string;
