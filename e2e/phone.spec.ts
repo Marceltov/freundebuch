@@ -345,11 +345,16 @@ test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await expectNoSideScroll(page);
 });
 
-test("a shared screenshot waits under Zu prüfen, is filed on a new person and shows on their page", async ({ page, baseURL }) => {
+test("a screenshot added in Erzählen waits under Zu prüfen, is filed on a new person and shows on their page", async ({ page }) => {
   const sharp = (await import("sharp")).default;
-  const png = async (r: number) => sharp({ create: { width: 300, height: 600, channels: 3, background: { r, g: 120, b: 200 } } }).png().toBuffer();
-  const shared = await page.request.post("/api/share", { headers: { origin: baseURL! }, multipart: { image: { name: "shot.png", mimeType: "image/png", buffer: await png(1) } } });
-  expect(shared.status()).toBe(202);
+  const png = await sharp({ create: { width: 300, height: 600, channels: 3, background: { r: 1, g: 120, b: 200 } } }).png().toBuffer();
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  const sheet = page.getByRole("dialog", { name: "Erzählen" });
+  await expect(sheet.getByRole("button", { name: "Screenshot hinzufügen" })).toBeVisible();
+  await sheet.locator('input[type="file"]').setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png });
+  await expect(sheet.getByRole("status")).toContainText("Danke! freundebuch liest den Screenshot.");
+  await sheet.getByRole("button", { name: "Schließen" }).click();
 
   // The stand-in model is never sure: the badge appears once it has read the screenshot.
   await expect(async () => {

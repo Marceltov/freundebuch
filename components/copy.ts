@@ -58,6 +58,7 @@ export const copy = {
   message: "Nachricht",
   tellPlaceholder: "Erzähl, was los war, oder frag …",
   send: "Senden",
+  addImage: "Screenshot hinzufügen",
   newChat: "Neues Gespräch",
   closeChat: "Schließen",
   aboutPerson: "Es geht um {name}",
@@ -210,7 +211,7 @@ export const copy = {
   screenshot: "Screenshot",
   screenshotOf: "Screenshot von {source}",
   shareTitle: "Screenshots teilen",
-  shareHint: "Mach einen Screenshot von einem Post (Instagram, LinkedIn, …) und teile ihn mit freundebuch. freundebuch liest, wer was erlebt hat, und legt es bei der Person ab.",
+  shareHint: "Mach einen Screenshot von einem Post (Instagram, LinkedIn, …) und teile ihn mit freundebuch, oder füg ihn unter „Erzählen“ mit dem Bild-Knopf hinzu. freundebuch liest, wer was erlebt hat, und legt es bei der Person ab.",
   shareAndroid: "Android: freundebuch über das Browser-Menü zum Startbildschirm hinzufügen. Danach steht freundebuch beim Teilen eines Bildes zur Auswahl.",
   shareIphone: "iPhone: Lege einen Kurzbefehl an, der das geteilte Bild an diese Adresse schickt, mit deinem Teilen-Schlüssel.",
   shareSteps: [

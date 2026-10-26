@@ -29,7 +29,7 @@ export function AppShell({ userId, pending = 0, children }: { userId: string; pe
         </div>
       </div>
       <main className="min-w-0 px-4 pt-2 pb-32">{children}</main>
-      <TabBar chat={chatEnabled() ? { userId } : null} />
+      <TabBar chat={chatEnabled() ? { userId, sharing: sharingEnabled() } : null} />
       {sharingEnabled() && <ShareWorker />}
     </div>
   );

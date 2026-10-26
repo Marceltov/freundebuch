@@ -15,6 +15,10 @@ On **Zu prüfen** you pick the person, or create a new one, correct the text if 
 
 The screenshot is kept and shown as a small picture next to the fact. Your partner sees it only when they can see the fact; screenshots waiting for you are yours alone. Deleting the fact deletes the screenshot.
 
+## In the app
+
+In **Erzählen**, the picture button next to the text field picks one or more screenshots from your photos and hands them in. This works on any phone or computer without setting anything up, but you have to open freundebuch first; sharing from the phone (below) is quicker while scrolling.
+
 ## Android
 
 1. Open freundebuch in Chrome and add it to the home screen (menu → **Zum Startbildschirm hinzufügen** / **App installieren**).
