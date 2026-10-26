@@ -190,7 +190,7 @@ test("the image of a shared fact is visible to the partner, of a private one it 
   expect(await screenshotImage(s.b, priv.id)).toBeNull();
   // and the briefing shows the partner only the shared one, with its source and image
   const b = await briefing(s.b, s.anna, "2026-10-25");
-  const fromShots = b.current.filter((f) => f.source);
+  const fromShots = b.known.filter((f) => f.source);
   expect(fromShots).toEqual([expect.objectContaining({ text: "Urlaub in Lissabon", source: "Instagram", happenedOn: "2026-10-12", imageUrl: `/api/screenshots/${shared.id}` })]);
 });
 

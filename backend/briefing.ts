@@ -1,11 +1,15 @@
 // Everything to know before meeting a person, as the viewer sees it: every list below is read through `visible`, and "recent"
 // shows who else was there (names are always shared) but never the items of a conversation.
+import { sql } from "kysely";
 import { db } from "./db";
 import { ageOn, nextOccurrence, today } from "./dates";
 import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "./intervals";
 import { getPerson } from "./people";
-import type { ExchangeKind, FactCategory, RelationshipType, Viewer, Visibility } from "./types";
+import { relationshipKey } from "./conversations";
+import { householdPersons } from "./household";
+import { buildNetwork, type Network } from "./network";
+import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type RelationshipType, type Viewer, type Visibility } from "./types";
 import { conversationPath, groupPath, itemPath, personPath, screenshotPath } from "./urls";
 import { visible } from "./visibility";
 
@@ -18,16 +22,31 @@ type Own = { visibility: Visibility; mine: boolean };
 /** A birthday as recorded (`date`, `--MM-DD` without a year), the day it falls on next, and the age reached then when the year is known. */
 export type Birthday = { id: string; date: string; next: string; age: number | null };
 
+/** `source`, `happenedOn` and `imageUrl` for a fact read from a shared screenshot: where it was posted, when it happened (when
+ * known), and the screenshot. */
+export type Fact = Own & { id: string; text: string; category: FactCategory; url: string; source?: string; happenedOn?: string; imageUrl?: string };
+
+/**
+ * Who the person is to the household, read from the viewer's side: `with` is `us` when the viewer sees the relationship to every
+ * household person, `me` when only to their own person, `partner` when only to the other user's (`partnerName`). `direction` as in
+ * `relationships`; `ids` are the relationships it stands for.
+ */
+export type Role = { type: RelationshipType; direction: "out" | "in"; with: "me" | "partner" | "us"; partnerName?: string; note: string | null; ids: string[] };
+
 export type Briefing = {
   /** `birthday` however far away it is; the viewer's own record of it wins over the partner's shared one. */
-  person: { id: string; name: string; aliases: string[]; url: string; birthday: Birthday | null };
+  person: { id: string; name: string; aliases: string[]; url: string; birthday: Birthday | null; gender: Gender | null };
+  /** Who the person is to us: the first thing to say about them ("your landlady"). */
+  roles: Role[];
   /** The groups the viewer may see the person in, each once. `private`: the viewer's own private membership is the only one they see. */
   groups: Array<{ id: string; name: string; url: string; private: boolean }>;
   freshness: Freshness;
   nextDates: UpcomingDate[];
-  /** `source`, `happenedOn` and `imageUrl` for a fact read from a shared screenshot: where it was posted, when it happened
-   * (when known), and the screenshot. */
-  current: Array<Own & { id: string; text: string; category: FactCategory; url: string; source?: string; happenedOn?: string; imageUrl?: string }>;
+  /** What is going on and will end, the ones to ask about first: `since` the day the latest news was filed, `nudge` once
+   * `checkAfter` has come. */
+  situations: Array<Fact & { since: string; checkAfter: string; nudge: boolean }>;
+  /** What stays true, by category, then as filed. */
+  known: Fact[];
   open: {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
     promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null; url: string }>;
@@ -36,8 +55,11 @@ export type Briefing = {
     giftIdeas: Array<Own & { id: string; text: string; url: string }>;
   };
   recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[]; url: string }>;
-  /** `direction` is `out` when the person is the `from` side of the relationship (see `RelationshipType`), `in` otherwise. */
+  /** Every visible relationship of the person, roles included. `direction` is `out` when the person is the `from` side of the
+   * relationship (see `RelationshipType`), `in` otherwise. */
   relationships: Array<Own & { id: string; personId: string; name: string; type: RelationshipType; note: string | null; direction: "out" | "in"; url: string }>;
+  /** One hop: the person, the household persons with a visible relationship to them, then their other people. */
+  network: Network;
   /** Only while the interval isn't confirmed, and only when the history is long enough to suggest one. */
   suggestedInterval?: number;
 };
@@ -57,6 +79,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .where((eb) => eb.or([eb("from_id", "=", personId), eb("to_id", "=", personId)]))
       .$call((qb) => visible(qb, v, "relationships"))
       .orderBy("created_at")
+      .orderBy(sql`rowid`)
       .execute(),
     d
       .selectFrom("conversations")
@@ -80,7 +103,9 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .execute(),
   ]);
 
-  const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
+  const persons = await d.selectFrom("persons").select(["id", "name", "gender"]).execute();
+  const names = new Map(persons.map((p) => [p.id, p.name]));
+  const household = await householdPersons(d);
   // Promises and exchanges are stored from their recorder's side; one the other user recorded is shown with their own person's name.
   const users = new Map((await d.selectFrom("users").select(["id", "person_id"]).execute()).map((u) => [u.id, (u.person_id && names.get(u.person_id)) || ""]));
   const by = (r: { recorded_by: string }) => (r.recorded_by === v.userId ? {} : { by: users.get(r.recorded_by) ?? "" });
@@ -103,21 +128,39 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   const suggested = setting?.interval_confirmed ? null : await suggestInterval(v, personId);
   const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
+  const fact = (f: (typeof facts)[number]): Fact => ({
+    id: f.id,
+    text: f.text,
+    category: f.category as FactCategory,
+    url: itemPath(page, "facts", f.id),
+    ...(f.source ? { source: f.source } : {}),
+    ...(f.happened_on ? { happenedOn: f.happened_on } : {}),
+    ...(f.screenshot_id ? { imageUrl: screenshotPath(f.screenshot_id) } : {}),
+    ...own(f),
+  });
+  const situations = facts
+    .filter((f) => f.kind === "situation")
+    .map((f) => ({ ...fact(f), since: today(f.created_at), checkAfter: f.check_after!, nudge: f.check_after! <= from }))
+    .sort((x, y) => Number(y.nudge) - Number(x.nudge));
+  const known = facts
+    .filter((f) => f.kind !== "situation")
+    .sort((x, y) => FACT_CATEGORIES.indexOf(x.category as FactCategory) - FACT_CATEGORIES.indexOf(y.category as FactCategory) || x.created_at - y.created_at)
+    .map(fact);
   return {
-    person: { id: person.id, name: person.name, aliases: person.aliases, url: page, birthday: bday ? { id: bday.id, date: bday.date, next, age: ageOn(bday.date, next) } : null },
+    person: {
+      id: person.id,
+      name: person.name,
+      aliases: person.aliases,
+      url: page,
+      birthday: bday ? { id: bday.id, date: bday.date, next, age: ageOn(bday.date, next) } : null,
+      gender: person.gender,
+    },
+    roles: roles(v, personId, rels, household, names),
     groups: [...new Map(groups.map((g) => [g.id, g])).values()].map((g) => ({ id: g.id, name: g.name, url: groupPath(g.id), private: groups.every((x) => x.id !== g.id || x.visibility === "private") })),
     freshness: fresh,
     nextDates,
-    current: facts.map((f) => ({
-      id: f.id,
-      text: f.text,
-      category: f.category as FactCategory,
-      url: itemPath(page, "facts", f.id),
-      ...(f.source ? { source: f.source } : {}),
-      ...(f.happened_on ? { happenedOn: f.happened_on } : {}),
-      ...(f.screenshot_id ? { imageUrl: screenshotPath(f.screenshot_id) } : {}),
-      ...own(f),
-    })),
+    situations,
+    known,
     open: {
       promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),
       exchanges: exchanges
@@ -131,6 +174,39 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       const other = out ? r.to_id : r.from_id;
       return { id: r.id, personId: other, name: names.get(other) ?? "", type: r.type as RelationshipType, note: r.note, direction: out ? "out" : "in", url: personPath(other), ...own(r) };
     }),
+    network: buildNetwork(personId, rels, household, names, new Map(persons.map((p) => [p.id, p.gender]))),
     ...(suggested !== null ? { suggestedInterval: suggested } : {}),
   };
+}
+
+/**
+ * The person's visible relationships to household persons, one role per relationship however many of us it runs to. "~" stands
+ * in for the household person in the key, so "landlord of Alice" and "landlord of Bob" are one role.
+ */
+function roles(v: Viewer, personId: string, rels: { id: string; from_id: string; to_id: string; type: string; note: string | null }[], household: string[], names: Map<string, string>): Role[] {
+  const ours = household.filter((h) => h !== personId);
+  const groups = new Map<string, { first: (typeof rels)[number]; ids: string[]; with: Set<string>; note: string | null }>();
+  for (const r of rels) {
+    const out = r.from_id === personId;
+    const other = out ? r.to_id : r.from_id;
+    if (!ours.includes(other)) continue;
+    const key = relationshipKey(out ? personId : "~", out ? "~" : personId, r.type) + (r.type === "other" ? `:${(r.note ?? "").trim().toLowerCase()}` : "");
+    const g = groups.get(key) ?? { first: r, ids: [], with: new Set<string>(), note: null };
+    g.ids.push(r.id);
+    g.with.add(other);
+    g.note ??= r.note?.trim() || null;
+    groups.set(key, g);
+  }
+  return [...groups.values()].map((g) => {
+    const partner = [...g.with].find((h) => h !== v.personId);
+    const w = ours.every((h) => g.with.has(h)) && (ours.length > 1 || g.with.has(v.personId)) ? (ours.length > 1 ? "us" : "me") : g.with.has(v.personId) ? "me" : "partner";
+    return {
+      type: g.first.type as RelationshipType,
+      direction: g.first.from_id === personId ? "out" : "in",
+      with: w,
+      ...(w === "partner" ? { partnerName: names.get(partner!) ?? "" } : {}),
+      note: g.note,
+      ids: g.ids,
+    };
+  });
 }

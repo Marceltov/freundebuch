@@ -1,6 +1,6 @@
 // "Us" is the household: the persons some user's `person_id` points at, not a person of its own. A role to us ("our landlady")
 // is one relationship per household person; "me" is the viewer's own person.
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { Schema } from "./db";
 import type { Viewer } from "./types";
 
@@ -11,7 +11,7 @@ export const isHouseholdWord = (t: unknown): t is "me" | "us" => t === "me" || t
 
 /** The household persons, in the order their users signed up. */
 export async function householdPersons(tx: Kysely<Schema>): Promise<string[]> {
-  const rows = await tx.selectFrom("users").select("person_id").where("person_id", "is not", null).orderBy("created_at").orderBy("id").execute();
+  const rows = await tx.selectFrom("users").select("person_id").where("person_id", "is not", null).orderBy("created_at").orderBy(sql`rowid`).execute();
   return rows.map((r) => r.person_id!);
 }
 

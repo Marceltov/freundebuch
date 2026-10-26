@@ -65,9 +65,9 @@ describe("people", () => {
     const res = await call(s.a, "GET", `/people/${s.anna}/briefing`);
     expect(res.status).toBe(200);
     expect(res.json.person.url).toBe(`${BASE}/p/${s.anna}`);
-    expect(res.json.current[0].url).toBe(`${BASE}/p/${s.anna}#facts-${res.json.current[0].id}`);
+    expect(res.json.known[0].url).toBe(`${BASE}/p/${s.anna}#facts-${res.json.known[0].id}`);
     expect(res.json.person.name).toBe("Anna");
-    expect(res.json.current.map((f: { text: string }) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
+    expect(res.json.known.map((f: { text: string }) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
   });
 
   test("interval: set, then it shows in the briefing; out-of-range is 400", async () => {
@@ -255,12 +255,12 @@ describe("privacy through the API: B never sees A's private items", () => {
     ]);
     // Each answered for real (not an error body that trivially lacks the secrets), with the shared part present.
     expect([anna.status, tom.status, search.status, due.status]).toEqual([200, 200, 200, 200]);
-    expect(anna.json.current.map((f: { text: string }) => f.text).sort()).toEqual(["likes hiking", "new job"]);
+    expect(anna.json.known.map((f: { text: string }) => f.text).sort()).toEqual(["likes hiking", "new job"]);
     expect(tom.json.person.name).toBe("Tom");
     expect(search.json.map((p: { id: string }) => p.id)).toEqual([s.tom]);
     expect(due.json).toEqual([]);
     for (const body of [anna.json, tom.json, search.json, due.json]) for (const secret of secrets) expect(JSON.stringify(body), secret).not.toContain(secret);
-    expect((await call(s.b, "GET", `/people/${s.lena}/briefing`)).json.current).toEqual([]);
+    expect((await call(s.b, "GET", `/people/${s.lena}/briefing`)).json.known).toEqual([]);
   });
 });
 

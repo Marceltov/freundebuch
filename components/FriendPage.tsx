@@ -78,9 +78,9 @@ export function FriendPage({
         </div>
       </header>
 
-      {b.current.length > 0 && (
+      {b.situations.length + b.known.length > 0 && (
         <Section title={copy.now} icon={Sparkles}>
-          {b.current.map((f) => (
+          {[...b.situations, ...b.known].map((f) => (
             <Tile key={f.id} id={anchorId("facts", f.id)} icon={CATEGORY_ICON[f.category]} private={f.visibility === "private"} actions={<ItemActions table="facts" {...item(f)} />}>
               {f.text}
               {(f.source || f.happenedOn) && <span className="text-muted"> · {[f.source, f.happenedOn && dayMonth(f.happenedOn)].filter(Boolean).join(", ")}</span>}

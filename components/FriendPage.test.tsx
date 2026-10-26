@@ -7,14 +7,16 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} 
 
 const own = { visibility: "shared" as const, mine: false };
 const b: Briefing = {
-  person: { id: "p1", name: "Sarah", aliases: [], url: "/p/p1", birthday: { id: "d1", date: "1990-03-15", next: "2027-03-15", age: 37 } },
+  person: { id: "p1", name: "Sarah", aliases: [], url: "/p/p1", birthday: { id: "d1", date: "1990-03-15", next: "2027-03-15", age: 37 }, gender: null },
+  roles: [],
   groups: [
     { id: "g1", name: "Choir", url: "/g/g1", private: true },
     { id: "g2", name: "Uni", url: "/g/g2", private: false },
   ],
   freshness: { lastSeen: null, intervalDays: null, ratio: null },
   nextDates: [],
-  current: [],
+  situations: [],
+  known: [],
   open: {
     promises: [
       { id: "1", text: "send photos", byMe: true, due: null, url: "/p/p1#promises-1", ...own, mine: true },
@@ -26,6 +28,7 @@ const b: Briefing = {
   },
   recent: [],
   relationships: [],
+  network: { nodes: [], edges: [] },
 };
 
 test("the header shows the birthday however far away, with the age, and the groups as chips", () => {

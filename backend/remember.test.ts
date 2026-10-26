@@ -26,12 +26,12 @@ test("a birthday and a fact are filed about known people without making up a con
   expect(await conversations()).toBe(before);
   const b = await briefing(s.b, s.lena, "2026-10-25");
   expect(b.person.birthday).toMatchObject({ date: "2024-02-07", next: "2027-02-07" });
-  expect(b.current.map((f) => f.text)).toContain("Patenkind von Anna");
+  expect(b.known.map((f) => f.text)).toContain("Patenkind von Anna");
 });
 
 test("a private item stays the recorder's", async () => {
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "worried about money", category: "other", private: true }] });
-  expect((await briefing(s.a, s.anna)).current.map((f) => f.text)).toContain("worried about money");
+  expect((await briefing(s.a, s.anna)).known.map((f) => f.text)).toContain("worried about money");
   expect(JSON.stringify(await briefing(s.b, s.anna))).not.toContain("worried about money");
 });
 

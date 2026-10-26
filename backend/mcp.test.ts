@@ -173,7 +173,7 @@ describe("tools", () => {
     expect(r.people[0].url).toBe(`http://localhost:3000/p/${s.anna}`);
     expect((await call(s.a, "find_person", { name: "Anna" })).structuredContent.people[0].url).toBe(`http://localhost:3000/p/${s.anna}`);
     const b = (await call(s.a, "briefing", { personId: s.anna })).structuredContent;
-    for (const f of b.current) expect(f.url).toBe(`http://localhost:3000/p/${s.anna}#facts-${f.id}`);
+    for (const f of b.known) expect(f.url).toBe(`http://localhost:3000/p/${s.anna}#facts-${f.id}`);
     expect(b.recent[0].url).toBe(`http://localhost:3000/c/${b.recent[0].id}`);
     expect((await call(s.a, "get_transcript", { conversationId: r.conversationId })).structuredContent.url).toBe(r.url);
   });
@@ -320,7 +320,7 @@ describe("privacy over MCP", () => {
     expect(mine).toContain("worried about money");
     const r = await call(s.b, "briefing", { personId: s.anna });
     const theirs = JSON.stringify(r);
-    expect(r.structuredContent.current.map((f: { text: string }) => f.text).sort()).toEqual(["likes hiking", "new job", "training for a marathon"]);
+    expect(r.structuredContent.known.map((f: { text: string }) => f.text).sort()).toEqual(["likes hiking", "new job", "training for a marathon"]);
     for (const secret of ["worried about money", "divorce", "partner"]) expect(theirs).not.toContain(secret);
   });
 

@@ -2702,6 +2702,23 @@
                   }
                 ],
                 "description": "The person's birthday as the caller may see it, however far away"
+              },
+              "gender": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "female",
+                      "male",
+                      "nonbinary"
+                    ],
+                    "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "null when it isn't known"
               }
             },
             "required": [
@@ -2709,8 +2726,77 @@
               "name",
               "aliases",
               "url",
-              "birthday"
+              "birthday",
+              "gender"
             ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "partner",
+                    "spouse",
+                    "parent",
+                    "child",
+                    "sibling",
+                    "friend",
+                    "colleague",
+                    "introduced_by",
+                    "other",
+                    "landlord",
+                    "neighbour",
+                    "doctor",
+                    "service"
+                  ]
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "out",
+                    "in"
+                  ],
+                  "description": "`out` when the person is the `from` side (landlord out: the person is the landlord)"
+                },
+                "with": {
+                  "type": "string",
+                  "enum": [
+                    "me",
+                    "partner",
+                    "us"
+                  ],
+                  "description": "To whom, from the caller's side: `us` both of the household, `me` the caller, `partner` the other user"
+                },
+                "partnerName": {
+                  "description": "The other user's name, when `with` is `partner`",
+                  "type": "string"
+                },
+                "note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The relationships it stands for (table `relationships`), one per household person"
+                }
+              },
+              "required": [
+                "type",
+                "direction",
+                "with",
+                "note",
+                "ids"
+              ]
+            },
+            "description": "Who the person is to the household (\"your landlady\", \"Sybille's colleague\"): the first thing to say about them"
           },
           "groups": {
             "type": "array",
@@ -2843,7 +2929,85 @@
               ]
             }
           },
-          "current": {
+          "situations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "work",
+                    "home",
+                    "family",
+                    "health",
+                    "hobby",
+                    "travel",
+                    "other"
+                  ]
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                },
+                "source": {
+                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                  "type": "string"
+                },
+                "happenedOn": {
+                  "description": "When it happened, when the screenshot showed it",
+                  "type": "string"
+                },
+                "imageUrl": {
+                  "description": "The screenshot it was read from (sign-in required)",
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                },
+                "since": {
+                  "type": "string",
+                  "description": "When the latest news about it was filed"
+                },
+                "checkAfter": {
+                  "type": "string",
+                  "description": "When to ask how it went"
+                },
+                "nudge": {
+                  "type": "boolean",
+                  "description": "checkAfter has come: ask about it"
+                }
+              },
+              "required": [
+                "id",
+                "text",
+                "category",
+                "url",
+                "visibility",
+                "mine",
+                "since",
+                "checkAfter",
+                "nudge"
+              ]
+            },
+            "description": "What is going on and will end, nudging ones first: the best things to ask about"
+          },
+          "known": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2903,7 +3067,8 @@
                 "visibility",
                 "mine"
               ]
-            }
+            },
+            "description": "What stays true about the person, by category"
           },
           "open": {
             "type": "object",
@@ -3198,6 +3363,117 @@
               ]
             }
           },
+          "network": {
+            "type": "object",
+            "properties": {
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "gender": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "female",
+                            "male",
+                            "nonbinary"
+                          ],
+                          "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "self",
+                        "household",
+                        "other"
+                      ],
+                      "description": "`self` the person, `household` one of us, `other` the person's own people"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "gender",
+                    "role",
+                    "url"
+                  ]
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "to": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "partner",
+                        "spouse",
+                        "parent",
+                        "child",
+                        "sibling",
+                        "friend",
+                        "colleague",
+                        "introduced_by",
+                        "other",
+                        "landlord",
+                        "neighbour",
+                        "doctor",
+                        "service"
+                      ]
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "from",
+                    "to",
+                    "type",
+                    "note"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "nodes",
+              "edges"
+            ],
+            "description": "One hop around the person: the household persons they relate to, and their own people"
+          },
           "suggestedInterval": {
             "description": "Only while the interval isn't confirmed, and only when the history is long enough to suggest one",
             "type": "integer",
@@ -3207,13 +3483,16 @@
         },
         "required": [
           "person",
+          "roles",
           "groups",
           "freshness",
           "nextDates",
-          "current",
+          "situations",
+          "known",
           "open",
           "recent",
-          "relationships"
+          "relationships",
+          "network"
         ]
       },
       "DueItem": {

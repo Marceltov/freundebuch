@@ -3,7 +3,7 @@
 // vocabularies come from backend/types.ts; the rules on the values stay in the domain functions,
 // which answer a bad value with `invalid_input`.
 import * as z from "zod";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, RELATIONSHIP_TYPES, VISIBILITIES } from "../types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, GENDERS, RELATIONSHIP_TYPES, VISIBILITIES } from "../types";
 import { ERROR_CODES } from "./errors";
 
 export const ErrorJson = z
@@ -56,6 +56,18 @@ const ExchangeBy = z.string().optional().describe("The other user's name, when t
 const ExchangeDirection = Direction.describe("`to_them`: the caller (or `by`) gave to the person; `from_them`: the person gave");
 const Own = { visibility: Visibility, mine: z.boolean().describe("Whether the caller recorded it; only then may they edit it, change its visibility or delete it") };
 
+export const Gender = z.enum(GENDERS).describe("The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name");
+const FactJson = {
+  id: z.string(),
+  text: z.string(),
+  category: z.enum(FACT_CATEGORIES),
+  url: ItemUrl,
+  source: z.string().optional().describe("Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot"),
+  happenedOn: Day.optional().describe("When it happened, when the screenshot showed it"),
+  imageUrl: Url.optional().describe("The screenshot it was read from (sign-in required)"),
+  ...Own,
+};
+
 export const BriefingJson = z
   .object({
     person: z.object({
@@ -72,22 +84,34 @@ export const BriefingJson = z
         })
         .nullable()
         .describe("The person's birthday as the caller may see it, however far away"),
+      gender: Gender.nullable().describe("null when it isn't known"),
     }),
+    roles: z
+      .array(
+        z.object({
+          type: z.enum(RELATIONSHIP_TYPES),
+          direction: z.enum(["out", "in"]).describe("`out` when the person is the `from` side (landlord out: the person is the landlord)"),
+          with: z.enum(["me", "partner", "us"]).describe("To whom, from the caller's side: `us` both of the household, `me` the caller, `partner` the other user"),
+          partnerName: z.string().optional().describe("The other user's name, when `with` is `partner`"),
+          note: z.string().nullable(),
+          ids: z.array(z.string()).describe("The relationships it stands for (table `relationships`), one per household person"),
+        }),
+      )
+      .describe("Who the person is to the household (\"your landlady\", \"Sybille's colleague\"): the first thing to say about them"),
     groups: z.array(z.object({ id: z.string(), name: z.string(), url: Url, private: z.boolean().describe("Whether the caller's own private membership is the only one they see") })).describe("The groups the caller may see the person in, each once"),
     freshness: Freshness,
     nextDates: z.array(UpcomingDate),
-    current: z.array(
-      z.object({
-        id: z.string(),
-        text: z.string(),
-        category: z.enum(FACT_CATEGORIES),
-        url: ItemUrl,
-        source: z.string().optional().describe("Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot"),
-        happenedOn: Day.optional().describe("When it happened, when the screenshot showed it"),
-        imageUrl: Url.optional().describe("The screenshot it was read from (sign-in required)"),
-        ...Own,
-      }),
-    ),
+    situations: z
+      .array(
+        z.object({
+          ...FactJson,
+          since: Day.describe("When the latest news about it was filed"),
+          checkAfter: Day.describe("When to ask how it went"),
+          nudge: z.boolean().describe("checkAfter has come: ask about it"),
+        }),
+      )
+      .describe("What is going on and will end, nudging ones first: the best things to ask about"),
+    known: z.array(z.object(FactJson)).describe("What stays true about the person, by category"),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
@@ -118,6 +142,20 @@ export const BriefingJson = z
         url: Url.describe("The other person's page, as an absolute URL"),
       }),
     ),
+    network: z
+      .object({
+        nodes: z.array(
+          z.object({
+            id: PersonId,
+            name: z.string(),
+            gender: Gender.nullable(),
+            role: z.enum(["self", "household", "other"]).describe("`self` the person, `household` one of us, `other` the person's own people"),
+            url: Url,
+          }),
+        ),
+        edges: z.array(z.object({ id: z.string(), from: PersonId, to: PersonId, type: z.enum(RELATIONSHIP_TYPES), note: z.string().nullable() })),
+      })
+      .describe("One hop around the person: the household persons they relate to, and their own people"),
     suggestedInterval: z.number().int().optional().describe("Only while the interval isn't confirmed, and only when the history is long enough to suggest one"),
   })
   .meta({ id: "Briefing" });

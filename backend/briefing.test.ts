@@ -1,6 +1,8 @@
 import { beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
-import { recordConversation } from "./conversations";
+import { recordConversation, remember } from "./conversations";
+import { addRelationship } from "./relationships";
+import { buildNetwork } from "./network";
 import { db } from "./db/testing";
 import { NotFoundError } from "./errors";
 import { setCheckInInterval } from "./intervals";
@@ -18,12 +20,12 @@ const record = (v: Viewer, over: Partial<Parameters<typeof recordConversation>[1
 
 test("A's briefing on Anna holds everything, B's only the shared part", async () => {
   const a = await briefing(s.a, s.anna, "2026-10-23");
-  expect(a.person).toEqual({ id: s.anna, name: "Anna", aliases: [], url: `/p/${s.anna}`, birthday: null });
-  expect(a.current.map((f) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
+  expect(a.person).toEqual({ id: s.anna, name: "Anna", gender: null, aliases: [], url: `/p/${s.anna}`, birthday: null });
+  expect(a.known.map((f) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
   expect(a.relationships).toEqual([{ id: expect.any(String), personId: s.tom, name: "Tom", type: "partner", note: null, direction: "out", url: `/p/${s.tom}`, visibility: "private", mine: true }]);
   expect(a.freshness).toEqual({ lastSeen: "2026-10-20", intervalDays: null, ratio: null });
   const b = await briefing(s.b, s.anna, "2026-10-23");
-  expect(b.current.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);
+  expect(b.known.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);
   expect(b.relationships).toEqual([]);
   expect(b.freshness.lastSeen).toBe("2026-10-15");
 });
@@ -67,7 +69,7 @@ test("groups: the names of the groups the viewer may see the person in, each onc
 test("superseded facts are not current", async () => {
   const old = (await (await db()).selectFrom("facts").select("id").where("text", "=", "new job").executeTakeFirstOrThrow()).id;
   await record(s.a, { facts: [{ person: 0, text: "started at the museum", category: "work", supersedes: old }] });
-  const texts = (await briefing(s.a, s.anna, "2026-10-23")).current.map((f) => f.text);
+  const texts = (await briefing(s.a, s.anna, "2026-10-23")).known.map((f) => f.text);
   expect(texts).toContain("started at the museum");
   expect(texts).not.toContain("new job");
 });
@@ -167,11 +169,69 @@ test("an unknown person is not found", async () => {
 
 test("each item says whether it is the viewer's own and how visible it is, so only the recorder is offered edit, visibility and delete", async () => {
   await record(s.a, { promises: [{ person: 0, text: "return the tent", byMe: true, private: true }], exchanges: [{ person: 0, kind: "gift_idea", direction: "to_them", text: "a map" }] });
-  const facts = (v: Viewer) => briefing(v, s.anna, "2026-10-23").then((b) => Object.fromEntries(b.current.map((f) => [f.text, [f.mine, f.visibility]])));
+  const facts = (v: Viewer) => briefing(v, s.anna, "2026-10-23").then((b) => Object.fromEntries(b.known.map((f) => [f.text, [f.mine, f.visibility]])));
   expect(await facts(s.a)).toEqual({ "new job": [true, "shared"], divorce: [true, "private"], "likes hiking": [false, "shared"] });
   expect(await facts(s.b)).toEqual({ "new job": [false, "shared"], "likes hiking": [true, "shared"] });
   const a = await briefing(s.a, s.anna, "2026-10-23");
   expect(a.open.promises).toMatchObject([{ text: "return the tent", mine: true, visibility: "private" }]);
   expect(a.open.giftIdeas).toMatchObject([{ text: "a map", mine: true, visibility: "shared" }]);
   expect((await briefing(s.b, s.anna, "2026-10-23")).open.giftIdeas).toMatchObject([{ text: "a map", mine: false, visibility: "shared" }]);
+});
+
+test("the role reads from the viewer's side", async () => {
+  await addRelationship(s.a, { from: s.anna, to: "us", type: "landlord", visibility: "shared" });
+  const roles = (await briefing(s.a, s.anna)).roles;
+  expect(roles).toMatchObject([{ type: "landlord", direction: "out", with: "us", note: null }]);
+  expect(roles[0].ids).toHaveLength(2);
+  expect((await briefing(s.b, s.anna)).roles).toMatchObject([{ type: "landlord", with: "us" }]);
+
+  await addRelationship(s.a, { from: s.lena, to: "me", type: "colleague", visibility: "shared" });
+  expect((await briefing(s.a, s.lena)).roles).toMatchObject([{ type: "colleague", with: "me" }]);
+  const b = (await briefing(s.b, s.lena)).roles;
+  expect(b).toMatchObject([{ type: "colleague", with: "partner", partnerName: "Alice" }]);
+  expect((await briefing(s.a, s.lena)).roles[0]).not.toHaveProperty("partnerName");
+  // A role the other way round: the viewer's person is `from`.
+  await addRelationship(s.b, { from: "me", to: s.tom, type: "doctor", visibility: "shared" });
+  expect((await briefing(s.b, s.tom)).roles).toMatchObject([{ type: "doctor", direction: "in", with: "me" }]);
+});
+
+test("Gerade los holds situations only, nudging ones flagged", async () => {
+  await remember(s.a, {
+    visibility: "shared",
+    facts: [
+      { person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-10-22" },
+      { person: s.anna, text: "renoviert das Bad", category: "home", kind: "situation", checkAfter: "2026-12-01" },
+      { person: s.anna, text: "mag Riesling", category: "other" },
+    ],
+  });
+  const b = await briefing(s.a, s.anna, "2026-10-23");
+  expect(b).not.toHaveProperty("current");
+  expect(b.situations.map((f) => [f.text, f.checkAfter, f.nudge])).toEqual([
+    ["sucht ein Auto", "2026-10-22", true],
+    ["renoviert das Bad", "2026-12-01", false],
+  ]);
+  expect(b.situations[0].since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  // Lasting facts by category, then as filed.
+  expect(b.known.map((f) => f.text)).toEqual(["new job", "divorce", "likes hiking", "mag Riesling"]);
+});
+
+test("the network is one hop with us on top", async () => {
+  await addRelationship(s.a, { from: s.anna, to: "us", type: "landlord", visibility: "shared" });
+  const n = (await briefing(s.a, s.anna)).network;
+  expect(n.nodes.map((x) => [x.id, x.role])).toEqual([
+    [s.anna, "self"],
+    [s.a.personId, "household"],
+    [s.b.personId, "household"],
+    [s.tom, "other"],
+  ]);
+  expect(n.nodes[0]).toMatchObject({ name: "Anna", url: `/p/${s.anna}` });
+  expect(n.edges).toHaveLength(3);
+  expect(n.edges.find((e) => e.to === s.tom)).toMatchObject({ from: s.anna, type: "partner" });
+});
+
+test("buildNetwork leaves out household persons without an edge and keeps each person once", () => {
+  const rel = (id: string, from_id: string, to_id: string, type = "friend") => ({ id, from_id, to_id, type, note: null });
+  const n = buildNetwork("p", [rel("1", "p", "x"), rel("2", "x", "p", "colleague"), rel("3", "h2", "p")], ["h1", "h2"], new Map([["p", "P"], ["x", "X"], ["h2", "H"]]), new Map());
+  expect(n.nodes.map((x) => x.id)).toEqual(["p", "h2", "x"]);
+  expect(n.edges.map((e) => e.id)).toEqual(["1", "2", "3"]);
 });
