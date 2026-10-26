@@ -225,7 +225,7 @@ export const FactKind = z
   .enum(FACT_KINDS)
   .describe("`situation`: going on and will end (moving, a new dog, looking for a car); `lasting` (default): stays true. A fact that supersedes another keeps its kind unless given");
 export const CheckAfter = Day.describe(
-  "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out",
+  "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation keeps its interval when left out",
 );
 const Private = z.boolean().optional().describe("Makes just this item private; a private conversation makes every item private");
 

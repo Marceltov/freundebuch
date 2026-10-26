@@ -2,7 +2,7 @@
 // bad item leaves nothing behind. Privacy is decided here once: a private conversation makes every item private, and any private
 // item makes the verbatim transcript private to the recorder (it contains the private part).
 import type { Kysely } from "kysely";
-import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
+import { addDays, assertDay, daysBetween, isDay, isYearless, notFuture, today } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { checkGender, insertPerson, namedLike } from "./people";
@@ -122,7 +122,8 @@ function validate(c: NewConversation): void {
 
 /**
  * A fact is `lasting` or a `situation` (going on, will end) with `checkAfter`, the day to ask how it went; SITUATION_DAYS after it
- * was filed when not given. A fact that supersedes another takes its kind unless it gives one, so news keeps a situation going.
+ * was filed when not given. A fact that supersedes another takes its kind unless it gives one, so news keeps a situation going,
+ * and without a new checkAfter it keeps the old one's interval.
  */
 type Items<P> = {
   facts?: Array<{ person: P; text: string; category: string; private?: boolean; supersedes?: string; kind?: string; checkAfter?: string }>;
@@ -160,11 +161,13 @@ async function insertItems<P>(tx: Kysely<Schema>, v: Viewer, base: ItemBase, c: 
   for (const f of c.facts ?? []) {
     const factId = newId();
     const replaced = f.supersedes
-      ? await tx.selectFrom("facts").select("kind").where("id", "=", f.supersedes).$call((qb) => visible(qb, v, "facts")).executeTakeFirst()
+      ? await tx.selectFrom("facts").select(["kind", "check_after", "created_at"]).where("id", "=", f.supersedes).$call((qb) => visible(qb, v, "facts")).executeTakeFirst()
       : undefined;
     const kind = (f.kind ?? replaced?.kind ?? "lasting") as FactKind;
     if (kind === "lasting" && f.checkAfter !== undefined) throw new InvalidInputError("checkAfter is for a situation; a lasting fact has none");
-    const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), SITUATION_DAYS)) : null;
+    // News without a new day keeps the situation's interval: as long from now as the old day was from when it was filed.
+    const interval = replaced?.kind === "situation" && replaced.check_after ? daysBetween(today(replaced.created_at), replaced.check_after) : 0;
+    const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), interval > 0 ? interval : SITUATION_DAYS)) : null;
     await tx
       .insertInto("facts")
       .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f) })

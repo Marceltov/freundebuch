@@ -4014,7 +4014,7 @@
                 },
                 "checkAfter": {
                   "type": "string",
-                  "description": "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out"
+                  "description": "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation keeps its interval when left out"
                 }
               },
               "required": [

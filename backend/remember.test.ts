@@ -56,7 +56,7 @@ test("a situation gets a nudge date, six weeks out by default", async () => {
 });
 
 test("superseding keeps a situation going and resets its nudge, unless it is lasting", async () => {
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-11-01" }] });
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation" }] });
   const old = await fact("sucht ein Auto");
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "hat zwei Autos in der engeren Wahl", category: "other", supersedes: old.id }] });
   expect(await fact("hat zwei Autos in der engeren Wahl")).toMatchObject({ kind: "situation", check_after: addDays(today(), 42) });
@@ -67,4 +67,13 @@ test("superseding keeps a situation going and resets its nudge, unless it is las
   // Superseding a lasting fact without a kind keeps it lasting.
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "fährt einen Polo", category: "other", supersedes: (await fact("fährt einen Golf")).id }] });
   expect(await fact("fährt einen Polo")).toMatchObject({ kind: "lasting", check_after: null });
+});
+
+test("news without a new date keeps the situation's interval", async () => {
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "baut ein Haus", category: "home", kind: "situation", checkAfter: addDays(today(), 120) }] });
+  const old = await fact("baut ein Haus");
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "der Rohbau steht", category: "home", supersedes: old.id }] });
+  expect(await fact("der Rohbau steht")).toMatchObject({ kind: "situation", check_after: addDays(today(), 120) });
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "zieht im Mai ein", category: "home", supersedes: (await fact("der Rohbau steht")).id, checkAfter: "2027-05-15" }] });
+  expect(await fact("zieht im Mai ein")).toMatchObject({ kind: "situation", check_after: "2027-05-15" });
 });
