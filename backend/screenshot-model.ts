@@ -3,7 +3,7 @@
 // when the screenshot leaves no doubt. Behind ScreenshotModel, so tests and e2e stand in for Claude (fakeScreenshotModel).
 import Anthropic from "@anthropic-ai/sdk";
 import * as z from "zod";
-import { FACT_CATEGORIES, type FactCategory } from "./types";
+import { FACT_CATEGORIES, RELATIONSHIP_TYPES, type FactCategory, type RelationshipType } from "./types";
 
 export type ReadPerson = { name: string; handle?: string; personId?: string; candidates?: string[] };
 /** What Claude read from a screenshot. `text` is a short German line for the person's page ("Urlaub in Lissabon"). */
@@ -14,6 +14,11 @@ export type Reading = {
   category: FactCategory;
   happenedOn: string | null;
   sensitive: boolean;
+  /** Going on and will end; then `checkAfterDays` is when to ask how it went (null: the default). Missing on older readings. */
+  situation?: boolean;
+  checkAfterDays?: number | null;
+  /** What the poster is to the viewer, only when the screenshot says so; filed to the viewer alone, never to both of us. */
+  role?: { type: RelationshipType; note: string | null } | null;
   people: ReadPerson[];
 };
 export type KnownPerson = { id: string; name: string; aliases: string[] };
@@ -31,6 +36,21 @@ const ReadingJson = z.object({
   category: z.enum(FACT_CATEGORIES),
   happenedOn: z.string().nullable().describe("YYYY-MM-DD when the post says or shows when it happened; relative times (\"3 Tage\", \"vor 2 Wochen\") count back from today. null when unknown"),
   sensitive: z.boolean().describe("true for health, relationship trouble, money worries, grief or anything the person may not want spread"),
+  situation: z
+    .boolean()
+    .describe("true when it is going on and will end (moving, looking for a flat, training for a race); false for lasting things (a new job is lasting once started)"),
+  checkAfterDays: z
+    .number()
+    .int()
+    .nullable()
+    .describe("For a situation: in how many days to ask how it went, from how long such a thing usually takes (a flat: a few months, a race: until the race); null otherwise"),
+  role: z
+    .object({
+      type: z.enum(RELATIONSHIP_TYPES).describe("`from` the poster `type` the user: colleague, landlord (the poster is the user's landlord), doctor, neighbour, service (works for the user)"),
+      note: z.string().nullable(),
+    })
+    .nullable()
+    .describe("What the poster is to the user, only when the screenshot itself says so (a colleague tagging them at work); null otherwise"),
   people: z
     .array(
       z.object({
@@ -91,6 +111,9 @@ export const fakeScreenshotModel: ScreenshotModel = {
       category: "travel",
       happenedOn: today,
       sensitive: false,
+      situation: false,
+      checkAfterDays: null,
+      role: null,
       people: [{ name: "Anna Reise", handle: "anna.reist", candidates: annas.map((a) => a.id) }],
     };
   },

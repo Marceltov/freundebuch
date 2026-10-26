@@ -5,7 +5,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { config } from "./config";
-import { isDay, today } from "./dates";
+import { addDays, isDay, today } from "./dates";
+import { insertRelationships, SITUATION_DAYS } from "./conversations";
 import type { Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
@@ -18,7 +19,7 @@ import { getSettings } from "./settings";
 import { processState } from "./state";
 import { store } from "./storage";
 import { spend } from "./usage";
-import { FACT_CATEGORIES, VISIBILITIES, type FactCategory, type Viewer, type Visibility } from "./types";
+import { FACT_CATEGORIES, RELATIONSHIP_TYPES, VISIBILITIES, type FactCategory, type Viewer, type Visibility } from "./types";
 import { itemPath, personPath, screenshotPath } from "./urls";
 import { viewerById } from "./users";
 import { visible } from "./visibility";
@@ -100,8 +101,12 @@ async function knownPeople(): Promise<KnownPerson[]> {
  * becomes a candidate list of the ids that do. */
 function clean(r: Reading, known: Set<string>, day: string): Reading {
   const category: FactCategory = (FACT_CATEGORIES as readonly string[]).includes(r.category) ? r.category : "other";
+  const days = r.situation && Number.isInteger(r.checkAfterDays) ? Math.min(Math.max(r.checkAfterDays!, 1), 365) : null;
   return {
     ...r,
+    situation: !!r.situation,
+    checkAfterDays: days,
+    role: r.role && (RELATIONSHIP_TYPES as readonly string[]).includes(r.role.type) ? { type: r.role.type, note: r.role.note?.trim() || null } : null,
     text: r.text.trim(),
     category,
     happenedOn: r.happenedOn && isDay(r.happenedOn) && r.happenedOn <= day ? r.happenedOn : null,
@@ -156,18 +161,48 @@ export async function readScreenshot(id: string, model: ScreenshotModel): Promis
   }
   await d.transaction().execute(async (tx) => {
     for (const personId of new Set(reading.people.map((p) => p.personId!))) await insertFact(tx, v, id, reading, personId, "shared");
+    await insertRole(tx, v, reading, reading.people[0].personId!, "shared");
     await tx.updateTable("screenshots").set({ status: "filed", reading: JSON.stringify(reading) }).where("id", "=", id).execute();
   });
   return "filed";
 }
 
-async function insertFact(tx: Kysely<Schema>, v: Viewer, shotId: string, r: Pick<Reading, "text" | "category" | "platform" | "happenedOn">, personId: string, visibility: Visibility): Promise<string> {
+async function insertFact(
+  tx: Kysely<Schema>,
+  v: Viewer,
+  shotId: string,
+  r: Pick<Reading, "text" | "category" | "platform" | "happenedOn" | "situation" | "checkAfterDays">,
+  personId: string,
+  visibility: Visibility,
+): Promise<string> {
   const id = newId();
+  const kind = r.situation ? "situation" : "lasting";
+  const checkAfter = r.situation ? addDays(today(), r.checkAfterDays ?? SITUATION_DAYS) : null;
   await tx
     .insertInto("facts")
-    .values({ id, person_id: personId, text: r.text, category: r.category, visibility, recorded_by: v.userId, conversation_id: null, created_at: now(), source: r.platform, happened_on: r.happenedOn, screenshot_id: shotId })
+    .values({
+      id,
+      person_id: personId,
+      text: r.text,
+      category: r.category,
+      kind,
+      check_after: checkAfter,
+      visibility,
+      recorded_by: v.userId,
+      conversation_id: null,
+      created_at: now(),
+      source: r.platform,
+      happened_on: r.happenedOn,
+      screenshot_id: shotId,
+    })
     .execute();
   return id;
+}
+
+/** The poster's role to the viewer, when the screenshot said one: to "me" only, since one user's screenshot says nothing about the partner. */
+async function insertRole(tx: Kysely<Schema>, v: Viewer, r: Reading, posterId: string, visibility: Visibility): Promise<void> {
+  if (!r.role || posterId === v.personId) return;
+  await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: null, created_at: now() }, { from: posterId, to: "me", type: r.role.type, note: r.role.note ?? undefined, visibility });
 }
 
 async function push(v: Viewer, m: { title: string; body: string; click?: string }): Promise<void> {
@@ -261,6 +296,7 @@ export async function resolveScreenshot(v: Viewer, id: string, r: Resolution): P
     const open = reading.people.filter((p) => !p.personId);
     if (open.length === 1 && open[0].handle) await insertAlias(tx, personId, name, open[0].handle);
     const factId = await insertFact(tx, v, id, { ...reading, text }, personId, visibility);
+    if (reading.people.length === 1) await insertRole(tx, v, reading, personId, visibility);
     await tx.updateTable("screenshots").set({ status: "filed" }).where("id", "=", id).execute();
     return { factId, personId, url: itemPath(personPath(personId), "facts", factId) };
   });
