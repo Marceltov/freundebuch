@@ -266,6 +266,37 @@ const migrations: Record<string, Migration> = {
       await db.schema.createIndex("user_settings_share_key").on("user_settings").column("share_key_hash").unique().execute();
     },
   },
+  // The same relationship recorded twice by one user (a chat that filed it again, parent and child both ways) is kept once:
+  // the oldest, with a note taken from a dropped one if it had none. Self-contained, as the rules may change later.
+  "005_relationship_duplicates": {
+    async up(db) {
+      const symmetric = new Set(["partner", "spouse", "sibling", "friend", "colleague", "other"]);
+      const key = (r: { from_id: string; to_id: string; type: string }) =>
+        r.type === "child" ? `parent:${r.to_id}:${r.from_id}` : symmetric.has(r.type) ? `${r.type}:${[r.from_id, r.to_id].sort().join(":")}` : `${r.type}:${r.from_id}:${r.to_id}`;
+      const norm = (n: string | null) => (n ?? "").trim().toLowerCase();
+      const rows: { id: string; from_id: string; to_id: string; type: string; note: string | null; recorded_by: string; visibility: string }[] = await db
+        .selectFrom("relationships")
+        .select(["id", "from_id", "to_id", "type", "note", "recorded_by", "visibility"])
+        .orderBy("created_at")
+        .orderBy("id")
+        .execute();
+      const kept: typeof rows = [];
+      for (const r of rows) {
+        const same = kept.find(
+          (k) => k.recorded_by === r.recorded_by && k.visibility === r.visibility && key(k) === key(r) && (r.type !== "other" || !norm(k.note) || !norm(r.note) || norm(k.note) === norm(r.note)),
+        );
+        if (!same) {
+          kept.push(r);
+          continue;
+        }
+        if (!norm(same.note) && norm(r.note)) {
+          same.note = r.note;
+          await db.updateTable("relationships").set({ note: r.note }).where("id", "=", same.id).execute();
+        }
+        await db.deleteFrom("relationships").where("id", "=", r.id).execute();
+      }
+    },
+  },
 };
 
 /** The groups every household starts with, and their other names. */

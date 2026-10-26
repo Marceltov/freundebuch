@@ -170,3 +170,45 @@ test("004: a fact keeps its source, day and screenshot; deleting the screenshot 
   await d.deleteFrom("screenshots").where("id", "=", shot).execute();
   expect(await d.selectFrom("facts").select(["source", "happened_on", "screenshot_id"]).where("id", "=", fact).executeTakeFirst()).toEqual({ source: "Instagram", happened_on: "2026-10-12", screenshot_id: null });
 });
+
+test("005 keeps one of the same relationship recorded twice by one user, with the note of a dropped one", async () => {
+  const d = fresh();
+  await migrateTo(d, "004_screenshots");
+  const t = Date.now();
+  for (const u of ["u", "w"]) await d.insertInto("users").values({ id: u, oidc_sub: u, name: u, email: null, person_id: null, created_at: t }).execute();
+  for (const p of ["syb", "mal", "ram"]) await d.insertInto("persons").values({ id: p, name: p, created_by: "u", created_from: null, created_at: t }).execute();
+  let n = 0;
+  const r = (from_id: string, to_id: string, type: string, note: string | null, recorded_by = "u", visibility = "shared") => ({
+    id: `r${++n}`,
+    from_id,
+    to_id,
+    type,
+    note,
+    recorded_by,
+    visibility,
+    conversation_id: null,
+    created_at: t + n,
+  });
+  await d
+    .insertInto("relationships")
+    .values([
+      r("syb", "mal", "other", null),
+      r("syb", "mal", "other", "Patentante"), // r2: the same, its note goes to r1
+      r("mal", "syb", "other", "patentante"), // r3: the same, read the other way
+      r("syb", "mal", "other", "Nachbarin"), // r4: another one
+      r("ram", "mal", "parent", null),
+      r("mal", "ram", "child", null), // r6: the same as r5
+      r("ram", "mal", "parent", null, "w"), // r7: the partner's own
+      r("ram", "mal", "parent", null, "u", "private"), // r8: private, kept apart
+    ])
+    .execute();
+  await migrate(d);
+  const rows = await d.selectFrom("relationships").select(["id", "note"]).orderBy("id").execute();
+  expect(rows).toEqual([
+    { id: "r1", note: "Patentante" },
+    { id: "r4", note: "Nachbarin" },
+    { id: "r5", note: null },
+    { id: "r7", note: null },
+    { id: "r8", note: null },
+  ]);
+});

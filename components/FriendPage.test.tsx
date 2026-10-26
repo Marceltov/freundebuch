@@ -65,8 +65,9 @@ test("Gehört zu lists each person by name with what they are to this one, linki
       b={{
         ...b,
         relationships: [
-          { personId: "r1", name: "Ramona", type: "parent", direction: "in", url: "/p/r1" },
-          { personId: "r2", name: "Andreas", type: "parent", direction: "in", url: "/p/r2" },
+          { id: "x1", personId: "r1", name: "Ramona", type: "parent", note: null, direction: "in", url: "/p/r1", visibility: "shared", mine: true },
+          { id: "x2", personId: "r2", name: "Andreas", type: "parent", note: null, direction: "in", url: "/p/r2", visibility: "shared", mine: false },
+          { id: "x3", personId: "r3", name: "Sybille", type: "other", note: "Patentante", direction: "in", url: "/p/r3", visibility: "private", mine: true },
         ],
       }}
       daysSince={null}
@@ -75,4 +76,9 @@ test("Gehört zu lists each person by name with what they are to this one, linki
   expect(html).toMatch(/href="\/p\/r1"[^>]*>.*Ramona.*Elternteil/s);
   expect(html).toMatch(/href="\/p\/r2"[^>]*>.*Andreas.*Elternteil/s);
   expect(html).not.toContain("<svg viewBox=\"0 0 320 150\"");
+  // the note says what an `other` is; one's own can be changed or deleted through its menu, the partner's not
+  expect(html).toMatch(/Sybille.*Privat: nur du siehst das.*Patentante/s);
+  const tile = (id: string) => html.match(new RegExp(`id="relationships-${id}".*?</li>`, "s"))![0];
+  expect(tile("x1")).toContain('aria-label="Aktionen"');
+  expect(tile("x2")).not.toContain('aria-label="Aktionen"');
 });

@@ -218,7 +218,7 @@ describe("tools", () => {
     const rel = await call(s.a, "relate", { kind: "relationship", from: s.lena, to: s.anna, type: "colleague", visibility: "shared" });
     expect(rel.isError).toBeUndefined();
     expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.relationships).toEqual([
-      { personId: s.lena, name: "Lena", type: "colleague", direction: "in", url: `http://localhost:3000/p/${s.lena}` },
+      { id: expect.any(String), personId: s.lena, name: "Lena", type: "colleague", note: null, direction: "in", url: `http://localhost:3000/p/${s.lena}`, visibility: "shared", mine: false },
     ]);
     expect(rel.structuredContent.url).toBe(`http://localhost:3000/p/${s.lena}`);
     const group = await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna, s.lena], visibility: "shared" });

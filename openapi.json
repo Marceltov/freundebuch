@@ -2987,6 +2987,10 @@
             "items": {
               "type": "object",
               "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The relationship's id, for correct/the items operations (table `relationships`)"
+                },
                 "personId": {
                   "type": "string",
                   "description": "A person's id"
@@ -3008,6 +3012,25 @@
                     "other"
                   ]
                 },
+                "note": {
+                  "description": "What the relationship is, in words, above all for `other` (\"Patentante\")",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                },
                 "direction": {
                   "type": "string",
                   "enum": [
@@ -3022,9 +3045,13 @@
                 }
               },
               "required": [
+                "id",
                 "personId",
                 "name",
                 "type",
+                "note",
+                "visibility",
+                "mine",
                 "direction",
                 "url"
               ]

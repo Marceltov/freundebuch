@@ -29,7 +29,7 @@ From top to bottom:
 - **Gerade los**: what's new, as current facts,
 - **Versprochen**, **Ideen für Geschenke** and **Noch offen**: promises, gift ideas and other exchanges, with quick actions,
 - **Gespräche**: the conversations, newest first,
-- **Gehört zu**: the people around them, each with what they are to this person.
+- **Gehört zu**: the people around them, each with what they are to this person and its note ("Patentante"). The … menu of one you recorded changes the note, makes it private or shared, or deletes it. Telling freundebuch the same relationship again (also the other way round) files nothing new.
 
 The round **…** next to the name sets how often you want to see them, renames them, adds a nickname, or merges a duplicate into them.
 

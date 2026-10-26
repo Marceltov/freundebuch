@@ -108,9 +108,12 @@ export const BriefingJson = z
     recent: z.array(z.object({ id: z.string(), date: Day, kind: z.string(), summary: z.string(), withOthers: z.array(z.string()), url: Url })),
     relationships: z.array(
       z.object({
+        id: z.string().describe("The relationship's id, for correct/the items operations (table `relationships`)"),
         personId: PersonId,
         name: z.string(),
         type: z.enum(RELATIONSHIP_TYPES),
+        note: z.string().nullable().describe("What the relationship is, in words, above all for `other` (\"Patentante\")"),
+        ...Own,
         direction: z.enum(["out", "in"]).describe("`out` when the person is the `from` side of the relationship"),
         url: Url.describe("The other person's page, as an absolute URL"),
       }),

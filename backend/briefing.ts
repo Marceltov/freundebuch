@@ -37,7 +37,7 @@ export type Briefing = {
   };
   recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[]; url: string }>;
   /** `direction` is `out` when the person is the `from` side of the relationship (see `RelationshipType`), `in` otherwise. */
-  relationships: Array<{ personId: string; name: string; type: RelationshipType; direction: "out" | "in"; url: string }>;
+  relationships: Array<Own & { id: string; personId: string; name: string; type: RelationshipType; note: string | null; direction: "out" | "in"; url: string }>;
   /** Only while the interval isn't confirmed, and only when the history is long enough to suggest one. */
   suggestedInterval?: number;
 };
@@ -129,7 +129,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     relationships: rels.map((r) => {
       const out = r.from_id === personId;
       const other = out ? r.to_id : r.from_id;
-      return { personId: other, name: names.get(other) ?? "", type: r.type as RelationshipType, direction: out ? "out" : "in", url: personPath(other) };
+      return { id: r.id, personId: other, name: names.get(other) ?? "", type: r.type as RelationshipType, note: r.note, direction: out ? "out" : "in", url: personPath(other), ...own(r) };
     }),
     ...(suggested !== null ? { suggestedInterval: suggested } : {}),
   };

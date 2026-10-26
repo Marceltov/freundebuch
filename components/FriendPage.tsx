@@ -156,17 +156,24 @@ export function FriendPage({
       {b.relationships.length > 0 && (
         <Section title={copy.theirPeople} icon={Users} plain>
           <ul className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
-            {b.relationships.map((r) => (
-              <li key={r.personId + r.type}>
-                <Link href={r.url} className="flex items-center gap-3 rounded-2xl bg-surface px-3 py-2 shadow-card hover:bg-surface-2/60">
-                  <Face id={r.personId} name={r.name} size={38} />
-                  <span className="min-w-0">
-                    <span className="block truncate font-display text-lg leading-tight font-semibold">{r.name}</span>
-                    {relationName[r.type]?.[r.direction] && <span className="block text-sm text-muted">{relationName[r.type][r.direction]}</span>}
-                  </span>
-                </Link>
-              </li>
-            ))}
+            {b.relationships.map((r) => {
+              const what = [relationName[r.type]?.[r.direction], r.note].filter(Boolean).join(" · ");
+              return (
+                <li key={r.id} id={anchorId("relationships", r.id)} className="flex items-center rounded-2xl bg-surface pr-1 shadow-card">
+                  <Link href={r.url} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2 hover:bg-surface-2/60">
+                    <Face id={r.personId} name={r.name} size={38} />
+                    <span className="min-w-0">
+                      <span className="block truncate font-display text-lg leading-tight font-semibold">
+                        {r.name}
+                        {r.visibility === "private" && <Lock aria-label={copy.privateItem} className="ml-1.5 inline h-3.5 w-3.5 text-muted" />}
+                      </span>
+                      {what && <span className="block truncate text-sm text-muted">{what}</span>}
+                    </span>
+                  </Link>
+                  <ItemActions table="relationships" field="note" id={r.id} mine={r.mine} visibility={r.visibility} text={r.note ?? ""} />
+                </li>
+              );
+            })}
           </ul>
         </Section>
       )}

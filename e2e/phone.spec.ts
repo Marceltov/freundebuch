@@ -212,6 +212,19 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
   await expect(page).toHaveURL(new RegExp(`/p/${kai}#facts-`));
   await expect(page.locator(":target")).toHaveText(/Läuft einen Marathon/);
 
+  // Gehört zu: a relationship gets a note, and a wrong one goes through its menu.
+  const uwe = page.locator("li", { has: page.getByRole("link", { name: /Uwe Roth/ }) });
+  await uwe.getByRole("button", { name: "Aktionen" }).click();
+  await uwe.getByRole("button", { name: "Bearbeiten" }).click();
+  await page.getByRole("dialog", { name: "Bearbeiten" }).getByRole("textbox").fill("vom Bau");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(uwe).toContainText("Kolleg:in · vom Bau");
+  await uwe.getByRole("button", { name: "Aktionen" }).click();
+  await uwe.getByRole("button", { name: "Löschen" }).click();
+  await uwe.getByRole("button", { name: "Wirklich löschen?" }).click();
+  await expect(page.getByRole("link", { name: /Uwe Roth/ })).toHaveCount(0);
+  await expect(page.locator("li", { has: page.getByRole("link", { name: /Lea Brandt/ }) })).toContainText("Geschwister");
+
   const nav = page.getByRole("navigation", { name: "Hauptmenü" });
   // Leute: anyone, by name or part of it.
   await nav.getByRole("link", { name: "Leute" }).click();
