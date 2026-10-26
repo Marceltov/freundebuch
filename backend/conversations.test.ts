@@ -231,3 +231,12 @@ test("a conversation files a role to us", async () => {
   expect(rows.map((x) => x.to_id).sort()).toEqual([a.personId, b.personId].sort());
   expect(rows.every((x) => x.from_id === r.people[0].id && x.conversation_id === r.conversationId)).toBe(true);
 });
+
+test("a person's gender is filed with the conversation, never made up", async () => {
+  const r = await recordConversation(a, base({ people: [{ name: "Anna", present: true, gender: "female" }, { name: "Kim", present: false }] }));
+  expect((await getPerson(a, r.people[0].id)).gender).toBe("female");
+  expect((await getPerson(a, r.people[1].id)).gender).toBeNull();
+  await recordConversation(a, base({ people: [{ id: r.people[1].id, present: true, gender: "nonbinary" }] }));
+  expect((await getPerson(a, r.people[1].id)).gender).toBe("nonbinary");
+  await expect(recordConversation(a, base({ people: [{ name: "Jo", present: true, gender: "x" as "male" }] }))).rejects.toBeInstanceOf(InvalidInputError);
+});

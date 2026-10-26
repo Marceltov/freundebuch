@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
+import { deleteItem, editItem, factToRelationship, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
 import { briefing } from "./briefing";
 import { getConversation, recordConversation, remember } from "./conversations";
 import { db } from "./db/testing";
@@ -389,4 +389,25 @@ test("edit moves a fact between lasting and situation", async () => {
   await expect(editItem(s.a, "facts", id, { kind: "rumour" })).rejects.toBeInstanceOf(InvalidInputError);
   await editItem(s.a, "facts", id, { kind: "lasting" });
   await expect(editItem(s.a, "facts", id, { checkAfter: "2026-12-24" })).rejects.toBeInstanceOf(InvalidInputError);
+});
+
+test("a fact becomes a relationship and keeps its privacy", async () => {
+  await remember(s.a, { visibility: "private", facts: [{ person: s.anna, text: "Unsere Vermieterin", category: "home" }] });
+  const id = await factId("Unsere Vermieterin");
+  await expect(factToRelationship(s.b, id, { from: s.anna, to: "us", type: "landlord" })).rejects.toBeInstanceOf(NotFoundError);
+  const { ids } = await factToRelationship(s.a, id, { from: s.anna, to: "us", type: "landlord" });
+  const rows = await (await db()).selectFrom("relationships").selectAll().where("id", "in", ids).execute();
+  expect(rows.map((r) => [r.from_id, r.type, r.visibility, r.recorded_by === s.a.userId])).toEqual([
+    [s.anna, "landlord", "private", true],
+    [s.anna, "landlord", "private", true],
+  ]);
+  expect(rows.map((r) => r.to_id).sort()).toEqual([s.a.personId, s.b.personId].sort());
+  expect(await (await db()).selectFrom("facts").select("id").where("id", "=", id).executeTakeFirst()).toBeUndefined();
+
+  // Someone else's shared fact is the partner's to move; a relationship that leaves out the fact's person is refused.
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "Kollegin von mir", category: "work" }] });
+  const shared = await factId("Kollegin von mir");
+  await expect(factToRelationship(s.b, shared, { from: s.anna, to: "me", type: "colleague" })).rejects.toBeInstanceOf(ForbiddenError);
+  await expect(factToRelationship(s.a, shared, { from: s.lena, to: "me", type: "colleague" })).rejects.toBeInstanceOf(InvalidInputError);
+  expect(await factId("Kollegin von mir")).toBe(shared);
 });

@@ -5,11 +5,12 @@
 import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { moveMembership } from "./groups";
-import { MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS } from "./conversations";
-import { db, type Schema } from "./db";
+import { checkRelationship, insertRelationships, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS } from "./conversations";
+import { resolveTarget, type Target } from "./household";
+import { db, now, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, RELATIONSHIP_TYPES, VISIBILITIES, type Viewer, type Visibility } from "./types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, RELATIONSHIP_TYPES, VISIBILITIES, type RelationshipType, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
 import { pruneScreenshots } from "./screenshots";
 
@@ -296,6 +297,25 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
     .execute();
   // A fact read from a screenshot takes the image with it once no other fact names it.
   if (table === "facts") await pruneScreenshots();
+}
+
+/**
+ * Turns a fact the viewer recorded into a relationship ("Unsere Vermieterin" → landlord of us), which keeps the fact's visibility
+ * and conversation; the fact goes. The fact's person must be on one end.
+ */
+export async function factToRelationship(v: Viewer, factId: string, r: { from: Target; to: Target; type: RelationshipType; note?: string }): Promise<{ ids: string[] }> {
+  checkRelationship(r, () => {});
+  const d = await db();
+  const ids = await d.transaction().execute(async (tx) => {
+    const fact = (await load(tx, v, "facts", factId, true)) as Row & { person_id: string };
+    const [froms, tos] = await Promise.all([resolveTarget(tx, v, r.from), resolveTarget(tx, v, r.to)]);
+    if (!froms.includes(fact.person_id) && !tos.includes(fact.person_id)) throw new InvalidInputError("The relationship must have the fact's person on one end");
+    const ids = await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, created_at: now() }, { ...r, visibility: fact.visibility as Visibility });
+    await tx.deleteFrom("facts").where("id", "=", factId).execute();
+    return ids;
+  });
+  await pruneScreenshots();
+  return { ids };
 }
 
 export async function renamePerson(v: Viewer, id: string, name: string): Promise<void> {

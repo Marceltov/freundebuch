@@ -5,17 +5,18 @@ import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { lastSeen } from "./intervals";
 import { norm, within } from "./names";
-import type { RelationshipType, Viewer } from "./types";
+import { GENDERS, type Gender, type RelationshipType, type Viewer } from "./types";
 import { personPath } from "./urls";
 import { visible } from "./visibility";
 
 export type Candidate = { id: string; name: string; aliases: string[]; url: string; context: string[] };
-export type PersonView = { id: string; name: string; aliases: string[]; url: string; createdFrom: string | null };
+/** `gender` is shared like the name; null when it isn't known. */
+export type PersonView = { id: string; name: string; aliases: string[]; url: string; createdFrom: string | null; gender: Gender | null };
 
 const MAX_CONTEXT = 3;
 const FUZZY_MIN = 5;
 
-type NewPerson = { name: string; aliases?: string[]; createdFrom?: string };
+type NewPerson = { name: string; aliases?: string[]; createdFrom?: string; gender?: Gender };
 
 export async function createPerson(v: Viewer, p: NewPerson): Promise<string> {
   return (await db()).transaction().execute((tx) => insertPerson(tx, v, p));
@@ -25,10 +26,23 @@ export async function createPerson(v: Viewer, p: NewPerson): Promise<string> {
 export async function insertPerson(d: Kysely<Schema>, v: Viewer, p: NewPerson): Promise<string> {
   const name = p.name.trim();
   if (!name) throw new InvalidInputError("A person needs a name");
+  if (p.gender !== undefined) checkGender(p.gender);
   const id = newId();
-  await d.insertInto("persons").values({ id, name, created_by: v.userId, created_from: p.createdFrom ?? null, created_at: now() }).execute();
+  await d.insertInto("persons").values({ id, name, created_by: v.userId, created_from: p.createdFrom ?? null, created_at: now(), gender: p.gender ?? null }).execute();
   for (const alias of p.aliases ?? []) await insertAlias(d, id, name, alias);
   return id;
+}
+
+export function checkGender(gender: unknown): asserts gender is Gender | null {
+  if (gender !== null && !GENDERS.includes(gender as Gender)) throw new InvalidInputError(`Gender must be one of ${GENDERS.join(", ")}, or null when it isn't known`);
+}
+
+/** Sets or (with null) clears a person's gender, which the role labels follow. Shared like the name, so either user may set it. */
+export async function setGender(v: Viewer, personId: string, gender: Gender | null): Promise<void> {
+  void v;
+  checkGender(gender);
+  const r = await (await db()).updateTable("persons").set({ gender }).where("id", "=", personId).executeTakeFirst();
+  if (!Number(r.numUpdatedRows)) throw new NotFoundError("No such person");
 }
 
 export async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {
@@ -156,19 +170,28 @@ async function createdFromFor(v: Viewer, personId: string, conversationId: strin
   return null;
 }
 
-async function toViews(v: Viewer, rows: { id: string; name: string; created_from: string | null }[]): Promise<PersonView[]> {
+async function toViews(v: Viewer, rows: { id: string; name: string; created_from: string | null; gender: Gender | null }[]): Promise<PersonView[]> {
   const aliases = await aliasesByPerson();
-  return Promise.all(rows.map(async (r) => ({ id: r.id, name: r.name, aliases: aliases.get(r.id) ?? [], url: personPath(r.id), createdFrom: r.created_from ? await createdFromFor(v, r.id, r.created_from) : null })));
+  return Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      name: r.name,
+      aliases: aliases.get(r.id) ?? [],
+      url: personPath(r.id),
+      createdFrom: r.created_from ? await createdFromFor(v, r.id, r.created_from) : null,
+      gender: r.gender,
+    })),
+  );
 }
 
 export async function getPerson(v: Viewer, id: string): Promise<PersonView> {
-  const row = await (await db()).selectFrom("persons").select(["id", "name", "created_from"]).where("id", "=", id).executeTakeFirst();
+  const row = await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender"]).where("id", "=", id).executeTakeFirst();
   if (!row) throw new NotFoundError("No such person");
   return (await toViews(v, [row]))[0];
 }
 
 export async function listPeople(v: Viewer): Promise<PersonView[]> {
-  return toViews(v, await (await db()).selectFrom("persons").select(["id", "name", "created_from"]).orderBy("name").execute());
+  return toViews(v, await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender"]).orderBy("name").execute());
 }
 
 /** Someone in the people list: last seen and groups as the viewer sees them. */

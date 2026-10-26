@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { db, newId, now, resetDbForTests } from "./db/testing";
-import { NotFoundError } from "./errors";
-import { addAlias, createPerson, findPeople, getPerson, listPeople } from "./people";
+import { InvalidInputError, NotFoundError } from "./errors";
+import { addAlias, createPerson, findPeople, getPerson, listPeople, setGender } from "./people";
 import { userFromOidc } from "./users";
 import type { Viewer } from "./types";
 
@@ -140,4 +140,15 @@ test("relationship hints read naturally in both directions", async () => {
   expect(await ctx("Ella")).toEqual(["child of Sarah", "knows Tom"].sort());
   expect(await ctx("Anna")).toEqual(["introduced by Tom"]);
   expect(await ctx("Tom")).toEqual(["introduced Anna", "knows Ella"].sort());
+});
+
+test("gender is optional, three values, shared like the name", async () => {
+  const anna = await createPerson(a, { name: "Anna" });
+  expect((await getPerson(b, anna)).gender).toBeNull();
+  await setGender(a, anna, "female");
+  expect((await getPerson(b, anna)).gender).toBe("female");
+  await setGender(b, anna, null);
+  expect((await getPerson(a, anna)).gender).toBeNull();
+  await expect(setGender(a, anna, "x" as "male")).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(setGender(a, "nope", "male")).rejects.toBeInstanceOf(NotFoundError);
 });

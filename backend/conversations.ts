@@ -5,7 +5,7 @@ import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
-import { insertPerson, namedLike } from "./people";
+import { checkGender, insertPerson, namedLike } from "./people";
 import {
   CONVERSATION_KINDS,
   EXCHANGE_KINDS,
@@ -17,6 +17,7 @@ import {
   type ExchangeKind,
   type FactCategory,
   type FactKind,
+  type Gender,
   type RelationshipType,
   type Viewer,
   type Visibility,
@@ -42,7 +43,7 @@ export type NewConversation = {
    * `id` links an existing person, `name` creates one. `present` makes them a participant. A new name that matches an existing
    * person's name or alias is refused as ambiguous unless `confirmedNew`.
    */
-  people: Array<{ id?: string; name?: string; aliases?: string[]; present: boolean; confirmedNew?: boolean }>;
+  people: Array<{ id?: string; name?: string; aliases?: string[]; present: boolean; confirmedNew?: boolean; gender?: Gender }>;
   facts?: Array<{ person: PersonRef; text: string; category: FactCategory; private?: boolean; supersedes?: string; kind?: FactKind; checkAfter?: string }>;
   promises?: Array<{ person: PersonRef; text: string; byMe: boolean; due?: string; private?: boolean }>;
   /** `date` is `YYYY-MM-DD`, or `--MM-DD` for a yearly date without a year. */
@@ -107,7 +108,10 @@ function validate(c: NewConversation): void {
   checkVisibility(c.visibility);
   if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
   if (c.transcript.length > MAX_TRANSCRIPT) throw new InvalidInputError(`The transcript holds at most ${MAX_TRANSCRIPT} characters`);
-  for (const p of c.people) if (!p.id && !p.name?.trim()) throw new InvalidInputError("Each person needs an id (existing) or a name (new)");
+  for (const p of c.people) {
+    if (!p.id && !p.name?.trim()) throw new InvalidInputError("Each person needs an id (existing) or a name (new)");
+    if (p.gender !== undefined) checkGender(p.gender);
+  }
   const ref = (r: PersonRef) => {
     if (!Number.isInteger(r) || r < 0 || r >= c.people.length) throw new InvalidInputError(`Person ${r} is not in people`);
   };
@@ -354,10 +358,11 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
       if (p.id) {
         const row = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", p.id).executeTakeFirst();
         if (!row) throw new NotFoundError(`No such person: ${p.id}`);
+        if (p.gender) await tx.updateTable("persons").set({ gender: p.gender }).where("id", "=", row.id).execute();
         people.push({ ref, id: row.id, name: row.name, created: false });
       } else {
         const name = p.name!.trim();
-        people.push({ ref, id: await insertPerson(tx, v, { name, aliases: p.aliases, createdFrom: conversationId }), name, created: true });
+        people.push({ ref, id: await insertPerson(tx, v, { name, aliases: p.aliases, createdFrom: conversationId, gender: p.gender }), name, created: true });
       }
     }
     const id = (r: PersonRef) => people[r].id;
