@@ -4,9 +4,11 @@ permissions:
   contents: read
 
 # Branches other than main run once, as their pull request; main runs on push and publishes the image.
+# A version tag (v1.2.3) runs too, publishes the image under its version and makes the release.
 on:
   push:
     branches: [main]
+    tags: ["v*"]
     paths-ignore: ["docs/**", "mkdocs.yml"]
   pull_request:
     paths-ignore: ["docs/**", "mkdocs.yml"]
@@ -100,11 +102,11 @@ jobs:
           docker inspect -f '{{.State.Health.Status}}' freundebuch | grep -qx healthy || { docker logs freundebuch; exit 1; }
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/health)" = 200
 
-  # Pushes to main publish :main for amd64 and arm64. Each platform builds natively on its own runner (arm64 under emulation
+  # Pushes to main publish :main for amd64 and arm64, a version tag publishes its version. Each platform builds natively on its own runner (arm64 under emulation
   # took four minutes for `next build` alone), pushes by digest, and `image` joins the two into one tag. The builds run
   # alongside the tests; only the tag waits for them, so an untested image is never :main.
   image-build:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push'
     strategy:
       matrix:
         include:
@@ -162,6 +164,53 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Tag both platforms as :main
+      # v1.2.3 is :1.2.3, :1.2 and :latest; a pre-release (v1.2.3-rc.1) gets only its own tag.
+      - name: Tag both platforms
         working-directory: digests
-        run: docker buildx imagetools create -t ghcr.io/marceltov/freundebuch:main $(printf 'ghcr.io/marceltov/freundebuch@sha256:%s ' *)
+        run: |
+          image=ghcr.io/marceltov/freundebuch
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version=${GITHUB_REF_NAME#v}
+            tags="-t $image:$version"
+            [[ $version == *-* ]] || tags="$tags -t $image:${version%.*} -t $image:latest"
+          else
+            tags="-t $image:main"
+          fi
+          docker buildx imagetools create $tags $(printf "$image@sha256:%s " *)
+
+  # The release notes list the pull requests since the previous tag; the same notes go to the notefeed feed.
+  # Both steps skip what a previous run of the same tag already made, so a re-run doesn't post twice.
+  release:
+    if: github.ref_type == 'tag'
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Write the release notes
+        run: |
+          version=${TAG#v}
+          gh api "repos/$GH_REPO/releases/generate-notes" -f tag_name="$TAG" --jq .body > notes.md
+          printf '\n### Image\n\n```sh\ndocker pull ghcr.io/marceltov/freundebuch:%s\n```\n' "$version" >> notes.md
+      - name: Make the GitHub release
+        run: |
+          gh release view "$TAG" > /dev/null 2>&1 && { echo "Release $TAG exists"; exit 0; }
+          prerelease=; [[ $TAG == *-* ]] && prerelease=--prerelease
+          gh release create "$TAG" --verify-tag --title "freundebuch ${TAG#v}" --notes-file notes.md $prerelease
+      - name: Post the notes to notefeed
+        env:
+          NOTEFEED_URL: https://notefeed.me
+          NOTEFEED_FEED: ${{ secrets.NOTEFEED_FEED }}
+          NOTEFEED_FEED_PASSWORD: ${{ secrets.NOTEFEED_FEED_PASSWORD }}
+        run: |
+          feed="$NOTEFEED_URL/api/v1/feeds/$NOTEFEED_FEED/notes"
+          posted=$(curl -fsS -H "X-Feed-Password: $NOTEFEED_FEED_PASSWORD" "$feed?tag=$TAG&limit=1" | jq '.notes | length')
+          [ "$posted" = 0 ] || { echo "$TAG is already on notefeed"; exit 0; }
+          printf '\n[The release on GitHub](%s)\n' "$(gh release view "$TAG" --json url --jq .url)" >> notes.md
+          curl -fsS -o /dev/null -H "Content-Type: text/markdown" -H "X-Feed-Password: $NOTEFEED_FEED_PASSWORD" \
+            -H "X-Note-Title: freundebuch ${TAG#v}" -H "X-Note-Tags: release,$TAG" \
+            --data-binary @notes.md "$feed"
