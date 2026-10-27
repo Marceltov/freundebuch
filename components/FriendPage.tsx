@@ -17,7 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { anchorId, type Briefing } from "@/backend";
-import { copy, kindName, relationLabel, roleLine } from "@/components/copy";
+import { copy, kindName, roleLine } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { ago, dayMonth, every, shortDay } from "@/components/format";
 import { GroupPicker } from "@/components/GroupPicker";
@@ -52,23 +52,15 @@ export function FriendPage({
   const otherDates = b.nextDates.filter((d) => d.kind !== "birthday");
   const { promises, exchanges, giftIdeas } = b.open;
   const roles = roleLine(b.roles, b.person.gender);
-  const gender = new Map(b.network.nodes.map((n) => [n.id, n.gender]));
   const drawn =
     b.network.edges.length > 0 &&
     layoutNetwork(b.network, viewerPersonId) !== null;
   const list = (
     <ul className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
       {b.relationships.map((r) => {
-        const what = [
-          relationLabel(
-            r.type,
-            r.direction === "out" ? "to" : "from",
-            gender.get(r.personId) ?? null,
-          ),
-          r.note,
-        ]
-          .filter(Boolean)
-          .join(" · ");
+        // What the other is to this person: `inverse` when this person is `from`.
+        const theirs = r.direction === "out" ? "inverse" : "label";
+        const what = [r[theirs], r.note].filter(Boolean).join(" · ");
         return (
           <li
             key={r.id}
@@ -99,11 +91,11 @@ export function FriendPage({
             </Link>
             <ItemActions
               table="relationships"
-              field="note"
+              field={theirs}
               id={r.id}
               mine={r.mine}
               visibility={r.visibility}
-              text={r.note ?? ""}
+              text={r[theirs]}
             />
           </li>
         );

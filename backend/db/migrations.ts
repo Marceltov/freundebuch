@@ -304,27 +304,60 @@ const migrations: Record<string, Migration> = {
       await db.schema.createIndex("user_settings_calendar_key").on("user_settings").column("calendar_key_hash").unique().execute();
     },
   },
-  // Roles to the household (landlord, neighbour, doctor, service), so relationships is rebuilt for its type CHECK; nothing
+  // A relationship says in words what each end is: `label` what `from` is to `to` ("Vermieterin"), `inverse` what `to` is to
+  // `from` ("Mieter"), so a role to the household ("our landlady") needs no fixed type. relationships is rebuilt without `type`;
+  // each old type becomes its gender-neutral words, an `other` its note (what it was in words), and nothing
   // references relationships.id. Facts are lasting or a situation with a day to ask again (`check_after`); every existing fact
-  // is lasting. Persons get an optional gender, which the role labels follow.
+  // is lasting. Persons get an optional gender, which Claude writes the labels in.
   "007_roles_situations_gender": {
     async up(db) {
-      const types = ["partner", "spouse", "parent", "child", "sibling", "friend", "colleague", "introduced_by", "other", "landlord", "neighbour", "doctor", "service"];
       const person = (c: any) => c.notNull().references("persons.id").onDelete("cascade");
+      const words = (column: string) => sql`${sql.ref(column)} is not null and length(trim(${sql.ref(column)})) > 0`;
       await db.schema
         .createTable("relationships_007")
         .addColumn("id", "text", (c) => c.primaryKey())
         .addColumn("from_id", "text", person)
         .addColumn("to_id", "text", person)
-        .addColumn("type", "text", (c) => c.notNull().check(oneOf("type", types)))
+        .addColumn("label", "text", (c) => c.notNull().check(words("label")))
+        .addColumn("inverse", "text", (c) => c.notNull().check(words("inverse")))
         .addColumn("note", "text")
         .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
         .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
         .addColumn("conversation_id", "text", (c) => c.references("conversations.id").onDelete("cascade"))
         .addColumn("created_at", "bigint", (c) => c.notNull())
         .execute();
-      const columns = sql.raw("id, from_id, to_id, type, note, visibility, recorded_by, conversation_id, created_at");
-      await sql`insert into relationships_007 (${columns}) select ${columns} from relationships`.execute(db);
+      // The words of each type 006 knew; an `other` is what its note says.
+      const old: Record<string, [string, string]> = {
+        partner: ["Partner:in", "Partner:in"],
+        spouse: ["Ehepartner:in", "Ehepartner:in"],
+        parent: ["Elternteil", "Kind"],
+        child: ["Kind", "Elternteil"],
+        sibling: ["Geschwister", "Geschwister"],
+        friend: ["Freund:in", "Freund:in"],
+        colleague: ["Kolleg:in", "Kolleg:in"],
+        introduced_by: ["vorgestellt", "hat vorgestellt"],
+        other: ["Bekannte:r", "Bekannte:r"],
+      };
+      const rows = await db.selectFrom("relationships").selectAll().execute();
+      for (const r of rows) {
+        const said = r.type === "other" ? r.note?.trim() || null : null;
+        const [label, inverse] = said ? [said, said] : old[r.type];
+        await db
+          .insertInto("relationships_007")
+          .values({
+            id: r.id,
+            from_id: r.from_id,
+            to_id: r.to_id,
+            label,
+            inverse,
+            note: said ? null : r.note,
+            visibility: r.visibility,
+            recorded_by: r.recorded_by,
+            conversation_id: r.conversation_id,
+            created_at: r.created_at,
+          })
+          .execute();
+      }
       await db.schema.dropTable("relationships").execute();
       await db.schema.alterTable("relationships_007").renameTo("relationships").execute();
       await db.schema.createIndex("relationships_by_from").on("relationships").column("from_id").execute();

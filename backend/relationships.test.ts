@@ -1,7 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import { db } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
-import { relationshipKey } from "./conversations";
 import { addRelationship, addToGroup } from "./relationships";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -11,17 +10,19 @@ beforeEach(async () => {
   s = await seed();
 });
 
-test("a relationship without a conversation", async () => {
-  const { ids: [id] } = await addRelationship(s.a, { from: s.lena, to: s.anna, type: "colleague", note: "same office", visibility: "shared" });
+test("a relationship without a conversation keeps what each end is, in words", async () => {
+  const { ids: [id] } = await addRelationship(s.a, { from: s.lena, to: s.anna, label: " Kollegin ", inverse: "Kollegin", note: "same office", visibility: "shared" });
   const row = await (await db()).selectFrom("relationships").selectAll().where("id", "=", id).executeTakeFirstOrThrow();
-  expect(row).toMatchObject({ from_id: s.lena, to_id: s.anna, type: "colleague", note: "same office", visibility: "shared", recorded_by: s.a.userId, conversation_id: null });
+  expect(row).toMatchObject({ from_id: s.lena, to_id: s.anna, label: "Kollegin", inverse: "Kollegin", note: "same office", visibility: "shared", recorded_by: s.a.userId, conversation_id: null });
 });
 
 test("a relationship is checked like one recorded with a conversation", async () => {
-  await expect(addRelationship(s.a, { from: s.anna, to: s.anna, type: "friend", visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
-  await expect(addRelationship(s.a, { from: s.anna, to: s.tom, type: "enemy" as "friend", visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
-  await expect(addRelationship(s.a, { from: s.anna, to: s.tom, type: "friend", visibility: "secret" as "shared" })).rejects.toBeInstanceOf(InvalidInputError);
-  await expect(addRelationship(s.a, { from: s.anna, to: "nope", type: "friend", visibility: "shared" })).rejects.toBeInstanceOf(NotFoundError);
+  await expect(addRelationship(s.a, { from: s.anna, to: s.anna, label: "Freundin", inverse: "Freundin", visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(addRelationship(s.a, { from: s.anna, to: s.tom, label: " ", inverse: "Freund", visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(addRelationship(s.a, { from: s.anna, to: s.tom, label: "Freundin", inverse: "", visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(addRelationship(s.a, { from: s.anna, to: s.tom, label: "x".repeat(61), inverse: "Freund", visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(addRelationship(s.a, { from: s.anna, to: s.tom, label: "Freundin", inverse: "Freund", visibility: "secret" as "shared" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(addRelationship(s.a, { from: s.anna, to: "nope", label: "Freundin", inverse: "Freund", visibility: "shared" })).rejects.toBeInstanceOf(NotFoundError);
 });
 
 test("group memberships without a conversation; adding the same one again is a no-op", async () => {
@@ -39,71 +40,72 @@ test("group memberships without a conversation; adding the same one again is a n
   await expect(addToGroup(s.a, { name: "Uni", members: ["nope"], visibility: "shared" })).rejects.toBeInstanceOf(NotFoundError);
 });
 
-test("the same relationship again is not recorded twice, however it is written", async () => {
-  const { ids: [id] } = await addRelationship(s.a, { from: s.anna, to: s.lena, type: "other", visibility: "shared" });
-  expect(await addRelationship(s.a, { from: s.lena, to: s.anna, type: "other", note: "Patentante", visibility: "shared" })).toEqual({ ids: [id] });
-  expect(await addRelationship(s.a, { from: s.anna, to: s.lena, type: "other", note: "patentante ", visibility: "shared" })).toEqual({ ids: [id] });
-  // the note it lacked is taken over; another note is another relationship
-  expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", id).executeTakeFirstOrThrow()).note).toBe("Patentante");
-  expect(await addRelationship(s.a, { from: s.anna, to: s.lena, type: "other", note: "Nachbarin", visibility: "shared" })).not.toEqual({ ids: [id] });
+test("the same relationship again is not recorded twice, either way round and in either gender form", async () => {
+  const add = (from: string, to: string, label: string, inverse: string, note?: string) => addRelationship(s.a, { from, to, label, inverse, note, visibility: "shared" });
+  const parent = await add(s.anna, s.tom, "Mutter", "Sohn");
+  expect(await add(s.tom, s.anna, "Sohn", "Mutter")).toEqual(parent);
+  expect(await add(s.anna, s.tom, "mutter ", "Sohn")).toEqual(parent);
+  // the other way round with the same words is another relationship
+  expect(await add(s.tom, s.anna, "Mutter", "Sohn")).not.toEqual(parent);
 
-  const parent = await addRelationship(s.a, { from: s.anna, to: s.tom, type: "parent", visibility: "shared" });
-  expect(await addRelationship(s.a, { from: s.tom, to: s.anna, type: "child", visibility: "shared" })).toEqual(parent);
-  expect(await addRelationship(s.a, { from: s.tom, to: s.anna, type: "parent", visibility: "shared" })).not.toEqual(parent);
-  const friends = await addRelationship(s.a, { from: s.anna, to: s.tom, type: "friend", visibility: "shared" });
-  expect(await addRelationship(s.a, { from: s.tom, to: s.anna, type: "friend", visibility: "shared" })).toEqual(friends);
+  const friends = await add(s.anna, s.lena, "Freundin", "Freundin");
+  expect(await add(s.lena, s.anna, "Freund:in", "Freundin")).toEqual(friends);
+  expect(await add(s.anna, s.lena, "Kollegin", "Kollegin")).not.toEqual(friends);
+  const doctor = await add(s.lena, s.tom, "Ärztin", "Patient");
+  expect(await add(s.lena, s.tom, "Arzt", "Patient:in")).toEqual(doctor);
+  const colleague = await add(s.tom, s.lena, "Kollege", "Kollegin");
+  expect(await add(s.lena, s.tom, "Kolleg:in", "Kolleg:in")).toEqual(colleague);
+  // the note it lacked is taken over
+  expect(await add(s.tom, s.anna, "Sohn", "Mutter", "der Ältere")).toEqual(parent);
+  expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", parent.ids[0]).executeTakeFirstOrThrow()).note).toBe("der Ältere");
 });
 
 test("a shared relationship of the partner counts; a private one doesn't, and isn't touched", async () => {
-  const shared = await addRelationship(s.b, { from: s.anna, to: s.lena, type: "sibling", visibility: "shared" });
-  expect(await addRelationship(s.a, { from: s.lena, to: s.anna, type: "sibling", note: "Zwilling", visibility: "shared" })).toEqual(shared);
+  const shared = await addRelationship(s.b, { from: s.anna, to: s.lena, label: "Geschwister", inverse: "Geschwister", visibility: "shared" });
+  expect(await addRelationship(s.a, { from: s.lena, to: s.anna, label: "Geschwister", inverse: "Geschwister", note: "Zwilling", visibility: "shared" })).toEqual(shared);
   expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", shared.ids[0]).executeTakeFirstOrThrow()).note).toBeNull();
 
-  const secret = await addRelationship(s.b, { from: s.anna, to: s.tom, type: "partner", visibility: "private" });
-  expect(await addRelationship(s.a, { from: s.anna, to: s.tom, type: "partner", visibility: "shared" })).not.toEqual(secret);
+  const secret = await addRelationship(s.b, { from: s.anna, to: s.tom, label: "Partner:in", inverse: "Partner:in", visibility: "private" });
+  expect(await addRelationship(s.a, { from: s.anna, to: s.tom, label: "Partner:in", inverse: "Partner:in", visibility: "shared" })).not.toEqual(secret);
 });
 
-const towards = async (id: string) => (await (await db()).selectFrom("relationships").select(["from_id", "to_id", "type"]).where("to_id", "=", id).orderBy("created_at").execute());
+const towards = async (id: string) => (await (await db()).selectFrom("relationships").select(["from_id", "to_id", "label"]).where("to_id", "=", id).orderBy("created_at").execute());
 
 test("us files the role to both household persons, once each", async () => {
-  const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", type: "landlord", visibility: "shared" });
+  const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
   expect(ids).toHaveLength(2);
   const rows = await (await db()).selectFrom("relationships").select(["id", "to_id"]).where("id", "in", ids).execute();
   expect(rows.map((r) => r.to_id).sort()).toEqual([s.a.personId, s.b.personId].sort());
   const count = async () => (await (await db()).selectFrom("relationships").select("id").execute()).length;
   const before = await count();
-  expect((await addRelationship(s.a, { from: s.anna, to: "us", type: "landlord", visibility: "shared" })).ids.sort()).toEqual([...ids].sort());
+  expect((await addRelationship(s.a, { from: s.anna, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" })).ids.sort()).toEqual([...ids].sort());
   expect(await count()).toBe(before);
 });
 
 test("us adds only the half that is missing", async () => {
-  const { ids: [mine] } = await addRelationship(s.a, { from: s.lena, to: s.a.personId, type: "neighbour", visibility: "shared" });
+  const { ids: [mine] } = await addRelationship(s.a, { from: s.lena, to: s.a.personId, label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
   const before = (await (await db()).selectFrom("relationships").select("id").execute()).length;
-  const { ids } = await addRelationship(s.a, { from: s.lena, to: "us", type: "neighbour", visibility: "shared" });
+  const { ids } = await addRelationship(s.a, { from: s.lena, to: "us", label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
   expect(ids).toContain(mine);
   expect((await (await db()).selectFrom("relationships").select("id").execute()).length).toBe(before + 1);
 });
 
 test("me is the viewer's own person", async () => {
-  await addRelationship(s.b, { from: s.anna, to: "me", type: "doctor", visibility: "shared" });
-  expect(await towards(s.b.personId)).toEqual([{ from_id: s.anna, to_id: s.b.personId, type: "doctor" }]);
-  await expect(addRelationship(s.b, { from: "me", to: "us", type: "friend", visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
+  await addRelationship(s.b, { from: s.anna, to: "me", label: "Ärzt:in", inverse: "Patient:in", visibility: "shared" });
+  expect(await towards(s.b.personId)).toEqual([{ from_id: s.anna, to_id: s.b.personId, label: "Ärzt:in" }]);
+  await expect(addRelationship(s.b, { from: "me", to: "us", label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).rejects.toBeInstanceOf(InvalidInputError);
 });
 
 test("a household of one", async () => {
   await (await db()).updateTable("users").set({ person_id: null }).where("id", "=", s.b.userId).execute();
-  const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", type: "landlord", visibility: "shared" });
+  const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
   expect(ids).toHaveLength(1);
-  expect(await towards(s.a.personId)).toEqual([{ from_id: s.anna, to_id: s.a.personId, type: "landlord" }]);
+  expect(await towards(s.a.personId)).toEqual([{ from_id: s.anna, to_id: s.a.personId, label: "Vermieter:in" }]);
 });
 
 test("a role to us from a household person skips that person", async () => {
-  const { ids } = await addRelationship(s.a, { from: s.b.personId, to: "us", type: "neighbour", visibility: "shared" });
+  const { ids } = await addRelationship(s.a, { from: s.b.personId, to: "us", label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
   expect(ids).toHaveLength(1);
-  expect(await towards(s.a.personId)).toEqual([{ from_id: s.b.personId, to_id: s.a.personId, type: "neighbour" }]);
+  expect(await towards(s.a.personId)).toEqual([{ from_id: s.b.personId, to_id: s.a.personId, label: "Nachbar:in" }]);
 });
 
-test("neighbour reads both ways; landlord is directional", () => {
-  expect(relationshipKey("x", "y", "neighbour")).toBe(relationshipKey("y", "x", "neighbour"));
-  expect(relationshipKey("x", "y", "landlord")).not.toBe(relationshipKey("y", "x", "landlord"));
-});

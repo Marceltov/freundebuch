@@ -1,11 +1,11 @@
 // Persons and their aliases. Persons themselves are shared by everyone; what hangs off them (relationships, conversations) is
 // visible per viewer, and the hints in a Candidate only use what the viewer may see.
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { lastSeen } from "./intervals";
 import { norm, within } from "./names";
-import { GENDERS, type Gender, type RelationshipType, type Viewer } from "./types";
+import { GENDERS, type Gender, type Viewer } from "./types";
 import { personPath } from "./urls";
 import { visible } from "./visibility";
 
@@ -37,12 +37,32 @@ export function checkGender(gender: unknown): asserts gender is Gender | null {
   if (gender !== null && !GENDERS.includes(gender as Gender)) throw new InvalidInputError(`Gender must be one of ${GENDERS.join(", ")}, or null when it isn't known`);
 }
 
-/** Sets or (with null) clears a person's gender, which the role labels follow. Shared like the name, so either user may set it. */
-export async function setGender(v: Viewer, personId: string, gender: Gender | null): Promise<void> {
-  void v;
+/** A relationship whose words may need the person's new gender: `label` what `from` is to `to`, `inverse` what `to` is to `from`. */
+export type Relabel = { id: string; fromName: string; toName: string; label: string; inverse: string };
+
+/**
+ * Sets or (with null) clears a person's gender. Shared like the name, so either user may set it. The words of a relationship
+ * are written in each end's gender, which the server can't change for them: it returns the person's relationships the viewer
+ * recorded, to put in the new gender (an edit of `label` or `inverse`).
+ */
+export async function setGender(v: Viewer, personId: string, gender: Gender | null): Promise<{ relabel: Relabel[] }> {
   checkGender(gender);
-  const r = await (await db()).updateTable("persons").set({ gender }).where("id", "=", personId).executeTakeFirst();
+  const d = await db();
+  const r = await d.updateTable("persons").set({ gender }).where("id", "=", personId).executeTakeFirst();
   if (!Number(r.numUpdatedRows)) throw new NotFoundError("No such person");
+  const rels = await d
+    .selectFrom("relationships")
+    .select(["id", "from_id", "to_id", "label", "inverse"])
+    .where((eb) => eb.or([eb("from_id", "=", personId), eb("to_id", "=", personId)]))
+    .where("recorded_by", "=", v.userId)
+    .$call((qb) => visible(qb, v, "relationships"))
+    .orderBy("created_at")
+    .orderBy(sql`rowid`)
+    .execute();
+  const ids = [...new Set(rels.flatMap((x) => [x.from_id, x.to_id]))];
+  const names = new Map(ids.length ? (await d.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute()).map((p) => [p.id, p.name]) : []);
+  const relabel = rels.map((x) => ({ id: x.id, fromName: names.get(x.from_id) ?? "", toName: names.get(x.to_id) ?? "", label: x.label, inverse: x.inverse }));
+  return { relabel };
 }
 
 export async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {
@@ -100,39 +120,23 @@ export async function namedLike(v: Viewer, name: string): Promise<Candidate[]> {
   return Promise.all(hits.map(async (p) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], url: personPath(p.id), context: await contextFor(v, p.id) })));
 }
 
-// How a relationship reads from the person's side: `out` when they are `from`, `in` when they are `to`. "Tom" is appended.
-const LABELS: Record<RelationshipType, { out: string; in: string }> = {
-  partner: { out: "partner of", in: "partner of" },
-  spouse: { out: "spouse of", in: "spouse of" },
-  sibling: { out: "sibling of", in: "sibling of" },
-  friend: { out: "friend of", in: "friend of" },
-  colleague: { out: "colleague of", in: "colleague of" },
-  parent: { out: "parent of", in: "child of" },
-  child: { out: "child of", in: "parent of" },
-  introduced_by: { out: "introduced by", in: "introduced" },
-  other: { out: "knows", in: "knows" },
-  landlord: { out: "landlord of", in: "tenant of" },
-  neighbour: { out: "neighbour of", in: "neighbour of" },
-  doctor: { out: "doctor of", in: "patient of" },
-  service: { out: "works for", in: "customer of" },
-};
-
 /** Hints that help tell two people with the same name apart, built only from what the viewer can see. */
 async function contextFor(v: Viewer, personId: string): Promise<string[]> {
   const d = await db();
   const hints: string[] = [];
   const rels = await d
     .selectFrom("relationships")
-    .select(["from_id", "to_id", "type"])
+    .select(["from_id", "to_id", "label", "inverse"])
     .where((eb) => eb.or([eb("from_id", "=", personId), eb("to_id", "=", personId)]))
     .$call((qb) => visible(qb, v, "relationships"))
     .orderBy("created_at")
     .execute();
   for (const r of rels) {
     const outgoing = r.from_id === personId;
-    const label = LABELS[r.type as RelationshipType]?.[outgoing ? "out" : "in"] ?? "knows";
+    // What the person is to the other, in the words filed ("Vermieterin of Tom").
+    const label = outgoing ? r.label : r.inverse;
     const other = await d.selectFrom("persons").select("name").where("id", "=", outgoing ? r.to_id : r.from_id).executeTakeFirst();
-    if (other) hints.push(`${label} ${other.name}`);
+    if (other) hints.push(`${label} of ${other.name}`);
   }
   const last = await lastSeen(v, personId);
   if (last) hints.push(`last seen ${last}`);

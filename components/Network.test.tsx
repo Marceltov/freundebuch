@@ -5,13 +5,16 @@ import { layoutNetwork, Network } from "./Network";
 
 type Net = Briefing["network"];
 const node = (id: string, name: string, role: "self" | "household" | "other", gender: "female" | "male" | null = null) => ({ id, name, role, gender, url: `/p/${id}` });
-const edge = (id: string, from: string, to: string, type: Net["edges"][number]["type"], note: string | null = null) => ({ id, from, to, type, note });
+const edge = (id: string, from: string, to: string, label: string, inverse: string) => ({ id, from, to, label, inverse });
 
 const marina = node("m", "Marina Reichardt", "self", "female");
 const others = (n: number) => Array.from({ length: n }, (_, i) => node(`o${i}`, `Person${i} Langername`, "other"));
 const net = (n: number, household = ["a"]): Net => ({
   nodes: [marina, ...household.map((h) => node(h, h === "a" ? "Marcel" : "Sybille", "household", "male")), ...others(n)],
-  edges: [...household.map((h) => edge(`h-${h}`, "m", h, "landlord")), ...others(n).map((o, i) => edge(`e${i}`, i % 2 ? o.id : "m", i % 2 ? "m" : o.id, i % 3 ? "parent" : "spouse"))],
+  edges: [
+    ...household.map((h) => edge(`h-${h}`, "m", h, "Vermieterin", "Mieter")),
+    ...others(n).map((o, i) => (i % 3 ? edge(`e${i}`, i % 2 ? o.id : "m", i % 2 ? "m" : o.id, "Elternteil", "Kind") : edge(`e${i}`, "m", o.id, "Ehefrau", "Ehemann"))),
+  ],
 });
 
 test("draws one line per edge with its label, and leaves out who isn't connected", () => {
@@ -43,7 +46,7 @@ test("labels never overlap each other, a node or a name", () => {
 
 test("the line to the household names what the person is to us; a line below names what the other is to them", () => {
   const l = layoutNetwork(
-    { nodes: [marina, node("a", "Marcel", "household"), node("k", "Leo", "other", "male"), node("t", "Tom", "other")], edges: [edge("1", "m", "a", "landlord"), edge("2", "m", "k", "parent"), edge("3", "t", "m", "other", "Patenonkel")] },
+    { nodes: [marina, node("a", "Marcel", "household"), node("k", "Leo", "other", "male"), node("t", "Tom", "other")], edges: [edge("1", "a", "m", "Mieter", "Vermieterin"), edge("2", "m", "k", "Mutter", "Sohn"), edge("3", "t", "m", "Patenonkel", "Patenkind")] },
     "a",
   )!;
   expect(l.pills.map((p) => p.text)).toEqual(["Vermieterin", "Sohn", "Patenonkel"]);

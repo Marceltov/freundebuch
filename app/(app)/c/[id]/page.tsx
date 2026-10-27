@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeftRight, Cake, CalendarDays, ChevronRight, Coffee, Lock, MapPin, Mic, NotebookPen, Pin, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { anchorId, getConversation, itemPath, personPath, today, type ConversationView } from "@/backend";
-import { copy, dateKindName, kindName, relationSentence } from "@/components/copy";
+import { copy, dateKindName, kindName } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { dayMonth, longDay, shortDay } from "@/components/format";
 import { CATEGORY_ICON, EXCHANGE_ICON, KIND_ICON } from "@/components/icons";
@@ -202,7 +202,7 @@ function Recorded({ c, userId }: { c: ConversationView; userId: string }) {
       ))}
       {relationships.map((r) => (
         <Tile key={r.id} id={anchorId("relationships", r.id)} icon={Users} private={priv(r)}>
-          {sentence(relationSentence[r.type] ?? relationSentence.other, { a: <Name id={r.fromId} name={r.fromName} />, b: <Name id={r.toId} name={r.toName} /> })}
+          {sentence(copy.relationSentence, { a: <Name id={r.fromId} name={r.fromName} />, label: r.label, b: <Name id={r.toId} name={r.toName} /> })}
         </Tile>
       ))}
     </Section>

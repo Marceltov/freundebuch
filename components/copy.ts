@@ -36,6 +36,8 @@ export const copy = {
   allLinks: "Alle Verbindungen ({n})",
   roleUs: "Unsere {role}",
   roleUsM: "Unser {role}",
+  roleUsX: "{role} von uns",
+  relationSentence: "{a} ist {label} von {b}",
   roleMe: "{role} von dir",
   rolePartner: "{role} von {name}",
   nudge: "Frag mal nach – seit {weeks} Wochen nichts gehört",
@@ -270,62 +272,21 @@ export const kindName: Record<string, string> = { in_person: "Treffen", call: "A
 
 export const dateKindName: Record<string, string> = { birthday: "Geburtstag", anniversary: "Jahrestag", custom: "Datum" };
 
-// A relationship as a sentence: `from` is {a}, `to` is {b} ("from is type of to").
-export const relationSentence: Record<string, string> = {
-  partner: "{a} und {b} sind ein Paar",
-  spouse: "{a} und {b} sind verheiratet",
-  parent: "{a} ist Elternteil von {b}",
-  child: "{a} ist Kind von {b}",
-  sibling: "{a} und {b} sind Geschwister",
-  friend: "{a} und {b} sind befreundet",
-  colleague: "{a} und {b} arbeiten zusammen",
-  introduced_by: "{a} kam über {b} dazu",
-  other: "{a} und {b} kennen sich",
-};
-
-// A relationship's name for the person at one end, by their gender (f, m, x: nonbinary or unknown). `from` is `type` of `to`.
-type Forms = { f: string; m: string; x: string };
-const same = (w: string): Forms => ({ f: w, m: w, x: w });
-const forms = (f: string, m: string, x: string): Forms => ({ f, m, x });
-export const relationName: Record<string, { from: Forms; to: Forms }> = {
-  partner: { from: forms("Partnerin", "Partner", "Partner:in"), to: forms("Partnerin", "Partner", "Partner:in") },
-  spouse: { from: forms("Ehefrau", "Ehemann", "Ehepartner:in"), to: forms("Ehefrau", "Ehemann", "Ehepartner:in") },
-  parent: { from: forms("Mutter", "Vater", "Elternteil"), to: forms("Tochter", "Sohn", "Kind") },
-  child: { from: forms("Tochter", "Sohn", "Kind"), to: forms("Mutter", "Vater", "Elternteil") },
-  sibling: { from: forms("Schwester", "Bruder", "Geschwister"), to: forms("Schwester", "Bruder", "Geschwister") },
-  friend: { from: forms("Freundin", "Freund", "Freund:in"), to: forms("Freundin", "Freund", "Freund:in") },
-  colleague: { from: forms("Kollegin", "Kollege", "Kolleg:in"), to: forms("Kollegin", "Kollege", "Kolleg:in") },
-  introduced_by: { from: same("vorgestellt"), to: same("hat vorgestellt") },
-  other: { from: same(""), to: same("") },
-  landlord: { from: forms("Vermieterin", "Vermieter", "Vermieter:in"), to: forms("Mieterin", "Mieter", "Mieter:in") },
-  neighbour: { from: forms("Nachbarin", "Nachbar", "Nachbar:in"), to: forms("Nachbarin", "Nachbar", "Nachbar:in") },
-  doctor: { from: forms("Ärztin", "Arzt", "Ärzt:in"), to: forms("Patientin", "Patient", "Patient:in") },
-  service: { from: forms("Dienstleisterin", "Dienstleister", "Dienstleister:in"), to: forms("Kundin", "Kunde", "Kund:in") },
-};
-
 type Gender = "female" | "male" | "nonbinary" | null;
-/** What the person at `side` of a relationship is ("Vermieterin" for the `from` of landlord, when she is female). */
-export function relationLabel(type: string, side: "from" | "to", gender: Gender): string {
-  const f = relationName[type]?.[side];
-  if (!f) return "";
-  return gender === "female" ? f.f : gender === "male" ? f.m : f.x;
-}
-
-// Words that take "unser", not "unsere": neuter forms.
-const NEUTER = new Set(["Kind", "Elternteil"]);
 
 /**
- * The role line under a person's name: who they are to us, read from the viewer's side ("Unsere Vermieterin", "Kollegin von
- * dir", "Kolleg:in von Marcel"), several joined with " · ". For `other` and `service` the note says what they are.
+ * The role line under a person's name: who they are to us, in the words filed, read from the viewer's side ("Unsere
+ * Vermieterin", "Kollegin von dir", "Kolleg:in von Marcel"), several joined with " · ". "Unsere"/"Unser" follows the person's
+ * gender; without one it reads "Vermieter:in von uns".
  */
-export function roleLine(roles: { type: string; direction: "out" | "in"; with: "me" | "partner" | "us"; partnerName?: string; note: string | null }[], gender: Gender): string {
+export function roleLine(roles: { label: string; with: "me" | "partner" | "us"; partnerName?: string }[], gender: Gender): string {
   return roles
     .map((r) => {
-      const name = (r.type === "other" || r.type === "service") && r.note ? r.note : relationLabel(r.type, r.direction === "out" ? "from" : "to", gender);
-      if (!name) return "";
-      if (r.with === "us") return (gender === "male" || NEUTER.has(name) ? copy.roleUsM : copy.roleUs).replace("{role}", name);
-      if (r.with === "me") return copy.roleMe.replace("{role}", name);
-      return copy.rolePartner.replace("{role}", name).replace("{name}", r.partnerName ?? "");
+      const role = r.label.trim();
+      if (!role) return "";
+      if (r.with === "us") return (gender === "female" ? copy.roleUs : gender === "male" ? copy.roleUsM : copy.roleUsX).replace("{role}", role);
+      if (r.with === "me") return copy.roleMe.replace("{role}", role);
+      return copy.rolePartner.replace("{role}", role).replace("{name}", r.partnerName ?? "");
     })
     .filter(Boolean)
     .join(" · ");

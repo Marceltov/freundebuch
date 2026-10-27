@@ -2505,7 +2505,7 @@
                   "me",
                   "us"
                 ],
-                "description": "\"me\": the user's own person; \"us\": both of the household, one relationship each"
+                "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
               }
             ]
           },
@@ -2521,28 +2521,17 @@
                   "me",
                   "us"
                 ],
-                "description": "\"me\": the user's own person; \"us\": both of the household, one relationship each"
+                "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
               }
             ]
           },
-          "type": {
+          "label": {
             "type": "string",
-            "enum": [
-              "partner",
-              "spouse",
-              "parent",
-              "child",
-              "sibling",
-              "friend",
-              "colleague",
-              "introduced_by",
-              "other",
-              "landlord",
-              "neighbour",
-              "doctor",
-              "service"
-            ],
-            "description": "`from` is `type` of `to`, as in a relationship"
+            "description": "What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)"
+          },
+          "inverse": {
+            "type": "string",
+            "description": "What `to` is to `from`, the same way: Mieter, Mutter, Kollegin, Nachbar:in"
           },
           "note": {
             "type": "string"
@@ -2551,7 +2540,8 @@
         "required": [
           "from",
           "to",
-          "type"
+          "label",
+          "inverse"
         ],
         "description": "The relationship a fact becomes; one end is the fact's person"
       },
@@ -2937,31 +2927,9 @@
             "items": {
               "type": "object",
               "properties": {
-                "type": {
+                "label": {
                   "type": "string",
-                  "enum": [
-                    "partner",
-                    "spouse",
-                    "parent",
-                    "child",
-                    "sibling",
-                    "friend",
-                    "colleague",
-                    "introduced_by",
-                    "other",
-                    "landlord",
-                    "neighbour",
-                    "doctor",
-                    "service"
-                  ]
-                },
-                "direction": {
-                  "type": "string",
-                  "enum": [
-                    "out",
-                    "in"
-                  ],
-                  "description": "`out` when the person is the `from` side (landlord out: the person is the landlord)"
+                  "description": "What the person is to the household, in the words filed: Vermieterin, Ärztin, Klempner"
                 },
                 "with": {
                   "type": "string",
@@ -2976,12 +2944,6 @@
                   "description": "The other user's name, when `with` is `partner`",
                   "type": "string"
                 },
-                "note": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
                 "ids": {
                   "type": "array",
                   "items": {
@@ -2991,10 +2953,8 @@
                 }
               },
               "required": [
-                "type",
-                "direction",
+                "label",
                 "with",
-                "note",
                 "ids"
               ]
             },
@@ -3502,26 +3462,15 @@
                 "name": {
                   "type": "string"
                 },
-                "type": {
+                "label": {
                   "type": "string",
-                  "enum": [
-                    "partner",
-                    "spouse",
-                    "parent",
-                    "child",
-                    "sibling",
-                    "friend",
-                    "colleague",
-                    "introduced_by",
-                    "other",
-                    "landlord",
-                    "neighbour",
-                    "doctor",
-                    "service"
-                  ]
+                  "description": "What `from` is to `to`, as stored"
+                },
+                "inverse": {
+                  "type": "string",
+                  "description": "What `to` is to `from`, as stored"
                 },
                 "note": {
-                  "description": "What the relationship is, in words, above all for `other` (\"Patentante\")",
                   "type": [
                     "string",
                     "null"
@@ -3545,7 +3494,7 @@
                     "out",
                     "in"
                   ],
-                  "description": "`out` when the person is the `from` side of the relationship"
+                  "description": "`out` when the person is `from` (so `inverse` is what the other is to them), `in` when they are `to` (`label` is)"
                 },
                 "url": {
                   "type": "string",
@@ -3556,7 +3505,8 @@
                 "id",
                 "personId",
                 "name",
-                "type",
+                "label",
+                "inverse",
                 "note",
                 "visibility",
                 "mine",
@@ -3635,37 +3585,21 @@
                       "type": "string",
                       "description": "A person's id"
                     },
-                    "type": {
+                    "label": {
                       "type": "string",
-                      "enum": [
-                        "partner",
-                        "spouse",
-                        "parent",
-                        "child",
-                        "sibling",
-                        "friend",
-                        "colleague",
-                        "introduced_by",
-                        "other",
-                        "landlord",
-                        "neighbour",
-                        "doctor",
-                        "service"
-                      ]
+                      "description": "What `from` is to `to`"
                     },
-                    "note": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                    "inverse": {
+                      "type": "string",
+                      "description": "What `to` is to `from`"
                     }
                   },
                   "required": [
                     "id",
                     "from",
                     "to",
-                    "type",
-                    "note"
+                    "label",
+                    "inverse"
                   ]
                 }
               }
@@ -4169,7 +4103,7 @@
                         "me",
                         "us"
                       ],
-                      "description": "\"me\": the user's own person; \"us\": both of the household, one relationship each"
+                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
                     }
                   ]
                 },
@@ -4187,31 +4121,20 @@
                         "me",
                         "us"
                       ],
-                      "description": "\"me\": the user's own person; \"us\": both of the household, one relationship each"
+                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
                     }
                   ]
                 },
-                "type": {
+                "label": {
                   "type": "string",
-                  "enum": [
-                    "partner",
-                    "spouse",
-                    "parent",
-                    "child",
-                    "sibling",
-                    "friend",
-                    "colleague",
-                    "introduced_by",
-                    "other",
-                    "landlord",
-                    "neighbour",
-                    "doctor",
-                    "service"
-                  ],
-                  "description": "`from` is `type` of `to`: with `parent`, from is the parent of to; with `landlord` or `doctor`, from is that to to; with `service`, from works for to"
+                  "description": "What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)"
+                },
+                "inverse": {
+                  "type": "string",
+                  "description": "What `to` is to `from`, the same way: Mieter, Mutter, Kollegin, Nachbar:in"
                 },
                 "note": {
-                  "description": "What it is in words, above all for `other` and `service` (\"Klempner\")",
+                  "description": "Anything more about it: \"seit der Schulzeit\"",
                   "type": "string"
                 },
                 "private": {
@@ -4222,7 +4145,8 @@
               "required": [
                 "from",
                 "to",
-                "type"
+                "label",
+                "inverse"
               ]
             }
           },
@@ -4765,23 +4689,11 @@
                 "toName": {
                   "type": "string"
                 },
-                "type": {
-                  "type": "string",
-                  "enum": [
-                    "partner",
-                    "spouse",
-                    "parent",
-                    "child",
-                    "sibling",
-                    "friend",
-                    "colleague",
-                    "introduced_by",
-                    "other",
-                    "landlord",
-                    "neighbour",
-                    "doctor",
-                    "service"
-                  ]
+                "label": {
+                  "type": "string"
+                },
+                "inverse": {
+                  "type": "string"
                 },
                 "note": {
                   "type": [
@@ -4799,7 +4711,8 @@
                 "fromName",
                 "toId",
                 "toName",
-                "type",
+                "label",
+                "inverse",
                 "note"
               ]
             }

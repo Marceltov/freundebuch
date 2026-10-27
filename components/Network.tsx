@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Briefing } from "@/backend";
-import { copy, relationLabel } from "@/components/copy";
+import { copy } from "@/components/copy";
 import { faceColor, initials } from "@/components/Face";
 
 // Who a person belongs with, drawn in three rows: the household on top (only those of us with a visible relationship to them),
@@ -29,11 +29,10 @@ const overlaps = (a: Box, b: Box) => a.x < b.x + b.w + GAP && b.x < a.x + a.w + 
 const inside = (a: Box) => a.x >= 0 && a.x + a.w <= W;
 const nodeBox = (n: Placed): Box => ({ x: n.x - n.r, y: n.y - n.r, w: 2 * n.r, h: 2 * n.r });
 
-function edgeText(e: Net["edges"][number], name: (id: string) => Net["nodes"][number] | undefined, selfId: string, above: boolean): string {
-  if ((e.type === "other" || e.type === "service") && e.note) return e.note;
+function edgeText(e: Net["edges"][number], selfId: string, above: boolean): string {
+  const selfIsFrom = e.from === selfId;
   // Above, the line names the person; below, the other end.
-  const named = above ? selfId : e.from === selfId ? e.to : e.from;
-  return relationLabel(e.type, e.from === named ? "from" : "to", name(named)?.gender ?? null) || (e.note ?? "");
+  return above === selfIsFrom ? e.label : e.inverse;
 }
 
 /** The diagram's geometry, or null when it can't be drawn legibly (too many people, or labels that would overlap). */
@@ -83,7 +82,7 @@ export function layoutNetwork(network: Net, viewerPersonId: string): Layout | nu
     const far = at.get(e.from === self.id ? e.to : e.from);
     if (!far) continue;
     lines.set(far.id, { x1: center.x, y1: center.y, x2: far.x, y2: far.y });
-    const text = edgeText(e, (id) => network.nodes.find((n) => n.id === id), self.id, far.y < center.y);
+    const text = edgeText(e, self.id, far.y < center.y);
     if (!text) continue;
     const w = textWidth(text) + 12;
     const spot = STOPS.map((t) => ({ text, w, h: PILL_H, x: center.x + (far.x - center.x) * t - w / 2, y: center.y + (far.y - center.y) * t - PILL_H / 2 })).find(

@@ -58,7 +58,7 @@ test("context shows relationships and when the viewer last saw the person", asyn
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
   const d = await db();
-  await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, type: "partner", note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
+  await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, label: "Partner:in", inverse: "Partner:in", note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
   for (const date of ["2026-10-01", "2026-10-20"]) {
     const id = newId();
     await d.insertInto("conversations").values({ id, date, kind: "call", place: null, summary: "s", transcript: "", visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
@@ -69,20 +69,20 @@ test("context shows relationships and when the viewer last saw the person", asyn
   await d.insertInto("conversations").values({ id: other, date: "2026-10-22", kind: "call", place: null, summary: "s", transcript: "", visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
   await d.insertInto("participants").values({ conversation_id: other, person_id: anna }).execute();
   const [c] = await findPeople(b, "Anna");
-  expect(c.context).toEqual(["partner of Tom", "last seen 2026-10-20"]);
-  expect((await findPeople(b, "Tom"))[0].context).toEqual(["partner of Anna"]);
+  expect(c.context).toEqual(["Partner:in of Tom", "last seen 2026-10-20"]);
+  expect((await findPeople(b, "Tom"))[0].context).toEqual(["Partner:in of Anna"]);
 });
 
 test("context never contains anything from a private item of the other user", async () => {
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
   const d = await db();
-  await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, type: "partner", note: null, visibility: "private", recorded_by: b.userId, conversation_id: null, created_at: now() }).execute();
+  await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, label: "Partner:in", inverse: "Partner:in", note: null, visibility: "private", recorded_by: b.userId, conversation_id: null, created_at: now() }).execute();
   const cid = newId();
   await d.insertInto("conversations").values({ id: cid, date: "2026-10-20", kind: "call", place: null, summary: "s", transcript: "", visibility: "private", recorded_by: b.userId, created_at: now() }).execute();
   await d.insertInto("participants").values([{ conversation_id: cid, person_id: anna }, { conversation_id: cid, person_id: b.personId }]).execute();
   expect((await findPeople(a, "Anna"))[0].context).toEqual([]);
-  expect((await findPeople(b, "Anna"))[0].context).toEqual(["partner of Tom", "last seen 2026-10-20"]);
+  expect((await findPeople(b, "Anna"))[0].context).toEqual(["Partner:in of Tom", "last seen 2026-10-20"]);
 });
 
 test("addAlias adds, dedupes by norm and is found", async () => {
@@ -130,16 +130,17 @@ test("relationship hints read naturally in both directions", async () => {
   const ella = await createPerson(a, { name: "Ella" });
   const tom = await createPerson(a, { name: "Tom" });
   const anna = await createPerson(a, { name: "Anna" });
-  const rel = async (from: string, to: string, type: string) =>
-    (await db()).insertInto("relationships").values({ id: newId(), from_id: from, to_id: to, type, note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
-  await rel(sarah, ella, "parent");
-  await rel(anna, tom, "introduced_by");
-  await rel(tom, ella, "other");
+  const rel = async (from: string, to: string, label: string, inverse: string) =>
+    (await db()).insertInto("relationships").values({ id: newId(), from_id: from, to_id: to, label, inverse, note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
+  await rel(sarah, ella, "Mutter", "Tochter");
+  await rel(anna, tom, "Nichte", "Onkel");
+  await rel(tom, ella, "Nachbar", "Nachbarin");
   const ctx = async (q: string) => [...(await findPeople(a, q))[0].context].sort();
-  expect(await ctx("Sarah")).toEqual(["parent of Ella"]);
-  expect(await ctx("Ella")).toEqual(["child of Sarah", "knows Tom"].sort());
-  expect(await ctx("Anna")).toEqual(["introduced by Tom"]);
-  expect(await ctx("Tom")).toEqual(["introduced Anna", "knows Ella"].sort());
+  // What the person is to the other, in the words filed.
+  expect(await ctx("Sarah")).toEqual(["Mutter of Ella"]);
+  expect(await ctx("Ella")).toEqual(["Nachbarin of Tom", "Tochter of Sarah"]);
+  expect(await ctx("Anna")).toEqual(["Nichte of Tom"]);
+  expect(await ctx("Tom")).toEqual(["Nachbar of Ella", "Onkel of Anna"]);
 });
 
 test("gender is optional, three values, shared like the name", async () => {
@@ -151,4 +152,23 @@ test("gender is optional, three values, shared like the name", async () => {
   expect((await getPerson(a, anna)).gender).toBeNull();
   await expect(setGender(a, anna, "x" as "male")).rejects.toBeInstanceOf(InvalidInputError);
   await expect(setGender(a, "nope", "male")).rejects.toBeInstanceOf(NotFoundError);
+});
+
+test("a gender change returns the person's relationships the viewer recorded, to put in the new gender", async () => {
+  const anna = await createPerson(a, { name: "Anna" });
+  const tom = await createPerson(a, { name: "Tom" });
+  const rel = async (by: Viewer, from: string, to: string, label: string, inverse: string, visibility = "shared") => {
+    const id = newId();
+    await (await db()).insertInto("relationships").values({ id, from_id: from, to_id: to, label, inverse, note: null, visibility, recorded_by: by.userId, conversation_id: null, created_at: now() }).execute();
+    return id;
+  };
+  const mine = await rel(a, anna, tom, "Vermieter:in", "Mieter");
+  await rel(b, tom, anna, "Kollege", "Kolleg:in");
+  await rel(b, anna, a.personId, "Nachbar:in", "Nachbar", "private");
+  expect(await setGender(a, anna, "female")).toEqual({ relabel: [{ id: mine, fromName: "Anna", toName: "Tom", label: "Vermieter:in", inverse: "Mieter" }] });
+  // The partner gets their own, and never A's.
+  expect((await setGender(b, anna, "female")).relabel.map((r) => [r.fromName, r.label])).toEqual([
+    ["Tom", "Kollege"],
+    ["Anna", "Nachbar:in"],
+  ]);
 });

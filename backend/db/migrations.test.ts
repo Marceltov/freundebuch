@@ -2,7 +2,7 @@ import { Kysely, SqliteDialect, sql } from "kysely";
 import Database from "better-sqlite3";
 import { beforeEach, expect, test } from "vitest";
 import { MIGRATION_NAMES, NEWER, migrate, migrateTo } from "./migrations";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, RELATIONSHIP_TYPES } from "../types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS } from "../types";
 import { db, newId, now, resetDbForTests } from "./index";
 
 const fresh = () => new Kysely<any>({ dialect: new SqliteDialect({ database: new Database(":memory:") }) }); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -79,7 +79,7 @@ test("CHECK constraints refuse values outside the vocabularies", async () => {
   const promise = { ...base, text: "a", by_me: 1 };
   const date = { ...base, kind: "birthday" as const, date: "--01-01", label: null, yearly: 1 };
   const exchange = { ...base, kind: "gift", direction: "to_them" as const, text: "a", amount: null, currency: null };
-  const rel = { from_id: person, to_id: person, type: "friend", note: null, visibility: "shared", recorded_by: user, conversation_id: null, created_at: t };
+  const rel = { from_id: person, to_id: person, label: "Freundin", inverse: "Freundin", note: null, visibility: "shared", recorded_by: user, conversation_id: null, created_at: t };
   const bad: Array<[string, () => Promise<unknown>]> = [
     ["conversations.visibility", () => d.insertInto("conversations").values({ ...conversation, id: newId(), visibility: "secret" }).execute()],
     ["conversations.kind", () => d.insertInto("conversations").values({ ...conversation, id: newId(), kind: "meeting" }).execute()],
@@ -92,7 +92,8 @@ test("CHECK constraints refuse values outside the vocabularies", async () => {
     ["exchanges.kind", () => d.insertInto("exchanges").values({ ...exchange, id: newId(), kind: "loan" }).execute()],
     ["exchanges.direction", () => d.insertInto("exchanges").values({ ...exchange, id: newId(), direction: "both" as "to_them" }).execute()],
     ["relationships.visibility", () => d.insertInto("relationships").values({ ...rel, id: newId(), visibility: "x" }).execute()],
-    ["relationships.type", () => d.insertInto("relationships").values({ ...rel, id: newId(), type: "cousin" }).execute()],
+    ["relationships.label", () => d.insertInto("relationships").values({ ...rel, id: newId(), label: " " }).execute()],
+    ["relationships.inverse", () => d.insertInto("relationships").values({ ...rel, id: newId(), inverse: "" }).execute()],
   ];
   await d.insertInto("conversations").values(conversation).execute();
   for (const [what, insert] of bad) await expect(insert(), what).rejects.toThrow(/CHECK constraint failed/);
@@ -104,7 +105,7 @@ test("CHECK constraints refuse values outside the vocabularies", async () => {
   // Every value of every vocabulary is accepted.
   for (const kind of CONVERSATION_KINDS) await d.insertInto("conversations").values({ ...conversation, id: newId(), kind, visibility: "private" }).execute();
   for (const kind of EXCHANGE_KINDS) for (const direction of ["to_them", "from_them"] as const) await d.insertInto("exchanges").values({ ...exchange, id: newId(), kind, direction }).execute();
-  for (const type of RELATIONSHIP_TYPES) await d.insertInto("relationships").values({ ...rel, id: newId(), type }).execute();
+  await d.insertInto("relationships").values({ ...rel, id: newId() }).execute();
   for (const kind of ["birthday", "anniversary", "custom"] as const) await d.insertInto("dates").values({ ...date, id: newId(), kind }).execute();
   await d.insertInto("facts").values({ ...fact, id: newId(), status: "outdated", visibility: "private" }).execute();
 });
@@ -189,6 +190,7 @@ test("005 keeps one of the same relationship recorded twice by one user, with th
     conversation_id: null,
     created_at: t + n,
   });
+  // Written with a type, as before 007.
   await d
     .insertInto("relationships")
     .values([
@@ -202,7 +204,7 @@ test("005 keeps one of the same relationship recorded twice by one user, with th
       r("ram", "mal", "parent", null, "u", "private"), // r8: private, kept apart
     ])
     .execute();
-  await migrate(d);
+  await migrateTo(d, "005_relationship_duplicates");
   const rows = await d.selectFrom("relationships").select(["id", "note"]).orderBy("id").execute();
   expect(rows).toEqual([
     { id: "r1", note: "Patentante" },
@@ -220,10 +222,15 @@ async function at006() {
   const t = Date.now();
   await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "u", email: null, person_id: null, created_at: t }).execute();
   for (const p of ["anna", "tom"]) await d.insertInto("persons").values({ id: p, name: p, created_by: "u", created_from: null, created_at: t }).execute();
-  await d
-    .insertInto("relationships")
-    .values({ id: "r1", from_id: "anna", to_id: "tom", type: "friend", note: "Uni", visibility: "private", recorded_by: "u", conversation_id: null, created_at: t })
-    .execute();
+  // Written as 006 had them: a type, and a note that said what an `other` is.
+  const old = [
+    ["r1", "friend", "Uni"],
+    ["r2", "parent", null],
+    ["r3", "other", "Patentante"],
+    ["r4", "other", null],
+  ] as const;
+  for (const [id, type, note] of old)
+    await sql`insert into relationships (id, from_id, to_id, type, note, visibility, recorded_by, conversation_id, created_at) values (${id}, 'anna', 'tom', ${type}, ${note}, 'private', 'u', null, ${t})`.execute(d);
   await d
     .insertInto("facts")
     .values({ id: "f1", person_id: "anna", text: "a", category: "work", status: "current", visibility: "shared", recorded_by: "u", conversation_id: null, created_at: t })
@@ -231,13 +238,17 @@ async function at006() {
   await migrate(d);
   return d;
 }
-const rel = (id: string, type: string) => ({ id, from_id: "anna", to_id: "tom", type, note: null, visibility: "shared", recorded_by: "u", conversation_id: null, created_at: 0 });
-
-test("007 keeps every relationship and accepts the new types", async () => {
+test("007 turns each relationship's type into what each end is, in words, and keeps the notes that aren't the words", async () => {
   const d = await at006();
-  expect(await d.selectFrom("relationships").select(["id", "type", "note", "visibility"]).execute()).toEqual([{ id: "r1", type: "friend", note: "Uni", visibility: "private" }]);
-  for (const type of ["landlord", "neighbour", "doctor", "service"]) await d.insertInto("relationships").values(rel(`r-${type}`, type)).execute();
-  await expect(d.insertInto("relationships").values(rel("r-boss", "boss")).execute()).rejects.toThrow(/CHECK constraint failed/);
+  expect(await d.selectFrom("relationships").select(["id", "label", "inverse", "note", "visibility"]).orderBy("id").execute()).toEqual([
+    { id: "r1", label: "Freund:in", inverse: "Freund:in", note: "Uni", visibility: "private" },
+    { id: "r2", label: "Elternteil", inverse: "Kind", note: null, visibility: "private" },
+    { id: "r3", label: "Patentante", inverse: "Patentante", note: null, visibility: "private" },
+    { id: "r4", label: "Bekannte:r", inverse: "Bekannte:r", note: null, visibility: "private" },
+  ]);
+  const row = { from_id: "anna", to_id: "tom", note: null, visibility: "shared", recorded_by: "u", conversation_id: null, created_at: 0 };
+  await d.insertInto("relationships").values({ ...row, id: "r7", label: "Hebamme", inverse: "Mutter" }).execute();
+  await expect(d.insertInto("relationships").values({ ...row, id: "r8", label: "", inverse: "Mutter" }).execute()).rejects.toThrow(/CHECK constraint failed/);
   const { rows } = await sql<{ name: string }>`pragma index_list(relationships)`.execute(d);
   expect(rows.map((r) => r.name).filter((n) => !n.startsWith("sqlite_")).sort()).toEqual(["relationships_by_from", "relationships_by_to"]);
 });

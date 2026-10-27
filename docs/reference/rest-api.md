@@ -28,6 +28,7 @@ The same privacy rules apply as everywhere else: a request sees what the token's
 ## Roles, situations and gender
 
 - `PATCH /api/v1/people/{id}` takes `{ name?, gender? }`; `gender` is `female`, `male`, `nonbinary` or `null`.
-- `POST /api/v1/items/facts/{id}/relationship` with `{ from, to, type, note? }` turns a fact into a relationship and deletes the fact; `from` and `to` take a person id, `"me"` or `"us"`. It answers `201 { ids }`.
+- `POST /api/v1/items/facts/{id}/relationship` with `{ from, to, label, inverse, note? }` turns a fact into a relationship and deletes the fact; `from` and `to` take a person id, `"me"` or `"us"`. It answers `201 { ids }`.
 - `PATCH /api/v1/items/facts/{id}` with `{ patch: { kind, checkAfter } }` moves a fact between lasting and situation.
-- `POST /api/v1/conversations` takes `kind` and `checkAfter` on facts, `gender` on people, and `"me"` / `"us"` as a relationship's end. The briefing has `roles`, `situations`, `known` and `network`; `/due` has items of kind `situation`.
+- A relationship has no type: `label` is what `from` is to `to`, `inverse` what `to` is to `from`, in words ("Vermieterin", "Mieter"). `PATCH /api/v1/items/relationships/{id}` with `{ patch: { label, inverse, note } }` changes them.
+- `POST /api/v1/conversations` takes `kind` and `checkAfter` on facts (news about a situation must give a new `checkAfter`), `gender` on people, and `"me"` / `"us"` as a relationship's end. The briefing has `roles`, `situations`, `known` and `network`; `/due` has items of kind `situation`.

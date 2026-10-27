@@ -95,7 +95,7 @@ test("Tom exists for B, but without the partner edge or the birthday", async () 
   const [tom] = await findPeople(s.b, "Tom");
   expect(tom.id).toBe(s.tom);
   expect(tom.context).toEqual([]);
-  expect((await findPeople(s.a, "Tom"))[0].context).toEqual(["partner of Anna"]);
+  expect((await findPeople(s.a, "Tom"))[0].context).toEqual(["Partner:in of Anna"]);
   const [anna] = await findPeople(s.b, "Anna");
   expect(anna.context.join(" ")).not.toContain("Tom");
 });
@@ -338,11 +338,11 @@ test("the people overview is everyone but the viewer, with last seen and groups 
 });
 
 test("a private role never shows to the partner, not even as 'us'", async () => {
-  const { ids: [secret] } = await addRelationship(s.a, { from: s.lena, to: "me", type: "landlord", visibility: "private" });
-  await addRelationship(s.b, { from: s.lena, to: "me", type: "landlord", visibility: "shared" });
+  const { ids: [secret] } = await addRelationship(s.a, { from: s.lena, to: "me", label: "Vermieter:in", inverse: "Mieter:in", visibility: "private" });
+  await addRelationship(s.b, { from: s.lena, to: "me", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
   expect((await briefing(s.a, s.lena)).roles).toMatchObject([{ with: "us" }]);
   const b = await briefing(s.b, s.lena);
-  expect(b.roles).toMatchObject([{ type: "landlord", with: "me" }]);
+  expect(b.roles).toMatchObject([{ label: "Vermieter:in", with: "me" }]);
   expect(b.roles[0].ids).toHaveLength(1);
   expect(b.network.nodes.map((n) => n.id)).not.toContain(s.a.personId);
   expect(b.network.edges.some((e) => e.from === s.a.personId || e.to === s.a.personId)).toBe(false);
@@ -353,7 +353,7 @@ test("a private role never shows to the partner, not even as 'us'", async () => 
 });
 
 test("a household node reachable only through A's private edge is absent for B", async () => {
-  await addRelationship(s.a, { from: s.anna, to: "me", type: "doctor", visibility: "private" });
+  await addRelationship(s.a, { from: s.anna, to: "me", label: "Ärzt:in", inverse: "Patient:in", visibility: "private" });
   const b = await briefing(s.b, s.anna);
   expect(b.roles).toEqual([]);
   expect(b.network.nodes.map((n) => n.role)).toEqual(["self"]);

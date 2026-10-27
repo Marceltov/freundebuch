@@ -3,7 +3,7 @@
 // vocabularies come from backend/types.ts; the rules on the values stay in the domain functions,
 // which answer a bad value with `invalid_input`.
 import * as z from "zod";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, RELATIONSHIP_TYPES, VISIBILITIES } from "../types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, VISIBILITIES } from "../types";
 import { ERROR_CODES } from "./errors";
 
 export const ErrorJson = z
@@ -22,7 +22,10 @@ const ItemUrl = Url.describe("Where it opens in the web app, as an absolute URL 
 
 export const Gender = z.enum(GENDERS).describe("The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name");
 /** A relationship's end: a person, or the household. */
-export const HOUSEHOLD_TARGET = z.enum(["me", "us"]).describe('"me": the user\'s own person; "us": both of the household, one relationship each');
+/** The words of a relationship, written by Claude in each end's gender: there is no fixed list of types. */
+export const LABEL = z.string().describe("What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)");
+export const INVERSE = z.string().describe("What `to` is to `from`, the same way: Mieter, Mutter, Kollegin, Nachbar:in");
+export const HOUSEHOLD_TARGET = z.enum(["me", "us"]).describe('"me": the user\'s own person; "us": everyone in the household, one relationship each');
 export const PersonJson = z
   .object({
     id: PersonId,
@@ -92,11 +95,9 @@ export const BriefingJson = z
     roles: z
       .array(
         z.object({
-          type: z.enum(RELATIONSHIP_TYPES),
-          direction: z.enum(["out", "in"]).describe("`out` when the person is the `from` side (landlord out: the person is the landlord)"),
+          label: z.string().describe("What the person is to the household, in the words filed: Vermieterin, Ärztin, Klempner"),
           with: z.enum(["me", "partner", "us"]).describe("To whom, from the caller's side: `us` both of the household, `me` the caller, `partner` the other user"),
           partnerName: z.string().optional().describe("The other user's name, when `with` is `partner`"),
-          note: z.string().nullable(),
           ids: z.array(z.string()).describe("The relationships it stands for (table `relationships`), one per household person"),
         }),
       )
@@ -138,10 +139,11 @@ export const BriefingJson = z
         id: z.string().describe("The relationship's id, for correct/the items operations (table `relationships`)"),
         personId: PersonId,
         name: z.string(),
-        type: z.enum(RELATIONSHIP_TYPES),
-        note: z.string().nullable().describe("What the relationship is, in words, above all for `other` (\"Patentante\")"),
+        label: z.string().describe("What `from` is to `to`, as stored"),
+        inverse: z.string().describe("What `to` is to `from`, as stored"),
+        note: z.string().nullable(),
         ...Own,
-        direction: z.enum(["out", "in"]).describe("`out` when the person is the `from` side of the relationship"),
+        direction: z.enum(["out", "in"]).describe("`out` when the person is `from` (so `inverse` is what the other is to them), `in` when they are `to` (`label` is)"),
         url: Url.describe("The other person's page, as an absolute URL"),
       }),
     ),
@@ -156,7 +158,7 @@ export const BriefingJson = z
             url: Url,
           }),
         ),
-        edges: z.array(z.object({ id: z.string(), from: PersonId, to: PersonId, type: z.enum(RELATIONSHIP_TYPES), note: z.string().nullable() })),
+        edges: z.array(z.object({ id: z.string(), from: PersonId, to: PersonId, label: z.string().describe("What `from` is to `to`"), inverse: z.string().describe("What `to` is to `from`") })),
       })
       .describe("One hop around the person: the household persons they relate to, and their own people"),
     suggestedInterval: z.number().int().optional().describe("Only while the interval isn't confirmed, and only when the history is long enough to suggest one"),
@@ -210,7 +212,8 @@ export const FactRelationshipJson = z
   .object({
     from: z.union([PersonId, HOUSEHOLD_TARGET]),
     to: z.union([PersonId, HOUSEHOLD_TARGET]),
-    type: z.enum(RELATIONSHIP_TYPES).describe("`from` is `type` of `to`, as in a relationship"),
+    label: LABEL,
+    inverse: INVERSE,
     note: z.string().optional(),
   })
   .describe("The relationship a fact becomes; one end is the fact's person")
@@ -284,8 +287,9 @@ export const NewConversationJson = z
         z.object({
           from: z.union([Ref, HOUSEHOLD_TARGET]),
           to: z.union([Ref, HOUSEHOLD_TARGET]),
-          type: z.enum(RELATIONSHIP_TYPES).describe("`from` is `type` of `to`: with `parent`, from is the parent of to; with `landlord` or `doctor`, from is that to to; with `service`, from works for to"),
-          note: z.string().optional().describe("What it is in words, above all for `other` and `service` (\"Klempner\")"),
+          label: LABEL,
+          inverse: INVERSE,
+          note: z.string().optional().describe("Anything more about it: \"seit der Schulzeit\""),
           private: Private,
         }),
       )
@@ -343,7 +347,7 @@ export const ConversationJson = z
         settled: z.boolean(),
       }),
     ),
-    relationships: z.array(z.object({ ...Item, fromId: PersonId, fromName: z.string(), toId: PersonId, toName: z.string(), type: z.enum(RELATIONSHIP_TYPES), note: z.string().nullable() })),
+    relationships: z.array(z.object({ ...Item, fromId: PersonId, fromName: z.string(), toId: PersonId, toName: z.string(), label: z.string(), inverse: z.string(), note: z.string().nullable() })),
   })
   .meta({ id: "Conversation" });
 

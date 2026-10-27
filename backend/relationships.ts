@@ -4,12 +4,12 @@ import type { Kysely } from "kysely";
 import { checkGroup, checkRelationship, checkVisibility, insertMemberships, insertRelationships, type ItemBase } from "./conversations";
 import { db, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
-import type { RelationshipType, Viewer, Visibility } from "./types";
+import type { Viewer, Visibility } from "./types";
 import { groupPath } from "./urls";
 import { isHouseholdWord, type Target } from "./household";
 
-/** `from` and `to` are person ids, or "me" / "us" (household.ts). */
-export type NewRelationship = { from: Target; to: Target; type: RelationshipType; note?: string; visibility: Visibility };
+/** `from` and `to` are person ids, or "me" / "us" (household.ts); `label` is what `from` is to `to`, `inverse` what `to` is to `from`. */
+export type NewRelationship = { from: Target; to: Target; label: string; inverse: string; note?: string; visibility: Visibility };
 export type NewMembership = { name: string; members: string[]; visibility: Visibility };
 
 const baseOf = (v: Viewer): ItemBase => ({ recorded_by: v.userId, conversation_id: null, created_at: now() });

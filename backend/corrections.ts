@@ -5,12 +5,12 @@
 import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { moveMembership } from "./groups";
-import { checkRelationship, insertRelationships, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS } from "./conversations";
+import { checkLabel, checkRelationship, insertRelationships, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS } from "./conversations";
 import { resolveTarget, type Target } from "./household";
 import { db, now, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, RELATIONSHIP_TYPES, VISIBILITIES, type RelationshipType, type Viewer, type Visibility } from "./types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBILITIES, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
 import { pruneScreenshots } from "./screenshots";
 
@@ -107,6 +107,11 @@ const upTo =
     if (s.length > max) throw new InvalidInputError(`${what} holds at most ${max} characters`);
     return s;
   };
+// What one end of a relationship is, in words; trimmed.
+const words = (which: string) => (value: unknown): string => {
+  checkLabel(value, which);
+  return (value as string).trim();
+};
 
 const FIELDS: Record<ItemTable, Record<string, Field>> = {
   facts: {
@@ -143,7 +148,8 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     currency: { column: "currency", check: optionalText },
   },
   relationships: {
-    type: { column: "type", check: oneOf(RELATIONSHIP_TYPES) },
+    label: { column: "label", check: words("label") },
+    inverse: { column: "inverse", check: words("inverse") },
     note: { column: "note", check: optionalText },
   },
   conversations: {
@@ -300,10 +306,10 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
 }
 
 /**
- * Turns a fact the viewer recorded into a relationship ("Unsere Vermieterin" → landlord of us), which keeps the fact's visibility
+ * Turns a fact the viewer recorded into a relationship ("Unsere Vermieterin" → Vermieterin of us), which keeps the fact's visibility
  * and conversation; the fact goes. The fact's person must be on one end.
  */
-export async function factToRelationship(v: Viewer, factId: string, r: { from: Target; to: Target; type: RelationshipType; note?: string }): Promise<{ ids: string[] }> {
+export async function factToRelationship(v: Viewer, factId: string, r: { from: Target; to: Target; label: string; inverse: string; note?: string }): Promise<{ ids: string[] }> {
   checkRelationship(r, () => {});
   const d = await db();
   const ids = await d.transaction().execute(async (tx) => {

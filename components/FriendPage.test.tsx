@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import type { Briefing } from "@/backend";
-import { relationLabel } from "./copy";
 import { FriendPage } from "./FriendPage";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
@@ -69,40 +68,38 @@ test("Gehört zu lists each person by name with what they are to this one, linki
       b={{
         ...b,
         relationships: [
-          { id: "x1", personId: "r1", name: "Ramona", type: "parent", note: null, direction: "in", url: "/p/r1", visibility: "shared", mine: true },
-          { id: "x2", personId: "r2", name: "Andreas", type: "parent", note: null, direction: "in", url: "/p/r2", visibility: "shared", mine: false },
-          { id: "x3", personId: "r3", name: "Sybille", type: "other", note: "Patentante", direction: "in", url: "/p/r3", visibility: "private", mine: true },
+          { id: "x1", personId: "r1", name: "Ramona", label: "Mutter", inverse: "Tochter", note: null, direction: "in", url: "/p/r1", visibility: "shared", mine: true },
+          { id: "x2", personId: "r2", name: "Andreas", label: "Tochter", inverse: "Vater", note: null, direction: "out", url: "/p/r2", visibility: "shared", mine: false },
+          { id: "x3", personId: "r3", name: "Sybille", label: "Patentante", inverse: "Patenkind", note: "seit der Taufe", direction: "in", url: "/p/r3", visibility: "private", mine: true },
         ],
       }}
       daysSince={null}
     />,
   );
-  expect(html).toMatch(/href="\/p\/r1"[^>]*>.*Ramona.*Elternteil/s);
-  expect(html).toMatch(/href="\/p\/r2"[^>]*>.*Andreas.*Elternteil/s);
-  expect(html).not.toContain("<svg viewBox=\"0 0 320 150\"");
-  // the note says what an `other` is; one's own can be changed or deleted through its menu, the partner's not
-  expect(html).toMatch(/Sybille.*Privat: nur du siehst das.*Patentante/s);
+  // What the other is to this person: their own end's words, whichever way round it was filed.
+  expect(html).toMatch(/href="\/p\/r1"[^>]*>.*Ramona.*Mutter/s);
+  expect(html).toMatch(/href="\/p\/r2"[^>]*>.*Andreas.*Vater/s);
+  expect(html).not.toContain("Tochter");
+  // the note follows the words; one's own can be changed or deleted through its menu, the partner's not
+  expect(html).toMatch(/Sybille.*Privat: nur du siehst das.*Patentante · seit der Taufe/s);
   const tile = (id: string) => html.match(new RegExp(`id="relationships-${id}".*?</li>`, "s"))![0];
   expect(tile("x1")).toContain('aria-label="Aktionen"');
   expect(tile("x2")).not.toContain('aria-label="Aktionen"');
 });
 
 const fact = (id: string, text: string, category: "home" | "other" | "work" = "other") => ({ id, text, category, url: `/p/p1#facts-${id}`, ...own });
-const role = (over: Partial<Briefing["roles"][number]> = {}): Briefing["roles"][number] => ({ type: "landlord", direction: "out", with: "us", note: null, ids: ["r1", "r2"], ...over });
+const role = (over: Partial<Briefing["roles"][number]> = {}): Briefing["roles"][number] => ({ label: "Vermieterin", with: "us", ids: ["r1", "r2"], ...over });
 
-test("the role line comes first, in the person's gender", () => {
+test("the role line comes first, in the words filed; Unsere or Unser by the person's gender", () => {
   const page = (over: Partial<Briefing>) => renderToStaticMarkup(<FriendPage b={{ ...b, situations: [{ ...fact("s1", "sucht ein Auto"), since: "2026-09-01", checkAfter: "2026-12-01", nudge: false }], ...over }} daysSince={null} today="2026-10-25" />);
   const html = page({ roles: [role()], person: { ...b.person, gender: "female" } });
   expect(html).toContain("Unsere Vermieterin");
   expect(html.indexOf("Unsere Vermieterin")).toBeLessThan(html.indexOf("Gerade los"));
-  expect(page({ roles: [role()] })).toContain("Unsere Vermieter:in");
-  expect(page({ roles: [role()], person: { ...b.person, gender: "male" } })).toContain("Unser Vermieter");
-  expect(page({ roles: [role({ type: "colleague", with: "me" })], person: { ...b.person, gender: "female" } })).toContain("Kollegin von dir");
-  expect(page({ roles: [role({ type: "colleague", with: "partner", partnerName: "Marcel" }), role({ type: "neighbour", with: "us" })] })).toContain("Kolleg:in von Marcel · Unsere Nachbar:in");
-  // The page's person is the tenant: we are their landlords.
-  expect(page({ roles: [role({ direction: "in", with: "me" })], person: { ...b.person, gender: "male" } })).toContain("Mieter von dir");
-  expect(page({ roles: [role({ type: "service", note: "Klempner", with: "us" })], person: { ...b.person, gender: "male" } })).toContain("Unser Klempner");
-  expect(page({ roles: [] })).not.toContain('data-role-line');
+  expect(page({ roles: [role({ label: "Vermieter:in" })] })).toContain("Vermieter:in von uns");
+  expect(page({ roles: [role({ label: "Klempner" })], person: { ...b.person, gender: "male" } })).toContain("Unser Klempner");
+  expect(page({ roles: [role({ label: "Kollegin", with: "me" })] })).toContain("Kollegin von dir");
+  expect(page({ roles: [role({ label: "Kolleg:in", with: "partner", partnerName: "Marcel" }), role({ label: "Nachbar:in" })] })).toContain("Kolleg:in von Marcel · Nachbar:in von uns");
+  expect(page({ roles: [] })).not.toContain("data-role-line");
 });
 
 test("Gerade los shows situations, nudges first; lasting facts go under Gut zu wissen", () => {
@@ -133,12 +130,3 @@ test("Gerade los shows situations, nudges first; lasting facts go under Gut zu w
   expect(none).not.toContain("Gut zu wissen");
 });
 
-test("relationLabel names the person at one end, in their gender", () => {
-  expect(relationLabel("landlord", "from", "female")).toBe("Vermieterin");
-  expect(relationLabel("landlord", "to", null)).toBe("Mieter:in");
-  expect(relationLabel("parent", "to", "male")).toBe("Sohn");
-  expect(relationLabel("child", "to", "female")).toBe("Mutter");
-  expect(relationLabel("doctor", "from", "male")).toBe("Arzt");
-  expect(relationLabel("spouse", "from", "nonbinary")).toBe("Ehepartner:in");
-  expect(relationLabel("other", "from", null)).toBe("");
-});

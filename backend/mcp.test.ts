@@ -218,10 +218,10 @@ describe("tools", () => {
   });
 
   test("relate: a relationship and a group membership without a conversation", async () => {
-    const rel = await call(s.a, "relate", { kind: "relationship", from: s.lena, to: s.anna, type: "colleague", visibility: "shared" });
+    const rel = await call(s.a, "relate", { kind: "relationship", from: s.lena, to: s.anna, label: "Kolleg:in", inverse: "Kolleg:in", visibility: "shared" });
     expect(rel.isError).toBeUndefined();
     expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.relationships).toEqual([
-      { id: expect.any(String), personId: s.lena, name: "Lena", type: "colleague", note: null, direction: "in", url: `http://localhost:3000/p/${s.lena}`, visibility: "shared", mine: false },
+      { id: expect.any(String), personId: s.lena, name: "Lena", label: "Kolleg:in", inverse: "Kolleg:in", note: null, direction: "in", url: `http://localhost:3000/p/${s.lena}`, visibility: "shared", mine: false },
     ]);
     expect(rel.structuredContent.url).toBe(`http://localhost:3000/p/${s.lena}`);
     const group = await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna, s.lena], visibility: "shared" });
@@ -231,9 +231,9 @@ describe("tools", () => {
     expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.groups.map((g: { name: string }) => g.name)).toEqual(["Uni"]);
     expect((await call(s.a, "briefing", { personId: s.tom })).structuredContent.person.birthday).toMatchObject({ date: "--10-24", age: null });
     expect((await call(s.b, "briefing", { personId: s.tom })).structuredContent.person.birthday).toBeNull();
-    expect((await call(s.a, "relate", { kind: "relationship", from: s.anna, to: s.anna, type: "friend", visibility: "shared" })).isError).toBe(true);
+    expect((await call(s.a, "relate", { kind: "relationship", from: s.anna, to: s.anna, label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).isError).toBe(true);
     // The flat schema lets any field through; the handler checks the shape of the kind.
-    expect(await call(s.a, "relate", { kind: "relationship", from: s.anna, type: "friend", visibility: "shared" })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^to: /) }] });
+    expect(await call(s.a, "relate", { kind: "relationship", from: s.anna, label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^to: /) }] });
     expect(await call(s.a, "relate", { kind: "group", name: "Uni", visibility: "shared" })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^members: /) }] });
   });
 
@@ -263,15 +263,15 @@ describe("tools", () => {
   });
 
   test("relate files a role to us over MCP and the briefing leads with it", async () => {
-    const rel = await call(s.a, "relate", { kind: "relationship", from: s.lena, to: "us", type: "landlord", visibility: "shared" });
+    const rel = await call(s.a, "relate", { kind: "relationship", from: s.lena, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
     expect(rel.isError).toBeUndefined();
     expect(rel.structuredContent.ids).toHaveLength(2);
     expect(rel.structuredContent.url).toBe(`http://localhost:3000/p/${s.lena}`);
     const b = (await call(s.b, "briefing", { personId: s.lena })).structuredContent;
-    expect(b.roles).toMatchObject([{ type: "landlord", direction: "out", with: "us" }]);
+    expect(b.roles).toMatchObject([{ label: "Vermieter:in", with: "us" }]);
     expect(b.network.nodes).toHaveLength(3);
     for (const n of b.network.nodes) expect(n.url).toMatch(/^http:\/\/localhost:3000\/p\//);
-    expect(await call(s.a, "relate", { kind: "relationship", from: "me", to: "us", type: "friend", visibility: "shared" })).toMatchObject({ isError: true });
+    expect(await call(s.a, "relate", { kind: "relationship", from: "me", to: "us", label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).toMatchObject({ isError: true });
   });
 
   test("correct to_relationship and gender over MCP; facts take a kind", async () => {
@@ -279,17 +279,20 @@ describe("tools", () => {
     const d = await db();
     const id = (await d.selectFrom("facts").select("id").where("text", "=", "unsere Nachbarin").executeTakeFirstOrThrow()).id;
     const ok = { structuredContent: { corrected: true } };
-    expect(await call(s.a, "correct", { action: "to_relationship", id, from: s.lena, to: "us", type: "neighbour" })).toMatchObject(ok);
-    expect(await call(s.a, "correct", { action: "gender", id: s.lena, gender: "female" })).toMatchObject(ok);
+    expect(await call(s.a, "correct", { action: "to_relationship", id, from: s.lena, to: "us", label: "Nachbar:in", inverse: "Nachbar:in" })).toMatchObject(ok);
+    // The gender comes back with the relationships whose words Claude puts in it.
+    const gender = (await call(s.a, "correct", { action: "gender", id: s.lena, gender: "female" })).structuredContent;
+    expect(gender).toMatchObject({ corrected: true, relabel: [{ fromName: "Lena", label: "Nachbar:in" }, { fromName: "Lena", label: "Nachbar:in" }] });
+    await call(s.a, "correct", { action: "edit", table: "relationships", id: gender.relabel[0].id, patch: { label: "Nachbarin" } });
     const b = (await call(s.b, "briefing", { personId: s.lena })).structuredContent;
     expect(b.person.gender).toBe("female");
-    expect(b.roles).toMatchObject([{ type: "neighbour", with: "us" }]);
+    expect(b.roles).toMatchObject([{ label: "Nachbarin", with: "us" }]);
     expect(b.known).toEqual([]);
     expect(b.situations).toMatchObject([{ text: "sucht einen Hund", checkAfter: "2026-12-01", nudge: false }]);
     expect(await call(s.a, "correct", { action: "gender", id: s.lena, gender: null })).toMatchObject(ok);
     expect((await call(s.a, "briefing", { personId: s.lena })).structuredContent.person.gender).toBeNull();
     expect(await call(s.a, "correct", { action: "to_relationship", id })).toMatchObject({ isError: true });
-    const rec = await call(s.a, "record_conversation", ramble({ people: [{ name: "Marina", present: true, gender: "female", confirmedNew: true }], facts: [], relationships: [{ from: 0, to: "us", type: "landlord" }] }));
+    const rec = await call(s.a, "record_conversation", ramble({ people: [{ name: "Marina", present: true, gender: "female", confirmedNew: true }], facts: [], relationships: [{ from: 0, to: "us", label: "Vermieter:in", inverse: "Mieter:in" }] }));
     expect(rec.structuredContent.counts.relationships).toBe(2);
   });
 
@@ -356,9 +359,9 @@ describe("privacy over MCP", () => {
   });
 
   test("B never sees A's private relationship or group membership through find_person or briefing", async () => {
-    await call(s.a, "relate", { kind: "relationship", from: s.lena, to: s.anna, type: "sibling", visibility: "private" });
+    await call(s.a, "relate", { kind: "relationship", from: s.lena, to: s.anna, label: "Geschwister", inverse: "Geschwister", visibility: "private" });
     await call(s.a, "relate", { kind: "group", name: "Therapy group", members: [s.anna, s.lena], visibility: "private" });
-    expect((await call(s.a, "find_person", { name: "Lena" })).structuredContent.people[0].context).toContain("sibling of Anna");
+    expect((await call(s.a, "find_person", { name: "Lena" })).structuredContent.people[0].context).toContain("Geschwister of Anna");
     const seen = JSON.stringify([await call(s.b, "find_person", { name: "Lena" }), await call(s.b, "find_person", { name: "Anna" }), await call(s.b, "briefing", { personId: s.anna }), await call(s.b, "briefing", { personId: s.lena })]);
     for (const secret of ["sibling", "Therapy"]) expect(seen).not.toContain(secret);
   });

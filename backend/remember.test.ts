@@ -1,5 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
+import { getPerson } from "./people";
 import { remember } from "./conversations";
 import { db } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
@@ -58,8 +59,8 @@ test("a situation gets a nudge date, six weeks out by default", async () => {
 test("superseding keeps a situation going and resets its nudge, unless it is lasting", async () => {
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation" }] });
   const old = await fact("sucht ein Auto");
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "hat zwei Autos in der engeren Wahl", category: "other", supersedes: old.id }] });
-  expect(await fact("hat zwei Autos in der engeren Wahl")).toMatchObject({ kind: "situation", check_after: addDays(today(), 42) });
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "hat zwei Autos in der engeren Wahl", category: "other", supersedes: old.id, checkAfter: addDays(today(), 10) }] });
+  expect(await fact("hat zwei Autos in der engeren Wahl")).toMatchObject({ kind: "situation", check_after: addDays(today(), 10) });
   expect(await fact("sucht ein Auto")).toMatchObject({ status: "outdated" });
   const news = await fact("hat zwei Autos in der engeren Wahl");
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "fährt einen Golf", category: "other", kind: "lasting", supersedes: news.id }] });
@@ -69,11 +70,23 @@ test("superseding keeps a situation going and resets its nudge, unless it is las
   expect(await fact("fährt einen Polo")).toMatchObject({ kind: "lasting", check_after: null });
 });
 
-test("news without a new date keeps the situation's interval", async () => {
+test("news about a situation needs its new day, agreed with the user; nothing is filed without one", async () => {
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "baut ein Haus", category: "home", kind: "situation", checkAfter: addDays(today(), 120) }] });
   const old = await fact("baut ein Haus");
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "der Rohbau steht", category: "home", supersedes: old.id }] });
-  expect(await fact("der Rohbau steht")).toMatchObject({ kind: "situation", check_after: addDays(today(), 120) });
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "zieht im Mai ein", category: "home", supersedes: (await fact("der Rohbau steht")).id, checkAfter: "2027-05-15" }] });
+  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "der Rohbau steht", category: "home", supersedes: old.id }] })).rejects.toThrow(/needs a new checkAfter/);
+  expect(await fact("baut ein Haus")).toMatchObject({ status: "current" });
+  expect(await (await db()).selectFrom("facts").select("id").where("text", "=", "der Rohbau steht").execute()).toEqual([]);
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "zieht im Mai ein", category: "home", supersedes: old.id, checkAfter: "2027-05-15" }] });
   expect(await fact("zieht im Mai ein")).toMatchObject({ kind: "situation", check_after: "2027-05-15" });
+});
+
+test("remember sets a gender, shared like the name, and checks it", async () => {
+  const r = await remember(s.a, { visibility: "private", genders: [{ person: s.anna, gender: "female" }] });
+  expect(r.counts).toMatchObject({ genders: 1, facts: 0 });
+  expect(r.people.map((p) => p.id)).toEqual([s.anna]);
+  expect((await getPerson(s.b, s.anna)).gender).toBe("female");
+  await remember(s.b, { visibility: "shared", genders: [{ person: s.anna, gender: null }] });
+  expect((await getPerson(s.a, s.anna)).gender).toBeNull();
+  await expect(remember(s.a, { visibility: "shared", genders: [{ person: s.anna, gender: "other" as "female" }] })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(remember(s.a, { visibility: "shared", genders: [{ person: "nope", gender: "male" }] })).rejects.toBeInstanceOf(NotFoundError);
 });

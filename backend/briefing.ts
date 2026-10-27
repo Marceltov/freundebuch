@@ -6,10 +6,10 @@ import { ageOn, nextOccurrence, today } from "./dates";
 import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "./intervals";
 import { getPerson } from "./people";
-import { relationshipKey } from "./conversations";
+import { labelKey } from "./conversations";
 import { householdPersons } from "./household";
 import { buildNetwork, type Network } from "./network";
-import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type RelationshipType, type Viewer, type Visibility } from "./types";
+import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Viewer, type Visibility } from "./types";
 import { conversationPath, groupPath, itemPath, personPath, screenshotPath } from "./urls";
 import { visible } from "./visibility";
 
@@ -27,11 +27,11 @@ export type Birthday = { id: string; date: string; next: string; age: number | n
 export type Fact = Own & { id: string; text: string; category: FactCategory; url: string; source?: string; happenedOn?: string; imageUrl?: string };
 
 /**
- * Who the person is to the household, read from the viewer's side: `with` is `us` when the viewer sees the relationship to every
- * household person, `me` when only to their own person, `partner` when only to the other user's (`partnerName`). `direction` as in
- * `relationships`; `ids` are the relationships it stands for.
+ * Who the person is to the household, read from the viewer's side: `label` what they are, in the words filed ("Vermieterin");
+ * `with` is `us` when the viewer sees the relationship to every household person, `me` when only to their own person, `partner`
+ * when only to the other user's (`partnerName`). `ids` are the relationships it stands for.
  */
-export type Role = { type: RelationshipType; direction: "out" | "in"; with: "me" | "partner" | "us"; partnerName?: string; note: string | null; ids: string[] };
+export type Role = { label: string; with: "me" | "partner" | "us"; partnerName?: string; ids: string[] };
 
 export type Briefing = {
   /** `birthday` however far away it is; the viewer's own record of it wins over the partner's shared one. */
@@ -55,9 +55,9 @@ export type Briefing = {
     giftIdeas: Array<Own & { id: string; text: string; url: string }>;
   };
   recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[]; url: string }>;
-  /** Every visible relationship of the person, roles included. `direction` is `out` when the person is the `from` side of the
-   * relationship (see `RelationshipType`), `in` otherwise. */
-  relationships: Array<Own & { id: string; personId: string; name: string; type: RelationshipType; note: string | null; direction: "out" | "in"; url: string }>;
+  /** Every visible relationship of the person, roles included, as stored: `label` is what `from` is to `to`, `inverse` what `to` is
+   * to `from`. `direction` is `out` when the person is `from`, `in` when they are `to`; `personId` and `name` are the other end's. */
+  relationships: Array<Own & { id: string; personId: string; name: string; label: string; inverse: string; note: string | null; direction: "out" | "in"; url: string }>;
   /** One hop: the person, the household persons with a visible relationship to them, then their other people. */
   network: Network;
   /** Only while the interval isn't confirmed, and only when the history is long enough to suggest one. */
@@ -172,7 +172,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     relationships: rels.map((r) => {
       const out = r.from_id === personId;
       const other = out ? r.to_id : r.from_id;
-      return { id: r.id, personId: other, name: names.get(other) ?? "", type: r.type as RelationshipType, note: r.note, direction: out ? "out" : "in", url: personPath(other), ...own(r) };
+      return { id: r.id, personId: other, name: names.get(other) ?? "", label: r.label, inverse: r.inverse, note: r.note, direction: out ? "out" : "in", url: personPath(other), ...own(r) };
     }),
     network: buildNetwork(personId, rels, household, names, new Map(persons.map((p) => [p.id, p.gender]))),
     ...(suggested !== null ? { suggestedInterval: suggested } : {}),
@@ -180,33 +180,26 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
 }
 
 /**
- * The person's visible relationships to household persons, one role per relationship however many of us it runs to. "~" stands
- * in for the household person in the key, so "landlord of Alice" and "landlord of Bob" are one role.
+ * The person's visible relationships to household persons, one role per relationship however many of us it runs to: "Vermieterin
+ * of Alice" and "Vermieter:in of Bob" are one role, keyed by both ends' words without their gender endings.
  */
-function roles(v: Viewer, personId: string, rels: { id: string; from_id: string; to_id: string; type: string; note: string | null }[], household: string[], names: Map<string, string>): Role[] {
+function roles(v: Viewer, personId: string, rels: { id: string; from_id: string; to_id: string; label: string; inverse: string }[], household: string[], names: Map<string, string>): Role[] {
   const ours = household.filter((h) => h !== personId);
-  const groups = new Map<string, { first: (typeof rels)[number]; ids: string[]; with: Set<string>; note: string | null }>();
+  const groups = new Map<string, { label: string; ids: string[]; with: Set<string> }>();
   for (const r of rels) {
     const out = r.from_id === personId;
     const other = out ? r.to_id : r.from_id;
     if (!ours.includes(other)) continue;
-    const key = relationshipKey(out ? personId : "~", out ? "~" : personId, r.type) + (r.type === "other" ? `:${(r.note ?? "").trim().toLowerCase()}` : "");
-    const g = groups.get(key) ?? { first: r, ids: [], with: new Set<string>(), note: null };
+    const [theirs, ourWord] = out ? [r.label, r.inverse] : [r.inverse, r.label];
+    const key = `${labelKey(theirs)}:${labelKey(ourWord)}`;
+    const g = groups.get(key) ?? { label: theirs, ids: [], with: new Set<string>() };
     g.ids.push(r.id);
     g.with.add(other);
-    g.note ??= r.note?.trim() || null;
     groups.set(key, g);
   }
   return [...groups.values()].map((g) => {
     const partner = [...g.with].find((h) => h !== v.personId);
     const w = ours.every((h) => g.with.has(h)) && (ours.length > 1 || g.with.has(v.personId)) ? (ours.length > 1 ? "us" : "me") : g.with.has(v.personId) ? "me" : "partner";
-    return {
-      type: g.first.type as RelationshipType,
-      direction: g.first.from_id === personId ? "out" : "in",
-      with: w,
-      ...(w === "partner" ? { partnerName: names.get(partner!) ?? "" } : {}),
-      note: g.note,
-      ids: g.ids,
-    };
+    return { label: g.label, with: w, ...(w === "partner" ? { partnerName: names.get(partner!) ?? "" } : {}), ids: g.ids };
   });
 }

@@ -30,7 +30,7 @@ import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
 import { addAlias, findPeople, setGender } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
-import { EXCHANGE_KINDS, FACT_CATEGORIES, RELATIONSHIP_TYPES, type Viewer } from "./types";
+import { EXCHANGE_KINDS, FACT_CATEGORIES, type Viewer } from "./types";
 import { conversationPath, personPath } from "./urls";
 
 export type Tool = {
@@ -104,7 +104,15 @@ const SetIntervalJson = IntervalJson.extend({
   url: z.string().describe("The person's page, as an absolute URL"),
 });
 const CALENDAR_ACTIONS = ["show", "replace", "revoke"] as const;
-const CorrectedJson = z.object({ corrected: z.literal(true) });
+const CorrectedJson = z.object({
+  corrected: z.literal(true),
+  relabel: z
+    .array(z.object({ id: z.string(), fromName: z.string(), toName: z.string(), label: z.string().describe("What from is to to"), inverse: z.string().describe("What to is to from") }))
+    .optional()
+    .describe(
+      "gender: the person's relationships the user recorded. Their words are written in each end's gender: put the person's end in the new gender with edit, table relationships, patch { label } or { inverse } (Vermieter:in → Vermieterin), in the same turn",
+    ),
+});
 const TranscriptJson = z.object({
   conversationId: z.string(),
   url: z.string().describe("The conversation's page, as an absolute URL"),
@@ -123,14 +131,15 @@ function check<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
 
 const RELATE_KINDS = ["relationship", "group"] as const;
 const Target = z.union([PersonId, HOUSEHOLD_TARGET]);
-const TYPE_DOC =
-  "`from` is `type` of `to`: with `parent`, from is the parent of to; with `landlord` or `doctor`, from is the landlord or doctor of to; with `service`, from works for to (the note says what, e.g. Klempner). neighbour, colleague, friend, sibling, partner and spouse read both ways";
+const WORDS_DOC =
+  "There is no fixed list of types: say in German words what each end is, in that person's gender (the ':in' form when it isn't known): label what `from` is to `to`, inverse what `to` is to `from`. \"She is our landlady\": from her, to \"us\", label Vermieterin, inverse Mieter:in; Tom's mother Anna: from Anna, to Tom, label Mutter, inverse Sohn; Lena and Tom next door: label Nachbarin, inverse Nachbar. Use the usual word, so the same relationship is found again; ask the user only when you can't tell who is what";
 const RelateInput = z.object({
-  kind: z.enum(RELATE_KINDS).describe("`relationship` takes from, to, type and an optional note; `group` takes name and members"),
-  from: Target.optional().describe('relationship: the person who is `type` of `to`, or "me" / "us"'),
+  kind: z.enum(RELATE_KINDS).describe("`relationship` takes from, to, label, inverse and an optional note; `group` takes name and members"),
+  from: Target.optional().describe('relationship: a person, or "me" / "us"'),
   to: Target.optional().describe('relationship: the other person, or "me" / "us" for a role to the household'),
-  type: z.enum(RELATIONSHIP_TYPES).optional().describe(`relationship: ${TYPE_DOC}`),
-  note: z.string().optional().describe("relationship: an optional note"),
+  label: z.string().optional().describe(`relationship: what \`from\` is to \`to\`. ${WORDS_DOC}`),
+  inverse: z.string().optional().describe("relationship: what `to` is to `from`"),
+  note: z.string().optional().describe("relationship: anything more about it (\"seit der Schulzeit\")"),
   name: z.string().optional().describe("group: the group's name, e.g. Uni or Climbing"),
   members: z.array(PersonId).optional().describe("group: the ids of the people to add, at least one"),
   visibility: Visibility,
@@ -141,7 +150,8 @@ const RelateArgs = z.discriminatedUnion("kind", [
     kind: z.literal("relationship"),
     from: Target,
     to: Target,
-    type: z.enum(RELATIONSHIP_TYPES).describe(TYPE_DOC),
+    label: z.string(),
+    inverse: z.string(),
     note: z.string().optional(),
     visibility: Visibility,
   }),
@@ -176,7 +186,7 @@ const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded, a conversation with its items (table, id). rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a conversation the user recorded, once nothing in it is private any more (id); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, type, note), e.g. the fact \"our landlady\" into landlord from her to \"us\"",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded, a conversation with its items (table, id). rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a conversation the user recorded, once nothing in it is private any more (id); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
   id: z
@@ -191,10 +201,11 @@ const CorrectInput = z.object({
   alias: z.string().optional().describe("alias: another name the person goes by, e.g. a nickname"),
   drop: z.string().optional().describe("merge: the duplicate person; group_merge: the group to merge in. It is deleted"),
   gender: Gender.nullable().optional().describe("gender: the person's gender; null when it isn't known"),
-  from: Target.optional().describe('to_relationship: who is `type` of `to`; a person id, "me" or "us"'),
+  from: Target.optional().describe('to_relationship: a person id, "me" or "us"'),
   to: Target.optional().describe('to_relationship: the other end; a person id, "me" or "us"'),
-  type: z.enum(RELATIONSHIP_TYPES).optional().describe(`to_relationship: ${TYPE_DOC}`),
-  note: z.string().optional().describe("to_relationship: an optional note"),
+  label: z.string().optional().describe(`to_relationship: what \`from\` is to \`to\`. ${WORDS_DOC}`),
+  inverse: z.string().optional().describe("to_relationship: what `to` is to `from`"),
+  note: z.string().optional().describe("to_relationship: anything more about it"),
 });
 
 const CorrectArgs = z.discriminatedUnion("action", [
@@ -272,13 +283,17 @@ const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("group_delete"), id: GroupId }).describe("Delete a group for the user"),
   z.object({ action: z.literal("gender"), id: PersonId, gender: Gender.nullable() }).describe("Set or clear a person's gender"),
   z
-    .object({ action: z.literal("to_relationship"), id: ItemId.describe("The fact's id"), from: Target, to: Target, type: z.enum(RELATIONSHIP_TYPES), note: z.string().optional() })
+    .object({ action: z.literal("to_relationship"), id: ItemId.describe("The fact's id"), from: Target, to: Target, label: z.string(), inverse: z.string(), note: z.string().optional() })
     .describe("Turn a fact into a relationship"),
 ]);
 
 const PrivateItem = z.boolean().optional().describe("Makes just this item private");
 const RememberInput = z.object({
   visibility: Visibility,
+  genders: z
+    .array(z.object({ person: PersonId, gender: Gender.nullable().describe("null when it isn't known") }))
+    .optional()
+    .describe("A person's gender, only when the user states it or uses a pronoun for them, never from the name"),
   facts: z
     .array(
       z.object({
@@ -320,7 +335,7 @@ const RememberInput = z.object({
     .optional(),
 });
 const RememberedJson = z.object({
-  counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int() }),
+  counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), genders: z.number().int() }),
   people: z.array(z.object({ id: PersonId, name: z.string(), url: z.string() })).describe("The people it is about, with a link to each"),
 });
 
@@ -328,7 +343,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "record_conversation",
     description:
-      'File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise: when the user says when it happened ("the day before yesterday"), pass that day. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary. Who someone is to the household (landlord, neighbour, doctor, service, colleague: "she\'s our landlady") is a relationship to "us" (both of the household) or "me", never a fact; "we rent from her" is landlord from her to "us". Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes, which resets checkAfter); when the user tells how it ended, mark it outdated with correct and file the outcome as a lasting fact if it is worth keeping. Set a person\'s gender only when the user states it or uses a pronoun for them ("she is our landlady"), never from the name.',
+      'File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise: when the user says when it happened ("the day before yesterday"), pass that day. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary. Who someone is to the household ("she\'s our landlady", "our neighbour", "my doctor") is a relationship to "us" (everyone in the household, one relationship each) or "me", never a fact: "we rent from her" is from her to "us", label Vermieterin, inverse Mieter:in. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months), and say that day when you read back what you filed; everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct and file the outcome as a lasting fact if it is worth keeping. Set a person\'s gender only when the user states it or uses a pronoun for them ("she is our landlady"), never from the name.',
     input: NewConversation,
     output: Recorded,
     annotations: { destructiveHint: false },
@@ -337,7 +352,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "remember",
     description:
-      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record_conversation instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes, which resets checkAfter); when the user tells how it ended, mark it outdated with correct and file the outcome as a lasting fact if it is worth keeping. A role (\"our landlady\") is not a fact: file it with relate.",
+      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record_conversation instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months), and say that day when you read back what you filed; everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct and file the outcome as a lasting fact if it is worth keeping. A role (\"our landlady\") is not a fact: file it with relate. genders sets a person's gender, only when the user states it or uses a pronoun for them, never from the name.",
     input: RememberInput,
     output: RememberedJson,
     annotations: { destructiveHint: false },
@@ -357,7 +372,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "briefing",
     description:
-      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name; answer \"how do I know X?\" from `roles` first, e.g. \"she's your landlady\"), what is going on (`situations`; ask about the ones with `nudge` first), what stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`: say where and when you know it from. Each relationship has its id and note, so a wrong or doubled one can be fixed with correct (table `relationships`). Use it before the user meets someone, or when they ask about a person.",
+      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name; answer \"how do I know X?\" from `roles` first, e.g. \"she's your landlady\"), what is going on (`situations`; ask about the ones with `nudge` first), what stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`: say where and when you know it from. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, or when they ask about a person.",
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },
@@ -378,7 +393,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "relate",
     description:
-      "Record how two people are related, or put people in a group, when the user mentions it outside of a conversation to file; pass person ids from find_person. If it is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling. Who someone is to the household (landlord, neighbour, doctor, service, colleague: \"she's our landlady\") is a relationship to \"us\" (both of the household) or \"me\", never a fact; \"we rent from her\" is landlord from her to \"us\". Filing the same relationship again, either way round, keeps the one there.",
+      "Record how two people are related, or put people in a group, when the user mentions it outside of a conversation to file; pass person ids from find_person. If it is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling. Who someone is to the household (\"she's our landlady\") is a relationship to \"us\" (everyone in the household, one relationship each) or \"me\", never a fact: from her, to \"us\", label Vermieterin, inverse Mieter:in. Filing the same relationship again, either way round or in another gender form, keeps the one there.",
     input: RelateInput,
     output: RelatedJson,
     annotations: { destructiveHint: false },
@@ -391,7 +406,8 @@ export const TOOLS: readonly Tool[] = [
               ...(await addRelationship(v, {
                 from: a.from,
                 to: a.to,
-                type: a.type,
+                label: a.label,
+                inverse: a.inverse,
                 note: a.note,
                 visibility: a.visibility,
               }).then(({ ids }) => ({ id: ids[0], ids }))),
@@ -447,12 +463,13 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "correct",
     description:
-      "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person or add an alias, set a person's gender (only when the user states it or uses a pronoun for them, never from the name), turn a fact into a relationship, merge a duplicate or let the partner read a transcript. A fact moves between lasting and situation with edit, patch { kind, checkAfter }. Use it when the user says something is done, no longer true or wrong. If the conversation was on another day: edit, table conversations, patch { date }.",
+      "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person or add an alias, set a person's gender (only when the user states it or uses a pronoun for them, never from the name; then put the relationships it returns as relabel in the new gender, with edit), turn a fact into a relationship, merge a duplicate or let the partner read a transcript. A fact moves between lasting and situation with edit, patch { kind, checkAfter }. Use it when the user says something is done, no longer true or wrong. If the conversation was on another day: edit, table conversations, patch { date }.",
     input: CorrectInput,
     output: CorrectedJson,
     annotations: { destructiveHint: true },
     handler: async (v, input) => {
       const a = check(CorrectArgs, input);
+      if (a.action === "gender") return ok(CorrectedJson, { corrected: true as const, ...(await setGender(v, a.id, a.gender)) });
       switch (a.action) {
         case "done":
           await markDone(v, a.table, a.id);
@@ -499,11 +516,8 @@ export const TOOLS: readonly Tool[] = [
         case "group_delete":
           await deleteGroup(v, a.id);
           break;
-        case "gender":
-          await setGender(v, a.id, a.gender);
-          break;
         case "to_relationship":
-          await factToRelationship(v, a.id, { from: a.from, to: a.to, type: a.type, note: a.note });
+          await factToRelationship(v, a.id, { from: a.from, to: a.to, label: a.label, inverse: a.inverse, note: a.note });
           break;
       }
       return ok(CorrectedJson, { corrected: true as const });

@@ -12,7 +12,7 @@ type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversatio
 // change its date, make it private or shared, or delete it, which only its recorder may (`mine`; the server checks again).
 // Editing opens a sheet from the bottom, so the row or header it belongs to keeps its layout. Deleting asks once more in the
 // menu itself. Each goes to PATCH or DELETE /api/v1/items/{table}/{id}, then the page reloads its data.
-// `field`: what "edit" changes (`text`, `summary` for a conversation, `note` for a relationship). `after`: where to go once it is deleted. `date` (a
+// `field`: what "edit" changes (`text`, `summary` for a conversation, `label` or `inverse` for a relationship: the other end's words). `after`: where to go once it is deleted. `date` (a
 // conversation's day) adds "change the date", up to `today` (the server's, in the configured time zone). `kind`, on a fact,
 // lets its recorder move it between Gerade los and Gut zu wissen, and set the day to ask about a situation (`checkAfter`).
 
@@ -40,7 +40,7 @@ export function ItemActions({
   mine: boolean;
   visibility: "shared" | "private";
   text: string;
-  field?: "text" | "summary" | "note";
+  field?: "text" | "summary" | "label" | "inverse";
   after?: string;
   date?: string;
   today?: string;

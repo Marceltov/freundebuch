@@ -41,7 +41,7 @@ export async function seed(): Promise<Seed> {
       { person: 0, text: "new job", category: "work" },
       { person: 0, text: "divorce", category: "family", private: true },
     ],
-    relationships: [{ from: 0, to: 1, type: "partner", private: true }],
+    relationships: [{ from: 0, to: 1, label: "Partner:in", inverse: "Partner:in", private: true }],
     dates: [{ person: 1, kind: "birthday", date: "--10-24", yearly: true, private: true }],
   });
   const [anna, tom] = dinner.people.map((p) => p.id);

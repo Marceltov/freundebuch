@@ -2,7 +2,7 @@
 // bad item leaves nothing behind. Privacy is decided here once: a private conversation makes every item private, and any private
 // item makes the verbatim transcript private to the recorder (it contains the private part).
 import type { Kysely } from "kysely";
-import { addDays, assertDay, daysBetween, isDay, isYearless, notFuture, today } from "./dates";
+import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { checkGender, insertPerson, namedLike } from "./people";
@@ -11,14 +11,12 @@ import {
   EXCHANGE_KINDS,
   FACT_CATEGORIES,
   FACT_KINDS,
-  RELATIONSHIP_TYPES,
   VISIBILITIES,
   type ConversationKind,
   type ExchangeKind,
   type FactCategory,
   type FactKind,
   type Gender,
-  type RelationshipType,
   type Viewer,
   type Visibility,
 } from "./types";
@@ -50,7 +48,8 @@ export type NewConversation = {
   dates?: Array<{ person: PersonRef; kind: DateKind; date: string; label?: string; yearly: boolean; private?: boolean }>;
   exchanges?: Array<{ person: PersonRef; kind: ExchangeKind; direction: Direction; text: string; amount?: number; currency?: string; private?: boolean }>;
   /** "me" is the viewer's person, "us" every household person (one relationship each): a role to us ("our landlady"). */
-  relationships?: Array<{ from: PersonRef | "me" | "us"; to: PersonRef | "me" | "us"; type: RelationshipType; note?: string; private?: boolean }>;
+  /** `label` is what `from` is to `to`, `inverse` what `to` is to `from`, in words and in each one's gender ("Vermieterin", "Mieter"). */
+  relationships?: Array<{ from: PersonRef | "me" | "us"; to: PersonRef | "me" | "us"; label: string; inverse: string; note?: string; private?: boolean }>;
   groups?: Array<{ name: string; members: PersonRef[]; private?: boolean }>;
 };
 
@@ -88,7 +87,7 @@ export type ConversationView = {
   exchanges: Array<
     Item & About & { kind: ExchangeKind; direction: Direction; by?: string; text: string; amount: number | null; currency: string | null; settled: boolean }
   >;
-  relationships: Array<Item & { fromId: string; fromName: string; toId: string; toName: string; type: RelationshipType; note: string | null }>;
+  relationships: Array<Item & { fromId: string; fromName: string; toId: string; toName: string; label: string; inverse: string; note: string | null }>;
 };
 
 export const MAX_TRANSCRIPT = 200_000;
@@ -122,8 +121,8 @@ function validate(c: NewConversation): void {
 
 /**
  * A fact is `lasting` or a `situation` (going on, will end) with `checkAfter`, the day to ask how it went; SITUATION_DAYS after it
- * was filed when not given. A fact that supersedes another takes its kind unless it gives one, so news keeps a situation going,
- * and without a new checkAfter it keeps the old one's interval.
+ * was filed when a new situation gives none. A fact that supersedes another takes its kind unless it gives one, so news keeps a
+ * situation going, and news about a situation must give its new checkAfter.
  */
 type Items<P> = {
   facts?: Array<{ person: P; text: string; category: string; private?: boolean; supersedes?: string; kind?: string; checkAfter?: string }>;
@@ -161,13 +160,14 @@ async function insertItems<P>(tx: Kysely<Schema>, v: Viewer, base: ItemBase, c: 
   for (const f of c.facts ?? []) {
     const factId = newId();
     const replaced = f.supersedes
-      ? await tx.selectFrom("facts").select(["kind", "check_after", "created_at"]).where("id", "=", f.supersedes).$call((qb) => visible(qb, v, "facts")).executeTakeFirst()
+      ? await tx.selectFrom("facts").select("kind").where("id", "=", f.supersedes).$call((qb) => visible(qb, v, "facts")).executeTakeFirst()
       : undefined;
     const kind = (f.kind ?? replaced?.kind ?? "lasting") as FactKind;
     if (kind === "lasting" && f.checkAfter !== undefined) throw new InvalidInputError("checkAfter is for a situation; a lasting fact has none");
-    // News without a new day keeps the situation's interval: as long from now as the old day was from when it was filed.
-    const interval = replaced?.kind === "situation" && replaced.check_after ? daysBetween(today(replaced.created_at), replaced.check_after) : 0;
-    const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), interval > 0 ? interval : SITUATION_DAYS)) : null;
+    // News sets the day afresh: how long until it is worth asking again is agreed with the user, never carried over.
+    if (replaced?.kind === "situation" && kind === "situation" && f.checkAfter === undefined)
+      throw new InvalidInputError("News about a situation needs a new checkAfter: suggest when to ask again and agree it with the user");
+    const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), SITUATION_DAYS)) : null;
     await tx
       .insertInto("facts")
       .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f) })
@@ -188,25 +188,35 @@ async function insertItems<P>(tx: Kysely<Schema>, v: Viewer, base: ItemBase, c: 
       .execute();
 }
 
-/** Facts, promises, dates and exchanges about people the book already has, filed without a conversation: "Malou's birthday is 7 February". */
-export type Remembered = { visibility: Visibility } & Items<string>;
+/**
+ * Facts, promises, dates and exchanges about people the book already has, filed without a conversation: "Malou's birthday is 7
+ * February". `genders` sets (null: clears) a person's gender, shared like the name.
+ */
+export type Remembered = { visibility: Visibility; genders?: Array<{ person: string; gender: Gender | null }> } & Items<string>;
+type RememberCounts = { facts: number; promises: number; dates: number; exchanges: number; genders: number };
 
-export async function remember(v: Viewer, r: Remembered): Promise<{ counts: { facts: number; promises: number; dates: number; exchanges: number }; people: Array<{ id: string; name: string; url: string }> }> {
+export async function remember(v: Viewer, r: Remembered): Promise<{ counts: RememberCounts; people: Array<{ id: string; name: string; url: string }> }> {
   checkVisibility(r.visibility);
-  const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0);
-  if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date or exchange");
-  validateItems(r, (p) => {
+  const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0) + (r.genders?.length ?? 0);
+  if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date, exchange or gender");
+  const person = (p: unknown) => {
     if (typeof p !== "string" || !p) throw new InvalidInputError("Each item needs the id of an existing person");
-  });
+  };
+  validateItems(r, person);
+  for (const g of r.genders ?? []) {
+    person(g.person);
+    checkGender(g.gender);
+  }
   const vis = (item: { private?: boolean }): Visibility => (r.visibility === "private" || item.private ? "private" : "shared");
   const base: ItemBase = { recorded_by: v.userId, conversation_id: null, created_at: now() };
   return (await db()).transaction().execute(async (tx) => {
-    const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? [])].map((i) => i.person))];
+    const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? [])].map((i) => i.person))];
     const people = await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute();
     if (people.length !== ids.length) throw new NotFoundError("No such person");
+    for (const g of r.genders ?? []) await tx.updateTable("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
     await insertItems(tx, v, base, r, (p) => p, vis);
     return {
-      counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0 },
+      counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0, genders: r.genders?.length ?? 0 },
       people: people.map((p) => ({ id: p.id, name: p.name, url: personPath(p.id) })),
     };
   });
@@ -220,12 +230,20 @@ export function checkVisibility(visibility: string): void {
 }
 
 /** `from` and `to` may be "me" or "us" (household.ts), but not both. */
-export function checkRelationship<P>(r: { from: P | "me" | "us"; to: P | "me" | "us"; type: string }, ref: (p: P) => void): void {
+export function checkRelationship<P>(r: { from: P | "me" | "us"; to: P | "me" | "us"; label: string; inverse: string }, ref: (p: P) => void): void {
   if (isHouseholdWord(r.from) && isHouseholdWord(r.to)) throw new InvalidInputError('A relationship needs someone outside the household on one end: "me" and "us" can\'t both be used');
   if (!isHouseholdWord(r.from)) ref(r.from);
   if (!isHouseholdWord(r.to)) ref(r.to);
-  oneOf(r.type, RELATIONSHIP_TYPES, "relationship type");
+  checkLabel(r.label, "label");
+  checkLabel(r.inverse, "inverse");
   if (r.from === r.to) throw new InvalidInputError("A relationship needs two different people");
+}
+
+export const MAX_LABEL = 60;
+
+export function checkLabel(word: unknown, what: string): void {
+  if (typeof word !== "string" || !word.trim()) throw new InvalidInputError(`A relationship's ${what} says in words what that end is ("Vermieterin", "Mieter")`);
+  if (word.trim().length > MAX_LABEL) throw new InvalidInputError(`A relationship's ${what} holds at most ${MAX_LABEL} characters`);
 }
 
 export function checkGroup<P>(g: { name: string; members: P[] }, ref: (p: P) => void): void {
@@ -236,42 +254,56 @@ export function checkGroup<P>(g: { name: string; members: P[] }, ref: (p: P) => 
 /** Who recorded an item, when, and with which conversation (null for one set directly). */
 export type ItemBase = { recorded_by: string; conversation_id: string | null; created_at: number };
 
-const SYMMETRIC: ReadonlySet<string> = new Set(["partner", "spouse", "sibling", "friend", "colleague", "neighbour", "other"]);
-
-/** The same for every way of writing one relationship: parent A→B is child B→A, a symmetric one reads both ways. */
-export function relationshipKey(fromId: string, toId: string, type: string): string {
-  if (type === "child") return `parent:${toId}:${fromId}`;
-  if (SYMMETRIC.has(type)) return `${type}:${[fromId, toId].sort().join(":")}`;
-  return `${type}:${fromId}:${toId}`;
+/**
+ * A relationship's word with its gender endings taken off, so "Vermieterin", "Vermieter" and "Vermieter:in" are one word, and
+ * "Kollege" and "Kollegin" too; umlauts fold ("Ärztin", "Arzt").
+ */
+export function labelKey(word: string): string {
+  return word
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[:*_/](in(nen)?|r)$/, "")
+    .replace(/e$/, "")
+    .replace(/in$/, "");
 }
 
-const sameNote = (a: string | null | undefined, b: string | null | undefined) => !a?.trim() || !b?.trim() || a.trim().toLowerCase() === b.trim().toLowerCase();
+/** The same relationship whichever way round it is written: A Mutter of B, Sohn B is B Sohn of A, Mutter A. */
+export function sameRelationship(
+  a: { from_id: string; to_id: string; label: string; inverse: string },
+  b: { from_id: string; to_id: string; label: string; inverse: string },
+): boolean {
+  const k = (x: typeof a) => [labelKey(x.label), labelKey(x.inverse)];
+  const [al, ai] = k(a);
+  const [bl, bi] = k(b);
+  return (a.from_id === b.from_id && a.to_id === b.to_id && al === bl && ai === bi) || (a.from_id === b.to_id && a.to_id === b.from_id && al === bi && ai === bl);
+}
 
 /**
  * Records a relationship, unless the recorder already sees the same one (theirs, or a shared one): then that one's id comes
- * back, and it takes the note if it had none and is the recorder's. Two `other` relationships are the same only when their
- * notes agree; for the rest the type says what they are.
+ * back, and it takes the note if it had none and is the recorder's.
  */
 export async function insertRelationship(
   tx: Kysely<Schema>,
   base: ItemBase,
-  r: { fromId: string; toId: string; type: RelationshipType; note?: string; visibility: Visibility },
+  r: { fromId: string; toId: string; label: string; inverse: string; note?: string; visibility: Visibility },
 ): Promise<string> {
-  const key = relationshipKey(r.fromId, r.toId, r.type);
+  const row = { from_id: r.fromId, to_id: r.toId, label: r.label.trim(), inverse: r.inverse.trim() };
   const known = await tx
     .selectFrom("relationships")
-    .select(["id", "from_id", "to_id", "type", "note", "recorded_by"])
+    .select(["id", "from_id", "to_id", "label", "inverse", "note", "recorded_by"])
     .where((eb) => eb.or([eb.and([eb("from_id", "=", r.fromId), eb("to_id", "=", r.toId)]), eb.and([eb("from_id", "=", r.toId), eb("to_id", "=", r.fromId)])]))
     .where((eb) => eb.or([eb("recorded_by", "=", base.recorded_by), eb("visibility", "=", "shared")]))
     .orderBy("created_at")
     .execute();
-  const same = known.find((k) => relationshipKey(k.from_id, k.to_id, k.type) === key && (r.type !== "other" || sameNote(k.note, r.note)));
+  const same = known.find((k) => sameRelationship(k, row));
   if (same) {
     if (!same.note?.trim() && r.note?.trim() && same.recorded_by === base.recorded_by) await tx.updateTable("relationships").set({ note: r.note }).where("id", "=", same.id).execute();
     return same.id;
   }
   const id = newId();
-  await tx.insertInto("relationships").values({ ...base, id, from_id: r.fromId, to_id: r.toId, type: r.type, note: r.note ?? null, visibility: r.visibility }).execute();
+  await tx.insertInto("relationships").values({ ...base, ...row, id, note: r.note?.trim() || null, visibility: r.visibility }).execute();
   return id;
 }
 
@@ -280,12 +312,12 @@ export async function insertRelationships(
   tx: Kysely<Schema>,
   v: Viewer,
   base: ItemBase,
-  r: { from: Target; to: Target; type: RelationshipType; note?: string; visibility: Visibility },
+  r: { from: Target; to: Target; label: string; inverse: string; note?: string; visibility: Visibility },
 ): Promise<string[]> {
   const pairs = await resolvePairs(tx, v, r.from, r.to);
   if (!pairs.length) throw new InvalidInputError("A relationship needs two different people");
   const ids: string[] = [];
-  for (const [fromId, toId] of pairs) ids.push(await insertRelationship(tx, base, { fromId, toId, type: r.type, note: r.note, visibility: r.visibility }));
+  for (const [fromId, toId] of pairs) ids.push(await insertRelationship(tx, base, { fromId, toId, label: r.label, inverse: r.inverse, note: r.note, visibility: r.visibility }));
   return ids;
 }
 
@@ -376,7 +408,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     await insertItems(tx, v, base, c, id, vis);
     const target = (t: PersonRef | "me" | "us") => (isHouseholdWord(t) ? t : id(t));
     let relationships = 0;
-    for (const r of c.relationships ?? []) relationships += (await insertRelationships(tx, v, base, { from: target(r.from), to: target(r.to), type: r.type, note: r.note, visibility: vis(r) })).length;
+    for (const r of c.relationships ?? []) relationships += (await insertRelationships(tx, v, base, { from: target(r.from), to: target(r.to), label: r.label, inverse: r.inverse, note: r.note, visibility: vis(r) })).length;
     let memberships = 0;
     for (const g of c.groups ?? []) memberships += (await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g))).added;
 
@@ -503,6 +535,6 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
       currency: e.currency,
       settled: !!e.settled,
     })),
-    relationships: relationships.map((r) => ({ ...item("relationships", r), fromId: r.from_id, fromName: names.get(r.from_id) ?? "", toId: r.to_id, toName: names.get(r.to_id) ?? "", type: r.type as RelationshipType, note: r.note })),
+    relationships: relationships.map((r) => ({ ...item("relationships", r), fromId: r.from_id, fromName: names.get(r.from_id) ?? "", toId: r.to_id, toName: names.get(r.to_id) ?? "", label: r.label, inverse: r.inverse, note: r.note })),
   };
 }

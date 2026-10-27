@@ -50,7 +50,7 @@ describe("people", () => {
     expect(all.status).toBe(200);
     expect(all.json.map((p: { name: string }) => p.name)).toEqual(expect.arrayContaining(["Alice", "Anna", "Tom", "Lena"]));
     const found = await call(s.a, "GET", "/people?q=Tom");
-    expect(found.json[0]).toMatchObject({ id: s.tom, name: "Tom", context: ["partner of Anna"] });
+    expect(found.json[0]).toMatchObject({ id: s.tom, name: "Tom", context: ["Partner:in of Anna"] });
     expect((await call(s.a, "GET", `/people/${s.anna}`)).json).toMatchObject({ id: s.anna, name: "Anna" });
     expect((await call(s.a, "GET", "/people/nope")).status).toBe(404);
   });
@@ -381,13 +381,13 @@ describe("roles and situations", () => {
     expect(r.status).toBe(201);
     const max = r.json.people[0].id;
     const fact = (await call(s.a, "GET", `/people/${max}/briefing`)).json.known[0].id;
-    const moved = await call(s.a, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", type: "landlord" });
+    const moved = await call(s.a, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", label: "Vermieter:in", inverse: "Mieter:in" });
     expect(moved.status).toBe(201);
     expect(moved.json.ids).toHaveLength(2);
-    expect((await call(s.b, "GET", `/people/${max}/briefing`)).json.roles).toMatchObject([{ type: "landlord", with: "us" }]);
-    expect((await call(s.b, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", type: "landlord" })).status).toBe(404);
+    expect((await call(s.b, "GET", `/people/${max}/briefing`)).json.roles).toMatchObject([{ label: "Vermieter:in", with: "us" }]);
+    expect((await call(s.b, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", label: "Vermieter:in", inverse: "Mieter:in" })).status).toBe(404);
 
-    const again = await call(s.a, "POST", "/conversations", lunch({ people: [{ id: max, present: true }], facts: [{ person: 0, text: "sucht ein Auto", category: "other" }], relationships: [{ from: 0, to: "me", type: "neighbour" }] }));
+    const again = await call(s.a, "POST", "/conversations", lunch({ people: [{ id: max, present: true }], facts: [{ person: 0, text: "sucht ein Auto", category: "other" }], relationships: [{ from: 0, to: "me", label: "Nachbar:in", inverse: "Nachbar:in" }] }));
     expect(again.json.counts.relationships).toBe(1);
     const car = (await call(s.a, "GET", `/people/${max}/briefing`)).json.known.find((f: { text: string }) => f.text === "sucht ein Auto").id;
     expect((await call(s.a, "PATCH", `/items/facts/${car}`, { patch: { kind: "situation", checkAfter: "2026-10-01" } })).status).toBe(204);

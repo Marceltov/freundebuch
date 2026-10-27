@@ -20,7 +20,7 @@ After recording, read back in one or two sentences what you filed, with the day 
 Every person, conversation and item comes with a url to it in the web app; give the user the link whenever they may want to look at something there.
 When a briefing has suggestedInterval, offer it to the user and save it with set_interval once they agree.
 Prefer an existing group, by name or other name, over a new one; when none fits, ask before creating one.
-Who someone is to the household ("our landlady", "my colleague") is a relationship to "us" or "me", never a fact. What is going on and will end is a situation with a checkAfter; when a briefing or whats_due has a situation to ask about, suggest asking ("ask Jonas whether he found a car").`;
+Who someone is to the household ("our landlady", "my colleague") is a relationship to "us" or "me", never a fact; say in German words what each end is (label, inverse), in each one's gender. What is going on and will end is a situation with a checkAfter; tell the user the day you chose. News about a situation needs a new checkAfter: suggest one and agree it with the user before filing. When a briefing or whats_due has a situation to ask about, suggest asking ("ask Jonas whether he found a car").`;
 
 // A tool result: the body as structured content and, for clients that only read text, as JSON text. The body goes through the
 // tool's output schema first, which drops every field the schema doesn't name: what leaves is only what was declared. Its links

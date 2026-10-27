@@ -6,7 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { config } from "./config";
 import { addDays, isDay, today } from "./dates";
-import { insertRelationships, SITUATION_DAYS } from "./conversations";
+import { insertRelationships, MAX_LABEL, SITUATION_DAYS } from "./conversations";
 import type { Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
@@ -19,7 +19,7 @@ import { getSettings } from "./settings";
 import { processState } from "./state";
 import { store } from "./storage";
 import { spend } from "./usage";
-import { FACT_CATEGORIES, RELATIONSHIP_TYPES, VISIBILITIES, type FactCategory, type Viewer, type Visibility } from "./types";
+import { FACT_CATEGORIES, VISIBILITIES, type FactCategory, type Viewer, type Visibility } from "./types";
 import { itemPath, personPath, screenshotPath } from "./urls";
 import { viewerById } from "./users";
 import { visible } from "./visibility";
@@ -106,7 +106,9 @@ function clean(r: Reading, known: Set<string>, day: string): Reading {
     ...r,
     situation: !!r.situation,
     checkAfterDays: days,
-    role: r.role && (RELATIONSHIP_TYPES as readonly string[]).includes(r.role.type) ? { type: r.role.type, note: r.role.note?.trim() || null } : null,
+    role: r.role && typeof r.role.label === "string" && r.role.label.trim() && typeof r.role.inverse === "string" && r.role.inverse.trim() && r.role.label.trim().length <= MAX_LABEL && r.role.inverse.trim().length <= MAX_LABEL
+      ? { label: r.role.label.trim(), inverse: r.role.inverse.trim() }
+      : null,
     text: r.text.trim(),
     category,
     happenedOn: r.happenedOn && isDay(r.happenedOn) && r.happenedOn <= day ? r.happenedOn : null,
@@ -202,7 +204,7 @@ async function insertFact(
 /** The poster's role to the viewer, when the screenshot said one: to "me" only, since one user's screenshot says nothing about the partner. */
 async function insertRole(tx: Kysely<Schema>, v: Viewer, r: Reading, posterId: string, visibility: Visibility): Promise<void> {
   if (!r.role || posterId === v.personId) return;
-  await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: null, created_at: now() }, { from: posterId, to: "me", type: r.role.type, note: r.role.note ?? undefined, visibility });
+  await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: null, created_at: now() }, { from: posterId, to: "me", label: r.role.label, inverse: r.role.inverse, visibility });
 }
 
 async function push(v: Viewer, m: { title: string; body: string; click?: string }): Promise<void> {

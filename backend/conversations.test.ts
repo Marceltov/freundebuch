@@ -41,7 +41,7 @@ test("returns the people and correct counts", async () => {
       promises: [{ person: 0, text: "send the recipe", byMe: true, due: "2026-10-30" }],
       dates: [{ person: 1, kind: "birthday", date: "--10-24", yearly: true }],
       exchanges: [{ person: 0, kind: "money", direction: "to_them", text: "dinner", amount: 42.5, currency: "EUR" }],
-      relationships: [{ from: 0, to: 1, type: "partner" }],
+      relationships: [{ from: 0, to: 1, label: "Partner:in", inverse: "Partner:in" }],
       groups: [{ name: "Kletterclique", members: [0, 1] }],
     }),
   );
@@ -65,7 +65,7 @@ test("creating a new person by name sets created_from; an existing person is lin
 });
 
 test("a new person named like an existing person or alias is ambiguous, listing the candidates, unless confirmedNew", async () => {
-  const first = await recordConversation(a, base({ people: [{ name: "Anna Schmidt", aliases: ["Anni"], present: true }, { name: "Tom", present: false }], relationships: [{ from: 0, to: 1, type: "partner" }] }));
+  const first = await recordConversation(a, base({ people: [{ name: "Anna Schmidt", aliases: ["Anni"], present: true }, { name: "Tom", present: false }], relationships: [{ from: 0, to: 1, label: "Partner:in", inverse: "Partner:in" }] }));
   const anna = first.people[0].id;
   const before = await rowCount("conversations");
   for (const name of ["anna schmidt", " Anni ", "ANNI"]) {
@@ -73,7 +73,7 @@ test("a new person named like an existing person or alias is ambiguous, listing 
     expect(err, name).toBeInstanceOf(AmbiguousError);
     expect(err.message).toContain(anna);
     expect(err.message).toContain("Anna Schmidt");
-    expect(err.message).toContain("partner of Tom");
+    expect(err.message).toContain("Partner:in of Tom");
     expect(err.message).toContain("confirmedNew");
   }
   expect(await rowCount("conversations")).toBe(before);
@@ -100,7 +100,7 @@ test("a private conversation makes all its items private", async () => {
       promises: [{ person: 0, text: "call back", byMe: true }],
       dates: [{ person: 0, kind: "anniversary", date: "2020-06-01", yearly: true }],
       exchanges: [{ person: 0, kind: "gift_idea", direction: "to_them", text: "a book" }],
-      relationships: [{ from: 0, to: 1, type: "partner" }],
+      relationships: [{ from: 0, to: 1, label: "Partner:in", inverse: "Partner:in" }],
       groups: [{ name: "Uni", members: [0] }],
     }),
   );
@@ -197,7 +197,7 @@ test("rejects a people entry with neither id nor name, a bad person ref and unkn
     base({ facts: [{ person: 0, text: "t", category: "gossip" as "work" }] }),
     base({ kind: "telepathy" as "call" }),
     base({ visibility: "secret" as "private" }),
-    base({ relationships: [{ from: 0, to: 0, type: "friend" }] }),
+    base({ relationships: [{ from: 0, to: 0, label: "Freund:in", inverse: "Freund:in" }] }),
   ];
   for (const c of bad) await expect(recordConversation(a, c)).rejects.toBeInstanceOf(InvalidInputError);
 });
@@ -225,7 +225,7 @@ test("a conversation can't be dated after today", async () => {
 
 test("a conversation files a role to us", async () => {
   const b = await userFromOidc({ sub: "b", name: "Bob" });
-  const r = await recordConversation(a, base({ relationships: [{ from: 0, to: "us", type: "landlord" }] }));
+  const r = await recordConversation(a, base({ relationships: [{ from: 0, to: "us", label: "Vermieter:in", inverse: "Mieter:in" }] }));
   expect(r.counts.relationships).toBe(2);
   const rows = await (await db()).selectFrom("relationships").select(["from_id", "to_id", "conversation_id"]).execute();
   expect(rows.map((x) => x.to_id).sort()).toEqual([a.personId, b.personId].sort());

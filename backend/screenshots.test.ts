@@ -238,15 +238,15 @@ test("a share key names its user until it is replaced or revoked", async () => {
 
 test("a screenshot of something going on files a situation; a stated role files a relationship to me", async () => {
   const shot = await shareScreenshot(s.a, await image());
-  await readScreenshot(shot.id, answering(post([{ name: "Anna", personId: s.anna }], { text: "Sucht eine Wohnung in Köln", situation: true, checkAfterDays: 21, role: { type: "colleague", note: null } })));
+  await readScreenshot(shot.id, answering(post([{ name: "Anna", personId: s.anna }], { text: "Sucht eine Wohnung in Köln", situation: true, checkAfterDays: 21, role: { label: "Kollegin", inverse: "Kollege" } })));
   const fact = await (await db()).selectFrom("facts").selectAll().where("screenshot_id", "=", shot.id).executeTakeFirstOrThrow();
   expect(fact).toMatchObject({ kind: "situation", check_after: addDays(today(), 21) });
-  const rels = await (await db()).selectFrom("relationships").select(["from_id", "to_id", "type", "visibility"]).where("type", "=", "colleague").execute();
-  expect(rels).toEqual([{ from_id: s.anna, to_id: s.a.personId, type: "colleague", visibility: "shared" }]);
+  const rels = await (await db()).selectFrom("relationships").select(["from_id", "to_id", "label", "inverse", "visibility"]).where("to_id", "=", s.a.personId).execute();
+  expect(rels).toEqual([{ from_id: s.anna, to_id: s.a.personId, label: "Kollegin", inverse: "Kollege", visibility: "shared" }]);
 
-  // A lasting post without a role files neither; a situation without days nudges after six weeks; a role the model made up is dropped.
+  // A situation without days nudges after six weeks; a role without both ends' words is dropped.
   const other = await shareScreenshot(s.a, await image());
-  await readScreenshot(other.id, answering(post([{ name: "Anna", personId: s.anna }], { text: "Läuft einen Marathon im Mai", situation: true, role: { type: "boss" as "friend", note: null } })));
+  await readScreenshot(other.id, answering(post([{ name: "Anna", personId: s.anna }], { text: "Läuft einen Marathon im Mai", situation: true, role: { label: "Chefin", inverse: " " } })));
   const f2 = await (await db()).selectFrom("facts").selectAll().where("screenshot_id", "=", other.id).executeTakeFirstOrThrow();
   expect(f2).toMatchObject({ kind: "situation", check_after: addDays(today(), 42) });
   expect(await (await db()).selectFrom("relationships").select("id").where("to_id", "=", s.a.personId).execute()).toHaveLength(1);
@@ -254,8 +254,8 @@ test("a screenshot of something going on files a situation; a stated role files 
 
 test("a role on a screenshot that waits is filed to me when it is resolved", async () => {
   const shot = await shareScreenshot(s.a, await image());
-  await readScreenshot(shot.id, answering(post([{ name: "Dr. Weber" }], { text: "Neue Praxis eröffnet", role: { type: "doctor", note: null } })));
+  await readScreenshot(shot.id, answering(post([{ name: "Dr. Weber" }], { text: "Neue Praxis eröffnet", role: { label: "Ärztin", inverse: "Patient:in" } })));
   const { personId } = await resolveScreenshot(s.a, shot.id, { name: "Dr. Weber" });
-  const rels = await (await db()).selectFrom("relationships").select(["from_id", "to_id", "type"]).where("type", "=", "doctor").execute();
-  expect(rels).toEqual([{ from_id: personId, to_id: s.a.personId, type: "doctor" }]);
+  const rels = await (await db()).selectFrom("relationships").select(["from_id", "to_id", "label", "inverse"]).where("to_id", "=", s.a.personId).execute();
+  expect(rels).toEqual([{ from_id: personId, to_id: s.a.personId, label: "Ärztin", inverse: "Patient:in" }]);
 });
