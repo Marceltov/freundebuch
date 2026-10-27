@@ -80,11 +80,12 @@ test("Gehört zu lists each person by name with what they are to this one, linki
   expect(html).toMatch(/href="\/p\/r1"[^>]*>.*Ramona.*Mutter/s);
   expect(html).toMatch(/href="\/p\/r2"[^>]*>.*Andreas.*Vater/s);
   expect(html).not.toContain("Tochter");
-  // the note follows the words; one's own can be changed or deleted through its menu, the partner's not
+  // the note follows the words; each can be changed or deleted through its menu
   expect(html).toMatch(/Sybille.*Privat: nur du siehst das.*Patentante · seit der Taufe/s);
   const tile = (id: string) => html.match(new RegExp(`id="relationships-${id}".*?</li>`, "s"))![0];
   expect(tile("x1")).toContain('aria-label="Aktionen"');
-  expect(tile("x2")).not.toContain('aria-label="Aktionen"');
+  // The partner's shared one too: either of us may change or delete it.
+  expect(tile("x2")).toContain('aria-label="Aktionen"');
 });
 
 const fact = (id: string, text: string, category: "home" | "other" | "work" = "other") => ({ id, text, category, url: `/p/p1#facts-${id}`, ...own });

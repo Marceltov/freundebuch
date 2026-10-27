@@ -154,7 +154,7 @@ test("gender is optional, three values, shared like the name", async () => {
   await expect(setGender(a, "nope", "male")).rejects.toBeInstanceOf(NotFoundError);
 });
 
-test("a gender change returns the person's relationships the viewer recorded, to put in the new gender", async () => {
+test("a gender change returns the person's relationships the viewer may edit: their own and the partner's shared ones", async () => {
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
   const rel = async (by: Viewer, from: string, to: string, label: string, inverse: string, visibility = "shared") => {
@@ -163,11 +163,12 @@ test("a gender change returns the person's relationships the viewer recorded, to
     return id;
   };
   const mine = await rel(a, anna, tom, "Vermieter:in", "Mieter");
-  await rel(b, tom, anna, "Kollege", "Kolleg:in");
+  const theirs = await rel(b, tom, anna, "Kollege", "Kolleg:in");
   await rel(b, anna, a.personId, "Nachbar:in", "Nachbar", "private");
-  expect(await setGender(a, anna, "female")).toEqual({ relabel: [{ id: mine, fromId: anna, fromName: "Anna", toId: tom, toName: "Tom", label: "Vermieter:in", inverse: "Mieter" }] });
-  // The partner gets their own, and never A's.
+  // B's private one never reaches A.
+  expect((await setGender(a, anna, "female")).relabel.map((r) => r.id)).toEqual([mine, theirs]);
   expect((await setGender(b, anna, "female")).relabel.map((r) => [r.fromName, r.label])).toEqual([
+    ["Anna", "Vermieter:in"],
     ["Tom", "Kollege"],
     ["Anna", "Nachbar:in"],
   ]);

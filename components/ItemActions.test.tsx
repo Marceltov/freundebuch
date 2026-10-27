@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
-import { factKindActions, ItemActions } from "./ItemActions";
+import { canEdit, factKindActions, ItemActions } from "./ItemActions";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
@@ -15,9 +15,19 @@ test("a menu whenever there is something to do", () => {
   // Either user may mark a shared fact outdated or a promise done.
   expect(renderToStaticMarkup(<ItemActions table="facts" mine={false} {...item} />)).toContain("Aktionen");
   expect(renderToStaticMarkup(<ItemActions table="promises" mine={false} {...item} />)).toContain("Aktionen");
+  // The partner's shared relationship: theirs to edit or delete too.
+  expect(renderToStaticMarkup(<ItemActions table="relationships" mine={false} {...item} />)).toContain("Aktionen");
 });
 
-test("the fact menu moves a lasting fact to Gerade los, a situation back, and sets when to ask; only for its recorder", () => {
+test("either of us edits or deletes a shared item; a conversation and who can see an item stay the recorder's", () => {
+  expect(canEdit("facts", false, "shared")).toBe(true);
+  expect(canEdit("relationships", false, "shared")).toBe(true);
+  expect(canEdit("conversations", false, "shared")).toBe(false);
+  expect(canEdit("facts", false, "private")).toBe(false);
+  expect(canEdit("conversations", true, "private")).toBe(true);
+});
+
+test("the fact menu moves a lasting fact to Gerade los, a situation back, and sets when to ask; only for who may edit it", () => {
   expect(factKindActions("lasting", true)).toEqual(["Ist gerade los"]);
   expect(factKindActions("situation", true)).toEqual(["Gut zu wissen", "Nachfragen am …"]);
   expect(factKindActions("situation", false)).toEqual([]);

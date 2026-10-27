@@ -61,7 +61,7 @@ const ByMe = z.boolean().describe("Whether the caller made the promise");
 const PromiseBy = z.string().optional().describe("The other user's name, when they made the promise; with neither, the person made it");
 const ExchangeBy = z.string().optional().describe("The other user's name, when they recorded it; `direction` then reads from their side");
 const ExchangeDirection = Direction.describe("`to_them`: the caller (or `by`) gave to the person; `from_them`: the person gave");
-const Own = { visibility: Visibility, mine: z.boolean().describe("Whether the caller recorded it; only then may they edit it, change its visibility or delete it") };
+const Own = { visibility: Visibility, mine: z.boolean().describe("Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete") };
 
 const FactJson = {
   id: z.string(),
@@ -403,7 +403,7 @@ export const ItemPatchJson = z
     done: z.literal(true).optional().describe("Marks a promise done or an exchange settled"),
     outdated: z.literal(true).optional().describe("Marks a fact outdated"),
     visibility: Visibility.optional().describe("Changes who can see the item (only its recorder may)"),
-    patch: z.record(z.string(), z.unknown()).optional().describe("New values for the item's own fields (only its recorder may)"),
+    patch: z.record(z.string(), z.unknown()).optional().describe("New values for the item's own fields (its recorder, or either user for a shared item; a conversation only its recorder)"),
     transcriptShared: z
       .literal(true)
       .optional()

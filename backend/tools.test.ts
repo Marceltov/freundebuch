@@ -155,7 +155,9 @@ describe("next: what Claude does after a call", () => {
     const id = r.relabel[0].id;
     expect(r.relabel).toEqual([{ id, fromId: s.lena, fromName: "Lena", toId: s.a.personId, toName: "Alice", label: "Nachbar:in", inverse: "Nachbar:in" }]);
     expect(r.next).toEqual([`Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`]);
-    // B sees only their own: none.
+    // B may edit A's shared one too, so B is told the same; a private one of A's would never show.
+    expect((await run(s.b, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] })).next).toEqual(r.next);
+    await run(s.a, "correct", { action: "visibility", table: "relationships", id, visibility: "private" });
     expect((await run(s.b, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] })).next).toEqual([]);
   });
 

@@ -1425,7 +1425,7 @@
             }
           },
           "403": {
-            "description": "The item is visible to the caller but only its recorder may change it (`forbidden`)",
+            "description": "The item is visible to the caller, but this change is its recorder's: its visibility, a conversation, a transcript (`forbidden`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1449,7 +1449,7 @@
       "delete": {
         "operationId": "deleteItem",
         "summary": "Delete an item",
-        "description": "Only its recorder may.",
+        "description": "Its recorder, or either user for a shared item; a conversation, which takes its items with it, only its recorder.",
         "tags": [
           "Items"
         ],
@@ -1506,7 +1506,7 @@
             }
           },
           "403": {
-            "description": "The item is visible to the caller but only its recorder may change it (`forbidden`)",
+            "description": "The item is visible to the caller, but this change is its recorder's: its visibility, a conversation, a transcript (`forbidden`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1532,7 +1532,7 @@
       "post": {
         "operationId": "factToRelationship",
         "summary": "Turn a fact into a relationship",
-        "description": "For a fact that says who someone is (\"unsere Vermieterin\"): it becomes a relationship with the fact's visibility, and the fact is deleted. `from` and `to` take a person id, \"me\" or \"us\". Only the fact's recorder may.",
+        "description": "For a fact that says who someone is (\"unsere Vermieterin\"): it becomes a relationship with the fact's visibility, and the fact is deleted. `from` and `to` take a person id, \"me\" or \"us\". Either user may, for a shared fact.",
         "tags": [
           "Items"
         ],
@@ -1597,7 +1597,7 @@
             }
           },
           "403": {
-            "description": "The item is visible to the caller but only its recorder may change it (`forbidden`)",
+            "description": "The item is visible to the caller, but this change is its recorder's: its visibility, a conversation, a transcript (`forbidden`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3140,7 +3140,7 @@
                 },
                 "mine": {
                   "type": "boolean",
-                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                  "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
                 },
                 "since": {
                   "type": "string",
@@ -3218,7 +3218,7 @@
                 },
                 "mine": {
                   "type": "boolean",
-                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                  "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
                 }
               },
               "required": [
@@ -3274,7 +3274,7 @@
                     },
                     "mine": {
                       "type": "boolean",
-                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                      "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
                     }
                   },
                   "required": [
@@ -3347,7 +3347,7 @@
                     },
                     "mine": {
                       "type": "boolean",
-                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                      "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
                     }
                   },
                   "required": [
@@ -3388,7 +3388,7 @@
                     },
                     "mine": {
                       "type": "boolean",
-                      "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                      "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
                     }
                   },
                   "required": [
@@ -3486,7 +3486,7 @@
                 },
                 "mine": {
                   "type": "boolean",
-                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                  "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
                 },
                 "direction": {
                   "type": "string",
@@ -5120,7 +5120,7 @@
             ]
           },
           "patch": {
-            "description": "New values for the item's own fields (only its recorder may)",
+            "description": "New values for the item's own fields (its recorder, or either user for a shared item; a conversation only its recorder)",
             "type": "object",
             "propertyNames": {
               "type": "string"

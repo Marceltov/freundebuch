@@ -14,7 +14,7 @@ Two people share one freundebuch, usually a couple. Most of what you learn about
 
 ## Who can change what
 
-Only the person who recorded an item can delete it or change its visibility. Your partner can see your shared items but can't edit them.
+Either of you can edit or delete a shared item, whoever recorded it ([ADR 0011](../adr/0011-either-user-edits-shared-items.md)). Two things stay with the person who recorded it: changing its visibility, and editing or deleting a conversation (which takes its items with it). A private item stays out of your partner's reach entirely.
 
 Two safety rules protect shared knowledge:
 

@@ -15,6 +15,6 @@ Corrections go through Claude too. Say what's wrong in plain words:
 | "Sara and Sarah Klein are the same person." | The duplicate is merged into the other person. |
 | "My partner can read that dinner's transcript." | The transcript is shared, once nothing in that conversation is private. |
 
-You can only edit, delete or change the visibility of items you recorded yourself.
+You can edit or delete your own items and your partner's shared ones. Only whoever recorded an item changes its visibility, and only whoever recorded a conversation edits or deletes it.
 
 Some fixes can also be done in the web app: on a person's page, each item has quick actions to mark it done, share it or delete it.

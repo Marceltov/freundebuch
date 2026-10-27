@@ -31,7 +31,7 @@ From top to bottom:
 - **Gut zu wissen**: what stays true (works at Hornbach, likes Riesling, a nut allergy), each with an icon for its kind; **Ist gerade los** in its **…** moves it up,
 - **Versprochen**, **Ideen für Geschenke** and **Noch offen**: promises, gift ideas and other exchanges, with quick actions,
 - **Gespräche**: the conversations, newest first,
-- **Gehört zu**: a diagram with you (and your partner, when they are related too) on top, the person in the middle and their own people below, each line saying what it is ("Vermieterin", "Sohn"). Tap a face to open them. **Alle Verbindungen** below it lists each with what they are to this person ("Patentante") and its note; with more people than the diagram fits, the list is shown instead. The … menu of one you recorded changes what they are, makes it private or shared, or deletes it. Telling freundebuch the same relationship again (also the other way round) files nothing new.
+- **Gehört zu**: a diagram with you (and your partner, when they are related too) on top, the person in the middle and their own people below, each line saying what it is ("Vermieterin", "Sohn"). Tap a face to open them. **Alle Verbindungen** below it lists each with what they are to this person ("Patentante") and its note; with more people than the diagram fits, the list is shown instead. The … menu changes what they are or deletes it (yours, or your partner's shared ones), and makes your own private or shared. Telling freundebuch the same relationship again (also the other way round) files nothing new.
 
 The round **…** next to the name sets how often you want to see them, their gender ("Unsere" or "Unser"; Claude puts the words themselves in it), renames them, adds a nickname, or merges a duplicate into them.
 

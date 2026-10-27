@@ -214,7 +214,7 @@ const CorrectedJson = z.object({
     .optional()
     .describe("merge: what moved over to the person kept, as the user may see it"),
   relationships: z.array(FiledRelationshipJson).optional().describe("to_relationship: each pair, and whether it was new"),
-  relabel: Relabels.optional().describe("gender: the person's relationships the user recorded, whose words are written in each end's gender"),
+  relabel: Relabels.optional().describe("gender: the person's relationships the user may edit (their own and the partner's shared ones), whose words are written in each end's gender"),
 });
 const TranscriptJson = z.object({
   conversationId: z.string(),
@@ -289,7 +289,7 @@ const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded, a conversation with its items (table, id). rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a conversation the user recorded, once nothing in it is private any more (id); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, only its recorder (table, id). rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a conversation the user recorded, once nothing in it is private any more (id); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
   id: z
@@ -332,7 +332,7 @@ const CorrectArgs = z.discriminatedUnion("action", [
       id: ItemId,
       patch: z.record(z.string(), z.unknown()).describe("New values for the item's own fields"),
     })
-    .describe("Change fields of an item the user recorded"),
+    .describe("Change fields of an item the user recorded, or of the partner's shared one (not a conversation)"),
   z
     .object({
       action: z.literal("visibility"),
@@ -343,7 +343,7 @@ const CorrectArgs = z.discriminatedUnion("action", [
     .describe("Change who can see an item the user recorded"),
   z
     .object({ action: z.literal("delete"), table: Table, id: ItemId })
-    .describe("Delete an item the user recorded; a conversation takes its items with it"),
+    .describe("Delete an item the user recorded or the partner's shared one; a conversation, only its recorder, takes its items with it"),
   z.object({ action: z.literal("rename"), id: PersonId, name: z.string() }).describe("Rename a person"),
   z.object({ action: z.literal("alias"), id: PersonId, alias: z.string() }).describe("Add another name a person goes by"),
   z
@@ -441,7 +441,7 @@ const RememberedJson = z.object({
   counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), genders: z.number().int() }),
   people: z.array(z.object({ id: PersonId, name: z.string(), url: z.string() })).describe("The people it is about, with a link to each"),
   filed: Filed.describe("Everything filed, with ids and links"),
-  relabel: Relabels.describe("genders: the relationships the user recorded of each person given a gender, whose words are written in each end's gender"),
+  relabel: Relabels.describe("genders: the relationships the user may edit of each person given a gender, whose words are written in each end's gender"),
 });
 
 export const TOOLS: readonly Tool[] = [

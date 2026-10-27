@@ -58,7 +58,7 @@ const err = (description: string) => ({ description, schema: ErrorJson }) satisf
 const E = {
   400: err("The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)"),
   401: err("No valid sign-in or access token (`unauthorized`)"),
-  403: err("The item is visible to the caller but only its recorder may change it (`forbidden`)"),
+  403: err("The item is visible to the caller, but this change is its recorder's: its visibility, a conversation, a transcript (`forbidden`)"),
   404: err("No such thing, or one the caller may not see (`not_found`)"),
   409: err("The request names more than one match (`ambiguous`)"),
 } as const;
@@ -400,7 +400,7 @@ const OPS: AnyOp[] = [
     operationId: "factToRelationship",
     summary: "Turn a fact into a relationship",
     description:
-      'For a fact that says who someone is ("unsere Vermieterin"): it becomes a relationship with the fact\'s visibility, and the fact is deleted. `from` and `to` take a person id, "me" or "us". Only the fact\'s recorder may.',
+      'For a fact that says who someone is ("unsere Vermieterin"): it becomes a relationship with the fact\'s visibility, and the fact is deleted. `from` and `to` take a person id, "me" or "us". Either user may, for a shared fact.',
     tags: ["Items"],
     auth: true,
     params: { id: IdParam },
@@ -413,7 +413,7 @@ const OPS: AnyOp[] = [
     path: `${API_PREFIX}/items/{table}/{id}`,
     operationId: "deleteItem",
     summary: "Delete an item",
-    description: "Only its recorder may.",
+    description: "Its recorder, or either user for a shared item; a conversation, which takes its items with it, only its recorder.",
     tags: ["Items"],
     auth: true,
     params: { table: TableParam, id: IdParam },

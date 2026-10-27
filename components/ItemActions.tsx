@@ -8,17 +8,23 @@ import { copy } from "@/components/copy";
 type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversations";
 
 // What can be done to one item, behind a "…" button that opens a small menu over the page, each action with its icon and its
-// name: mark it done (a promise, an exchange or a gift idea) or outdated (a fact), which either user may; and edit its text,
-// change its date, make it private or shared, or delete it, which only its recorder may (`mine`; the server checks again).
+// name: mark it done (a promise, an exchange or a gift idea) or outdated (a fact), which either user may; edit its text, change
+// its date or delete it, which either of us may for a shared item (a conversation only its recorder); and make it private or
+// shared, which only its recorder may (`mine`; the server checks again).
 // Editing opens a sheet from the bottom, so the row or header it belongs to keeps its layout. Deleting asks once more in the
 // menu itself. Each goes to PATCH or DELETE /api/v1/items/{table}/{id}, then the page reloads its data.
 // `field`: what "edit" changes (`text`, `summary` for a conversation, `label` or `inverse` for a relationship: the other end's words). `after`: where to go once it is deleted. `date` (a
 // conversation's day) adds "change the date", up to `today` (the server's, in the configured time zone). `kind`, on a fact,
 // lets its recorder move it between Gerade los and Gut zu wissen, and set the day to ask about a situation (`checkAfter`).
 
-/** The kind entries of a fact's menu: only its recorder moves it. */
-export function factKindActions(kind: "lasting" | "situation" | undefined, mine: boolean): string[] {
-  if (!mine || !kind) return [];
+/** Whether the viewer may edit or delete the item: their own, or a shared one of the partner's that isn't a conversation. */
+export function canEdit(table: Table, mine: boolean, visibility: "shared" | "private"): boolean {
+  return mine || (table !== "conversations" && visibility === "shared");
+}
+
+/** The kind entries of a fact's menu, for whoever may edit it. */
+export function factKindActions(kind: "lasting" | "situation" | undefined, editable: boolean): string[] {
+  if (!editable || !kind) return [];
   return kind === "lasting" ? [copy.makeSituation] : [copy.makeLasting, copy.askOn];
 }
 
@@ -87,8 +93,9 @@ export function ItemActions({
 
   const done = table === "promises" || table === "exchanges";
   const title = editing === "date" ? copy.changeDate : editing === "ask" ? copy.askOnTitle : copy.edit;
+  const editable = canEdit(table, mine, visibility);
   // The partner's conversation: nothing either user may do to it, so no empty menu.
-  if (!done && table !== "facts" && !mine) return null;
+  if (!done && table !== "facts" && !editable) return null;
   return (
     <span className="relative ml-auto inline-flex shrink-0">
       <button
@@ -108,10 +115,10 @@ export function ItemActions({
           <span className="absolute top-full right-0 z-40 mt-1 flex w-52 flex-col rounded-2xl bg-surface p-1.5 text-[15px] shadow-float ring-1 ring-rule">
             {done && <Item icon={Check} label={copy.done} disabled={busy} onClick={() => send("PATCH", { done: true })} />}
             {table === "facts" && <Item icon={Archive} label={copy.outdated} disabled={busy} onClick={() => send("PATCH", { outdated: true })} />}
-            {mine && (
+            {editable && (
               <>
                 <Item icon={Pencil} label={copy.edit} onClick={() => edit("text")} />
-                {factKindActions(kind, mine).map((label) =>
+                {factKindActions(kind, editable).map((label) =>
                   label === copy.askOn ? (
                     <Item key={label} icon={CalendarClock} label={label} onClick={() => edit("ask")} />
                   ) : (
@@ -125,12 +132,14 @@ export function ItemActions({
                   ),
                 )}
                 {date && <Item icon={CalendarDays} label={copy.changeDate} onClick={() => edit("date")} />}
-                <Item
-                  icon={visibility === "private" ? LockOpen : Lock}
-                  label={visibility === "private" ? copy.makeShared : copy.makePrivate}
-                  disabled={busy}
-                  onClick={() => send("PATCH", { visibility: visibility === "private" ? "shared" : "private" })}
-                />
+                {mine && (
+                  <Item
+                    icon={visibility === "private" ? LockOpen : Lock}
+                    label={visibility === "private" ? copy.makeShared : copy.makePrivate}
+                    disabled={busy}
+                    onClick={() => send("PATCH", { visibility: visibility === "private" ? "shared" : "private" })}
+                  />
+                )}
                 {confirming ? (
                   <Item icon={Trash2} label={copy.confirmRemove} danger disabled={busy} onClick={() => send("DELETE")} />
                 ) : (
