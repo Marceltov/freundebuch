@@ -53,13 +53,12 @@ export async function setGender(v: Viewer, personId: string, gender: Gender | nu
   return { relabel: await relabelFor(d, v, personId) };
 }
 
-/** The person's relationships the viewer recorded, whose words may need the person's gender. */
+/** The person's relationships the viewer may edit (every one they see: their own and the shared ones), whose words may need the person's gender. */
 export async function relabelFor(d: Kysely<Schema>, v: Viewer, personId: string): Promise<Relabel[]> {
   const rels = await d
     .selectFrom("relationships")
     .select(["id", "from_id", "to_id", "label", "inverse"])
     .where((eb) => eb.or([eb("from_id", "=", personId), eb("to_id", "=", personId)]))
-    .where("recorded_by", "=", v.userId)
     .$call((qb) => visible(qb, v, "relationships"))
     .orderBy("created_at")
     .orderBy(sql`rowid`)

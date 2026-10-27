@@ -1,7 +1,8 @@
 // Corrections after the fact: marking things done or outdated, editing, changing visibility, deleting, renaming and merging
-// persons. Who may do what is decided here (docs/adr/0002): an item the viewer can't see is not_found, so its existence is never
-// revealed; one they can see but someone else recorded is forbidden to edit, re-share or delete. Marking done is open to either
-// user for a shared item, and a private item is only ever visible to its recorder anyway.
+// persons. Who may do what is decided here (docs/adr/0002, 0011): an item the viewer can't see is not_found, so its existence is
+// never revealed. Either user may mark done, edit or delete a shared item; only its recorder changes its visibility. A
+// conversation stays its recorder's: deleting it takes items with it the partner may not see. A private item is only ever
+// visible to its recorder anyway.
 import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { moveMembership } from "./groups";
@@ -31,8 +32,14 @@ type Row = {
   conversation_id?: string | null;
 };
 
-/** The row, when the viewer can see it (else not_found); with `own`, also when they recorded it (else forbidden). */
-async function load(d: Kysely<Schema>, v: Viewer, table: ItemTable, id: string, own: boolean): Promise<Row> {
+/**
+ * Who may act: `viewer` anyone who sees the row; `editor` also the partner for a shared item, but only the recorder for a
+ * conversation; `recorder` only whoever recorded it.
+ */
+type Who = "viewer" | "editor" | "recorder";
+
+/** The row, when the viewer can see it (else not_found) and may act on it as `who` says (else forbidden). */
+async function load(d: Kysely<Schema>, v: Viewer, table: ItemTable, id: string, who: Who): Promise<Row> {
   assertTable(table);
   // One query shape for every table; the columns read here exist on all of them (a conversation has no conversation_id).
   const t = table as "facts";
@@ -43,7 +50,9 @@ async function load(d: Kysely<Schema>, v: Viewer, table: ItemTable, id: string, 
     .$call((qb) => visible(qb, v, t))
     .executeTakeFirst()) as Row | undefined;
   if (!row) throw new NotFoundError("Not found");
-  if (own && row.recorded_by !== v.userId) throw new ForbiddenError("Only the person who recorded this may change it");
+  const recorder = row.recorded_by === v.userId;
+  if (who === "recorder" && !recorder) throw new ForbiddenError("Only the person who recorded this may change who can see it");
+  if (who === "editor" && !recorder && table === "conversations") throw new ForbiddenError("Only the person who recorded a conversation may change or delete it");
   return row;
 }
 
@@ -53,7 +62,7 @@ const DONE_COLUMN = { promises: "done", exchanges: "settled" } as const;
 export async function markDone(v: Viewer, table: "promises" | "exchanges", id: string): Promise<void> {
   if (!(table in DONE_COLUMN)) throw new InvalidInputError(`Only promises and exchanges can be marked done, not "${table}"`);
   const d = await db();
-  await load(d, v, table, id, false);
+  await load(d, v, table, id, "viewer");
   await d
     .updateTable(table as "promises")
     .set({ [DONE_COLUMN[table]]: 1 } as { done: number })
@@ -77,7 +86,7 @@ async function factState(d: Kysely<Schema>, id: string): Promise<FactState> {
 /** Marks a fact outdated. A shared fact may be marked by either user. */
 export async function markOutdated(v: Viewer, factId: string): Promise<FactState> {
   const d = await db();
-  await load(d, v, "facts", factId, false);
+  await load(d, v, "facts", factId, "viewer");
   await d.updateTable("facts").set({ status: "outdated" }).where("id", "=", factId).execute();
   return factState(d, factId);
 }
@@ -182,7 +191,7 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
 export async function editItem(v: Viewer, table: ItemTable, id: string, patch: Record<string, unknown>): Promise<{ fact?: FactState & { defaultCheckAfter: boolean } }> {
   assertTable(table);
   const d = await db();
-  const row = await load(d, v, table, id, true);
+  const row = await load(d, v, table, id, "editor");
   const keys = Object.keys(patch);
   if (!keys.length) throw new InvalidInputError("Nothing to change");
   const set: Record<string, unknown> = {};
@@ -251,7 +260,7 @@ async function raiseTranscriptPrivacy(d: Kysely<Schema>, conversationId: string)
 export async function shareTranscript(v: Viewer, conversationId: string): Promise<void> {
   const d = await db();
   await d.transaction().execute(async (tx) => {
-    await load(tx, v, "conversations", conversationId, true);
+    await load(tx, v, "conversations", conversationId, "recorder");
     if (await holdsPrivate(tx, conversationId))
       throw new InvalidInputError("The conversation or something recorded with it is private: share those first, or keep the transcript private");
     await tx.updateTable("conversations").set({ transcript_private: 0 }).where("id", "=", conversationId).execute();
@@ -267,7 +276,7 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
   if (!VISIBILITIES.includes(visibility)) throw new InvalidInputError(`Visibility must be one of ${VISIBILITIES.join(", ")}`);
   const d = await db();
   await d.transaction().execute(async (tx) => {
-    const row = await load(tx, v, table, id, true);
+    const row = await load(tx, v, table, id, "recorder");
     if (visibility === "private") await assertReplacesNothingShared(tx, table, id);
     // A private conversation forces private on all its items; share the conversation first.
     if (table !== "conversations" && visibility === "shared" && row.conversation_id) {
@@ -318,7 +327,7 @@ async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, 
 export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promise<void> {
   assertTable(table);
   const d = await db();
-  await load(d, v, table, id, true);
+  await load(d, v, table, id, "editor");
   await d
     .deleteFrom(table as "facts")
     .where("id", "=", id)
@@ -339,7 +348,7 @@ export async function factToRelationship(
   checkRelationship(r, () => {});
   const d = await db();
   const relationships = await d.transaction().execute(async (tx) => {
-    const fact = (await load(tx, v, "facts", factId, true)) as Row & { person_id: string };
+    const fact = (await load(tx, v, "facts", factId, "editor")) as Row & { person_id: string };
     const [froms, tos] = await Promise.all([resolveTarget(tx, v, r.from), resolveTarget(tx, v, r.to)]);
     if (!froms.includes(fact.person_id) && !tos.includes(fact.person_id)) throw new InvalidInputError("The relationship must have the fact's person on one end");
     const filed = await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, created_at: now() }, { ...r, visibility: fact.visibility as Visibility });

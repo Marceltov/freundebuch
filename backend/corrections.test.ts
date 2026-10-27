@@ -45,12 +45,17 @@ async function lunch() {
 
 const factId = async (text: string) => (await (await db()).selectFrom("facts").select("id").where("text", "=", text).executeTakeFirstOrThrow()).id;
 
-test("the partner can't delete, edit or change the visibility of my visible item: forbidden", async () => {
+test("the partner may edit and delete my shared item, but not change its visibility or touch my conversation", async () => {
   const id = await factId("new job");
-  await expect(deleteItem(s.b, "facts", id)).rejects.toBeInstanceOf(ForbiddenError);
-  await expect(editItem(s.b, "facts", id, { text: "x" })).rejects.toBeInstanceOf(ForbiddenError);
+  await editItem(s.b, "facts", id, { text: "neuer Job im Museum" });
+  const row = await (await db()).selectFrom("facts").select(["text", "recorded_by", "visibility"]).where("id", "=", id).executeTakeFirstOrThrow();
+  // It stays mine and shared: the partner changed what it says, not whose it is.
+  expect(row).toEqual({ text: "neuer Job im Museum", recorded_by: s.a.userId, visibility: "shared" });
   await expect(setVisibility(s.b, "facts", id, "private")).rejects.toBeInstanceOf(ForbiddenError);
+  await expect(editItem(s.b, "conversations", s.dinner, { summary: "x" })).rejects.toBeInstanceOf(ForbiddenError);
   await expect(deleteItem(s.b, "conversations", s.dinner)).rejects.toBeInstanceOf(ForbiddenError);
+  await deleteItem(s.b, "facts", id);
+  expect(await (await db()).selectFrom("facts").select("id").where("id", "=", id).executeTakeFirst()).toBeUndefined();
 });
 
 test("acting on my private item is not_found for the partner, whatever the action", async () => {
@@ -404,10 +409,12 @@ test("a fact becomes a relationship and keeps its privacy", async () => {
   expect(rows.map((r) => r.to_id).sort()).toEqual([s.a.personId, s.b.personId].sort());
   expect(await (await db()).selectFrom("facts").select("id").where("id", "=", id).executeTakeFirst()).toBeUndefined();
 
-  // Someone else's shared fact is the partner's to move; a relationship that leaves out the fact's person is refused.
+  // A relationship that leaves out the fact's person is refused; the partner may turn a shared fact into one.
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "Kollegin von mir", category: "work" }] });
   const shared = await factId("Kollegin von mir");
-  await expect(factToRelationship(s.b, shared, { from: s.anna, to: "me", label: "Kolleg:in", inverse: "Kolleg:in" })).rejects.toBeInstanceOf(ForbiddenError);
   await expect(factToRelationship(s.a, shared, { from: s.lena, to: "me", label: "Kolleg:in", inverse: "Kolleg:in" })).rejects.toBeInstanceOf(InvalidInputError);
   expect(await factId("Kollegin von mir")).toBe(shared);
+  const moved = await factToRelationship(s.b, shared, { from: s.anna, to: "me", label: "Kollegin", inverse: "Kollege" });
+  expect(moved.relationships).toMatchObject([{ fromId: s.anna, toId: s.b.personId, label: "Kollegin" }]);
+  expect(await (await db()).selectFrom("facts").select("id").where("id", "=", shared).executeTakeFirst()).toBeUndefined();
 });

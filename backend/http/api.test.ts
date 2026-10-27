@@ -186,12 +186,14 @@ describe("conversations and items", () => {
     expect((await call(s.b, "GET", `/conversations/${r.conversation}`)).json.transcript).toBe("Lunch with Max. He likes chess.");
   });
 
-  test("only the recorder edits: B gets 403 on A's shared fact, and may mark a shared promise done", async () => {
+  test("B edits and deletes A's shared fact, marks a shared promise done, but can't change visibility or A's conversation", async () => {
     const r = await recorded();
-    const edit = await call(s.b, "PATCH", `/items/facts/${r.fact}`, { patch: { text: "x" } });
-    expect([edit.status, edit.json.code]).toEqual([403, "forbidden"]);
-    expect((await call(s.b, "DELETE", `/items/facts/${r.fact}`)).status).toBe(403);
+    expect((await call(s.b, "PATCH", `/items/facts/${r.fact}`, { patch: { text: "x" } })).status).toBe(204);
+    const vis = await call(s.b, "PATCH", `/items/facts/${r.fact}`, { visibility: "private" });
+    expect([vis.status, vis.json.code]).toEqual([403, "forbidden"]);
+    expect((await call(s.b, "PATCH", `/items/conversations/${r.conversation}`, { patch: { summary: "x" } })).status).toBe(403);
     expect((await call(s.b, "PATCH", `/items/promises/${r.promise}`, { done: true })).status).toBe(204);
+    expect((await call(s.b, "DELETE", `/items/facts/${r.fact}`)).status).toBe(204);
   });
 
   test("DELETE removes the item", async () => {
