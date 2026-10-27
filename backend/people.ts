@@ -42,19 +42,29 @@ export type Relabel = { id: string; fromId: string; fromName: string; toId: stri
 
 /**
  * Sets or (with null) clears a person's gender. Shared like the name, so either user may set it. The words of a relationship
- * are written in each end's gender, which the server can't change for them: it returns the person's relationships the viewer
- * recorded, to put in the new gender (an edit of `label` or `inverse`).
+ * are written in each end's gender, which the server can't change for them: it returns the person's relationships whose word
+ * for them may need the new gender (an edit of `label` or `inverse`).
  */
 export async function setGender(v: Viewer, personId: string, gender: Gender | null): Promise<{ relabel: Relabel[] }> {
   checkGender(gender);
   const d = await db();
-  const r = await d.updateTable("persons").set({ gender }).where("id", "=", personId).executeTakeFirst();
-  if (!Number(r.numUpdatedRows)) throw new NotFoundError("No such person");
-  return { relabel: await relabelFor(d, v, personId) };
+  const before = await d.selectFrom("persons").select("gender").where("id", "=", personId).executeTakeFirst();
+  if (!before) throw new NotFoundError("No such person");
+  await d.updateTable("persons").set({ gender }).where("id", "=", personId).execute();
+  return { relabel: await relabelFor(d, v, personId, before.gender, gender) };
 }
 
-/** The person's relationships the viewer may edit (every one they see: their own and the shared ones), whose words may need the person's gender. */
-export async function relabelFor(d: Kysely<Schema>, v: Viewer, personId: string): Promise<Relabel[]> {
+// Words for one end of a relationship that don't say a gender yet: the ":in" forms and the few neutral nouns.
+const NEUTRAL = new Set(["elternteil", "kind", "geschwister", "enkelkind", "patenkind", "partner", "person"]);
+const isNeutral = (word: string) => /[:*_/](in|innen|r)\b/i.test(word) || NEUTRAL.has(word.trim().toLowerCase());
+
+/**
+ * The person's relationships the viewer may edit (every one they see: their own and the shared ones) whose word for the person
+ * may need their new gender. A first gender (from none) needs only the words still neutral ("Vermieter:in", "Kind"): Claude
+ * wrote the rest in the gender it already knew. Another gender needs every word; the same one again, none.
+ */
+export async function relabelFor(d: Kysely<Schema>, v: Viewer, personId: string, before: Gender | null, after: Gender | null): Promise<Relabel[]> {
+  if (before === after) return [];
   const rels = await d
     .selectFrom("relationships")
     .select(["id", "from_id", "to_id", "label", "inverse"])
@@ -65,7 +75,9 @@ export async function relabelFor(d: Kysely<Schema>, v: Viewer, personId: string)
     .execute();
   const ids = [...new Set(rels.flatMap((x) => [x.from_id, x.to_id]))];
   const names = new Map(ids.length ? (await d.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute()).map((p) => [p.id, p.name]) : []);
-  return rels.map((x) => ({ id: x.id, fromId: x.from_id, fromName: names.get(x.from_id) ?? "", toId: x.to_id, toName: names.get(x.to_id) ?? "", label: x.label, inverse: x.inverse }));
+  return rels
+    .filter((x) => before !== null || isNeutral(x.from_id === personId ? x.label : x.inverse))
+    .map((x) => ({ id: x.id, fromId: x.from_id, fromName: names.get(x.from_id) ?? "", toId: x.to_id, toName: names.get(x.to_id) ?? "", label: x.label, inverse: x.inverse }));
 }
 
 export async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {

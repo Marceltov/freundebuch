@@ -161,7 +161,7 @@ export const BriefingJson = z
         edges: z.array(z.object({ id: z.string(), from: PersonId, to: PersonId, label: z.string().describe("What `from` is to `to`"), inverse: z.string().describe("What `to` is to `from`") })),
       })
       .describe("One hop around the person: the household persons they relate to, and their own people"),
-    suggestedInterval: z.number().int().optional().describe("Only while the interval isn't confirmed, and only when the history is long enough to suggest one"),
+    suggestedInterval: z.number().int().optional().describe("Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the household"),
   })
   .meta({ id: "Briefing" });
 

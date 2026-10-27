@@ -60,7 +60,7 @@ export type Briefing = {
   relationships: Array<Own & { id: string; personId: string; name: string; label: string; inverse: string; note: string | null; direction: "out" | "in"; url: string }>;
   /** One hop: the person, the household persons with a visible relationship to them, then their other people. */
   network: Network;
-  /** Only while the interval isn't confirmed, and only when the history is long enough to suggest one. */
+  /** Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for a household person. */
   suggestedInterval?: number;
 };
 
@@ -125,7 +125,8 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
 
   const page = personPath(personId);
   const own = (r: { visibility: string; recorded_by: string }): Own => ({ visibility: r.visibility as Visibility, mine: r.recorded_by === v.userId });
-  const suggested = setting?.interval_confirmed ? null : await suggestInterval(v, personId);
+  // One of us needs no check-in interval: you see each other every day.
+  const suggested = setting?.interval_confirmed || household.includes(personId) ? null : await suggestInterval(v, personId);
   const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
   const fact = (f: (typeof facts)[number]): Fact => ({

@@ -3611,7 +3611,7 @@
             "description": "One hop around the person: the household persons they relate to, and their own people"
           },
           "suggestedInterval": {
-            "description": "Only while the interval isn't confirmed, and only when the history is long enough to suggest one",
+            "description": "Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the household",
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991

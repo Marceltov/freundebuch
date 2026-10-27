@@ -167,9 +167,29 @@ test("a gender change returns the person's relationships the viewer may edit: th
   await rel(b, anna, a.personId, "Nachbar:in", "Nachbar", "private");
   // B's private one never reaches A.
   expect((await setGender(a, anna, "female")).relabel.map((r) => r.id)).toEqual([mine, theirs]);
+  await setGender(b, anna, null);
   expect((await setGender(b, anna, "female")).relabel.map((r) => [r.fromName, r.label])).toEqual([
     ["Anna", "Vermieter:in"],
     ["Tom", "Kollege"],
     ["Anna", "Nachbar:in"],
   ]);
+});
+
+test("a first gender asks only for the person's words still in a neutral form; a change of gender asks for all of them", async () => {
+  const anna = await createPerson(a, { name: "Anna" });
+  const tom = await createPerson(a, { name: "Tom" });
+  const lena = await createPerson(a, { name: "Lena" });
+  const rel = async (from: string, to: string, label: string, inverse: string) => {
+    const id = newId();
+    await (await db()).insertInto("relationships").values({ id, from_id: from, to_id: to, label, inverse, note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
+    return id;
+  };
+  const neutral = await rel(anna, tom, "Vermieter:in", "Mieter");
+  const kind = await rel(lena, anna, "Mutter", "Kind");
+  await rel(anna, lena, "Kollegin", "Kollege");
+  // Anna's own words: "Vermieter:in" and "Kind" are neutral; "Kollegin" was already written in her gender.
+  expect((await setGender(a, anna, "female")).relabel.map((r) => r.id)).toEqual([neutral, kind]);
+  // The same gender again asks for nothing; another one asks for every word of hers.
+  expect((await setGender(a, anna, "female")).relabel).toEqual([]);
+  expect((await setGender(a, anna, "male")).relabel).toHaveLength(3);
 });

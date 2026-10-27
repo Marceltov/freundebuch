@@ -265,8 +265,9 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
     if (people.length !== ids.length) throw new NotFoundError("No such person");
     const genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }> = [];
     for (const g of r.genders ?? []) {
+      const before = await tx.selectFrom("persons").select("gender").where("id", "=", g.person).executeTakeFirstOrThrow();
       await tx.updateTable("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
-      genders.push({ ...g, relabel: await relabelFor(tx, v, g.person) });
+      genders.push({ ...g, relabel: await relabelFor(tx, v, g.person, before.gender, g.gender) });
     }
     const names = new Map(people.map((p) => [p.id, p.name]));
     const filed = await insertItems(tx, v, base, r, (p) => p, vis, (p) => names.get(p) ?? "", personPath);

@@ -149,16 +149,34 @@ describe("next: what Claude does after a call", () => {
     expect(gender.next).toEqual([`Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`]);
   });
 
+  test("genders for both ends list their relationship once, with a line for each end's word", async () => {
+    const { id } = await run(s.a, "relate", { kind: "relationship", from: s.anna, to: s.lena, label: "Elternteil", inverse: "Kind", visibility: "shared" });
+    const r = await run(s.a, "remember", { visibility: "shared", genders: [{ person: s.anna, gender: "female" }, { person: s.lena, gender: "female" }] });
+    // The seed's other neutral words of theirs come too, but each relationship once.
+    const ids = r.relabel.map((x: { id: string }) => x.id);
+    expect(ids.filter((x: string) => x === id)).toHaveLength(1);
+    expect(new Set(ids).size).toBe(ids.length);
+    const lines = r.next.filter((l: string) => l.includes(id));
+    expect(lines).toHaveLength(2);
+    expect(lines.join(" ")).toMatch(/Anna's word.*patch \{ label \}.*Lena's word.*patch \{ inverse \}/);
+  });
+
   test("remember with a gender says which word to put in it, like correct gender", async () => {
     await run(s.a, "relate", { kind: "relationship", from: s.lena, to: "me", label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
     const r = await run(s.a, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] });
     const id = r.relabel[0].id;
     expect(r.relabel).toEqual([{ id, fromId: s.lena, fromName: "Lena", toId: s.a.personId, toName: "Alice", label: "Nachbar:in", inverse: "Nachbar:in" }]);
     expect(r.next).toEqual([`Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`]);
+    // The same gender again asks for nothing.
+    expect((await run(s.a, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] })).next).toEqual([]);
     // B may edit A's shared one too, so B is told the same; a private one of A's would never show.
-    expect((await run(s.b, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] })).next).toEqual(r.next);
+    const fresh = async () => {
+      await run(s.b, "correct", { action: "gender", id: s.lena, gender: null });
+      return (await run(s.b, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] })).next;
+    };
+    expect(await fresh()).toEqual(r.next);
     await run(s.a, "correct", { action: "visibility", table: "relationships", id, visibility: "private" });
-    expect((await run(s.b, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] })).next).toEqual([]);
+    expect(await fresh()).toEqual([]);
   });
 
   test("find_person asks which one, or whether someone is new", async () => {
