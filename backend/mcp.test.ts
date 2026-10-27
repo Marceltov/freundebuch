@@ -119,8 +119,7 @@ describe("protocol", () => {
     const text = JSON.stringify(await res.json());
     expect(text).toContain(V);
     expect(text).toContain("Pass the ramble verbatim as transcript, never a summary.");
-    expect(text).toContain("When a briefing has suggestedInterval, offer it to the user");
-    expect(text).toContain("with the day it happened");
+    expect(text).toContain("Every tool result carries next");
     expect(text).toContain("Prefer an existing group, by name or other name, over a new one");
   });
 
@@ -165,6 +164,14 @@ describe("tools", () => {
     expect(r.isError).toBeUndefined();
     expect(r.structuredContent).toMatchObject({ people: [{ ref: 0, id: s.anna, name: "Anna", created: false }], counts: { facts: 2 } });
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
+  });
+
+  test("a result's filed items link absolutely, and next reaches clients that read only text", async () => {
+    const r = await call(s.a, "record_conversation", ramble());
+    const { conversationId, filed, next } = r.structuredContent;
+    for (const f of filed.facts) expect(f.url).toBe(`http://localhost:3000/c/${conversationId}#facts-${f.id}`);
+    expect(next[0]).toBe("Read back in one or two sentences what you filed, with the day it happened (2026-10-22) and the link in url.");
+    expect(JSON.parse(r.content[0].text).next).toEqual(next);
   });
 
   test("every person and conversation comes with an absolute link into the web app", async () => {
@@ -213,7 +220,7 @@ describe("tools", () => {
   test("whats_due and set_interval", async () => {
     expect((await call(s.a, "whats_due", { from: "2026-10-23" })).structuredContent.items.map((i: { date: string }) => i.date)).toEqual(["2026-10-24"]);
     const set = await call(s.a, "set_interval", { personId: s.anna, days: 14 });
-    expect(set.structuredContent).toEqual({ personId: s.anna, days: 14, confirmed: true, url: `http://localhost:3000/p/${s.anna}` });
+    expect(set.structuredContent).toEqual({ personId: s.anna, days: 14, confirmed: true, url: `http://localhost:3000/p/${s.anna}`, next: [] });
     expect((await call(s.a, "briefing", { personId: s.anna })).structuredContent.freshness.intervalDays).toBe(14);
   });
 
@@ -310,7 +317,7 @@ describe("groups over MCP", () => {
     const arbeit = list.find((g: { name: string }) => g.name === "Arbeit");
     expect(arbeit).toMatchObject({ aliases: ["Job", "Kollegen"], url: `http://localhost:3000/g/${arbeit.id}` });
     const rel = (await call(s.a, "relate", { kind: "group", name: "Kollegen", members: [s.anna], visibility: "shared" })).structuredContent;
-    expect(rel).toEqual({ added: 1, id: arbeit.id, name: "Arbeit", url: arbeit.url });
+    expect(rel).toEqual({ added: 1, already: 0, id: arbeit.id, name: "Arbeit", url: arbeit.url, next: [] });
     const out = await call(s.a, "correct", { action: "ungroup", id: arbeit.id, person: s.anna });
     expect(out.isError).toBeUndefined();
     expect((await call(s.a, "groups", {})).structuredContent.groups.find((g: { name: string }) => g.name === "Arbeit").count).toBe(0);
@@ -368,7 +375,7 @@ describe("privacy over MCP", () => {
 
   test("structured content carries only the fields of the output schema", async () => {
     const r = await call(s.b, "find_person", { name: "Tom" });
-    expect(Object.keys(r.structuredContent)).toEqual(["people"]);
+    expect(Object.keys(r.structuredContent)).toEqual(["people", "next"]);
     expect(Object.keys(r.structuredContent.people[0]).sort()).toEqual(["aliases", "context", "id", "name", "url"]);
   });
 });
@@ -382,13 +389,13 @@ describe("calendar feed over MCP", () => {
     expect(feed.status).toBe(200);
 
     // Only the hash is kept: asked again, it says there is one, and doesn't silently break the subscription.
-    expect((await call(s.a, "calendar_feed", { action: "show" })).structuredContent).toEqual({ active: true, created: false, url: null });
+    expect((await call(s.a, "calendar_feed", { action: "show" })).structuredContent).toMatchObject({ active: true, created: false, url: null });
 
     const next = (await call(s.a, "calendar_feed", { action: "replace" })).structuredContent;
     expect(next.url).not.toBe(first.url);
     expect((await calendarRoute(new Request(first.url), first.url.split("/").pop())).status).toBe(404);
 
-    expect((await call(s.a, "calendar_feed", { action: "revoke" })).structuredContent).toEqual({ active: false, created: false, url: null });
+    expect((await call(s.a, "calendar_feed", { action: "revoke" })).structuredContent).toEqual({ active: false, created: false, url: null, next: ["The feed is off: calendars subscribed to it go empty."] });
     expect((await calendarRoute(new Request(next.url), next.url.split("/").pop())).status).toBe(404);
     // Each user has their own.
     expect((await call(s.b, "calendar_feed", { action: "show" })).structuredContent.created).toBe(true);
