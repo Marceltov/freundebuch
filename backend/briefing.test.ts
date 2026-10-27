@@ -163,6 +163,14 @@ test("the suggested interval appears until the interval is confirmed", async () 
   expect("suggestedInterval" in (await briefing(s.a, s.tom, "2026-10-23"))).toBe(false);
 });
 
+test("no interval is suggested for one of the household: the viewer's own person or the partner's", async () => {
+  for (const date of ["2026-08-01", "2026-08-15", "2026-08-29"]) await record(s.a, { date });
+  expect((await briefing(s.a, s.anna, "2026-10-23")).suggestedInterval).toBe(14);
+  expect("suggestedInterval" in (await briefing(s.a, s.a.personId, "2026-10-23"))).toBe(false);
+  expect("suggestedInterval" in (await briefing(s.b, s.b.personId, "2026-10-23"))).toBe(false);
+  expect("suggestedInterval" in (await briefing(s.b, s.a.personId, "2026-10-23"))).toBe(false);
+});
+
 test("an unknown person is not found", async () => {
   await expect(briefing(s.a, "nobody")).rejects.toBeInstanceOf(NotFoundError);
 });

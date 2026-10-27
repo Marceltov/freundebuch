@@ -472,7 +472,9 @@ export const TOOLS: readonly Tool[] = [
     annotations: { destructiveHint: false },
     handler: async (v, r) => {
       const out = await remember(v, r);
-      return ok(RememberedJson, { ...out, relabel: out.genders.flatMap((g) => g.relabel) }, [
+      // A relationship between two people given a gender is listed once; `next` still names each end's word.
+      const relabels = [...new Map(out.genders.flatMap((g) => g.relabel).map((r) => [r.id, r])).values()];
+      return ok(RememberedJson, { ...out, relabel: relabels }, [
         ...out.filed.facts.flatMap(situationDay),
         ...out.genders.flatMap((g) => relabel(g.person, g.gender, g.relabel)),
       ]);

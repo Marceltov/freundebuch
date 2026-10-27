@@ -36,4 +36,4 @@ Claude asks freundebuch what needs attention in the next 14 days (or any range y
 
 Each person can have an interval in days: how often **you** want to see them. Intervals are personal. Your partner's interval for the same friend is their own, and so is "last seen".
 
-A person with no interval is never overdue. Claude suggests an interval in briefings once there are a few meetings to go by. You can also just say "I want to see Oma Gerda every two weeks".
+A person with no interval is never overdue. Claude suggests an interval in briefings once there are a few meetings to go by, but never for you or your partner. You can also just say "I want to see Oma Gerda every two weeks".
