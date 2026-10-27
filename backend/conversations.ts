@@ -5,7 +5,7 @@ import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
-import { checkGender, insertPerson, namedLike } from "./people";
+import { checkGender, insertPerson, namedLike, relabelFor, type Relabel } from "./people";
 import {
   CONVERSATION_KINDS,
   EXCHANGE_KINDS,
@@ -234,12 +234,18 @@ async function insertItems<P>(
 
 /**
  * Facts, promises, dates and exchanges about people the book already has, filed without a conversation: "Malou's birthday is 7
- * February". `genders` sets (null: clears) a person's gender, shared like the name.
+ * February". `genders` sets (null: clears) a person's gender, shared like the name; like setGender, each comes back with the
+ * person's relationships the viewer recorded, to put in it.
  */
 export type Remembered = { visibility: Visibility; genders?: Array<{ person: string; gender: Gender | null }> } & Items<string>;
 type RememberCounts = { facts: number; promises: number; dates: number; exchanges: number; genders: number };
 
-export async function remember(v: Viewer, r: Remembered): Promise<{ counts: RememberCounts; people: Array<{ id: string; name: string; url: string }>; filed: Filed }> {
+export async function remember(v: Viewer, r: Remembered): Promise<{
+  counts: RememberCounts;
+  people: Array<{ id: string; name: string; url: string }>;
+  filed: Filed;
+  genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }>;
+}> {
   checkVisibility(r.visibility);
   const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0) + (r.genders?.length ?? 0);
   if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date, exchange or gender");
@@ -257,11 +263,16 @@ export async function remember(v: Viewer, r: Remembered): Promise<{ counts: Reme
     const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? [])].map((i) => i.person))];
     const people = await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute();
     if (people.length !== ids.length) throw new NotFoundError("No such person");
-    for (const g of r.genders ?? []) await tx.updateTable("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
+    const genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }> = [];
+    for (const g of r.genders ?? []) {
+      await tx.updateTable("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
+      genders.push({ ...g, relabel: await relabelFor(tx, v, g.person) });
+    }
     const names = new Map(people.map((p) => [p.id, p.name]));
     const filed = await insertItems(tx, v, base, r, (p) => p, vis, (p) => names.get(p) ?? "", personPath);
     return {
       filed,
+      genders,
       counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0, genders: r.genders?.length ?? 0 },
       people: people.map((p) => ({ id: p.id, name: p.name, url: personPath(p.id) })),
     };

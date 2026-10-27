@@ -183,6 +183,17 @@ const SetIntervalJson = IntervalJson.extend({
   url: z.string().describe("The person's page, as an absolute URL"),
 });
 const CALENDAR_ACTIONS = ["show", "replace", "revoke"] as const;
+const Relabels = z.array(
+  z.object({
+    id: z.string(),
+    fromId: PersonId,
+    fromName: z.string(),
+    toId: PersonId,
+    toName: z.string(),
+    label: z.string().describe("What from is to to"),
+    inverse: z.string().describe("What to is to from"),
+  }),
+);
 const CorrectedJson = z.object({
   corrected: z.literal(true),
   fact: z
@@ -203,20 +214,7 @@ const CorrectedJson = z.object({
     .optional()
     .describe("merge: what moved over to the person kept, as the user may see it"),
   relationships: z.array(FiledRelationshipJson).optional().describe("to_relationship: each pair, and whether it was new"),
-  relabel: z
-    .array(
-      z.object({
-        id: z.string(),
-        fromId: PersonId,
-        fromName: z.string(),
-        toId: PersonId,
-        toName: z.string(),
-        label: z.string().describe("What from is to to"),
-        inverse: z.string().describe("What to is to from"),
-      }),
-    )
-    .optional()
-    .describe("gender: the person's relationships the user recorded, whose words are written in each end's gender"),
+  relabel: Relabels.optional().describe("gender: the person's relationships the user recorded, whose words are written in each end's gender"),
 });
 const TranscriptJson = z.object({
   conversationId: z.string(),
@@ -443,6 +441,7 @@ const RememberedJson = z.object({
   counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), genders: z.number().int() }),
   people: z.array(z.object({ id: PersonId, name: z.string(), url: z.string() })).describe("The people it is about, with a link to each"),
   filed: Filed.describe("Everything filed, with ids and links"),
+  relabel: Relabels.describe("genders: the relationships the user recorded of each person given a gender, whose words are written in each end's gender"),
 });
 
 export const TOOLS: readonly Tool[] = [
@@ -467,13 +466,16 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "remember",
     description:
-      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record_conversation instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. A role (\"our landlady\") is not a fact: file it with relate. genders sets a person's gender, only when the user states it or uses a pronoun for them, never from the name.",
+      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record_conversation instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. A role (\"our landlady\") is not a fact: file it with relate. genders sets a person's gender, only when the user states it or uses a pronoun for them, never from the name; it returns the relationships to relabel.",
     input: RememberInput,
     output: RememberedJson,
     annotations: { destructiveHint: false },
     handler: async (v, r) => {
       const out = await remember(v, r);
-      return ok(RememberedJson, out, out.filed.facts.flatMap(situationDay));
+      return ok(RememberedJson, { ...out, relabel: out.genders.flatMap((g) => g.relabel) }, [
+        ...out.filed.facts.flatMap(situationDay),
+        ...out.genders.flatMap((g) => relabel(g.person, g.gender, g.relabel)),
+      ]);
     },
   }),
   tool({

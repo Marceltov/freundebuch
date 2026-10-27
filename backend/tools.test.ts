@@ -149,6 +149,16 @@ describe("next: what Claude does after a call", () => {
     expect(gender.next).toEqual([`Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`]);
   });
 
+  test("remember with a gender says which word to put in it, like correct gender", async () => {
+    await run(s.a, "relate", { kind: "relationship", from: s.lena, to: "me", label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
+    const r = await run(s.a, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] });
+    const id = r.relabel[0].id;
+    expect(r.relabel).toEqual([{ id, fromId: s.lena, fromName: "Lena", toId: s.a.personId, toName: "Alice", label: "Nachbar:in", inverse: "Nachbar:in" }]);
+    expect(r.next).toEqual([`Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`]);
+    // B sees only their own: none.
+    expect((await run(s.b, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] })).next).toEqual([]);
+  });
+
   test("find_person asks which one, or whether someone is new", async () => {
     expect((await run(s.a, "find_person", { name: "Anna" })).next).toEqual([]);
     const none = await run(s.a, "find_person", { name: "Zoe" });

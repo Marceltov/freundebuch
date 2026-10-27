@@ -23,7 +23,7 @@ Every tool result carries `next`: short instructions, built by the server from w
 | Tool | What `next` says |
 | --- | --- |
 | `record_conversation` | Read back what was filed, with the day it happened and the link; who is new in the book; each situation's day, and that it is the six-week default when Claude gave none; a relationship that was already there and was kept; people who were in a group already. |
-| `remember` | Each situation's day, and whether it is the default. |
+| `remember` | Each situation's day, and whether it is the default; for a gender it sets, which word of which relationship to put in it, as with `correct`. |
 | `relate` | A relationship that was already there (either way round, or in another gender form) and was kept; people who were in the group already. |
 | `correct` | `outdated` on a situation: file how it ended as a lasting fact, if worth keeping. `edit` that makes a fact a situation or changes its day: the day. `merge`: what moved, and to look the person over for anything doubled. `gender`: which word of which relationship to put in the new gender. `to_relationship`: a relationship that was already there. |
 | `find_person` | None found: ask whether this is someone new, then `record_conversation`. Several: ask which one, with the context that tells them apart. |
