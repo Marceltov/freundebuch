@@ -1,11 +1,13 @@
 // The tools Claude gets, in one table: the MCP endpoint (mcp.ts) offers them to a connected client, and the in-app chat
 // (chat.ts) to its own Claude. Each runs as the viewer it is given, over the same domain functions the REST API uses, so
 // privacy is decided in the domain, never by Claude. Results carry paths; mcp.ts makes them absolute for its clients.
+// Every result also carries `next`: what Claude should do now, worked out here from what the domain returned (docs/adr/0010). It
+// is built only from those results, which the domain read through visible(), so it can't name what the viewer may not see.
 import * as z from "zod";
-import { briefing } from "./briefing";
+import { briefing, type Briefing } from "./briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "./calendar";
-import { getConversation, recordConversation, remember } from "./conversations";
-import { deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
+import { getConversation, recordConversation, remember, type FiledFact, type FiledRelationship } from "./conversations";
+import { deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type Moved } from "./corrections";
 import { whatsDue } from "./due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "./groups";
 import { InvalidInputError } from "./errors";
@@ -16,6 +18,8 @@ import {
   Day,
   DueItemJson,
   FactKind,
+  FiledItemsJson,
+  FiledRelationshipJson,
   Gender,
   GroupJson,
   IntervalJson,
@@ -28,7 +32,7 @@ import {
 } from "./http/schemas";
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
-import { addAlias, findPeople, setGender } from "./people";
+import { addAlias, findPeople, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
 import { EXCHANGE_KINDS, FACT_CATEGORIES, type Viewer } from "./types";
 import { conversationPath, personPath } from "./urls";
@@ -44,12 +48,17 @@ export type Tool = {
     idempotentHint?: boolean;
   };
   /** Checks `args` against `input` (a mismatch is an InvalidInputError, a refusal the caller reports), runs as `v`, and returns
-   * the result as `output` declares it: fields the schema doesn't name are dropped. */
+   * the result as `output` declares it, `next` included: fields the schema doesn't name are dropped. */
   run(v: Viewer, args: unknown): Promise<Record<string, unknown>>;
 };
 
-// A handler's result, typed by its output schema; `tool` parses it.
-const ok = <S extends z.ZodType>(_schema: S, body: z.input<S>) => body;
+const Next = z
+  .array(z.string())
+  .describe("What to do now, worked out from what this call did: follow it before you answer the user. Empty when there is nothing to do");
+type Next = string[];
+
+// A handler's result, typed by its output schema, with its `next`; `tool` parses it.
+const ok = <S extends z.ZodType>(_schema: S, body: z.input<S>, next: Next = []) => ({ ...(body as object), next }) as z.input<S> & { next: Next };
 
 function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
   name: string;
@@ -57,24 +66,92 @@ function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
   input: I;
   output: O;
   annotations: Tool["annotations"];
-  handler: (v: Viewer, args: z.output<I>) => Promise<z.input<O>>;
+  handler: (v: Viewer, args: z.output<I>) => Promise<z.input<O> & { next: Next }>;
 }): Tool {
+  const output = t.output.extend({ next: Next });
   return {
     name: t.name,
     description: t.description,
     input: t.input,
-    output: t.output,
+    output,
     annotations: t.annotations,
     async run(v, args) {
-      return t.output.parse(await t.handler(v, check(t.input, args))) as Record<string, unknown>;
+      return output.parse(await t.handler(v, check(t.input, args))) as Record<string, unknown>;
     },
   };
+}
+
+// The lines of `next`. Each is one short instruction in English, about what this call did.
+
+const situationDay = (f: Pick<FiledFact, "name" | "text" | "kind" | "checkAfter" | "defaultCheckAfter">): Next =>
+  f.kind !== "situation" || !f.checkAfter
+    ? []
+    : [
+        f.defaultCheckAfter
+          ? `${f.name}'s situation "${f.text}" nudges on ${f.checkAfter}, a default because you gave no checkAfter: tell the user, and change it with correct (edit, table facts, patch { checkAfter }) if they want another day.`
+          : `${f.name}'s situation "${f.text}" nudges on ${f.checkAfter}: tell the user that day.`,
+      ];
+
+const keptRelationship = (r: FiledRelationship): Next =>
+  r.created ? [] : [`${r.fromName} is already ${r.label} of ${r.toName} (relationship ${r.id}): it was kept as it was, nothing new was filed.`];
+
+const alreadyInGroup = (g: { name: string; already: number }): Next =>
+  g.already ? [`${g.already} of them ${g.already === 1 ? "was" : "were"} in ${g.name} already; nothing changed for them.`] : [];
+
+const MOVED_WORDS: Record<keyof Moved, [string, string]> = {
+  facts: ["fact", "facts"],
+  promises: ["promise", "promises"],
+  dates: ["date", "dates"],
+  exchanges: ["exchange", "exchanges"],
+  relationships: ["relationship", "relationships"],
+  conversations: ["conversation", "conversations"],
+  groups: ["group membership", "group memberships"],
+};
+
+function merged(m: { kept: string; dropped: string; moved: Moved }): Next {
+  const parts = (Object.keys(MOVED_WORDS) as (keyof Moved)[]).filter((k) => m.moved[k]).map((k) => `${m.moved[k]} ${MOVED_WORDS[k][m.moved[k] === 1 ? 0 : 1]}`);
+  const what = parts.length ? `${parts.join(", ")} moved` : "nothing else moved";
+  return [`Merged ${m.dropped} into ${m.kept}: ${what}, and "${m.dropped}" now finds ${m.kept}. Look over ${m.kept}'s briefing for anything doubled and fix it with correct.`];
+}
+
+const PRONOUN: Record<string, string> = { female: "her", male: "his", nonbinary: "their" };
+
+function relabel(personId: string, gender: string | null, rels: Relabel[]): Next {
+  return rels.map((r) => {
+    const mine = r.fromId === personId;
+    const name = mine ? r.fromName : r.toName;
+    const form = gender ? `in ${PRONOUN[gender]} new gender` : "in its ':in' form, now that the gender isn't known";
+    return `Put ${name}'s word in "${r.fromName} is ${r.label} of ${r.toName}" ${form}: correct (edit, table relationships, id ${r.id}, patch { ${mine ? "label" : "inverse"} }).`;
+  });
+}
+
+const WITH: Record<string, (partner?: string) => string> = { us: () => "you both", me: () => "you", partner: (p) => p ?? "your partner" };
+
+function briefingNext(b: Briefing): Next {
+  const next: Next = [];
+  if (b.roles.length) next.push(`Lead with who ${b.person.name} is to the household: ${b.roles.map((r) => `${r.label} of ${WITH[r.with](r.partnerName)}`).join("; ")}.`);
+  for (const f of b.situations.filter((x) => x.nudge))
+    next.push(
+      `Ask about "${f.text}" first: its day to ask, ${f.checkAfter}, has come. When the user tells how it went, mark it outdated with correct; news instead supersedes it, with a new checkAfter agreed with the user.`,
+    );
+  if ([...b.situations, ...b.known].some((f) => f.source)) next.push("Some facts were read from screenshots the user shared: say where (source) and when (happenedOn) you know them from.");
+  if (b.suggestedInterval !== undefined)
+    next.push(`Offer to check in with ${b.person.name} every ${b.suggestedInterval} days; save it with set_interval once the user agrees.`);
+  return next;
+}
+
+function foundNext(name: string, people: Candidate[]): Next {
+  if (!people.length) return [`No one in the book is called "${name}". Ask the user whether this is someone new; if so, file them as a new person with record_conversation.`];
+  if (people.length === 1) return [];
+  const list = people.map((p) => `${p.name} (id ${p.id}${p.context.length ? `; ${p.context.join(", ")}` : ""})`).join(", ");
+  return [`${people.length} people match "${name}": ${list}. Ask the user which one they mean; never guess.`];
 }
 
 // A named API schema (.meta({ id })) converts to a bare $ref, and a tool's schema must be an object at its root; a copy
 // made by extend() carries no id, so it converts inline.
 const NewConversation = NewConversationJson.extend({});
 const Recorded = RecordedJson.extend({});
+const Filed = FiledItemsJson.extend({});
 const BriefingOut = BriefingJson.extend({});
 const CalendarFeed = CalendarFeedJson.extend({});
 
@@ -92,7 +169,9 @@ const DueJson = z.object({
 const RelatedJson = z.object({
   id: z.string().optional().describe("The relationship's id (the first, for \"us\"), or the group's"),
   ids: z.array(z.string()).optional().describe("relationship: one per pair it stands for; \"us\" is one per household person. An existing one's id when it was already there"),
+  relationships: z.array(FiledRelationshipJson).optional().describe("relationship: each pair, and whether it was new"),
   added: z.number().int().optional().describe("How many group memberships were new; one the user already recorded is kept as it was"),
+  already: z.number().int().optional().describe("group: how many of the members the user had put in it before"),
   url: z.string().optional().describe("For a relationship: the page of `from` (of `to` when from is \"me\" or \"us\"), which shows it; for a group: the group's page. An absolute URL"),
   name: z.string().optional().describe("group: the group's own name; the name given may have been another name of it"),
 });
@@ -104,14 +183,38 @@ const SetIntervalJson = IntervalJson.extend({
   url: z.string().describe("The person's page, as an absolute URL"),
 });
 const CALENDAR_ACTIONS = ["show", "replace", "revoke"] as const;
+const Relabels = z.array(
+  z.object({
+    id: z.string(),
+    fromId: PersonId,
+    fromName: z.string(),
+    toId: PersonId,
+    toName: z.string(),
+    label: z.string().describe("What from is to to"),
+    inverse: z.string().describe("What to is to from"),
+  }),
+);
 const CorrectedJson = z.object({
   corrected: z.literal(true),
-  relabel: z
-    .array(z.object({ id: z.string(), fromName: z.string(), toName: z.string(), label: z.string().describe("What from is to to"), inverse: z.string().describe("What to is to from") }))
+  fact: z
+    .object({
+      id: z.string(),
+      personId: PersonId,
+      name: z.string(),
+      text: z.string(),
+      kind: FactKind,
+      checkAfter: Day.nullable(),
+      defaultCheckAfter: z.boolean().optional().describe("edit: the server chose checkAfter, six weeks from now, as the fact just became a situation"),
+      status: z.enum(["current", "outdated"]),
+    })
     .optional()
-    .describe(
-      "gender: the person's relationships the user recorded. Their words are written in each end's gender: put the person's end in the new gender with edit, table relationships, patch { label } or { inverse } (Vermieter:in → Vermieterin), in the same turn",
-    ),
+    .describe("outdated, and edit of a fact: the fact as it now stands"),
+  moved: z
+    .object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), relationships: z.number().int(), conversations: z.number().int(), groups: z.number().int() })
+    .optional()
+    .describe("merge: what moved over to the person kept, as the user may see it"),
+  relationships: z.array(FiledRelationshipJson).optional().describe("to_relationship: each pair, and whether it was new"),
+  relabel: Relabels.optional().describe("gender: the person's relationships the user recorded, whose words are written in each end's gender"),
 });
 const TranscriptJson = z.object({
   conversationId: z.string(),
@@ -337,46 +440,69 @@ const RememberInput = z.object({
 const RememberedJson = z.object({
   counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), genders: z.number().int() }),
   people: z.array(z.object({ id: PersonId, name: z.string(), url: z.string() })).describe("The people it is about, with a link to each"),
+  filed: Filed.describe("Everything filed, with ids and links"),
+  relabel: Relabels.describe("genders: the relationships the user recorded of each person given a gender, whose words are written in each end's gender"),
 });
 
 export const TOOLS: readonly Tool[] = [
   tool({
     name: "record_conversation",
     description:
-      'File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise: when the user says when it happened ("the day before yesterday"), pass that day. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary. Who someone is to the household ("she\'s our landlady", "our neighbour", "my doctor") is a relationship to "us" (everyone in the household, one relationship each) or "me", never a fact: "we rent from her" is from her to "us", label Vermieterin, inverse Mieter:in. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months), and say that day when you read back what you filed; everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct and file the outcome as a lasting fact if it is worth keeping. Set a person\'s gender only when the user states it or uses a pronoun for them ("she is our landlady"), never from the name.',
+      'File a conversation the user told you about, with the verbatim ramble as transcript, a short summary, who was involved and what was learned; use it after every ramble about meeting, calling or messaging someone. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise: when the user says when it happened ("the day before yesterday"), pass that day. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary. Who someone is to the household ("she\'s our landlady", "our neighbour", "my doctor") is a relationship to "us" (everyone in the household, one relationship each) or "me", never a fact: "we rent from her" is from her to "us", label Vermieterin, inverse Mieter:in. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. Set a person\'s gender only when the user states it or uses a pronoun for them ("she is our landlady"), never from the name.',
     input: NewConversation,
     output: Recorded,
     annotations: { destructiveHint: false },
-    handler: async (v, c) => ok(Recorded, await recordConversation(v, c)),
+    handler: async (v, c) => {
+      const r = await recordConversation(v, c);
+      return ok(Recorded, r, [
+        `Read back in one or two sentences what you filed, with the day it happened (${c.date}) and the link in url.`,
+        ...r.people.filter((p) => p.created).map((p) => `${p.name} is new in the book: say so in the read-back.`),
+        ...r.filed.facts.flatMap(situationDay),
+        ...r.filed.relationships.flatMap(keptRelationship),
+        ...r.filed.groups.flatMap(alreadyInGroup),
+      ]);
+    },
   }),
   tool({
     name: "remember",
     description:
-      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record_conversation instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months), and say that day when you read back what you filed; everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct and file the outcome as a lasting fact if it is worth keeping. A role (\"our landlady\") is not a fact: file it with relate. genders sets a person's gender, only when the user states it or uses a pronoun for them, never from the name.",
+      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record_conversation instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. A role (\"our landlady\") is not a fact: file it with relate. genders sets a person's gender, only when the user states it or uses a pronoun for them, never from the name; it returns the relationships to relabel.",
     input: RememberInput,
     output: RememberedJson,
     annotations: { destructiveHint: false },
-    handler: async (v, r) => ok(RememberedJson, await remember(v, r)),
+    handler: async (v, r) => {
+      const out = await remember(v, r);
+      return ok(RememberedJson, { ...out, relabel: out.genders.flatMap((g) => g.relabel) }, [
+        ...out.filed.facts.flatMap(situationDay),
+        ...out.genders.flatMap((g) => relabel(g.person, g.gender, g.relabel)),
+      ]);
+    },
   }),
   tool({
     name: "find_person",
     description:
-      "Find people by name or alias, tolerant of spelling, each with context that tells people of the same name apart; always call this before referring to a person by id. When more than one candidate fits, ask the user which one.",
+      "Find people by name or alias, tolerant of spelling, each with context that tells people of the same name apart; always call this before referring to a person by id.",
     input: z.object({
       name: z.string().describe("A name or alias, as the user said it"),
     }),
     output: FoundJson,
     annotations: { readOnlyHint: true },
-    handler: async (v, { name }) => ok(FoundJson, { people: await findPeople(v, name) }),
+    handler: async (v, { name }) => {
+      const people = await findPeople(v, name);
+      return ok(FoundJson, { people }, foundNext(name, people));
+    },
   }),
   tool({
     name: "briefing",
     description:
-      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name; answer \"how do I know X?\" from `roles` first, e.g. \"she's your landlady\"), what is going on (`situations`; ask about the ones with `nudge` first), what stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`: say where and when you know it from. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, or when they ask about a person.",
+      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name), what is going on (`situations`, with `nudge` once their day to ask has come), what stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, when they ask about a person, or \"how do I know X?\".",
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },
-    handler: async (v, { personId }) => ok(BriefingOut, await briefing(v, personId)),
+    handler: async (v, { personId }) => {
+      const b = await briefing(v, personId);
+      return ok(BriefingOut, b, briefingNext(b));
+    },
   }),
   tool({
     name: "whats_due",
@@ -388,7 +514,14 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: DueJson,
     annotations: { readOnlyHint: true },
-    handler: async (v, { from, horizonDays }) => ok(DueJson, { items: await whatsDue(v, from, horizonDays) }),
+    handler: async (v, { from, horizonDays }) => {
+      const items = await whatsDue(v, from, horizonDays);
+      return ok(
+        DueJson,
+        { items },
+        items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
+      );
+    },
   }),
   tool({
     name: "relate",
@@ -399,26 +532,12 @@ export const TOOLS: readonly Tool[] = [
     annotations: { destructiveHint: false },
     handler: async (v, input) => {
       const a = check(RelateArgs, input);
-      return ok(
-        RelatedJson,
-        a.kind === "relationship"
-          ? {
-              ...(await addRelationship(v, {
-                from: a.from,
-                to: a.to,
-                label: a.label,
-                inverse: a.inverse,
-                note: a.note,
-                visibility: a.visibility,
-              }).then(({ ids }) => ({ id: ids[0], ids }))),
-              url: personPath(isHouseholdWord(a.from) ? a.to : a.from),
-            }
-          : await addToGroup(v, {
-              name: a.name,
-              members: a.members,
-              visibility: a.visibility,
-            }),
-      );
+      if (a.kind === "group") {
+        const g = await addToGroup(v, { name: a.name, members: a.members, visibility: a.visibility });
+        return ok(RelatedJson, g, alreadyInGroup(g));
+      }
+      const { ids, relationships } = await addRelationship(v, { from: a.from, to: a.to, label: a.label, inverse: a.inverse, note: a.note, visibility: a.visibility });
+      return ok(RelatedJson, { id: ids[0], ids, relationships, url: personPath(isHouseholdWord(a.from) ? a.to : a.from) }, relationships.flatMap(keptRelationship));
     },
   }),
   tool({
@@ -445,7 +564,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "calendar_feed",
     description:
-      "The user's calendar feed: a secret ICS URL with every birthday (yearly, with the age when the year is known), the other dates and their own promises with a due date, to subscribe to in Google Calendar (\"From URL\") or any calendar app. `show` makes one when the user has none; when they already have one it can't be shown again (only its hash is kept), so tell them and offer `replace`. `replace` makes a new URL and `revoke` turns the feed off; both stop the old URL at once, so calendars subscribed to it go empty: ask the user before either. The URL lets anyone who has it read these dates, so give it only to the user. Google Calendar refreshes a subscribed feed only every few hours.",
+      "The user's calendar feed: a secret ICS URL with every birthday (yearly, with the age when the year is known), the other dates and their own promises with a due date, to subscribe to in Google Calendar (\"From URL\") or any calendar app. `show` makes one when the user has none; an existing one can't be shown again (only its hash is kept). `replace` makes a new URL and `revoke` turns the feed off; both stop the old URL at once, so calendars subscribed to it go empty: ask the user before either.",
     input: z.object({
       action: z.enum(CALENDAR_ACTIONS).default("show").describe("`show` (default) makes a feed when there is none; `replace` makes a new URL; `revoke` turns it off"),
     }),
@@ -454,31 +573,58 @@ export const TOOLS: readonly Tool[] = [
     handler: async (v, { action }) => {
       if (action === "revoke") {
         await revokeCalendarKey(v);
-        return ok(CalendarFeed, { active: false, created: false, url: null });
+        return ok(CalendarFeed, { active: false, created: false, url: null }, ["The feed is off: calendars subscribed to it go empty."]);
       }
-      if (action === "show" && (await hasCalendarKey(v))) return ok(CalendarFeed, { active: true, created: false, url: null });
-      return ok(CalendarFeed, { active: true, created: true, url: feedPath(await createCalendarKey(v)) });
+      if (action === "show" && (await hasCalendarKey(v)))
+        return ok(CalendarFeed, { active: true, created: false, url: null }, [
+          "The user already has a feed, whose URL can't be shown again: tell them, and offer replace, which makes a new URL and stops the old one at once.",
+        ]);
+      const replaced = action === "replace" && (await hasCalendarKey(v));
+      return ok(CalendarFeed, { active: true, created: true, url: feedPath(await createCalendarKey(v)) }, [
+        ...(replaced ? ["The old URL has stopped working: calendars subscribed to it need the new one."] : []),
+        'Give the URL only to the user: anyone who has it can read these dates. In Google Calendar it goes under "From URL", which refreshes every few hours.',
+      ]);
     },
   }),
   tool({
     name: "correct",
     description:
-      "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person or add an alias, set a person's gender (only when the user states it or uses a pronoun for them, never from the name; then put the relationships it returns as relabel in the new gender, with edit), turn a fact into a relationship, merge a duplicate or let the partner read a transcript. A fact moves between lasting and situation with edit, patch { kind, checkAfter }. Use it when the user says something is done, no longer true or wrong. If the conversation was on another day: edit, table conversations, patch { date }.",
+      "Fix something already filed: mark a promise done or an exchange settled, mark a fact outdated, edit or delete an item, change who can see it, rename a person or add an alias, set a person's gender (only when the user states it or uses a pronoun for them, never from the name; it returns the relationships to relabel), turn a fact into a relationship, merge a duplicate or let the partner read a transcript. A fact moves between lasting and situation with edit, patch { kind, checkAfter }. Use it when the user says something is done, no longer true or wrong. If the conversation was on another day: edit, table conversations, patch { date }.",
     input: CorrectInput,
     output: CorrectedJson,
     annotations: { destructiveHint: true },
     handler: async (v, input) => {
       const a = check(CorrectArgs, input);
-      if (a.action === "gender") return ok(CorrectedJson, { corrected: true as const, ...(await setGender(v, a.id, a.gender)) });
+      const corrected = true as const;
       switch (a.action) {
+        case "gender": {
+          const { relabel: rels } = await setGender(v, a.id, a.gender);
+          return ok(CorrectedJson, { corrected, relabel: rels }, relabel(a.id, a.gender, rels));
+        }
+        case "outdated": {
+          const fact = await markOutdated(v, a.id);
+          return ok(
+            CorrectedJson,
+            { corrected, fact },
+            fact.kind === "situation"
+              ? [`${fact.name}'s situation "${fact.text}" is outdated. When the user has told how it ended, file the outcome as a lasting fact with remember, if it is worth keeping.`]
+              : [],
+          );
+        }
+        case "edit": {
+          const { fact } = await editItem(v, a.table, a.id, a.patch);
+          return ok(CorrectedJson, { corrected, fact }, fact && ("kind" in a.patch || "checkAfter" in a.patch) ? situationDay(fact) : []);
+        }
+        case "merge": {
+          const m = await mergePeople(v, a.id, a.drop);
+          return ok(CorrectedJson, { corrected, moved: m.moved }, merged(m));
+        }
+        case "to_relationship": {
+          const { relationships } = await factToRelationship(v, a.id, { from: a.from, to: a.to, label: a.label, inverse: a.inverse, note: a.note });
+          return ok(CorrectedJson, { corrected, relationships }, relationships.flatMap(keptRelationship));
+        }
         case "done":
           await markDone(v, a.table, a.id);
-          break;
-        case "outdated":
-          await markOutdated(v, a.id);
-          break;
-        case "edit":
-          await editItem(v, a.table, a.id, a.patch);
           break;
         case "visibility":
           await setVisibility(v, a.table, a.id, a.visibility);
@@ -491,9 +637,6 @@ export const TOOLS: readonly Tool[] = [
           break;
         case "alias":
           await addAlias(v, a.id, a.alias);
-          break;
-        case "merge":
-          await mergePeople(v, a.id, a.drop);
           break;
         case "share_transcript":
           await shareTranscript(v, a.id);
@@ -516,11 +659,8 @@ export const TOOLS: readonly Tool[] = [
         case "group_delete":
           await deleteGroup(v, a.id);
           break;
-        case "to_relationship":
-          await factToRelationship(v, a.id, { from: a.from, to: a.to, label: a.label, inverse: a.inverse, note: a.note });
-          break;
       }
-      return ok(CorrectedJson, { corrected: true as const });
+      return ok(CorrectedJson, { corrected });
     },
   }),
   tool({
@@ -541,12 +681,11 @@ export const TOOLS: readonly Tool[] = [
     annotations: { readOnlyHint: true },
     handler: async (v, { conversationId }) => {
       const c = await getConversation(v, conversationId);
-      return ok(TranscriptJson, {
-        conversationId: c.id,
-        url: conversationPath(c.id),
-        date: c.date,
-        transcript: c.transcript,
-      });
+      return ok(
+        TranscriptJson,
+        { conversationId: c.id, url: conversationPath(c.id), date: c.date, transcript: c.transcript },
+        c.transcript === null ? ["The transcript is private to whoever recorded it: answer from the conversation's summary instead."] : [],
+      );
     },
   }),
 ];

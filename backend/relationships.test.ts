@@ -41,7 +41,7 @@ test("group memberships without a conversation; adding the same one again is a n
 });
 
 test("the same relationship again is not recorded twice, either way round and in either gender form", async () => {
-  const add = (from: string, to: string, label: string, inverse: string, note?: string) => addRelationship(s.a, { from, to, label, inverse, note, visibility: "shared" });
+  const add = (from: string, to: string, label: string, inverse: string, note?: string) => addRelationship(s.a, { from, to, label, inverse, note, visibility: "shared" }).then((r) => r.ids);
   const parent = await add(s.anna, s.tom, "Mutter", "Sohn");
   expect(await add(s.tom, s.anna, "Sohn", "Mutter")).toEqual(parent);
   expect(await add(s.anna, s.tom, "mutter ", "Sohn")).toEqual(parent);
@@ -57,16 +57,21 @@ test("the same relationship again is not recorded twice, either way round and in
   expect(await add(s.lena, s.tom, "Kolleg:in", "Kolleg:in")).toEqual(colleague);
   // the note it lacked is taken over
   expect(await add(s.tom, s.anna, "Sohn", "Mutter", "der Ältere")).toEqual(parent);
-  expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", parent.ids[0]).executeTakeFirstOrThrow()).note).toBe("der Ältere");
+  expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", parent[0]).executeTakeFirstOrThrow()).note).toBe("der Ältere");
 });
 
 test("a shared relationship of the partner counts; a private one doesn't, and isn't touched", async () => {
   const shared = await addRelationship(s.b, { from: s.anna, to: s.lena, label: "Geschwister", inverse: "Geschwister", visibility: "shared" });
-  expect(await addRelationship(s.a, { from: s.lena, to: s.anna, label: "Geschwister", inverse: "Geschwister", note: "Zwilling", visibility: "shared" })).toEqual(shared);
+  const again = await addRelationship(s.a, { from: s.lena, to: s.anna, label: "Geschwister", inverse: "Geschwister", note: "Zwilling", visibility: "shared" });
+  expect(again.ids).toEqual(shared.ids);
+  expect(again.relationships).toMatchObject([{ fromName: "Anna", toName: "Lena", created: false }]);
   expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", shared.ids[0]).executeTakeFirstOrThrow()).note).toBeNull();
 
   const secret = await addRelationship(s.b, { from: s.anna, to: s.tom, label: "Partner:in", inverse: "Partner:in", visibility: "private" });
-  expect(await addRelationship(s.a, { from: s.anna, to: s.tom, label: "Partner:in", inverse: "Partner:in", visibility: "shared" })).not.toEqual(secret);
+  const beside = await addRelationship(s.a, { from: s.anna, to: s.tom, label: "Partner:in", inverse: "Partner:in", visibility: "shared" });
+  expect(beside.ids).not.toEqual(secret.ids);
+  // It finds A's own from the seed, never B's.
+  expect(beside.relationships).toMatchObject([{ created: false, fromName: "Anna", toName: "Tom" }]);
 });
 
 const towards = async (id: string) => (await (await db()).selectFrom("relationships").select(["from_id", "to_id", "label"]).where("to_id", "=", id).orderBy("created_at").execute());

@@ -15,6 +15,8 @@ flowchart LR
   authentik["authentik"] -. "OIDC sign-in" .- pages
 ```
 
+The domain returns plain data. Over MCP and in the in-app chat, the tool layer (`backend/tools.ts`) adds `next` to every result: what Claude should do now, worked out from what the call did ([ADR 0010](../adr/0010-tool-results-tell-claude-what-to-do-next.md)).
+
 ## Sign-in
 
 - **Pages** use a sign-in cookie set after the authentik (OIDC) sign-in.

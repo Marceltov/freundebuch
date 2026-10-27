@@ -1,7 +1,7 @@
 // Relationships and group memberships set directly, without a conversation (relate): "Lena is Anna's sister", "Anna is in the
 // Uni group". They go through the same checks and writers as the ones recorded with a conversation, with conversation_id null.
 import type { Kysely } from "kysely";
-import { checkGroup, checkRelationship, checkVisibility, insertMemberships, insertRelationships, type ItemBase } from "./conversations";
+import { checkGroup, checkRelationship, checkVisibility, insertMemberships, insertRelationships, type FiledRelationship, type ItemBase } from "./conversations";
 import { db, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import type { Viewer, Visibility } from "./types";
@@ -20,18 +20,25 @@ async function assertPeople(tx: Kysely<Schema>, ids: string[]): Promise<void> {
   if (found.length !== unique.length) throw new NotFoundError("No such person");
 }
 
-/** `ids`: one per pair the targets stand for ("us" is one per household person), an existing one's when the viewer already sees it. */
-export async function addRelationship(v: Viewer, r: NewRelationship): Promise<{ ids: string[] }> {
+/**
+ * `ids`: one per pair the targets stand for ("us" is one per household person), an existing one's when the viewer already sees it;
+ * `relationships` says of each whether it was new.
+ */
+export async function addRelationship(v: Viewer, r: NewRelationship): Promise<{ ids: string[]; relationships: FiledRelationship[] }> {
   checkRelationship(r, () => {});
   checkVisibility(r.visibility);
   return (await db()).transaction().execute(async (tx) => {
     await assertPeople(tx, [r.from, r.to].filter((t) => !isHouseholdWord(t)));
-    return { ids: await insertRelationships(tx, v, baseOf(v), r) };
+    const relationships = await insertRelationships(tx, v, baseOf(v), r);
+    return { ids: relationships.map((x) => x.id), relationships };
   });
 }
 
-/** `added` counts the new memberships: one the viewer already recorded stays as it is. `name` is the group's own, which the given name may only be another name of. */
-export async function addToGroup(v: Viewer, g: NewMembership): Promise<{ added: number; id: string; name: string; url: string }> {
+/**
+ * `added` counts the new memberships, `already` the viewer's own that were there: one the viewer already recorded stays as it is.
+ * `name` is the group's own, which the given name may only be another name of.
+ */
+export async function addToGroup(v: Viewer, g: NewMembership): Promise<{ added: number; already: number; id: string; name: string; url: string }> {
   checkGroup(g, () => {});
   checkVisibility(g.visibility);
   if (!g.members.length) throw new InvalidInputError("A group membership needs at least one person");
@@ -39,6 +46,6 @@ export async function addToGroup(v: Viewer, g: NewMembership): Promise<{ added: 
     await assertPeople(tx, g.members);
     const { added, groupId: id } = await insertMemberships(tx, v, baseOf(v), g.name, g.members, g.visibility);
     const { name } = await tx.selectFrom("groups").select("name").where("id", "=", id).executeTakeFirstOrThrow();
-    return { added, id, name, url: groupPath(id) };
+    return { added, already: new Set(g.members).size - added, id, name, url: groupPath(id) };
   });
 }

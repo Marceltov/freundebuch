@@ -5,7 +5,7 @@ import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
-import { checkGender, insertPerson, namedLike } from "./people";
+import { checkGender, insertPerson, namedLike, relabelFor, type Relabel } from "./people";
 import {
   CONVERSATION_KINDS,
   EXCHANGE_KINDS,
@@ -22,7 +22,7 @@ import {
 } from "./types";
 import { resolveOrCreateGroup } from "./groups";
 import { isHouseholdWord, resolvePairs, type Target } from "./household";
-import { conversationPath, itemPath, personPath, type AnchoredTable } from "./urls";
+import { conversationPath, groupPath, itemPath, personPath, type AnchoredTable } from "./urls";
 import { visible } from "./visibility";
 
 /** An index into `NewConversation.people`. */
@@ -61,7 +61,26 @@ export type Recorded = {
   people: Array<{ ref: PersonRef; id: string; name: string; created: boolean; url: string }>;
   /** Items written; `groups` counts the group memberships written. */
   counts: Record<(typeof ITEM_KINDS)[number], number>;
+  filed: Filed & { relationships: FiledRelationship[]; groups: FiledGroup[] };
 };
+
+/** What was filed, item by item, each with the person it is about (`name`) and its row (`url`). Only the viewer's own rows. */
+type FiledItem = { id: string; personId: string; name: string; visibility: Visibility; url: string };
+/** `defaultCheckAfter`: the server chose checkAfter (SITUATION_DAYS from now) because none was given. */
+export type FiledFact = FiledItem & { text: string; kind: FactKind; checkAfter: string | null; defaultCheckAfter: boolean; supersedes: string | null };
+export type Filed = {
+  facts: FiledFact[];
+  promises: Array<FiledItem & { text: string; byMe: boolean; due: string | null }>;
+  dates: Array<FiledItem & { kind: DateKind; date: string; label: string | null; yearly: boolean }>;
+  exchanges: Array<FiledItem & { kind: ExchangeKind; direction: Direction; text: string }>;
+};
+/**
+ * A relationship as filed. `created` is false when the recorder already saw the same one (theirs, or a shared one), which was kept
+ * with its own words; the other user's private relationships are never compared, so one of theirs never shows here.
+ */
+export type FiledRelationship = { id: string; fromId: string; fromName: string; toId: string; toName: string; label: string; inverse: string; created: boolean; url: string };
+/** `already`: the members the viewer had put in the group before; only their own memberships count. */
+export type FiledGroup = { id: string; name: string; added: number; already: number; url: string };
 
 /** `url`: the item's row on the conversation's page, which lists everything filed from it, done and outdated ones too. */
 type Item = { id: string; visibility: Visibility; recordedBy: string; url: string };
@@ -155,8 +174,22 @@ function validateItems<P>(c: Items<P>, ref: (p: P) => void): void {
   }
 }
 
-/** Writes facts, promises, dates and exchanges, with or without a conversation (`base.conversation_id`); shared with remember(). */
-async function insertItems<P>(tx: Kysely<Schema>, v: Viewer, base: ItemBase, c: Items<P>, id: (p: P) => string, vis: (item: { private?: boolean }) => Visibility): Promise<void> {
+/**
+ * Writes facts, promises, dates and exchanges, with or without a conversation (`base.conversation_id`); shared with remember().
+ * Returns them as filed; `name` gives the name of the person an item is about, `page` the page that shows its row.
+ */
+async function insertItems<P>(
+  tx: Kysely<Schema>,
+  v: Viewer,
+  base: ItemBase,
+  c: Items<P>,
+  id: (p: P) => string,
+  vis: (item: { private?: boolean }) => Visibility,
+  name: (personId: string) => string,
+  page: (personId: string) => string,
+): Promise<Filed> {
+  const filed: Filed = { facts: [], promises: [], dates: [], exchanges: [] };
+  const about = (table: AnchoredTable, itemId: string, personId: string, visibility: Visibility) => ({ id: itemId, personId, name: name(personId), visibility, url: itemPath(page(personId), table, itemId) });
   for (const f of c.facts ?? []) {
     const factId = newId();
     const replaced = f.supersedes
@@ -173,29 +206,46 @@ async function insertItems<P>(tx: Kysely<Schema>, v: Viewer, base: ItemBase, c: 
       .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f) })
       .execute();
     if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
+    filed.facts.push({ ...about("facts", factId, id(f.person), vis(f)), text: f.text, kind, checkAfter, defaultCheckAfter: kind === "situation" && f.checkAfter === undefined, supersedes: f.supersedes ?? null });
   }
-  for (const p of c.promises ?? [])
-    await tx.insertInto("promises").values({ ...base, id: newId(), person_id: id(p.person), text: p.text, by_me: p.byMe ? 1 : 0, due: p.due ?? null, visibility: vis(p) }).execute();
-  for (const d of c.dates ?? [])
+  for (const p of c.promises ?? []) {
+    const promiseId = newId();
+    await tx.insertInto("promises").values({ ...base, id: promiseId, person_id: id(p.person), text: p.text, by_me: p.byMe ? 1 : 0, due: p.due ?? null, visibility: vis(p) }).execute();
+    filed.promises.push({ ...about("promises", promiseId, id(p.person), vis(p)), text: p.text, byMe: p.byMe, due: p.due ?? null });
+  }
+  for (const d of c.dates ?? []) {
+    const dateId = newId();
     await tx
       .insertInto("dates")
-      .values({ ...base, id: newId(), person_id: id(d.person), kind: d.kind as DateKind, date: d.date, label: d.label ?? null, yearly: d.yearly ? 1 : 0, visibility: vis(d) })
+      .values({ ...base, id: dateId, person_id: id(d.person), kind: d.kind as DateKind, date: d.date, label: d.label ?? null, yearly: d.yearly ? 1 : 0, visibility: vis(d) })
       .execute();
-  for (const e of c.exchanges ?? [])
+    filed.dates.push({ ...about("dates", dateId, id(d.person), vis(d)), kind: d.kind as DateKind, date: d.date, label: d.label ?? null, yearly: d.yearly });
+  }
+  for (const e of c.exchanges ?? []) {
+    const exchangeId = newId();
     await tx
       .insertInto("exchanges")
-      .values({ ...base, id: newId(), person_id: id(e.person), kind: e.kind, direction: e.direction as "to_them" | "from_them", text: e.text, amount: e.amount ?? null, currency: e.currency ?? null, visibility: vis(e) })
+      .values({ ...base, id: exchangeId, person_id: id(e.person), kind: e.kind, direction: e.direction as "to_them" | "from_them", text: e.text, amount: e.amount ?? null, currency: e.currency ?? null, visibility: vis(e) })
       .execute();
+    filed.exchanges.push({ ...about("exchanges", exchangeId, id(e.person), vis(e)), kind: e.kind as ExchangeKind, direction: e.direction as Direction, text: e.text });
+  }
+  return filed;
 }
 
 /**
  * Facts, promises, dates and exchanges about people the book already has, filed without a conversation: "Malou's birthday is 7
- * February". `genders` sets (null: clears) a person's gender, shared like the name.
+ * February". `genders` sets (null: clears) a person's gender, shared like the name; like setGender, each comes back with the
+ * person's relationships the viewer recorded, to put in it.
  */
 export type Remembered = { visibility: Visibility; genders?: Array<{ person: string; gender: Gender | null }> } & Items<string>;
 type RememberCounts = { facts: number; promises: number; dates: number; exchanges: number; genders: number };
 
-export async function remember(v: Viewer, r: Remembered): Promise<{ counts: RememberCounts; people: Array<{ id: string; name: string; url: string }> }> {
+export async function remember(v: Viewer, r: Remembered): Promise<{
+  counts: RememberCounts;
+  people: Array<{ id: string; name: string; url: string }>;
+  filed: Filed;
+  genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }>;
+}> {
   checkVisibility(r.visibility);
   const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0) + (r.genders?.length ?? 0);
   if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date, exchange or gender");
@@ -213,9 +263,16 @@ export async function remember(v: Viewer, r: Remembered): Promise<{ counts: Reme
     const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? [])].map((i) => i.person))];
     const people = await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute();
     if (people.length !== ids.length) throw new NotFoundError("No such person");
-    for (const g of r.genders ?? []) await tx.updateTable("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
-    await insertItems(tx, v, base, r, (p) => p, vis);
+    const genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }> = [];
+    for (const g of r.genders ?? []) {
+      await tx.updateTable("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
+      genders.push({ ...g, relabel: await relabelFor(tx, v, g.person) });
+    }
+    const names = new Map(people.map((p) => [p.id, p.name]));
+    const filed = await insertItems(tx, v, base, r, (p) => p, vis, (p) => names.get(p) ?? "", personPath);
     return {
+      filed,
+      genders,
       counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0, genders: r.genders?.length ?? 0 },
       people: people.map((p) => ({ id: p.id, name: p.name, url: personPath(p.id) })),
     };
@@ -281,14 +338,14 @@ export function sameRelationship(
 }
 
 /**
- * Records a relationship, unless the recorder already sees the same one (theirs, or a shared one): then that one's id comes
- * back, and it takes the note if it had none and is the recorder's.
+ * Records a relationship, unless the recorder already sees the same one (theirs, or a shared one): then that one comes back with
+ * its own words and `created` false, and it takes the note if it had none and is the recorder's.
  */
 export async function insertRelationship(
   tx: Kysely<Schema>,
   base: ItemBase,
   r: { fromId: string; toId: string; label: string; inverse: string; note?: string; visibility: Visibility },
-): Promise<string> {
+): Promise<{ id: string; fromId: string; toId: string; label: string; inverse: string; created: boolean }> {
   const row = { from_id: r.fromId, to_id: r.toId, label: r.label.trim(), inverse: r.inverse.trim() };
   const known = await tx
     .selectFrom("relationships")
@@ -300,25 +357,33 @@ export async function insertRelationship(
   const same = known.find((k) => sameRelationship(k, row));
   if (same) {
     if (!same.note?.trim() && r.note?.trim() && same.recorded_by === base.recorded_by) await tx.updateTable("relationships").set({ note: r.note }).where("id", "=", same.id).execute();
-    return same.id;
+    return { id: same.id, fromId: same.from_id, toId: same.to_id, label: same.label, inverse: same.inverse, created: false };
   }
   const id = newId();
   await tx.insertInto("relationships").values({ ...base, ...row, id, note: r.note?.trim() || null, visibility: r.visibility }).execute();
-  return id;
+  return { id, fromId: r.fromId, toId: r.toId, label: row.label, inverse: row.inverse, created: true };
 }
 
-/** Records a relationship between targets (household.ts), one per pair they stand for, each deduped by insertRelationship. */
+/**
+ * Records a relationship between targets (household.ts), one per pair they stand for, each deduped by insertRelationship. Each links
+ * to its row on the page of `from`, or of `to` when from is "me" or "us".
+ */
 export async function insertRelationships(
   tx: Kysely<Schema>,
   v: Viewer,
   base: ItemBase,
   r: { from: Target; to: Target; label: string; inverse: string; note?: string; visibility: Visibility },
-): Promise<string[]> {
+): Promise<FiledRelationship[]> {
   const pairs = await resolvePairs(tx, v, r.from, r.to);
   if (!pairs.length) throw new InvalidInputError("A relationship needs two different people");
-  const ids: string[] = [];
-  for (const [fromId, toId] of pairs) ids.push(await insertRelationship(tx, base, { fromId, toId, label: r.label, inverse: r.inverse, note: r.note, visibility: r.visibility }));
-  return ids;
+  const out: FiledRelationship[] = [];
+  for (const [fromId, toId] of pairs) {
+    const x = await insertRelationship(tx, base, { fromId, toId, label: r.label, inverse: r.inverse, note: r.note, visibility: r.visibility });
+    const names = new Map((await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", [x.fromId, x.toId]).execute()).map((p) => [p.id, p.name]));
+    const page = isHouseholdWord(r.from) ? toId : fromId;
+    out.push({ ...x, fromName: names.get(x.fromId) ?? "", toName: names.get(x.toId) ?? "", url: itemPath(personPath(page), "relationships", x.id) });
+  }
+  return out;
 }
 
 /** Adds the people to the group this name resolves to for the viewer (created when none does); returns it and how many memberships were new. */
@@ -405,15 +470,25 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     const present = new Set([v.personId, ...c.people.flatMap((p, r) => (p.present ? [id(r)] : []))]);
     for (const personId of present) await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).execute();
 
-    await insertItems(tx, v, base, c, id, vis);
+    const names = new Map(people.map((p) => [p.id, p.name]));
+    const filed = await insertItems(tx, v, base, c, id, vis, (p) => names.get(p) ?? "", () => conversationPath(conversationId));
     const target = (t: PersonRef | "me" | "us") => (isHouseholdWord(t) ? t : id(t));
-    let relationships = 0;
-    for (const r of c.relationships ?? []) relationships += (await insertRelationships(tx, v, base, { from: target(r.from), to: target(r.to), label: r.label, inverse: r.inverse, note: r.note, visibility: vis(r) })).length;
-    let memberships = 0;
-    for (const g of c.groups ?? []) memberships += (await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g))).added;
+    const relationships: FiledRelationship[] = [];
+    for (const r of c.relationships ?? []) relationships.push(...(await insertRelationships(tx, v, base, { from: target(r.from), to: target(r.to), label: r.label, inverse: r.inverse, note: r.note, visibility: vis(r) })));
+    const groups: FiledGroup[] = [];
+    for (const g of c.groups ?? []) {
+      const members = new Set(g.members.map(id)).size;
+      const { added, groupId } = await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g));
+      const { name } = await tx.selectFrom("groups").select("name").where("id", "=", groupId).executeTakeFirstOrThrow();
+      groups.push({ id: groupId, name, added, already: members - added, url: groupPath(groupId) });
+    }
 
-    const counts = { ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]), relationships, groups: memberships };
-    return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts };
+    const counts = {
+      ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]),
+      relationships: relationships.length,
+      groups: groups.reduce((n, g) => n + g.added, 0),
+    };
+    return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts, filed: { ...filed, relationships, groups } };
   });
 }
 

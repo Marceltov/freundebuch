@@ -16,11 +16,10 @@ export const INSTRUCTIONS = `freundebuch remembers what is going on in the lives
 Pass the ramble verbatim as transcript, never a summary. What the user tells you about someone outside a conversation (a birthday, a fact, a gift idea) goes to remember.
 Before recording, look for sensitive content: health, relationship trouble, money, anything said in confidence or "between us". If you find any, ask the user whether it should be private. Default to shared otherwise. When only part is sensitive, mark only those items private and keep that part out of the summary.
 Resolve every person with find_person first. When more than one candidate fits, or a new name resembles an existing person, ask the user which one; never guess and never create a duplicate.
-After recording, read back in one or two sentences what you filed, with the day it happened and the link to the conversation.
+Every tool result carries next: what to do now, worked out from what the call did (read back what was filed, tell the user a situation's day, ask about a nudging situation, offer an interval). Follow it before you answer.
 Every person, conversation and item comes with a url to it in the web app; give the user the link whenever they may want to look at something there.
-When a briefing has suggestedInterval, offer it to the user and save it with set_interval once they agree.
 Prefer an existing group, by name or other name, over a new one; when none fits, ask before creating one.
-Who someone is to the household ("our landlady", "my colleague") is a relationship to "us" or "me", never a fact; say in German words what each end is (label, inverse), in each one's gender. What is going on and will end is a situation with a checkAfter; tell the user the day you chose. News about a situation needs a new checkAfter: suggest one and agree it with the user before filing. When a briefing or whats_due has a situation to ask about, suggest asking ("ask Jonas whether he found a car").`;
+Who someone is to the household ("our landlady", "my colleague") is a relationship to "us" or "me", never a fact; say in German words what each end is (label, inverse), in each one's gender. What is going on and will end is a situation with a checkAfter. News about a situation needs a new checkAfter: suggest one and agree it with the user before filing.`;
 
 // A tool result: the body as structured content and, for clients that only read text, as JSON text. The body goes through the
 // tool's output schema first, which drops every field the schema doesn't name: what leaves is only what was declared. Its links

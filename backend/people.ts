@@ -38,7 +38,7 @@ export function checkGender(gender: unknown): asserts gender is Gender | null {
 }
 
 /** A relationship whose words may need the person's new gender: `label` what `from` is to `to`, `inverse` what `to` is to `from`. */
-export type Relabel = { id: string; fromName: string; toName: string; label: string; inverse: string };
+export type Relabel = { id: string; fromId: string; fromName: string; toId: string; toName: string; label: string; inverse: string };
 
 /**
  * Sets or (with null) clears a person's gender. Shared like the name, so either user may set it. The words of a relationship
@@ -50,6 +50,11 @@ export async function setGender(v: Viewer, personId: string, gender: Gender | nu
   const d = await db();
   const r = await d.updateTable("persons").set({ gender }).where("id", "=", personId).executeTakeFirst();
   if (!Number(r.numUpdatedRows)) throw new NotFoundError("No such person");
+  return { relabel: await relabelFor(d, v, personId) };
+}
+
+/** The person's relationships the viewer recorded, whose words may need the person's gender. */
+export async function relabelFor(d: Kysely<Schema>, v: Viewer, personId: string): Promise<Relabel[]> {
   const rels = await d
     .selectFrom("relationships")
     .select(["id", "from_id", "to_id", "label", "inverse"])
@@ -61,8 +66,7 @@ export async function setGender(v: Viewer, personId: string, gender: Gender | nu
     .execute();
   const ids = [...new Set(rels.flatMap((x) => [x.from_id, x.to_id]))];
   const names = new Map(ids.length ? (await d.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute()).map((p) => [p.id, p.name]) : []);
-  const relabel = rels.map((x) => ({ id: x.id, fromName: names.get(x.from_id) ?? "", toName: names.get(x.to_id) ?? "", label: x.label, inverse: x.inverse }));
-  return { relabel };
+  return rels.map((x) => ({ id: x.id, fromId: x.from_id, fromName: names.get(x.from_id) ?? "", toId: x.to_id, toName: names.get(x.to_id) ?? "", label: x.label, inverse: x.inverse }));
 }
 
 export async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {

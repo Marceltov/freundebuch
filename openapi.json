@@ -3948,7 +3948,7 @@
                 },
                 "checkAfter": {
                   "type": "string",
-                  "description": "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation keeps its interval when left out"
+                  "description": "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation must give a new one"
                 }
               },
               "required": [
@@ -4276,13 +4276,375 @@
               "relationships",
               "groups"
             ]
+          },
+          "filed": {
+            "type": "object",
+            "properties": {
+              "facts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the person it is about"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "lasting",
+                        "situation"
+                      ]
+                    },
+                    "checkAfter": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "A day, `YYYY-MM-DD`"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "A situation's day to ask how it went; null for a lasting fact"
+                    },
+                    "defaultCheckAfter": {
+                      "type": "boolean",
+                      "description": "Whether the server chose checkAfter, six weeks from now, because none was given"
+                    },
+                    "supersedes": {
+                      "description": "The fact it replaced, now outdated",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personId",
+                    "name",
+                    "visibility",
+                    "url",
+                    "text",
+                    "kind",
+                    "checkAfter",
+                    "defaultCheckAfter",
+                    "supersedes"
+                  ]
+                }
+              },
+              "promises": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the person it is about"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "byMe": {
+                      "type": "boolean"
+                    },
+                    "due": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "A day, `YYYY-MM-DD`"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personId",
+                    "name",
+                    "visibility",
+                    "url",
+                    "text",
+                    "byMe",
+                    "due"
+                  ]
+                }
+              },
+              "dates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the person it is about"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "birthday",
+                        "anniversary",
+                        "custom"
+                      ]
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "yearly": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personId",
+                    "name",
+                    "visibility",
+                    "url",
+                    "kind",
+                    "date",
+                    "label",
+                    "yearly"
+                  ]
+                }
+              },
+              "exchanges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the person it is about"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "gift_idea",
+                        "gift",
+                        "money",
+                        "lent",
+                        "help"
+                      ]
+                    },
+                    "direction": {
+                      "type": "string",
+                      "enum": [
+                        "to_them",
+                        "from_them"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personId",
+                    "name",
+                    "visibility",
+                    "url",
+                    "kind",
+                    "direction",
+                    "text"
+                  ]
+                }
+              },
+              "relationships": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "fromId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "fromName": {
+                      "type": "string"
+                    },
+                    "toId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "toName": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "What from is to to, as stored: an existing relationship keeps its own words"
+                    },
+                    "inverse": {
+                      "type": "string",
+                      "description": "What to is to from, as stored"
+                    },
+                    "created": {
+                      "type": "boolean",
+                      "description": "false when the caller already saw the same relationship, which was kept as it was"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Its highlighted row on the page of from (of to when from is the household), as an absolute URL"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "fromId",
+                    "fromName",
+                    "toId",
+                    "toName",
+                    "label",
+                    "inverse",
+                    "created",
+                    "url"
+                  ]
+                },
+                "description": "One per pair: \"us\" is one per household person"
+              },
+              "groups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The group's own name; the name given may have been another name of it"
+                    },
+                    "added": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "already": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "How many of the members the caller had put in it before"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "added",
+                    "already",
+                    "url"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "facts",
+              "promises",
+              "dates",
+              "exchanges",
+              "relationships",
+              "groups"
+            ],
+            "description": "Everything filed, with ids and links"
           }
         },
         "required": [
           "conversationId",
           "url",
           "people",
-          "counts"
+          "counts",
+          "filed"
         ]
       },
       "Conversation": {

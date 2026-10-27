@@ -5,12 +5,12 @@
 import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { moveMembership } from "./groups";
-import { checkLabel, checkRelationship, insertRelationships, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS } from "./conversations";
+import { checkLabel, checkRelationship, insertRelationships, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS, type FiledRelationship } from "./conversations";
 import { resolveTarget, type Target } from "./household";
 import { db, now, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBILITIES, type Viewer, type Visibility } from "./types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBILITIES, type FactKind, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
 import { pruneScreenshots } from "./screenshots";
 
@@ -61,11 +61,25 @@ export async function markDone(v: Viewer, table: "promises" | "exchanges", id: s
     .execute();
 }
 
+/** A fact as it stands after a correction, with the name of the person it is about. */
+export type FactState = { id: string; personId: string; name: string; text: string; kind: FactKind; checkAfter: string | null; status: "current" | "outdated" };
+
+async function factState(d: Kysely<Schema>, id: string): Promise<FactState> {
+  const f = await d
+    .selectFrom("facts")
+    .innerJoin("persons", "persons.id", "facts.person_id")
+    .select(["facts.id", "facts.person_id", "persons.name", "facts.text", "facts.kind", "facts.check_after", "facts.status"])
+    .where("facts.id", "=", id)
+    .executeTakeFirstOrThrow();
+  return { id: f.id, personId: f.person_id, name: f.name, text: f.text, kind: f.kind as FactKind, checkAfter: f.check_after, status: f.status as FactState["status"] };
+}
+
 /** Marks a fact outdated. A shared fact may be marked by either user. */
-export async function markOutdated(v: Viewer, factId: string): Promise<void> {
+export async function markOutdated(v: Viewer, factId: string): Promise<FactState> {
   const d = await db();
   await load(d, v, "facts", factId, false);
   await d.updateTable("facts").set({ status: "outdated" }).where("id", "=", factId).execute();
+  return factState(d, factId);
 }
 
 // What each table lets its recorder edit: the patch key, the column it writes and the check on the value. Who or what an item is
@@ -161,8 +175,11 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
   },
 };
 
-/** Changes the given fields of an item the viewer recorded. */
-export async function editItem(v: Viewer, table: ItemTable, id: string, patch: Record<string, unknown>): Promise<void> {
+/**
+ * Changes the given fields of an item the viewer recorded. A fact comes back as it now stands; `defaultCheckAfter` when it just
+ * became a situation without a checkAfter, so the server chose the day (SITUATION_DAYS from now).
+ */
+export async function editItem(v: Viewer, table: ItemTable, id: string, patch: Record<string, unknown>): Promise<{ fact?: FactState & { defaultCheckAfter: boolean } }> {
   assertTable(table);
   const d = await db();
   const row = await load(d, v, table, id, true);
@@ -183,19 +200,24 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
       throw new InvalidInputError(`A date must be a real date as YYYY-MM-DD, or --MM-DD when yearly; got "${date}"`);
   }
   // A lasting fact has no day to ask again; a situation always has one, the default when it just became one.
+  let defaultCheckAfter = false;
   if (table === "facts") {
     const kind = (set.kind ?? (row as unknown as { kind: string }).kind) as string;
     if (kind === "lasting") {
       if ("check_after" in set && set.check_after !== null) throw new InvalidInputError("checkAfter is for a situation; make it one with kind: situation");
       set.check_after = null;
     } else if (set.check_after === null) throw new InvalidInputError("A situation needs a checkAfter day; make it lasting to drop it");
-    else if (set.kind && !("check_after" in set)) set.check_after = addDays(today(), SITUATION_DAYS);
+    else if (set.kind && !("check_after" in set)) {
+      set.check_after = addDays(today(), SITUATION_DAYS);
+      defaultCheckAfter = true;
+    }
   }
   await d
     .updateTable(table as "facts")
     .set(set)
     .where("id", "=", id)
     .execute();
+  return table === "facts" ? { fact: { ...(await factState(d, id)), defaultCheckAfter } } : {};
 }
 
 /** Whether the conversation, or anything recorded with it (memberships included), is private. */
@@ -309,19 +331,23 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
  * Turns a fact the viewer recorded into a relationship ("Unsere Vermieterin" → Vermieterin of us), which keeps the fact's visibility
  * and conversation; the fact goes. The fact's person must be on one end.
  */
-export async function factToRelationship(v: Viewer, factId: string, r: { from: Target; to: Target; label: string; inverse: string; note?: string }): Promise<{ ids: string[] }> {
+export async function factToRelationship(
+  v: Viewer,
+  factId: string,
+  r: { from: Target; to: Target; label: string; inverse: string; note?: string },
+): Promise<{ ids: string[]; relationships: FiledRelationship[] }> {
   checkRelationship(r, () => {});
   const d = await db();
-  const ids = await d.transaction().execute(async (tx) => {
+  const relationships = await d.transaction().execute(async (tx) => {
     const fact = (await load(tx, v, "facts", factId, true)) as Row & { person_id: string };
     const [froms, tos] = await Promise.all([resolveTarget(tx, v, r.from), resolveTarget(tx, v, r.to)]);
     if (!froms.includes(fact.person_id) && !tos.includes(fact.person_id)) throw new InvalidInputError("The relationship must have the fact's person on one end");
-    const ids = await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, created_at: now() }, { ...r, visibility: fact.visibility as Visibility });
+    const filed = await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, created_at: now() }, { ...r, visibility: fact.visibility as Visibility });
     await tx.deleteFrom("facts").where("id", "=", factId).execute();
-    return ids;
+    return filed;
   });
   await pruneScreenshots();
-  return { ids };
+  return { ids: relationships.map((x) => x.id), relationships };
 }
 
 export async function renamePerson(v: Viewer, id: string, name: string): Promise<void> {
@@ -337,21 +363,24 @@ export async function renamePerson(v: Viewer, id: string, name: string): Promise
   });
 }
 
+/** What a merge moved over, as the viewer may see it: the other user's private items move too, but never count here. */
+export type Moved = { facts: number; promises: number; dates: number; exchanges: number; relationships: number; conversations: number; groups: number };
+
 /**
  * Merges the duplicate `dropId` into `keepId`: every item, alias, participant and setting moves over with its visibility, and the
  * dropped person goes. Rows that would collide with one `keepId` already has are dropped instead of moved. The dropped person may
- * not be a user's own person (a duplicate can be merged into one).
+ * not be a user's own person (a duplicate can be merged into one). Returns the names and what moved that the viewer may see.
  */
-export async function mergePeople(v: Viewer, keepId: string, dropId: string): Promise<void> {
-  void v;
+export async function mergePeople(v: Viewer, keepId: string, dropId: string): Promise<{ kept: string; dropped: string; moved: Moved }> {
   if (keepId === dropId) throw new InvalidInputError("Can't merge a person into themselves");
   const d = await db();
-  await d.transaction().execute(async (tx) => {
+  return d.transaction().execute(async (tx) => {
     const keep = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", keepId).executeTakeFirst();
     const drop = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", dropId).executeTakeFirst();
     if (!keep || !drop) throw new NotFoundError("No such person");
     const own = await tx.selectFrom("users").select("id").where("person_id", "=", dropId).executeTakeFirst();
     if (own) throw new InvalidInputError("Can't merge a user's own person");
+    const moved = await movable(tx, v, keepId, dropId);
 
     for (const t of ["facts", "promises", "dates", "exchanges"] as const)
       await tx.updateTable(t).set({ person_id: keepId }).where("person_id", "=", dropId).execute();
@@ -421,5 +450,49 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
     }
 
     await tx.deleteFrom("persons").where("id", "=", dropId).execute(); // takes the remaining settings and rows with it
+    return { kept: keep.name, dropped: drop.name, moved };
   });
+}
+
+/** What of `dropId` a merge into `keepId` moves over, counting only rows the viewer may see. */
+async function movable(tx: Kysely<Schema>, v: Viewer, keepId: string, dropId: string): Promise<Moved> {
+  const count = async (q: { executeTakeFirstOrThrow(): Promise<{ n: number | string | bigint }> }) => Number((await q.executeTakeFirstOrThrow()).n);
+  const items = async (t: "facts" | "promises" | "dates" | "exchanges") =>
+    count(
+      tx
+        .selectFrom(t)
+        .select((eb) => eb.fn.countAll().as("n"))
+        .where("person_id", "=", dropId)
+        .$call((qb) => visible(qb, v, t)),
+    );
+  return {
+    facts: await items("facts"),
+    promises: await items("promises"),
+    dates: await items("dates"),
+    exchanges: await items("exchanges"),
+    // One between the two goes instead.
+    relationships: await count(
+      tx
+        .selectFrom("relationships")
+        .select((eb) => eb.fn.countAll().as("n"))
+        .where((eb) => eb.or([eb("from_id", "=", dropId), eb("to_id", "=", dropId)]))
+        .where((eb) => eb.and([eb("from_id", "!=", keepId), eb("to_id", "!=", keepId)]))
+        .$call((qb) => visible(qb, v, "relationships")),
+    ),
+    conversations: await count(
+      tx
+        .selectFrom("participants")
+        .innerJoin("conversations", "conversations.id", "participants.conversation_id")
+        .select((eb) => eb.fn.countAll().as("n"))
+        .where("participants.person_id", "=", dropId)
+        .$call((qb) => visible(qb, v, "conversations")),
+    ),
+    groups: await count(
+      tx
+        .selectFrom("group_members")
+        .select((eb) => eb.fn.countAll().as("n"))
+        .where("person_id", "=", dropId)
+        .$call((qb) => visible(qb, v, "group_members")),
+    ),
+  };
 }

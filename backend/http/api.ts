@@ -406,7 +406,7 @@ const OPS: AnyOp[] = [
     params: { id: IdParam },
     body: FactRelationshipJson,
     responses: { 201: { description: "The relationships", schema: RelationshipIdsJson }, 400: E400, 401: E401, 403: E403, 404: E404 },
-  }).handle(async ({ viewer, params, body }) => ({ status: 201, body: await factToRelationship(viewer, params.id, body) })),
+  }).handle(async ({ viewer, params, body }) => ({ status: 201, body: { ids: (await factToRelationship(viewer, params.id, body)).ids } })),
 
   op({
     method: "DELETE",

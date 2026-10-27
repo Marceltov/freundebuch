@@ -165,7 +165,7 @@ test("a gender change returns the person's relationships the viewer recorded, to
   const mine = await rel(a, anna, tom, "Vermieter:in", "Mieter");
   await rel(b, tom, anna, "Kollege", "Kolleg:in");
   await rel(b, anna, a.personId, "Nachbar:in", "Nachbar", "private");
-  expect(await setGender(a, anna, "female")).toEqual({ relabel: [{ id: mine, fromName: "Anna", toName: "Tom", label: "Vermieter:in", inverse: "Mieter" }] });
+  expect(await setGender(a, anna, "female")).toEqual({ relabel: [{ id: mine, fromId: anna, fromName: "Anna", toId: tom, toName: "Tom", label: "Vermieter:in", inverse: "Mieter" }] });
   // The partner gets their own, and never A's.
   expect((await setGender(b, anna, "female")).relabel.map((r) => [r.fromName, r.label])).toEqual([
     ["Tom", "Kollege"],

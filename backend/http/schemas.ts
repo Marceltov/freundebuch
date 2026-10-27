@@ -228,7 +228,7 @@ export const FactKind = z
   .enum(FACT_KINDS)
   .describe("`situation`: going on and will end (moving, a new dog, looking for a car); `lasting` (default): stays true. A fact that supersedes another keeps its kind unless given");
 export const CheckAfter = Day.describe(
-  "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation keeps its interval when left out",
+  "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation must give a new one",
 );
 const Private = z.boolean().optional().describe("Makes just this item private; a private conversation makes every item private");
 
@@ -299,6 +299,41 @@ export const NewConversationJson = z
   })
   .meta({ id: "NewConversation" });
 
+// What a write filed, item by item: only the caller's own rows, or (a relationship that was there) one they may see.
+const Filed = {
+  id: z.string(),
+  personId: PersonId,
+  name: z.string().describe("The name of the person it is about"),
+  visibility: Visibility,
+  url: ItemUrl,
+};
+export const FiledItemsJson = z.object({
+  facts: z.array(
+    z.object({
+      ...Filed,
+      text: z.string(),
+      kind: z.enum(FACT_KINDS),
+      checkAfter: Day.nullable().describe("A situation's day to ask how it went; null for a lasting fact"),
+      defaultCheckAfter: z.boolean().describe("Whether the server chose checkAfter, six weeks from now, because none was given"),
+      supersedes: z.string().nullable().describe("The fact it replaced, now outdated"),
+    }),
+  ),
+  promises: z.array(z.object({ ...Filed, text: z.string(), byMe: z.boolean(), due: Day.nullable() })),
+  dates: z.array(z.object({ ...Filed, kind: z.enum(["birthday", "anniversary", "custom"]), date: z.string(), label: z.string().nullable(), yearly: z.boolean() })),
+  exchanges: z.array(z.object({ ...Filed, kind: z.enum(EXCHANGE_KINDS), direction: Direction, text: z.string() })),
+});
+export const FiledRelationshipJson = z.object({
+  id: z.string(),
+  fromId: PersonId,
+  fromName: z.string(),
+  toId: PersonId,
+  toName: z.string(),
+  label: z.string().describe("What from is to to, as stored: an existing relationship keeps its own words"),
+  inverse: z.string().describe("What to is to from, as stored"),
+  created: z.boolean().describe("false when the caller already saw the same relationship, which was kept as it was"),
+  url: ItemUrl.describe("Its highlighted row on the page of from (of to when from is the household), as an absolute URL"),
+});
+
 export const RecordedJson = z
   .object({
     conversationId: z.string(),
@@ -312,6 +347,18 @@ export const RecordedJson = z
       relationships: z.number().int(),
       groups: z.number().int().describe("The group memberships written"),
     }),
+    filed: FiledItemsJson.extend({
+      relationships: z.array(FiledRelationshipJson).describe('One per pair: "us" is one per household person'),
+      groups: z.array(
+        z.object({
+          id: z.string(),
+          name: z.string().describe("The group's own name; the name given may have been another name of it"),
+          added: z.number().int(),
+          already: z.number().int().describe("How many of the members the caller had put in it before"),
+          url: Url,
+        }),
+      ),
+    }).describe("Everything filed, with ids and links"),
   })
   .meta({ id: "Recorded" });
 
