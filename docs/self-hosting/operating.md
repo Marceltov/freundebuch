@@ -29,7 +29,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Database migrations run on start. The image tag `main` follows the main branch.
+Database migrations run on start. The image tag `main` follows the main branch. Each release is also published under its version (`0.2.0`), its minor version (`0.2`) and `latest`; pin one of those to upgrade only when you choose. The [releases](https://github.com/Marceltov/freundebuch/releases) say what changed, and the same notes go to the [notefeed feed](https://notefeed.me/r/freundebuch).
 
 ## Logs
 
