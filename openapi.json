@@ -162,9 +162,9 @@
         }
       },
       "patch": {
-        "operationId": "renamePerson",
-        "summary": "Rename a person",
-        "description": "Names are shared: the other user sees the new name too.",
+        "operationId": "updatePerson",
+        "summary": "Rename a person, or set their gender",
+        "description": "Names and gender are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
         "tags": [
           "People"
         ],
@@ -192,7 +192,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PersonName"
+                "$ref": "#/components/schemas/PersonPatch"
               }
             }
           }
@@ -1528,6 +1528,97 @@
         }
       }
     },
+    "/api/v1/items/facts/{id}/relationship": {
+      "post": {
+        "operationId": "factToRelationship",
+        "summary": "Turn a fact into a relationship",
+        "description": "For a fact that says who someone is (\"unsere Vermieterin\"): it becomes a relationship with the fact's visibility, and the fact is deleted. `from` and `to` take a person id, \"me\" or \"us\". Only the fact's recorder may.",
+        "tags": [
+          "Items"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactRelationship"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The relationships",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationshipIds"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The item is visible to the caller but only its recorder may change it (`forbidden`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/settings": {
       "get": {
         "operationId": "getSettings",
@@ -2373,16 +2464,100 @@
           "url"
         ]
       },
-      "PersonName": {
+      "PersonPatch": {
         "type": "object",
         "properties": {
           "name": {
+            "description": "The person's new name",
+            "type": "string"
+          },
+          "gender": {
+            "description": "The person's gender; null clears it",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "female",
+                  "male",
+                  "nonbinary"
+                ],
+                "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "FactRelationship": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A person's id"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "me",
+                  "us"
+                ],
+                "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+              }
+            ]
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A person's id"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "me",
+                  "us"
+                ],
+                "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+              }
+            ]
+          },
+          "label": {
             "type": "string",
-            "description": "The person's new name"
+            "description": "What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)"
+          },
+          "inverse": {
+            "type": "string",
+            "description": "What `to` is to `from`, the same way: Mieter, Mutter, Kollegin, Nachbar:in"
+          },
+          "note": {
+            "type": "string"
           }
         },
         "required": [
-          "name"
+          "from",
+          "to",
+          "label",
+          "inverse"
+        ],
+        "description": "The relationship a fact becomes; one end is the fact's person"
+      },
+      "RelationshipIds": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One per pair; \"us\" is one per household person"
+          }
+        },
+        "required": [
+          "ids"
         ]
       },
       "Group": {
@@ -2621,6 +2796,23 @@
             "items": {
               "type": "string"
             }
+          },
+          "gender": {
+            "description": "null when it isn't known; absent in a search",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "female",
+                  "male",
+                  "nonbinary"
+                ],
+                "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2702,6 +2894,23 @@
                   }
                 ],
                 "description": "The person's birthday as the caller may see it, however far away"
+              },
+              "gender": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "female",
+                      "male",
+                      "nonbinary"
+                    ],
+                    "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "null when it isn't known"
               }
             },
             "required": [
@@ -2709,8 +2918,47 @@
               "name",
               "aliases",
               "url",
-              "birthday"
+              "birthday",
+              "gender"
             ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "description": "What the person is to the household, in the words filed: Vermieterin, Ärztin, Klempner"
+                },
+                "with": {
+                  "type": "string",
+                  "enum": [
+                    "me",
+                    "partner",
+                    "us"
+                  ],
+                  "description": "To whom, from the caller's side: `us` both of the household, `me` the caller, `partner` the other user"
+                },
+                "partnerName": {
+                  "description": "The other user's name, when `with` is `partner`",
+                  "type": "string"
+                },
+                "ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The relationships it stands for (table `relationships`), one per household person"
+                }
+              },
+              "required": [
+                "label",
+                "with",
+                "ids"
+              ]
+            },
+            "description": "Who the person is to the household (\"your landlady\", \"Sybille's colleague\"): the first thing to say about them"
           },
           "groups": {
             "type": "array",
@@ -2843,7 +3091,85 @@
               ]
             }
           },
-          "current": {
+          "situations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "work",
+                    "home",
+                    "family",
+                    "health",
+                    "hobby",
+                    "travel",
+                    "other"
+                  ]
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                },
+                "source": {
+                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                  "type": "string"
+                },
+                "happenedOn": {
+                  "description": "When it happened, when the screenshot showed it",
+                  "type": "string"
+                },
+                "imageUrl": {
+                  "description": "The screenshot it was read from (sign-in required)",
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "Whether the caller recorded it; only then may they edit it, change its visibility or delete it"
+                },
+                "since": {
+                  "type": "string",
+                  "description": "When the latest news about it was filed"
+                },
+                "checkAfter": {
+                  "type": "string",
+                  "description": "When to ask how it went"
+                },
+                "nudge": {
+                  "type": "boolean",
+                  "description": "checkAfter has come: ask about it"
+                }
+              },
+              "required": [
+                "id",
+                "text",
+                "category",
+                "url",
+                "visibility",
+                "mine",
+                "since",
+                "checkAfter",
+                "nudge"
+              ]
+            },
+            "description": "What is going on and will end, nudging ones first: the best things to ask about"
+          },
+          "known": {
             "type": "array",
             "items": {
               "type": "object",
@@ -2903,7 +3229,8 @@
                 "visibility",
                 "mine"
               ]
-            }
+            },
+            "description": "What stays true about the person, by category"
           },
           "open": {
             "type": "object",
@@ -3135,22 +3462,15 @@
                 "name": {
                   "type": "string"
                 },
-                "type": {
+                "label": {
                   "type": "string",
-                  "enum": [
-                    "partner",
-                    "spouse",
-                    "parent",
-                    "child",
-                    "sibling",
-                    "friend",
-                    "colleague",
-                    "introduced_by",
-                    "other"
-                  ]
+                  "description": "What `from` is to `to`, as stored"
+                },
+                "inverse": {
+                  "type": "string",
+                  "description": "What `to` is to `from`, as stored"
                 },
                 "note": {
-                  "description": "What the relationship is, in words, above all for `other` (\"Patentante\")",
                   "type": [
                     "string",
                     "null"
@@ -3174,7 +3494,7 @@
                     "out",
                     "in"
                   ],
-                  "description": "`out` when the person is the `from` side of the relationship"
+                  "description": "`out` when the person is `from` (so `inverse` is what the other is to them), `in` when they are `to` (`label` is)"
                 },
                 "url": {
                   "type": "string",
@@ -3185,7 +3505,8 @@
                 "id",
                 "personId",
                 "name",
-                "type",
+                "label",
+                "inverse",
                 "note",
                 "visibility",
                 "mine",
@@ -3193,6 +3514,101 @@
                 "url"
               ]
             }
+          },
+          "network": {
+            "type": "object",
+            "properties": {
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "gender": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "female",
+                            "male",
+                            "nonbinary"
+                          ],
+                          "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "self",
+                        "household",
+                        "other"
+                      ],
+                      "description": "`self` the person, `household` one of us, `other` the person's own people"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "gender",
+                    "role",
+                    "url"
+                  ]
+                }
+              },
+              "edges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "to": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "What `from` is to `to`"
+                    },
+                    "inverse": {
+                      "type": "string",
+                      "description": "What `to` is to `from`"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "from",
+                    "to",
+                    "label",
+                    "inverse"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "nodes",
+              "edges"
+            ],
+            "description": "One hop around the person: the household persons they relate to, and their own people"
           },
           "suggestedInterval": {
             "description": "Only while the interval isn't confirmed, and only when the history is long enough to suggest one",
@@ -3203,13 +3619,16 @@
         },
         "required": [
           "person",
+          "roles",
           "groups",
           "freshness",
           "nextDates",
-          "current",
+          "situations",
+          "known",
           "open",
           "recent",
-          "relationships"
+          "relationships",
+          "network"
         ]
       },
       "DueItem": {
@@ -3220,8 +3639,10 @@
             "enum": [
               "date",
               "promise",
-              "overdue"
-            ]
+              "overdue",
+              "situation"
+            ],
+            "description": "`situation`: something going on whose checkAfter has come; ask how it went"
           },
           "personId": {
             "type": "string",
@@ -3244,7 +3665,7 @@
             "type": "boolean"
           },
           "itemId": {
-            "description": "On a date or a promise: its id",
+            "description": "On a date, a promise or a situation (a fact): its id",
             "type": "string"
           },
           "lastSeen": {
@@ -3269,7 +3690,7 @@
           },
           "url": {
             "type": "string",
-            "description": "The person's page, as an absolute URL; for a date or a promise, its highlighted row there"
+            "description": "The person's page, as an absolute URL; for a date, a promise or a situation, its highlighted row there"
           }
         },
         "required": [
@@ -3467,6 +3888,15 @@
                 "confirmedNew": {
                   "description": "A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`",
                   "type": "boolean"
+                },
+                "gender": {
+                  "type": "string",
+                  "enum": [
+                    "female",
+                    "male",
+                    "nonbinary"
+                  ],
+                  "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
                 }
               },
               "required": [
@@ -3505,8 +3935,20 @@
                   "type": "boolean"
                 },
                 "supersedes": {
-                  "description": "The id of the fact this replaces",
+                  "description": "The id of the fact this replaces: news about a situation, or a lasting fact that ends it",
                   "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "lasting",
+                    "situation"
+                  ],
+                  "description": "`situation`: going on and will end (moving, a new dog, looking for a car); `lasting` (default): stays true. A fact that supersedes another keeps its kind unless given"
+                },
+                "checkAfter": {
+                  "type": "string",
+                  "description": "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation keeps its interval when left out"
                 }
               },
               "required": [
@@ -3642,37 +4084,57 @@
             }
           },
           "relationships": {
+            "description": "How people are related, and who someone is to the household: a role (\"our landlady\") goes to \"us\" or \"me\", never into a fact",
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
                 "from": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "description": "An index into `people`"
-                },
-                "to": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "description": "An index into `people`"
-                },
-                "type": {
-                  "type": "string",
-                  "enum": [
-                    "partner",
-                    "spouse",
-                    "parent",
-                    "child",
-                    "sibling",
-                    "friend",
-                    "colleague",
-                    "introduced_by",
-                    "other"
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "An index into `people`"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "me",
+                        "us"
+                      ],
+                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                    }
                   ]
                 },
+                "to": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "An index into `people`"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "me",
+                        "us"
+                      ],
+                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                    }
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "description": "What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)"
+                },
+                "inverse": {
+                  "type": "string",
+                  "description": "What `to` is to `from`, the same way: Mieter, Mutter, Kollegin, Nachbar:in"
+                },
                 "note": {
+                  "description": "Anything more about it: \"seit der Schulzeit\"",
                   "type": "string"
                 },
                 "private": {
@@ -3683,7 +4145,8 @@
               "required": [
                 "from",
                 "to",
-                "type"
+                "label",
+                "inverse"
               ]
             }
           },
@@ -4226,19 +4689,11 @@
                 "toName": {
                   "type": "string"
                 },
-                "type": {
-                  "type": "string",
-                  "enum": [
-                    "partner",
-                    "spouse",
-                    "parent",
-                    "child",
-                    "sibling",
-                    "friend",
-                    "colleague",
-                    "introduced_by",
-                    "other"
-                  ]
+                "label": {
+                  "type": "string"
+                },
+                "inverse": {
+                  "type": "string"
                 },
                 "note": {
                   "type": [
@@ -4256,7 +4711,8 @@
                 "fromName",
                 "toId",
                 "toName",
-                "type",
+                "label",
+                "inverse",
                 "note"
               ]
             }

@@ -56,13 +56,14 @@ export function Section({ title, icon: Icon, list, plain, children }: { title: s
 }
 
 // An icon tile: the item's icon, its text (with a lock for a private one), and its actions. `closed`: what the item is no longer
-// (Erledigt, Veraltet), shown after its text, which is then muted.
+// (Erledigt, Veraltet), shown after its text, which is then muted. `tone`: its fill and ring, the surface by default.
 export function Tile({
   id,
   icon: Icon,
   private: priv,
   closed,
   actions,
+  tone = "bg-surface",
   children,
 }: {
   id?: string;
@@ -70,10 +71,11 @@ export function Tile({
   private: boolean;
   closed?: string;
   actions?: ReactNode;
+  tone?: string;
   children: ReactNode;
 }) {
   return (
-    <div id={id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface px-3 py-2.5 text-[15px] shadow-card">
+    <div id={id} className={`flex flex-wrap items-center gap-2 rounded-2xl px-3 py-2.5 text-[15px] shadow-card ${tone}`}>
       <Icon aria-hidden className="h-[18px] w-[18px] shrink-0 opacity-75" />
       <span className={`min-w-0 flex-1 ${closed ? "text-muted" : ""}`}>
         {children}

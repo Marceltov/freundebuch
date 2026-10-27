@@ -13,7 +13,14 @@ interface Item {
 
 export interface Schema {
   users: { id: string; oidc_sub: string; name: string; email: string | null; person_id: string | null; created_at: number };
-  persons: { id: string; name: string; created_by: string; created_from: string | null; created_at: number };
+  persons: {
+    id: string;
+    name: string;
+    created_by: string;
+    created_from: string | null;
+    created_at: number;
+    gender: ColumnType<"female" | "male" | "nonbinary" | null, "female" | "male" | "nonbinary" | null | undefined, "female" | "male" | "nonbinary" | null>;
+  };
   aliases: { person_id: string; alias: string; norm: string };
   person_settings: { user_id: string; person_id: string; interval_days: number | null; interval_confirmed: Flag };
   conversations: {
@@ -42,6 +49,9 @@ export interface Schema {
     /** The day it happened (YYYY-MM-DD), when that is known. */
     happened_on: ColumnType<string | null, string | null | undefined, string | null>;
     screenshot_id: ColumnType<string | null, string | null | undefined, string | null>;
+    kind: ColumnType<"lasting" | "situation", "lasting" | "situation" | undefined, "lasting" | "situation">;
+    /** On a situation: the day (YYYY-MM-DD) after which to ask how it went; null on a lasting fact. */
+    check_after: ColumnType<string | null, string | null | undefined, string | null>;
   };
   promises: Item & { id: string; person_id: string; text: string; by_me: number; due: string | null; done: Flag };
   dates: Item & { id: string; person_id: string; kind: "birthday" | "anniversary" | "custom"; date: string; label: string | null; yearly: Flag };
@@ -55,7 +65,7 @@ export interface Schema {
     currency: string | null;
     settled: Flag;
   };
-  relationships: Item & { id: string; from_id: string; to_id: string; type: string; note: string | null };
+  relationships: Item & { id: string; from_id: string; to_id: string; label: string; inverse: string; note: string | null };
   groups: { id: string; name: string; created_by: string | null; created_at: number; seeded: Flag };
   group_aliases: { group_id: string; alias: string; norm: string };
   group_members: { group_id: string; person_id: string; visibility: string; recorded_by: string; conversation_id: string | null };

@@ -31,6 +31,30 @@ export const copy = {
 
   // The friend page
   now: "Gerade los",
+  known: "Gut zu wissen",
+  networkOf: "Wer zu {name} gehört",
+  allLinks: "Alle Verbindungen ({n})",
+  roleUs: "Unsere {role}",
+  roleUsM: "Unser {role}",
+  roleUsX: "{role} von uns",
+  relationSentence: "{a} ist {label} von {b}",
+  roleMe: "{role} von dir",
+  rolePartner: "{role} von {name}",
+  nudge: "Frag mal nach – seit {weeks} Wochen nichts gehört",
+  nudgeWeek: "Frag mal nach – seit einer Woche nichts gehört",
+  nudgeSoon: "Frag mal nach",
+  askAbout: "Frag mal nach",
+  askAboutWhat: "{name}: {text}",
+  askFrom: "nachfragen ab {date}",
+  makeSituation: "Ist gerade los",
+  makeLasting: "Gut zu wissen",
+  askOn: "Nachfragen am …",
+  askOnTitle: "Nachfragen am",
+  gender: "Geschlecht",
+  genderF: "weiblich",
+  genderM: "männlich",
+  genderX: "divers",
+  genderNone: "keine Angabe",
   promised: "Versprochen",
   giftIdeas: "Ideen für Geschenke",
   stillOpen: "Noch offen",
@@ -248,28 +272,22 @@ export const kindName: Record<string, string> = { in_person: "Treffen", call: "A
 
 export const dateKindName: Record<string, string> = { birthday: "Geburtstag", anniversary: "Jahrestag", custom: "Datum" };
 
-// A relationship as a sentence: `from` is {a}, `to` is {b} ("from is type of to").
-export const relationSentence: Record<string, string> = {
-  partner: "{a} und {b} sind ein Paar",
-  spouse: "{a} und {b} sind verheiratet",
-  parent: "{a} ist Elternteil von {b}",
-  child: "{a} ist Kind von {b}",
-  sibling: "{a} und {b} sind Geschwister",
-  friend: "{a} und {b} sind befreundet",
-  colleague: "{a} und {b} arbeiten zusammen",
-  introduced_by: "{a} kam über {b} dazu",
-  other: "{a} und {b} kennen sich",
-};
+type Gender = "female" | "male" | "nonbinary" | null;
 
-// What the other person is to the one whose page it is. `out`: the page's person is the `from` side ("from is type of to").
-export const relationName: Record<string, { out: string; in: string }> = {
-  partner: { out: "Partner:in", in: "Partner:in" },
-  spouse: { out: "Ehe", in: "Ehe" },
-  parent: { out: "Kind", in: "Elternteil" },
-  child: { out: "Elternteil", in: "Kind" },
-  sibling: { out: "Geschwister", in: "Geschwister" },
-  friend: { out: "Freund:in", in: "Freund:in" },
-  colleague: { out: "Kolleg:in", in: "Kolleg:in" },
-  introduced_by: { out: "hat vorgestellt", in: "vorgestellt" },
-  other: { out: "", in: "" },
-};
+/**
+ * The role line under a person's name: who they are to us, in the words filed, read from the viewer's side ("Unsere
+ * Vermieterin", "Kollegin von dir", "Kolleg:in von Marcel"), several joined with " · ". "Unsere"/"Unser" follows the person's
+ * gender; without one it reads "Vermieter:in von uns".
+ */
+export function roleLine(roles: { label: string; with: "me" | "partner" | "us"; partnerName?: string }[], gender: Gender): string {
+  return roles
+    .map((r) => {
+      const role = r.label.trim();
+      if (!role) return "";
+      if (r.with === "us") return (gender === "female" ? copy.roleUs : gender === "male" ? copy.roleUsM : copy.roleUsX).replace("{role}", role);
+      if (r.with === "me") return copy.roleMe.replace("{role}", role);
+      return copy.rolePartner.replace("{role}", role).replace("{name}", r.partnerName ?? "");
+    })
+    .filter(Boolean)
+    .join(" · ");
+}

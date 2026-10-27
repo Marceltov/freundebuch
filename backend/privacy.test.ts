@@ -12,7 +12,7 @@ import { lastSeen, setCheckInInterval } from "./intervals";
 import { orbit } from "./orbit";
 import { addToGroupById, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup } from "./groups";
 import { findPeople, getPerson, listPeople, peopleOverview } from "./people";
-import { addToGroup } from "./relationships";
+import { addRelationship, addToGroup } from "./relationships";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
 import type { Viewer } from "./types";
 import { visible } from "./visibility";
@@ -95,7 +95,7 @@ test("Tom exists for B, but without the partner edge or the birthday", async () 
   const [tom] = await findPeople(s.b, "Tom");
   expect(tom.id).toBe(s.tom);
   expect(tom.context).toEqual([]);
-  expect((await findPeople(s.a, "Tom"))[0].context).toEqual(["partner of Anna"]);
+  expect((await findPeople(s.a, "Tom"))[0].context).toEqual(["Partner:in of Anna"]);
   const [anna] = await findPeople(s.b, "Anna");
   expect(anna.context.join(" ")).not.toContain("Tom");
 });
@@ -170,7 +170,7 @@ test("a fact that outdated B's shared fact can't be made private afterwards, on 
   await expect(setVisibility(s.a, "facts", knee, "private")).rejects.toThrow(/private fact can't replace a shared one/);
   await expect(setVisibility(s.a, "conversations", r.conversationId, "private")).rejects.toThrow(/private fact can't replace a shared one/);
   // B still sees what replaced their fact.
-  expect((await briefing(s.b, s.anna, "2026-10-23")).current.map((f) => f.text)).toContain("hurt her knee, no more hiking");
+  expect((await briefing(s.b, s.anna, "2026-10-23")).known.map((f) => f.text)).toContain("hurt her knee, no more hiking");
   // A fact that replaced nothing shared may still go private.
   await setVisibility(s.a, "facts", (await d.selectFrom("facts").select("id").where("text", "=", "new job").executeTakeFirstOrThrow()).id, "private");
 });
@@ -188,7 +188,7 @@ test("B's briefing on Anna and Tom and B's whatsDue never contain A's private it
     for (const secret of ["divorce", "partner", "--10-24", "2026-10-24", "Tom's birthday"]) expect(text, `${id} ${secret}`).not.toContain(secret);
   }
   const anna = await briefing(s.b, s.anna, "2026-10-23");
-  expect(anna.current.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);
+  expect(anna.known.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);
   expect(anna.relationships).toEqual([]);
   // Person-level date reads hide Tom's birthday too, the chip's birthday as well.
   expect((await briefing(s.b, s.tom, "2026-10-23")).nextDates).toEqual([]);
@@ -335,4 +335,34 @@ test("the people overview is everyone but the viewer, with last seen and groups 
   expect(lenaA.lastSeen).not.toBeNull();
   expect(lenaA.groups).toHaveLength(1);
   expect(b.map((p) => p.name)).toEqual([...b.map((p) => p.name)].sort((x, y) => x.localeCompare(y, "de")));
+});
+
+test("a private role never shows to the partner, not even as 'us'", async () => {
+  const { ids: [secret] } = await addRelationship(s.a, { from: s.lena, to: "me", label: "Vermieter:in", inverse: "Mieter:in", visibility: "private" });
+  await addRelationship(s.b, { from: s.lena, to: "me", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
+  expect((await briefing(s.a, s.lena)).roles).toMatchObject([{ with: "us" }]);
+  const b = await briefing(s.b, s.lena);
+  expect(b.roles).toMatchObject([{ label: "Vermieter:in", with: "me" }]);
+  expect(b.roles[0].ids).toHaveLength(1);
+  expect(b.network.nodes.map((n) => n.id)).not.toContain(s.a.personId);
+  expect(b.network.edges.some((e) => e.from === s.a.personId || e.to === s.a.personId)).toBe(false);
+  expect(JSON.stringify(b)).not.toContain(secret);
+  const network = JSON.stringify(b.network);
+  await (await db()).deleteFrom("relationships").where("id", "=", secret).execute();
+  expect(JSON.stringify((await briefing(s.b, s.lena)).network)).toBe(network);
+});
+
+test("a household node reachable only through A's private edge is absent for B", async () => {
+  await addRelationship(s.a, { from: s.anna, to: "me", label: "Ärzt:in", inverse: "Patient:in", visibility: "private" });
+  const b = await briefing(s.b, s.anna);
+  expect(b.roles).toEqual([]);
+  expect(b.network.nodes.map((n) => n.role)).toEqual(["self"]);
+  expect(b.network.edges).toEqual([]);
+});
+
+test("B never sees A's private situation in the briefing", async () => {
+  await record(s.a, { facts: [{ person: 0, text: "sucht heimlich einen Job", category: "work", kind: "situation", private: true }] });
+  const b = await briefing(s.b, s.anna);
+  expect(b.situations).toEqual([]);
+  expect(JSON.stringify(b)).not.toContain("heimlich");
 });

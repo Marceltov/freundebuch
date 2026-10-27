@@ -22,6 +22,7 @@ async function message(v: Viewer, item: DueItem, from: string, click: (id: strin
     const seen = await lastSeen(v, item.personId);
     return { ...base, title: fill(copy.overdue, { name: item.name }), body: seen ? fill(copy.overdueBody, { date: seen }) : "", tags: ["hourglass_flowing_sand"] };
   }
+  if (item.kind === "situation") return { ...base, title: fill(copy.situation, { name: item.name, text: item.text! }), body: "", tags: ["speech_balloon"] };
   if (item.kind === "promise")
     return item.byMe
       ? { ...base, title: fill(copy.promise, { text: item.text! }), body: fill(copy.promiseBody, { name: item.name }), tags: ["pushpin"] }

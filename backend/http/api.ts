@@ -5,14 +5,14 @@ import * as z from "zod";
 import { briefing } from "../briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../calendar";
 import { IDENTITY_COOKIE } from "../auth/session";
-import { deleteItem, editItem, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type ItemTable } from "../corrections";
+import { deleteItem, editItem, factToRelationship, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type ItemTable } from "../corrections";
 import { getConversation, recordConversation } from "../conversations";
 import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError, NotFoundError } from "../errors";
 import { addGroupAlias, addToGroupById, createGroup, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../groups";
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
-import { addAlias, findPeople, getPerson, listPeople } from "../people";
+import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { createShareKey, discardScreenshot, listPending, resolveScreenshot, retryScreenshot, revokeShareKey, screenshotModel } from "../screenshots";
 import { API_PREFIX, publicUrl } from "../urls";
@@ -39,7 +39,9 @@ import {
   PendingScreenshotListJson,
   PeopleQuery,
   PersonJson,
-  PersonNameJson,
+  PersonPatchJson,
+  FactRelationshipJson,
+  RelationshipIdsJson,
   PersonListJson,
   RecordedJson,
   ResolutionJson,
@@ -91,16 +93,17 @@ const OPS: AnyOp[] = [
   op({
     method: "PATCH",
     path: `${API_PREFIX}/people/{id}`,
-    operationId: "renamePerson",
-    summary: "Rename a person",
-    description: "Names are shared: the other user sees the new name too.",
+    operationId: "updatePerson",
+    summary: "Rename a person, or set their gender",
+    description: "Names and gender are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
     tags: ["People"],
     auth: true,
     params: { id: IdParam },
-    body: PersonNameJson,
+    body: PersonPatchJson,
     responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params, body }) => {
-    await renamePerson(viewer, params.id, body.name);
+    if (body.name !== undefined) await renamePerson(viewer, params.id, body.name);
+    if (body.gender !== undefined) await setGender(viewer, params.id, body.gender);
     return { status: 204, body: undefined };
   }),
 
@@ -390,6 +393,20 @@ const OPS: AnyOp[] = [
     else await editItem(viewer, table, params.id, body.patch!);
     return { status: 204, body: undefined };
   }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/items/facts/{id}/relationship`,
+    operationId: "factToRelationship",
+    summary: "Turn a fact into a relationship",
+    description:
+      'For a fact that says who someone is ("unsere Vermieterin"): it becomes a relationship with the fact\'s visibility, and the fact is deleted. `from` and `to` take a person id, "me" or "us". Only the fact\'s recorder may.',
+    tags: ["Items"],
+    auth: true,
+    params: { id: IdParam },
+    body: FactRelationshipJson,
+    responses: { 201: { description: "The relationships", schema: RelationshipIdsJson }, 400: E400, 401: E401, 403: E403, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => ({ status: 201, body: await factToRelationship(viewer, params.id, body) })),
 
   op({
     method: "DELETE",

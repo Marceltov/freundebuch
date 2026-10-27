@@ -62,6 +62,14 @@ export function daysBetween(a: string, b: string): number {
   return epochDay(y.year, y.month, y.day) - epochDay(x.year, x.month, x.day);
 }
 
+/** The day `n` days after `day` (before, when negative). */
+export function addDays(day: string, n: number): string {
+  const { year, month, day: d } = parse(day);
+  if (year === null) throw new InvalidInputError("addDays needs a full date (YYYY-MM-DD)");
+  const t = new Date((epochDay(year, month, d) + n) * MS_PER_DAY);
+  return `${pad(t.getUTCFullYear(), 4)}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
+
 /** The first day on or after `from` on which the date's month and day fall. 29 Feb falls on 28 Feb in a non-leap year. */
 export function nextOccurrence(date: string, from: string): string {
   const d = parse(date);

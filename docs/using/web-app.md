@@ -9,7 +9,7 @@ The web app is in German, made for a quick look on the phone before you meet som
 ![The start page in dark mode](../assets/orbit-dark.png)
 </div>
 
-A greeting tells you how many people would be glad to hear from you. Below it, you're in the middle ("Du"), and everyone sits on one of three rings with their first name under them: the inner ring for people you saw recently, the outer ring for people you're due to see. People you haven't met yourself yet (someone your partner filed, or someone who was only mentioned) fill the free places on the outer ring with a faded face, so a new member of the household sees its people right away. Small badges show what's waiting:
+A greeting tells you how many people would be glad to hear from you, and **Frag mal nach** below the orbit lists the situations nobody has heard about for a while. Below it, you're in the middle ("Du"), and everyone sits on one of three rings with their first name under them: the inner ring for people you saw recently, the outer ring for people you're due to see. People you haven't met yourself yet (someone your partner filed, or someone who was only mentioned) fill the free places on the outer ring with a faded face, so a new member of the household sees its people right away. Small badges show what's waiting:
 
 - 🎂 a birthday coming up,
 - 📌 an open promise,
@@ -25,13 +25,15 @@ The group chips above the orbit put a group's members first and fade everyone el
 
 From top to bottom:
 
+- who they are to you, right under the name: "Unsere Vermieterin", "Kollegin von dir", "Kollege von Sybille",
 - when you last saw them, their birthday with their age today ("12. Juli 1994 · 32 Jahre"), their check-in interval and their groups (**+ Gruppe** adds or removes groups),
-- **Gerade los**: what's new, as current facts,
+- **Gerade los**: what is going on and will end (moving, looking for a car). One nobody has asked about for a while is highlighted: "Frag mal nach – seit 6 Wochen nichts gehört". The **…** of one you filed moves it to **Gut zu wissen** or sets the day to ask (**Nachfragen am …**),
+- **Gut zu wissen**: what stays true (works at Hornbach, likes Riesling, a nut allergy), each with an icon for its kind; **Ist gerade los** in its **…** moves it up,
 - **Versprochen**, **Ideen für Geschenke** and **Noch offen**: promises, gift ideas and other exchanges, with quick actions,
 - **Gespräche**: the conversations, newest first,
-- **Gehört zu**: the people around them, each with what they are to this person and its note ("Patentante"). The … menu of one you recorded changes the note, makes it private or shared, or deletes it. Telling freundebuch the same relationship again (also the other way round) files nothing new.
+- **Gehört zu**: a diagram with you (and your partner, when they are related too) on top, the person in the middle and their own people below, each line saying what it is ("Vermieterin", "Sohn"). Tap a face to open them. **Alle Verbindungen** below it lists each with what they are to this person ("Patentante") and its note; with more people than the diagram fits, the list is shown instead. The … menu of one you recorded changes what they are, makes it private or shared, or deletes it. Telling freundebuch the same relationship again (also the other way round) files nothing new.
 
-The round **…** next to the name sets how often you want to see them, renames them, adds a nickname, or merges a duplicate into them.
+The round **…** next to the name sets how often you want to see them, their gender ("Unsere" or "Unser"; Claude puts the words themselves in it), renames them, adds a nickname, or merges a duplicate into them.
 
 Private items have a lock icon. Only you see them.
 
@@ -51,7 +53,7 @@ Opened on someone's page, the chat knows who you probably mean ("Es geht um Marv
 
 - **Verlauf**: every conversation, newest first, by week and month.
 - **Leute**: everyone, A to Z, with a search over names and nicknames and the group chips.
-- **Bald**: the next two weeks: birthdays and other dates, your promises with a due day (tick them off right there), and who would be glad to hear from you.
+- **Bald**: the next two weeks: birthdays and other dates, your promises with a due day (tick them off right there), who would be glad to hear from you, and what to ask about.
 
 ## Settings
 
