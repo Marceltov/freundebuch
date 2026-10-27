@@ -315,7 +315,9 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toBeVisible();
   await expect(field).toHaveValue("");
   await expect(sheet.getByRole("status")).toHaveText(/Claude denkt nach/);
-  await expect(sheet.getByText("Erfasst.")).toBeVisible();
+  // The wait holds the 1.5 s delay above and the dev server's first build of /api/chat, which on a CI runner can take a few
+  // seconds on its own: the default 5 s once wasn't enough.
+  await expect(sheet.getByText("Erfasst.")).toBeVisible({ timeout: 15_000 });
   await expect(sheet.getByRole("status")).toHaveCount(0);
   await page.unroute("**/api/chat");
   await expect(sheet.getByText("Es geht um Nele Sommer")).toBeVisible();
