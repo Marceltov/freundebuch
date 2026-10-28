@@ -9,13 +9,15 @@ const good = { kind: "post", platform: "Instagram", text: "Urlaub", category: "t
 // A model whose client answers `reply` (or throws it), and the lines it logged.
 function withClient(reply: unknown) {
   const lines: Record<string, unknown>[] = [];
+  const calls: Record<string, unknown>[] = [];
   const log = createLogger({ write: (l: string) => void lines.push(JSON.parse(l)) }, "debug");
-  const create = async () => {
+  const create = async (params: Record<string, unknown>) => {
+    calls.push(params);
     if (reply instanceof Error) throw reply;
     return reply;
   };
   const model = anthropicScreenshotModel("key", "claude-sonnet-5-5", { client: { messages: { create } } as never, log });
-  return { model, lines };
+  return { model, lines, calls };
 }
 const message = (content: unknown[], stop_reason = "tool_use") => ({ content, stop_reason });
 
@@ -39,4 +41,12 @@ test("an answer without the report, or one that doesn't fit, is no reading, and 
   const odd = withClient(message([{ type: "tool_use", id: "t", name: "report", input: { ...good, category: "chat" } }]));
   expect(await odd.model.read(input)).toBeNull();
   expect(odd.lines).toEqual([expect.objectContaining({ level: "warn", msg: "the screenshot model's report doesn't fit", issues: [expect.stringContaining("category")] })]);
+});
+
+// Claude Sonnet 5.5 (the default model) answers a forced tool_choice with a 400: every screenshot failed to be read.
+test("the report is asked for, not forced", async () => {
+  const { model, calls } = withClient(message([{ type: "tool_use", id: "t", name: "report", input: good }]));
+  await model.read(input);
+  expect(calls[0].tool_choice).toEqual({ type: "auto" });
+  expect(String(calls[0].system)).toContain("report tool");
 });
