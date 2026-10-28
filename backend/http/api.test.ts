@@ -327,7 +327,7 @@ describe("settings", () => {
 });
 
 describe("files", () => {
-  test("list and discard the caller's waiting files; the share key is made and revoked", async () => {
+  test("list, close and discard the caller's waiting files; the share key is made and revoked", async () => {
     const { mkdtempSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
@@ -349,7 +349,8 @@ describe("files", () => {
     expect((await call(s.b, "GET", "/files")).json).toEqual([]);
 
     expect((await call(s.a, "POST", `/files/${one.id}/resolve`, { personId: s.anna })).status).toBe(404);
-    expect((await call(s.a, "DELETE", `/files/${one.id}`)).status).toBe(204);
+    expect((await call(s.b, "POST", `/files/${one.id}/done`)).status).toBe(404);
+    expect((await call(s.a, "POST", `/files/${one.id}/done`)).status).toBe(204);
     expect((await call(s.b, "DELETE", `/files/${two.id}`)).status).toBe(404);
     expect((await call(s.a, "DELETE", `/files/${two.id}`)).status).toBe(204);
     expect((await call(s.a, "GET", "/files")).json).toEqual([]);

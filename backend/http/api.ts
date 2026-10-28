@@ -15,7 +15,7 @@ import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
-import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
+import { createShareKey, discardFile, markFiled, listPending, retryFile, revokeShareKey, fileModel } from "../files";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
@@ -488,6 +488,21 @@ const OPS: AnyOp[] = [
     params: {},
     responses: { 200: { description: "Waiting files", schema: PendingFileListJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: await listPending(viewer) })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/files/{id}/done`,
+    operationId: "closeFile",
+    summary: "Close a waiting file as worked through",
+    description: "For a file with nothing worth filing; filing with fileIds closes it on its own.",
+    tags: ["Files"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await markFiled(viewer, params.id);
+    return { status: 204, body: undefined };
+  }),
 
   op({
     method: "POST",

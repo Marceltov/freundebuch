@@ -1868,6 +1868,60 @@
         }
       }
     },
+    "/api/v1/files/{id}/done": {
+      "post": {
+        "operationId": "closeFile",
+        "summary": "Close a waiting file as worked through",
+        "description": "For a file with nothing worth filing; filing with fileIds closes it on its own.",
+        "tags": [
+          "Files"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/files/{id}/retry": {
       "post": {
         "operationId": "retryFile",

@@ -28,6 +28,7 @@ import {
   PersonJson,
   RecordedJson,
   FileId,
+  PendingFileJson,
   TraitsJson,
   HOUSEHOLD_TARGET,
   Visibility,
@@ -35,6 +36,7 @@ import {
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
 import { traitsFor, type PersonTraits } from "./traits";
+import { discardFile, fileContent, listPending, markFiled } from "./files";
 import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
 import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "./types";
@@ -53,7 +55,11 @@ export type Tool = {
   /** Checks `args` against `input` (a mismatch is an InvalidInputError, a refusal the caller reports), runs as `v`, and returns
    * the result as `output` declares it, `next` included: fields the schema doesn't name are dropped. */
   run(v: Viewer, args: unknown): Promise<Record<string, unknown>>;
+  /** Files to hand an MCP client along with the result (`out`, what `run` returned): what the JSON can only link to, and the
+   * links need a sign-in the client doesn't have. */
+  attach?: (v: Viewer, out: Record<string, unknown>) => Promise<Attachment[]>;
 };
+export type Attachment = { id: string; type: string; bytes: Uint8Array };
 
 const Next = z
   .array(z.string())
@@ -70,6 +76,7 @@ function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
   output: O;
   annotations: Tool["annotations"];
   handler: (v: Viewer, args: z.output<I>) => Promise<z.input<O> & { next: Next }>;
+  attach?: Tool["attach"];
 }): Tool {
   const output = t.output.extend({ next: Next });
   return {
@@ -81,6 +88,7 @@ function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
     async run(v, args) {
       return output.parse(await t.handler(v, check(t.input, args))) as Record<string, unknown>;
     },
+    ...(t.attach ? { attach: t.attach } : {}),
   };
 }
 
@@ -200,6 +208,14 @@ const RelatedJson = z.object({
   already: z.number().int().optional().describe("group: how many of the members the user had put in it before"),
   url: z.string().optional().describe("For a relationship: the page of `from` (of `to` when from is \"me\" or \"us\"), which shows it; for a group: the group's page. An absolute URL"),
   name: z.string().optional().describe("group: the group's own name; the name given may have been another name of it"),
+});
+/** How many waiting files inbox list shows (and hands over) at once. */
+const INBOX_SHOWN = 5;
+const UPLOAD_PATH = "/hochladen";
+const InboxJson = z.object({
+  files: z.array(PendingFileJson.extend({})).optional().describe("list: the waiting files, newest first"),
+  url: z.string().optional().describe("upload: the page to drop files on, as an absolute URL"),
+  done: z.boolean().optional().describe("done, discard: it is closed"),
 });
 const GroupsJson = z.object({
   groups: z.array(GroupJson.extend({})).describe("By name"),
@@ -566,6 +582,37 @@ export const TOOLS: readonly Tool[] = [
     handler: async (v, q) => {
       const people = await traitsFor(v, q);
       return ok(TraitsJson, { people }, needsNext(people));
+    },
+  }),
+  tool({
+    name: "inbox",
+    description:
+      "Files the user shared into freundebuch (screenshots, photos, PDFs, text such as a chat export) that wait under Prüfen to be worked through. list: the waiting files, each with a first read's summary and who is in it, and the files themselves; file what each shows with remember or record_conversation, passing its id in fileIds (that closes it). done: close one with nothing worth filing (id). discard: throw one away (id). upload: the link to a page where the user drops files to keep, e.g. originals of images they pasted here, which you can see but not pass on.",
+    input: z.object({
+      action: z.enum(["list", "done", "discard", "upload"]),
+      id: z.string().optional().describe("done, discard: the file's id, as list gives it"),
+    }),
+    output: InboxJson,
+    annotations: { destructiveHint: true },
+    handler: async (v, { action, id }) => {
+      if (action === "upload")
+        return ok(InboxJson, { url: UPLOAD_PATH }, ["Give the user this link: they drop the files there. When they say they have, list the inbox again and file with those files."]);
+      if (action === "list") {
+        const files = await listPending(v);
+        const next = files.length
+          ? ["Work through each file with the user: file what it shows with remember or record_conversation, passing its id in fileIds (that closes it); if nothing in it is worth filing, inbox done."]
+          : [];
+        if (files.length > INBOX_SHOWN) next.push(`${files.length - INBOX_SHOWN} more wait; list again after these.`);
+        return ok(InboxJson, { files: files.slice(0, INBOX_SHOWN) }, next);
+      }
+      if (!id) throw new InvalidInputError(`${action} needs the file's id`);
+      await (action === "done" ? markFiled(v, id) : discardFile(v, id));
+      return ok(InboxJson, { done: true });
+    },
+    attach: async (v, out) => {
+      const files = (out.files ?? []) as Array<{ id: string }>;
+      const all = await Promise.all(files.map(async (f) => ({ id: f.id, ...(await fileContent(v, f.id)) })));
+      return all.filter((f): f is Attachment => !!f.bytes);
     },
   }),
   tool({
