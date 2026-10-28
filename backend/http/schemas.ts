@@ -440,6 +440,7 @@ export const GroupJson = z
     aliases: z.array(z.string()).describe("Other names that find the group, e.g. Kollegen for Arbeit"),
     count: z.number().int().describe("How many people the caller may see in it"),
     url: Url,
+    household: z.boolean().describe("The household's own group (Haushalt to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them"),
   })
   .meta({ id: "Group" });
 export const GroupListJson = z.array(GroupJson).meta({ id: "GroupList" });

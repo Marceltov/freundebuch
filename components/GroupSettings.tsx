@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { copy } from "@/components/copy";
 
-type Group = { id: string; name: string; aliases: string[]; count: number };
+/** `household`: Haushalt, the group of everyone who signs in; it can be renamed but not deleted or merged away. */
+type Group = { id: string; name: string; aliases: string[]; count: number; household: boolean };
 
 // Settings, "Gruppen": one card per group with its other names. Rename (the old name stays as another name), add or drop other
-// names, merge another group into this one, delete it for the viewer. Each change goes to the groups API, then the page reloads.
+// names, merge another group into this one, delete it for the viewer. Haushalt has no delete and is never merged away. Each change goes to the groups API, then the page reloads.
 // A refusal (400) shows what it means for that action in German; anything else the general failure.
 export function GroupSettings({ groups }: { groups: Group[] }) {
   return (
     <ul className="space-y-3">
       {groups.map((g) => (
-        <GroupCard key={g.id} g={g} others={groups.filter((o) => o.id !== g.id)} />
+        <GroupCard key={g.id} g={g} others={groups.filter((o) => o.id !== g.id && !o.household)} />
       ))}
     </ul>
   );
@@ -66,7 +67,7 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
         <IconButton label={copy.rename} onClick={() => setRenaming(!renaming)}>
           <Pencil />
         </IconButton>
-        {confirming ? (
+        {g.household ? null : confirming ? (
           <button type="button" onClick={() => send("DELETE", "")} className="rounded-full bg-error px-2.5 py-1 text-xs font-semibold text-white">
             {copy.confirmRemove}
           </button>

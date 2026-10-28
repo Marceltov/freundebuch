@@ -52,9 +52,9 @@ Opened on someone's page, the chat knows who you probably mean ("Es geht um Marv
 ## Verlauf, Leute, Bald
 
 - **Verlauf**: every conversation, newest first, by week and month.
-- **Leute**: everyone, A to Z, with a search over names and nicknames and the group chips.
+- **Leute**: everyone, A to Z, with a search over names and nicknames and the group chips; **Ohne Gruppe** narrows to those in no group yet.
 - **Bald**: the next two weeks: birthdays and other dates, your promises with a due day (tick them off right there), who would be glad to hear from you, and what to ask about.
 
 ## Settings
 
-The gear icon opens **Einstellungen**: your webhook for [notifications](notifications.md), your [calendar feed](calendar.md), your groups and their other names, and signing out.
+The gear icon opens **Einstellungen**: your webhook for [notifications](notifications.md), your [calendar feed](calendar.md), your groups and their other names, and signing out. **Haushalt** is the group of everyone who signs in: rename it (Herziis, say), but it can't be deleted or merged away.

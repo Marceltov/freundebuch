@@ -171,6 +171,7 @@ export const copy = {
   newGroupHint: "Neue Gruppe …",
   close: "Fertig",
   all: "Alle",
+  noGroup: "Ohne Gruppe",
   groupFilter: "Nach Gruppe filtern",
   groupDue: "{name}: fällig",
   groups: "Gruppen",
