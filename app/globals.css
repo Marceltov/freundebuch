@@ -83,6 +83,13 @@
   --shadow-float: 0 4px 18px rgb(42 35 66 / 0.14);
 }
 
+/* The page doesn't bounce past its top or bottom, which on a phone dragged the top bar along; PullToRefresh does the
+   pull-down instead. */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
 /* A long word or a link wraps instead of widening the page. */
 body {
   background: var(--paper);

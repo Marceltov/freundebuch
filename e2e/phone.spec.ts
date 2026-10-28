@@ -577,3 +577,26 @@ test("share: a person's page and a single fact go out as links", async ({ page, 
   await page.goto(link);
   await expect(page.locator(":target")).toHaveText(/Spielt Cello/);
 });
+
+test("pull to refresh: pulling down at the top loads what was filed meanwhile; the top bar doesn't move", async ({ page, baseURL }) => {
+  await page.goto("/leute");
+  await expect(page.getByText("Nora Pull")).toHaveCount(0);
+  const filed = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: { date: today, kind: "call", summary: "Anruf mit Nora.", transcript: "Anruf mit Nora Pull.", visibility: "shared", people: [{ name: "Nora Pull", present: true }] },
+  });
+  expect(filed.ok()).toBe(true);
+  const bar = page.getByRole("link", { name: "Start" }).first();
+  const before = await page.locator("div.sticky").first().boundingBox();
+  // A finger from 150 px down to 450 px, in steps, then lifted.
+  await page.evaluate(async () => {
+    const touch = (y: number) => [new Touch({ identifier: 1, target: document.body, clientX: 200, clientY: y })];
+    window.dispatchEvent(new TouchEvent("touchstart", { touches: touch(150), bubbles: true }));
+    for (let y = 170; y <= 450; y += 20) window.dispatchEvent(new TouchEvent("touchmove", { touches: touch(y), bubbles: true }));
+    window.dispatchEvent(new TouchEvent("touchend", { touches: [], bubbles: true }));
+  });
+  await expect(page.getByText("Nora Pull")).toBeVisible();
+  expect(await page.locator("div.sticky").first().boundingBox()).toEqual(before);
+  await expect(bar).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY)).toBe("none");
+});

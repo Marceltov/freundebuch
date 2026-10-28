@@ -28,6 +28,8 @@ export const copy = {
   copied: "Kopiert",
   shareLink: "Link teilen",
   linkCopied: "Link kopiert",
+  pullToRefresh: "Zum Aktualisieren ziehen",
+  refreshing: "Wird aktualisiert …",
   copyFailed: "Kopieren fehlgeschlagen",
   badge: { birthday: "Geburtstag bald", promise: "Offenes Versprechen", gift: "Geschenkidee" },
 
