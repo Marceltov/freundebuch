@@ -194,10 +194,12 @@ describe("next: what Claude does after a call", () => {
     const names = all.people.map((p: Json) => p.name);
     expect(names).toEqual(["Anna", "Bob", "Lena", "Tom"]);
     expect(all.people.find((p: Json) => p.name === "Anna")).toMatchObject({ id: s.anna, groups: ["Laufgruppe"], url: expect.stringMatching(`/p/${s.anna}$`) });
+    // The partner is in Haushalt, the household's own group, like anyone in a group.
+    expect(all.people.find((p: Json) => p.name === "Bob")).toMatchObject({ id: s.b.personId, groups: ["Haushalt"] });
     expect(all.next).toEqual([]);
   });
 
-  test("people without a group leaves out the grouped and the partner, and offers to sort them in", async () => {
+  test("people without a group lists only those in none, and offers to sort them in", async () => {
     await run(s.a, "relate", { kind: "group", name: "Laufgruppe", members: [s.anna, s.tom], visibility: "shared" });
     const none = await run(s.a, "people", { withoutGroup: true });
     expect(none.people.map((p: Json) => p.name)).toEqual(["Lena"]);
@@ -260,6 +262,11 @@ describe("next: what Claude does after a call", () => {
     await run(s.a, "remember", { visibility: "shared", facts: [{ person: s.lena, text: "sucht einen Hund", category: "hobby", kind: "situation", checkAfter: "2026-10-01" }] });
     const due = await run(s.a, "whats_due", {});
     expect(due.next).toEqual(['Suggest asking Lena about "sucht einen Hund": its day to ask, 2026-10-01, has come.']);
+  });
+
+  test("groups marks Haushalt as the household's own group", async () => {
+    const { groups } = await run(s.a, "groups", {});
+    expect(groups.filter((g: Json) => g.household).map((g: Json) => g.name)).toEqual(["Haushalt"]);
   });
 
   test("the read-only tools without anything to follow up answer with an empty next", async () => {

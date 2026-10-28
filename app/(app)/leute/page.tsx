@@ -23,7 +23,6 @@ export default async function PeoplePage() {
           aliases: p.aliases,
           url: p.url,
           groups: p.groups,
-          household: p.household,
           seen: p.lastSeen ? ago(daysBetween(p.lastSeen, now)) : copy.neverMet,
         }))}
         groups={groups.filter((g) => g.count > 0).map((g) => ({ id: g.id, name: g.name, count: g.count }))}

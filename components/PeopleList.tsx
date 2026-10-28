@@ -7,15 +7,14 @@ import { copy } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { groupTint } from "@/components/Tiles";
 
-/** `household`: the partner's own person, who belongs to no group but isn't missing one. */
-export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[]; household: boolean };
+export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[] };
 
 /** The chip for the people in no group. */
 export const NO_GROUP = "none";
 
 /** Whether the person shows under the chip `group`: every one for none chosen, else its members, or with NO_GROUP those in none. */
 export const inGroup = (p: PersonRow, group: string | null) =>
-  !group || (group === NO_GROUP ? !p.groups.length && !p.household : p.groups.includes(group));
+  !group || (group === NO_GROUP ? !p.groups.length : p.groups.includes(group));
 
 // Lower case, without accents and umlaut dots, so "lea" finds "Léa" and "muller" finds "Müller".
 const fold = (s: string) =>

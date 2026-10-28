@@ -112,7 +112,7 @@ test("CHECK constraints refuse values outside the vocabularies", async () => {
 
 test("002 seeds Freunde, Familie and Arbeit with their other names", async () => {
   const d = fresh();
-  await migrate(d);
+  await migrateTo(d, "002_groups");
   const groups = await d.selectFrom("groups").select(["id", "name", "created_by"]).orderBy("name").execute();
   expect(groups.map((g) => [g.name, g.created_by])).toEqual([
     ["Arbeit", null],
@@ -310,4 +310,23 @@ test("008 that fails partway leaves facts as they were, and runs once the cause 
   expect(await d.selectFrom("facts").select("id").execute()).toEqual([{ id: "f1" }]);
   await d.deleteFrom("facts").execute();
   await migrateTo(d, "008_traits");
+});
+
+test("009 makes Haushalt, a group of everyone who signed in, reusing a group of that name", async () => {
+  const d = fresh();
+  await migrateTo(d, "008_traits");
+  const t = Date.now();
+  for (const u of ["u", "w"]) {
+    await d.insertInto("users").values({ id: u, oidc_sub: u, name: u, email: null, person_id: null, created_at: t }).execute();
+    await d.insertInto("persons").values({ id: `p-${u}`, name: u, created_by: u, created_from: null, created_at: t }).execute();
+    await d.updateTable("users").set({ person_id: `p-${u}` }).where("id", "=", u).execute();
+  }
+  await d.insertInto("groups").values({ id: "g", name: "haushalt ", created_by: "u", created_at: t, seeded: 0 }).execute();
+  await migrateTo(d, "009_household_group");
+  expect(await d.selectFrom("groups").select(["id", "seeded", "household"]).where("household", "=", 1).execute()).toEqual([{ id: "g", seeded: 1, household: 1 }]);
+  const members = await d.selectFrom("group_members").select(["person_id", "recorded_by", "visibility"]).where("group_id", "=", "g").orderBy("person_id").execute();
+  expect(members).toEqual([
+    { person_id: "p-u", recorded_by: "u", visibility: "shared" },
+    { person_id: "p-w", recorded_by: "w", visibility: "shared" },
+  ]);
 });

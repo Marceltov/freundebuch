@@ -45,7 +45,7 @@ export default async function SettingsPage() {
           {copy.groups}
         </h2>
         <p className="mt-1 mb-3 text-sm text-muted">{copy.groupsHint}</p>
-        <GroupSettings groups={(await listGroups(v)).map((g) => ({ id: g.id, name: g.name, aliases: g.aliases, count: g.count }))} />
+        <GroupSettings groups={(await listGroups(v)).map((g) => ({ id: g.id, name: g.name, aliases: g.aliases, count: g.count, household: g.household }))} />
       </section>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="flex items-center gap-2 font-display text-lg font-semibold">

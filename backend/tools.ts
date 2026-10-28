@@ -522,7 +522,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "people",
     description:
-      "Everyone in the book but the user, by name, each with the groups the user sees them in. With withoutGroup, only those in no group yet (the partner, part of the household, never counts), to sort them into groups. To find one person by name, use find_person.",
+      "Everyone in the book but the user, by name, each with the groups the user sees them in. With withoutGroup, only those in no group yet, to sort them into groups (the household is in its own group, Haushalt). To find one person by name, use find_person.",
     input: z.object({
       withoutGroup: z.boolean().optional().describe("Only the people in no group"),
     }),
@@ -532,7 +532,7 @@ export const TOOLS: readonly Tool[] = [
       const [all, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
       const named = new Map(groups.map((g) => [g.id, g.name]));
       const people = all
-        .filter((p) => !withoutGroup || (!p.groups.length && !p.household))
+        .filter((p) => !withoutGroup || !p.groups.length)
         .map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, url: p.url, lastSeen: p.lastSeen, groups: p.groups.map((id) => named.get(id)!) }));
       const next =
         withoutGroup && people.length ? [`Offer to put ${people.map((p) => p.name).join(", ")} in a group with relate (kind group); reuse one that fits (groups).`] : [];

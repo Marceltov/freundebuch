@@ -2665,6 +2665,10 @@
           "url": {
             "type": "string",
             "description": "Where it opens in the web app, as an absolute URL"
+          },
+          "household": {
+            "type": "boolean",
+            "description": "The household's own group (Haushalt to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them"
           }
         },
         "required": [
@@ -2672,7 +2676,8 @@
           "name",
           "aliases",
           "count",
-          "url"
+          "url",
+          "household"
         ]
       },
       "GroupList": {
@@ -2706,6 +2711,10 @@
           "url": {
             "type": "string",
             "description": "Where it opens in the web app, as an absolute URL"
+          },
+          "household": {
+            "type": "boolean",
+            "description": "The household's own group (Haushalt to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them"
           },
           "members": {
             "type": "array",
@@ -2758,6 +2767,7 @@
           "aliases",
           "count",
           "url",
+          "household",
           "members"
         ]
       },

@@ -24,7 +24,12 @@ const base = (over: Partial<NewConversation> = {}): NewConversation => ({
 });
 
 const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "group_members"] as const;
-const rowCount = async (t: string) => Number((await (await db()).selectFrom(t as "facts").select((eb) => eb.fn.countAll().as("n")).executeTakeFirstOrThrow()).n);
+// The rows of an item table a conversation could have filed: everyone who signs in is in Haushalt from the start, without one.
+const filedRows = async (t: (typeof ITEM_TABLES)[number] | string) => {
+  const rows = await (await db()).selectFrom(t as "group_members").selectAll().execute();
+  return t === "group_members" ? rows.filter((r) => r.conversation_id !== null) : rows;
+};
+const rowCount = async (t: string) => (await filedRows(t)).length;
 
 test("returns the people and correct counts", async () => {
   const r = await recordConversation(
@@ -106,7 +111,7 @@ test("a private conversation makes all its items private", async () => {
   );
   const d = await db();
   for (const t of ITEM_TABLES) {
-    const rows = await d.selectFrom(t).select("visibility").execute();
+    const rows = (await filedRows(t)) as { visibility: string }[];
     expect(rows.length, t).toBeGreaterThan(0);
     expect(new Set(rows.map((x) => x.visibility)), t).toEqual(new Set(["private"]));
   }

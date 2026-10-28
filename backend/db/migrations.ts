@@ -409,7 +409,34 @@ const migrations: Record<string, Migration> = {
       });
     },
   },
+
+  // Haushalt: the group of everyone who signs in, so the partner is in a group like anyone else. It may be renamed (Herziis),
+  // never deleted, merged away or emptied of a household person. A group already called Haushalt becomes it.
+  "009_household_group": {
+    async up(db) {
+      await db.transaction().execute(async (tx) => {
+        await tx.schema.alterTable("groups").addColumn("household", "integer", (c) => c.notNull().defaultTo(0)).execute();
+        const t = Date.now();
+        const existing = await tx.selectFrom("groups").select(["id", "name"]).orderBy("created_at").execute();
+        let id = existing.find((g) => norm(g.name) === norm(HOUSEHOLD_GROUP))?.id;
+        if (!id) {
+          id = randomUUID();
+          await tx.insertInto("groups").values({ id, name: HOUSEHOLD_GROUP, created_by: null, created_at: t, seeded: 1, household: 1 }).execute();
+        } else await tx.updateTable("groups").set({ seeded: 1, household: 1 }).where("id", "=", id).execute();
+        const users = await tx.selectFrom("users").select(["id", "person_id"]).where("person_id", "is not", null).execute();
+        for (const u of users)
+          await tx
+            .insertInto("group_members")
+            .values({ group_id: id, person_id: u.person_id, visibility: "shared", recorded_by: u.id, conversation_id: null })
+            .onConflict((oc) => oc.doNothing())
+            .execute();
+      });
+    },
+  },
 };
+
+/** The name the household's own group starts with. */
+export const HOUSEHOLD_GROUP = "Haushalt";
 
 /** The groups every household starts with, and their other names. */
 export const SEEDED_GROUPS: readonly { name: string; aliases: string[] }[] = [
