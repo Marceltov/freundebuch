@@ -16,6 +16,7 @@ const b: Briefing = {
   freshness: { lastSeen: null, intervalDays: null, ratio: null },
   nextDates: [],
   situations: [],
+  traits: { needs: [], personality: [] },
   known: [],
   open: {
     promises: [

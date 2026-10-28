@@ -3169,6 +3169,142 @@
             },
             "description": "What is going on and will end, nudging ones first: the best things to ask about"
           },
+          "traits": {
+            "type": "object",
+            "properties": {
+              "needs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "work",
+                        "home",
+                        "family",
+                        "health",
+                        "hobby",
+                        "travel",
+                        "other"
+                      ]
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "source": {
+                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                      "type": "string"
+                    },
+                    "happenedOn": {
+                      "description": "When it happened, when the screenshot showed it",
+                      "type": "string"
+                    },
+                    "imageUrl": {
+                      "description": "The screenshot it was read from (sign-in required)",
+                      "type": "string"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "mine": {
+                      "type": "boolean",
+                      "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text",
+                    "category",
+                    "url",
+                    "visibility",
+                    "mine"
+                  ]
+                },
+                "description": "Facts of kind need: what to plan around when meeting or inviting them"
+              },
+              "personality": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "work",
+                        "home",
+                        "family",
+                        "health",
+                        "hobby",
+                        "travel",
+                        "other"
+                      ]
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "source": {
+                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                      "type": "string"
+                    },
+                    "happenedOn": {
+                      "description": "When it happened, when the screenshot showed it",
+                      "type": "string"
+                    },
+                    "imageUrl": {
+                      "description": "The screenshot it was read from (sign-in required)",
+                      "type": "string"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "mine": {
+                      "type": "boolean",
+                      "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "text",
+                    "category",
+                    "url",
+                    "visibility",
+                    "mine"
+                  ]
+                },
+                "description": "Facts of kind personality: how the person is"
+              }
+            },
+            "required": [
+              "needs",
+              "personality"
+            ],
+            "description": "What the person needs and how they are, each as filed"
+          },
           "known": {
             "type": "array",
             "items": {
@@ -3230,7 +3366,7 @@
                 "mine"
               ]
             },
-            "description": "What stays true about the person, by category"
+            "description": "What else stays true about the person, by category"
           },
           "open": {
             "type": "object",
@@ -3624,6 +3760,7 @@
           "freshness",
           "nextDates",
           "situations",
+          "traits",
           "known",
           "open",
           "recent",

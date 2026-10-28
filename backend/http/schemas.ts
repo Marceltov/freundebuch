@@ -74,6 +74,13 @@ const FactJson = {
   ...Own,
 };
 
+const Traits = z
+  .object({
+    needs: z.array(z.object(FactJson)).describe("Facts of kind need: what to plan around when meeting or inviting them"),
+    personality: z.array(z.object(FactJson)).describe("Facts of kind personality: how the person is"),
+  })
+  .describe("What the person needs and how they are, each as filed");
+
 export const BriefingJson = z
   .object({
     person: z.object({
@@ -115,7 +122,8 @@ export const BriefingJson = z
         }),
       )
       .describe("What is going on and will end, nudging ones first: the best things to ask about"),
-    known: z.array(z.object(FactJson)).describe("What stays true about the person, by category"),
+    traits: Traits,
+    known: z.array(z.object(FactJson)).describe("What else stays true about the person, by category"),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(

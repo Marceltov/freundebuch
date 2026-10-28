@@ -213,6 +213,21 @@ describe("next: what Claude does after a call", () => {
     ]);
   });
 
+  test("briefing names what the person needs, right after the role", async () => {
+    await run(s.a, "relate", { kind: "relationship", from: s.anna, to: "us", label: "Vermieterin", inverse: "Mieter:in", visibility: "shared" });
+    await run(s.a, "remember", {
+      visibility: "shared",
+      facts: [
+        { person: s.anna, text: "vegetarian", category: "health", kind: "need" },
+        { person: s.anna, text: "nut allergy", category: "health", kind: "need" },
+        { person: s.anna, text: "shy in big groups", category: "other", kind: "personality" },
+      ],
+    });
+    const b = await run(s.a, "briefing", { personId: s.anna });
+    expect(b.traits.needs.map((f: { text: string }) => f.text)).toEqual(["vegetarian", "nut allergy"]);
+    expect(b.next.slice(0, 2)).toEqual(["Lead with who Anna is to the household: Vermieterin of you both.", "Keep in mind what Anna needs: vegetarian; nut allergy."]);
+  });
+
   test("whats_due suggests asking about the due situations", async () => {
     await run(s.a, "remember", { visibility: "shared", facts: [{ person: s.lena, text: "sucht einen Hund", category: "hobby", kind: "situation", checkAfter: "2026-10-01" }] });
     const due = await run(s.a, "whats_due", {});

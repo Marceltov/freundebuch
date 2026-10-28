@@ -133,6 +133,7 @@ const WITH: Record<string, (partner?: string) => string> = { us: () => "you both
 function briefingNext(b: Briefing): Next {
   const next: Next = [];
   if (b.roles.length) next.push(`Lead with who ${b.person.name} is to the household: ${b.roles.map((r) => `${r.label} of ${WITH[r.with](r.partnerName)}`).join("; ")}.`);
+  if (b.traits.needs.length) next.push(`Keep in mind what ${b.person.name} needs: ${b.traits.needs.map((f) => f.text).join("; ")}.`);
   for (const f of b.situations.filter((x) => x.nudge))
     next.push(
       `Ask about "${f.text}" first: its day to ask, ${f.checkAfter}, has come. When the user tells how it went, mark it outdated with correct; news instead supersedes it, with a new checkAfter agreed with the user.`,
@@ -500,7 +501,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "briefing",
     description:
-      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name), what is going on (`situations`, with `nudge` once their day to ask has come), what stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, when they ask about a person, or \"how do I know X?\".",
+      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name), what is going on (`situations`, with `nudge` once their day to ask has come), what they need and how they are (`traits`: `needs` to plan around, `personality` to keep in mind), what else stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, when they ask about a person, or \"how do I know X?\".",
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },

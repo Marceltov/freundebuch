@@ -10,7 +10,8 @@ import { labelKey } from "./conversations";
 import { householdPersons } from "./household";
 import { buildNetwork, type Network } from "./network";
 import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Viewer, type Visibility } from "./types";
-import { conversationPath, groupPath, itemPath, personPath, screenshotPath } from "./urls";
+import { conversationPath, groupPath, itemPath, personPath } from "./urls";
+import { splitTraits, toFact, type Traits } from "./traits";
 import { visible } from "./visibility";
 
 const NEXT_DATES_DAYS = 60;
@@ -45,7 +46,9 @@ export type Briefing = {
   /** What is going on and will end, the ones to ask about first: `since` the day the latest news was filed, `nudge` once
    * `checkAfter` has come. */
   situations: Array<Fact & { since: string; checkAfter: string; nudge: boolean }>;
-  /** What stays true, by category, then as filed. */
+  /** What the person needs (plan around it) and how they are, each as filed. */
+  traits: Traits;
+  /** What else stays true, by category, then as filed. */
   known: Fact[];
   open: {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
@@ -129,22 +132,13 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   const suggested = setting?.interval_confirmed || household.includes(personId) ? null : await suggestInterval(v, personId);
   const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
-  const fact = (f: (typeof facts)[number]): Fact => ({
-    id: f.id,
-    text: f.text,
-    category: f.category as FactCategory,
-    url: itemPath(page, "facts", f.id),
-    ...(f.source ? { source: f.source } : {}),
-    ...(f.happened_on ? { happenedOn: f.happened_on } : {}),
-    ...(f.screenshot_id ? { imageUrl: screenshotPath(f.screenshot_id) } : {}),
-    ...own(f),
-  });
+  const fact = (f: (typeof facts)[number]): Fact => toFact(f, v, page);
   const situations = facts
     .filter((f) => f.kind === "situation")
     .map((f) => ({ ...fact(f), since: today(f.created_at), checkAfter: f.check_after!, nudge: f.check_after! <= from }))
     .sort((x, y) => Number(y.nudge) - Number(x.nudge));
   const known = facts
-    .filter((f) => f.kind !== "situation")
+    .filter((f) => f.kind === "lasting")
     .sort((x, y) => FACT_CATEGORIES.indexOf(x.category as FactCategory) - FACT_CATEGORIES.indexOf(y.category as FactCategory) || x.created_at - y.created_at)
     .map(fact);
   return {
@@ -161,6 +155,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     freshness: fresh,
     nextDates,
     situations,
+    traits: splitTraits(facts, v, page),
     known,
     open: {
       promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),
