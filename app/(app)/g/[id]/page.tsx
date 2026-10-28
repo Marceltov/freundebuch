@@ -3,6 +3,7 @@ import { HeartHandshake, Lock } from "lucide-react";
 import { daysBetween, getGroup, today, traitsFor } from "@/backend";
 import { copy } from "@/components/copy";
 import { Face } from "@/components/Face";
+import { ShareButton } from "@/components/ShareButton";
 import { ago } from "@/components/format";
 import { orNotFound, pageViewer } from "../../viewer";
 
@@ -25,7 +26,10 @@ export default async function GroupPage({ params }: PageProps<"/g/[id]">) {
   return (
     <article>
       <p className="text-sm text-muted">{copy.groupPage}</p>
-      <h1 className="font-display text-3xl leading-tight font-bold">{g.name}</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="min-w-0 flex-1 font-display text-3xl leading-tight font-bold">{g.name}</h1>
+        <ShareButton path={g.url} title={g.name} />
+      </div>
       <p className="text-sm text-muted">
         {g.aliases.length > 0 && `${copy.alsoCalled.replace("{names}", g.aliases.join(", "))} · `}
         {g.count === 1 ? copy.onePerson : copy.people.replace("{n}", String(g.count))}

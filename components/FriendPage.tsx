@@ -27,6 +27,7 @@ import { CATEGORY_ICON, EXCHANGE_ICON, KIND_ICON } from "@/components/icons";
 import { ItemActions } from "@/components/ItemActions";
 import { layoutNetwork, Network } from "@/components/Network";
 import { PersonMenu } from "@/components/PersonMenu";
+import { ShareButton } from "@/components/ShareButton";
 import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
 
 // One friend, as a page of the friendship book: the sticker, the name and who they are to us, the chips (last seen, birthday, interval, dates,
@@ -127,6 +128,7 @@ export function FriendPage({
               </p>
             )}
           </div>
+          <ShareButton path={b.person.url} title={b.person.name} />
           <PersonMenu
             id={b.person.id}
             name={b.person.name}

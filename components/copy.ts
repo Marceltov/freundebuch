@@ -26,6 +26,8 @@ export const copy = {
   mcpUrl: "MCP-Adresse",
   copyText: "Kopieren",
   copied: "Kopiert",
+  shareLink: "Link teilen",
+  linkCopied: "Link kopiert",
   copyFailed: "Kopieren fehlgeschlagen",
   badge: { birthday: "Geburtstag bald", promise: "Offenes Versprechen", gift: "Geschenkidee" },
 

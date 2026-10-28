@@ -14,7 +14,7 @@ export { mcpRoute } from "./mcp";
 export { chatEnabled, chatRoute } from "./chat-route";
 export { screenshotRoute, shareRoute, sharingEnabled } from "./share-route";
 export type { ChatContext, ChatLink, ChatTurn } from "./chat";
-export { anchorId, itemPath, mcpResource, personPath, publicUrl, safeNext } from "./urls";
+export { anchorId, conversationPath, itemPath, mcpResource, personPath, publicUrl, safeNext } from "./urls";
 export { e2eLoginRoute } from "./auth/e2e";
 
 // What the pages read, as the viewer sees it.
