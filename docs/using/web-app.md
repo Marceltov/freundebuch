@@ -55,6 +55,10 @@ Opened on someone's page, the chat knows who you probably mean ("Es geht um Marv
 - **Leute**: everyone, A to Z, with a search over names and nicknames and the group chips.
 - **Bald**: the next two weeks: birthdays and other dates, your promises with a due day (tick them off right there), who would be glad to hear from you, and what to ask about.
 
+## Sharing a link
+
+The share button next to a person's, conversation's or group's name sends its link: on a phone through the share sheet (Signal, WhatsApp, Messages), elsewhere by copying it. **Link teilen** in an entry's … menu does the same for that one entry, which opens highlighted. Whoever opens the link signs in and sees what is shared with them, so your partner sees the page without your private entries; a private entry's link shows them nothing.
+
 ## Settings
 
 The gear icon opens **Einstellungen**: your webhook for [notifications](notifications.md), your [calendar feed](calendar.md), your groups and their other names, and signing out.
