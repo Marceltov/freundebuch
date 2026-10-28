@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, BookOpen, CalendarClock, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import { Accessibility, Archive, BookOpen, CalendarClock, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Smile, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { copy } from "@/components/copy";
@@ -15,17 +15,25 @@ type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversatio
 // menu itself. Each goes to PATCH or DELETE /api/v1/items/{table}/{id}, then the page reloads its data.
 // `field`: what "edit" changes (`text`, `summary` for a conversation, `label` or `inverse` for a relationship: the other end's words). `after`: where to go once it is deleted. `date` (a
 // conversation's day) adds "change the date", up to `today` (the server's, in the configured time zone). `kind`, on a fact,
-// lets its recorder move it between Gerade los and Gut zu wissen, and set the day to ask about a situation (`checkAfter`).
+// lets whoever may edit it move it to another kind (Gerade los, Gut zu wissen, Braucht, Wesen), and set the day to ask about a situation (`checkAfter`).
 
 /** Whether the viewer may edit or delete the item: their own, or a shared one of the partner's that isn't a conversation. */
 export function canEdit(table: Table, mine: boolean, visibility: "shared" | "private"): boolean {
   return mine || (table !== "conversations" && visibility === "shared");
 }
 
-/** The kind entries of a fact's menu, for whoever may edit it. */
-export function factKindActions(kind: "lasting" | "situation" | undefined, editable: boolean): string[] {
+export type FactKind = "lasting" | "situation" | "need" | "personality";
+const KIND_ACTIONS: Array<{ kind: FactKind; label: string; icon: LucideIcon }> = [
+  { kind: "lasting", label: copy.makeLasting, icon: BookOpen },
+  { kind: "situation", label: copy.makeSituation, icon: Sparkles },
+  { kind: "need", label: copy.makeNeed, icon: Accessibility },
+  { kind: "personality", label: copy.makePersonality, icon: Smile },
+];
+
+/** The kind entries of a fact's menu, for whoever may edit it: every kind but its own. */
+export function factKindActions(kind: FactKind | undefined, editable: boolean): Array<{ kind: FactKind; label: string }> {
   if (!editable || !kind) return [];
-  return kind === "lasting" ? [copy.makeSituation] : [copy.makeLasting, copy.askOn];
+  return KIND_ACTIONS.filter((a) => a.kind !== kind).map(({ kind, label }) => ({ kind, label }));
 }
 
 export function ItemActions({
@@ -50,7 +58,7 @@ export function ItemActions({
   after?: string;
   date?: string;
   today?: string;
-  kind?: "lasting" | "situation";
+  kind?: FactKind;
   checkAfter?: string;
 }) {
   const router = useRouter();
@@ -118,19 +126,16 @@ export function ItemActions({
             {editable && (
               <>
                 <Item icon={Pencil} label={copy.edit} onClick={() => edit("text")} />
-                {factKindActions(kind, editable).map((label) =>
-                  label === copy.askOn ? (
-                    <Item key={label} icon={CalendarClock} label={label} onClick={() => edit("ask")} />
-                  ) : (
-                    <Item
-                      key={label}
-                      icon={kind === "lasting" ? Sparkles : BookOpen}
-                      label={label}
-                      disabled={busy}
-                      onClick={() => send("PATCH", { patch: { kind: kind === "lasting" ? "situation" : "lasting" } })}
-                    />
-                  ),
-                )}
+                {factKindActions(kind, editable).map((a) => (
+                  <Item
+                    key={a.kind}
+                    icon={KIND_ACTIONS.find((x) => x.kind === a.kind)!.icon}
+                    label={a.label}
+                    disabled={busy}
+                    onClick={() => send("PATCH", { patch: { kind: a.kind } })}
+                  />
+                ))}
+                {kind === "situation" && <Item icon={CalendarClock} label={copy.askOn} onClick={() => edit("ask")} />}
                 {date && <Item icon={CalendarDays} label={copy.changeDate} onClick={() => edit("date")} />}
                 {mine && (
                   <Item

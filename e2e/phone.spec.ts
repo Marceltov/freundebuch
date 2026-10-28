@@ -506,3 +506,42 @@ test("a role to us shows first and in the network; a situation nudges on the pag
   await expect(page.getByRole("link", { name: /Marina Reichardt: sucht ein neues Auto/ })).toBeVisible();
   await expectNoSideScroll(page);
 });
+
+test("traits: Worauf achten on the friend page and the group's page, and the menu moves a fact there", async ({ page, baseURL }) => {
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: {
+      date: today,
+      kind: "in_person",
+      summary: "Laufen mit Mira.",
+      transcript: "Laufen mit Mira Lang.",
+      visibility: "shared",
+      people: [{ name: "Mira Lang", present: true }],
+      groups: [{ name: "Laufgruppe", members: [0] }],
+      facts: [
+        { person: 0, text: "Isst vegetarisch", category: "health", kind: "need" },
+        { person: 0, text: "Mag keine großen Runden", category: "other", kind: "personality" },
+        { person: 0, text: "Trinkt keinen Alkohol", category: "health" },
+      ],
+    },
+  });
+  expect(recorded.ok()).toBe(true);
+  const mira = (await recorded.json()).people[0].id;
+  await page.goto(`/p/${mira}`);
+  const traits = page.locator("section", { has: page.getByRole("heading", { name: "Worauf achten" }) });
+  await expect(traits.getByText("Isst vegetarisch")).toBeVisible();
+  await expect(traits.getByText("Mag keine großen Runden")).toBeVisible();
+
+  // A lasting fact becomes a need from its menu.
+  const fact = page.locator("div", { hasText: /^Trinkt keinen Alkohol/ }).last();
+  await fact.getByRole("button", { name: "Aktionen" }).click();
+  await fact.getByRole("button", { name: "Braucht" }).click();
+  await expect(traits.getByText("Trinkt keinen Alkohol")).toBeVisible();
+  await expectNoSideScroll(page);
+
+  await page.getByRole("link", { name: "Laufgruppe" }).first().click();
+  const block = page.locator("section", { has: page.getByRole("heading", { name: "Worauf achten" }) });
+  await expect(block.getByText("Isst vegetarisch, Trinkt keinen Alkohol")).toBeVisible();
+  await expect(block.getByText("Mag keine großen Runden")).toBeVisible();
+  await expectNoSideScroll(page);
+});

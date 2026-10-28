@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import {
   ArrowLeftRight,
   BookOpen,
@@ -7,6 +8,7 @@ import {
   Coffee,
   Gift,
   Handshake,
+  HeartHandshake,
   Lock,
   MessageCircleQuestionMark,
   MessagesSquare,
@@ -223,6 +225,35 @@ export function FriendPage({
               )}
             </Tile>
           ))}
+        </Section>
+      )}
+
+      {b.traits.needs.length + b.traits.personality.length > 0 && (
+        <Section title={copy.traits} icon={HeartHandshake}>
+          {(
+            [
+              ["need", copy.needs, b.traits.needs],
+              ["personality", copy.personality, b.traits.personality],
+            ] as const
+          ).map(
+            ([kind, title, facts]) =>
+              facts.length > 0 && (
+                <Fragment key={kind}>
+                  <h3 className="mt-1 text-sm font-semibold text-muted">{title}</h3>
+                  {facts.map((f) => (
+                    <Tile
+                      key={f.id}
+                      id={anchorId("facts", f.id)}
+                      icon={CATEGORY_ICON[f.category]}
+                      private={f.visibility === "private"}
+                      actions={<ItemActions table="facts" kind={kind} {...item(f)} />}
+                    >
+                      <FactText f={f} />
+                    </Tile>
+                  ))}
+                </Fragment>
+              ),
+          )}
         </Section>
       )}
 
