@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
 import { deleteItem } from "./corrections";
-import { recordConversation } from "./conversations";
+import { getConversation, recordConversation, remember } from "./conversations";
 import { db } from "./db";
 import { putSettings } from "./settings";
 import type { FileInput, FileModel, Suggestion } from "./file-model";
@@ -222,4 +222,51 @@ test("a file kept by a conversation outlives pruning; once the conversation goes
   await deleteItem(s.a, "conversations", c.conversationId);
   expect(await pruneFiles()).toBe(1);
   expect(await fileContent(s.a, file.id)).toBeNull();
+});
+
+test("a file filed with anything private stays the recorder's: not through the conversation, a shared fact, or the briefing", async () => {
+  const chat = await shareFile(s.a, await image());
+  const c = await recordConversation(s.a, {
+    date: "2026-10-20",
+    kind: "message",
+    summary: "Chat",
+    transcript: "t",
+    visibility: "shared",
+    fileIds: [chat.id],
+    people: [{ id: s.anna, present: true }],
+    facts: [
+      { person: 0, text: "hat eine Diagnose", category: "health", private: true },
+      { person: 0, text: "plant einen Spieleabend", category: "hobby" },
+    ],
+  });
+  expect(await fileContent(s.b, chat.id)).toBeNull();
+  expect((await getConversation(s.b, c.conversationId)).files).toEqual([]);
+  expect((await getConversation(s.a, c.conversationId)).files.map((f) => f.id)).toEqual([chat.id]);
+
+  // One file, a private and a shared fact: the shared one doesn't open it, nor shows it in the briefing.
+  const shot = await shareFile(s.a, await image());
+  await remember(s.a, {
+    visibility: "shared",
+    fileIds: [shot.id],
+    facts: [
+      { person: s.anna, text: "Trennung", category: "family", private: true },
+      { person: s.anna, text: "neue Wohnung", category: "home" },
+    ],
+  });
+  expect(await fileContent(s.b, shot.id)).toBeNull();
+  const b = await briefing(s.b, s.anna, "2026-10-25");
+  expect(b.known.find((f) => f.text === "neue Wohnung")?.imageUrl).toBeUndefined();
+  expect((await briefing(s.a, s.anna, "2026-10-25")).known.find((f) => f.text === "neue Wohnung")?.imageUrl).toBe(`/api/files/${shot.id}`);
+});
+
+test("a text file over 1 MB is refused: too long to hand to Claude whole", async () => {
+  await expect(shareFile(s.a, new TextEncoder().encode("a".repeat(1024 * 1024 + 1)), "text/plain")).rejects.toThrow("The text file is too long (at most 1 MB): share a shorter part");
+  expect(await (await db()).selectFrom("files").selectAll().execute()).toEqual([]);
+});
+
+test("an iPhone photo in HEIC is refused with what to do instead", async () => {
+  const heic = new Uint8Array([0, 0, 0, 24, ...new TextEncoder().encode("ftypheic"), 0, 0, 0, 0, ...new TextEncoder().encode("mif1heic")]);
+  const hint = "iPhone photos in HEIC can't be read yet: share them as JPEG (in the Shortcut: Bild konvertieren, JPEG)";
+  await expect(shareFile(s.a, heic, "image/heic")).rejects.toThrow(hint);
+  await expect(shareFile(s.a, heic, "")).rejects.toThrow(hint);
 });

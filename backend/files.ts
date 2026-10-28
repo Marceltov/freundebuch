@@ -31,6 +31,8 @@ const WIDTH = 1080;
 /** Images are stored shrunk, as WebP; PDFs and text as they came. */
 const EXT: Record<string, string> = { "image/webp": "webp", "application/pdf": "pdf", "text/plain": "txt" };
 const NOT_TAKEN = "freundebuch takes images, PDFs and text files";
+/** The longest text file taken: about 250,000 tokens, which Claude reads whole in one request. */
+export const MAX_TEXT = 1024 * 1024;
 export const PENDING_PATH = "/pruefen";
 
 export type FileStatus = "reading" | "pending" | "filed" | "failed";
@@ -63,6 +65,10 @@ function kindOf(bytes: Uint8Array, sent: string): "pdf" | "text" | "image" | nul
   return "image";
 }
 
+/** An iPhone photo in HEIC/HEIF, by its type or its `ftyp` box; the bundled image library doesn't decode it. */
+const isHeic = (bytes: Uint8Array, type: string) =>
+  /^image\/hei[cf]/.test(type) || /^ftyp(heic|heix|hevc|mif1|msf1)$/.test(new TextDecoder().decode(bytes.subarray(4, 12)));
+
 /** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`). `type` is
  * what it was sent as ("" when unknown). Reading it is queued (`queueRead`); the caller doesn't wait for it. */
 export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
@@ -83,11 +89,13 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promis
     } catch {
       throw new InvalidInputError(NOT_TAKEN);
     }
+    if (bytes.byteLength > MAX_TEXT) throw new InvalidInputError("The text file is too long (at most 1 MB): share a shorter part");
     [stored, mediaType] = [bytes, "text/plain"];
   } else if (kind === "image") {
     try {
       stored = new Uint8Array(await sharp(bytes).rotate().resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer());
     } catch {
+      if (isHeic(bytes, type)) throw new InvalidInputError("iPhone photos in HEIC can't be read yet: share them as JPEG (in the Shortcut: Bild konvertieren, JPEG)");
       throw new InvalidInputError(type.startsWith("image/") ? "That is not an image freundebuch can read" : NOT_TAKEN);
     }
     mediaType = "image/webp";
@@ -227,13 +235,14 @@ export async function pendingCount(v: Viewer): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-/** The viewer's own file that still waits, with its content and suggestion; NotFoundError for any other. */
-export async function waitingFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null }> {
-  const row = await ownPending(v, id);
-  const bytes = await store().get(row.blob_key);
-  if (!bytes) throw new NotFoundError("No such file waiting");
+/** The viewer's own file for a chat on it, waiting or already filed, with its content and suggestion; NotFoundError for any
+ * other (someone else's, thrown away, or gone). */
+export async function chatFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null; filed: boolean }> {
+  const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
+  const bytes = row && row.status !== "nothing" ? await store().get(row.blob_key) : null;
+  if (!row || !bytes) throw new NotFoundError("No such file");
   const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
-  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null };
+  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null, filed: row.status === "filed" };
 }
 
 /** Marks the viewer's waiting file done: worked through and filed, so it leaves Prüfen. Its blob stays while a fact names it. */
@@ -252,12 +261,33 @@ export async function claimFiles(tx: Kysely<Schema>, v: Viewer, ids: string[], c
   await tx.updateTable("files").set({ status: "filed", conversation_id: conversationId }).where("id", "in", unique).execute();
 }
 
+/**
+ * Of the files `ids`, those the viewer may not open although they may see something filed from them: another user's file that
+ * was filed together with anything private (a private fact from it, or a conversation whose transcript is private because
+ * something recorded with it is). Such a file is evidence of that private item, so it stays its recorder's.
+ */
+export async function hiddenFiles(v: Viewer, ids: string[]): Promise<Set<string>> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return new Set();
+  const d = await db();
+  const others = await d.selectFrom("files").select(["id", "conversation_id"]).where("id", "in", unique).where("user_id", "!=", v.userId).execute();
+  if (!others.length) return new Set();
+  const viaFact = await d.selectFrom("facts").select("file_id").where("file_id", "in", others.map((o) => o.id)).where("visibility", "=", "private").execute();
+  const convs = others.map((o) => o.conversation_id).filter((c): c is string => !!c);
+  const privateConvs = convs.length ? await d.selectFrom("conversations").select("id").where("id", "in", convs).where("transcript_private", "=", 1).execute() : [];
+  const hidden = new Set(viaFact.map((f) => f.file_id!));
+  for (const o of others) if (o.conversation_id && privateConvs.some((c) => c.id === o.conversation_id)) hidden.add(o.id);
+  return hidden;
+}
+
 export type ConversationFile = { id: string; url: string; type: string };
 
-/** The files a conversation was filed with, oldest first. The caller has checked the viewer may see the conversation. */
-export async function filesOf(conversationId: string): Promise<ConversationFile[]> {
+/** The files a conversation was filed with, oldest first, that the viewer may open. The caller has checked they may see the
+ * conversation. */
+export async function filesOf(v: Viewer, conversationId: string): Promise<ConversationFile[]> {
   const rows = await (await db()).selectFrom("files").select(["id", "media_type"]).where("conversation_id", "=", conversationId).orderBy("created_at").execute();
-  return rows.map((r) => ({ id: r.id, url: filePath(r.id), type: r.media_type }));
+  const hidden = await hiddenFiles(v, rows.map((r) => r.id));
+  return rows.filter((r) => !hidden.has(r.id)).map((r) => ({ id: r.id, url: filePath(r.id), type: r.media_type }));
 }
 
 async function ownPending(v: Viewer, id: string) {
@@ -287,6 +317,7 @@ export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8
   const row = await d.selectFrom("files").select(["user_id", "status", "blob_key", "media_type", "conversation_id"]).where("id", "=", id).executeTakeFirst();
   if (!row) return null;
   const mine = row.user_id === v.userId;
+  if (!mine && (await hiddenFiles(v, [id])).has(id)) return null;
   const viaFact = !mine && !!(await d.selectFrom("facts").select("id").where("file_id", "=", id).$call((qb) => visible(qb, v, "facts")).executeTakeFirst());
   const viaConversation =
     !mine && !viaFact && !!row.conversation_id && !!(await d.selectFrom("conversations").select("id").where("id", "=", row.conversation_id).$call((qb) => visible(qb, v, "conversations")).executeTakeFirst());

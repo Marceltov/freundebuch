@@ -120,7 +120,7 @@ test("facts remembered from one shared file link to it, which is then done; only
   const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Wochenende war gut"), "text/plain");
   const other = await shareFile(s.a, new TextEncoder().encode("noch eine"), "text/plain");
   await expect(remember(s.b, { visibility: "shared", fileIds: [file.id], facts: [{ person: s.anna, text: "x", category: "other" }] })).rejects.toThrow(NotFoundError);
-  await expect(remember(s.a, { visibility: "shared", fileIds: [file.id, "nope"], facts: [{ person: s.anna, text: "x", category: "other" }] })).rejects.toThrow(NotFoundError);
+  await expect(remember(s.a, { visibility: "shared", fileIds: ["nope"], facts: [{ person: s.anna, text: "x", category: "other" }] })).rejects.toThrow(NotFoundError);
   const r = await remember(s.a, { visibility: "shared", fileIds: [file.id], facts: [{ person: s.anna, text: "war am Wochenende wandern", category: "hobby" }] });
   const fileOf = async (id: string) => (await (await db()).selectFrom("facts").select("file_id").where("id", "=", id).executeTakeFirstOrThrow()).file_id;
   expect(await fileOf(r.filed.facts[0].id)).toBe(file.id);
@@ -155,4 +155,19 @@ test("a conversation filed with several files links them all; a fact only when t
   await recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "privat", transcript: "t", visibility: "private", fileIds: [three.id], people: [{ id: s.anna, present: true }] });
   expect(await fileContent(s.b, three.id)).toBeNull();
   expect(await fileContent(s.a, three.id)).not.toBeNull();
+});
+
+test("remember links only one file, to its facts: several files, or none to link them to, are refused before anything is filed", async () => {
+  process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "fb-remember-"));
+  const a = await shareFile(s.a, new TextEncoder().encode("eins"), "text/plain");
+  const b = await shareFile(s.a, new TextEncoder().encode("zwei"), "text/plain");
+  await expect(remember(s.a, { visibility: "shared", fileIds: [a.id, b.id], facts: [{ person: s.anna, text: "x", category: "other" }] })).rejects.toThrow(
+    "remember links one file, to its facts; for several files, or none to link to, use record_conversation",
+  );
+  await expect(remember(s.a, { visibility: "shared", fileIds: [a.id], dates: [{ person: s.anna, kind: "birthday", date: "--05-03", yearly: true }] })).rejects.toThrow(InvalidInputError);
+  const status = await (await db()).selectFrom("files").select("status").where("id", "in", [a.id, b.id]).execute();
+  expect(status.map((x) => x.status)).toEqual(["reading", "reading"]);
+  // The same id twice is one file.
+  const r = await remember(s.a, { visibility: "shared", fileIds: [a.id, a.id], facts: [{ person: s.anna, text: "y", category: "other" }] });
+  expect((await (await db()).selectFrom("facts").select("file_id").where("id", "=", r.filed.facts[0].id).executeTakeFirstOrThrow()).file_id).toBe(a.id);
 });

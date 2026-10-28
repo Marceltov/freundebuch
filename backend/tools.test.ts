@@ -340,6 +340,15 @@ describe("inbox", () => {
     await expect(run(s.a, "inbox", { action: "done" })).rejects.toThrow(/id/);
   });
 
+  test("a file over 1 MB is listed but not handed over, and next says where to open it", async () => {
+    const big = await shareFile(s.a, new TextEncoder().encode("%PDF-1.4\n" + "x".repeat(1024 * 1024)), "application/pdf");
+    const tool = toolByName("inbox")!;
+    const out = await tool.run(s.a, { action: "list" });
+    expect((out.files as Json[]).map((f) => f.id)).toEqual([big.id]);
+    expect(await tool.attach!(s.a, out)).toEqual([]);
+    expect(out.next).toContain(`Too large to hand over here: ${big.id}. Tell the user to open it under Prüfen in the freundebuch app and go through it in Erzählen.`);
+  });
+
   test("upload gives the page to drop the originals on", async () => {
     const r = await run(s.a, "inbox", { action: "upload" });
     expect(r.url).toBe("/hochladen");

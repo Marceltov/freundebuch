@@ -4,6 +4,7 @@ import type { Fact } from "./briefing";
 import { db } from "./db";
 import type { Schema } from "./db/schema";
 import { InvalidInputError, NotFoundError } from "./errors";
+import { hiddenFiles } from "./files";
 import { groupMembers } from "./groups";
 import { TRAIT_KINDS, type FactCategory, type Viewer, type Visibility } from "./types";
 import { itemPath, personPath, filePath } from "./urls";
@@ -13,7 +14,7 @@ import { visible } from "./visibility";
 export type Traits = { needs: Fact[]; personality: Fact[] };
 
 /** A fact row as the briefing and the traits show it, linked from the person's page `page`. */
-export function toFact(f: Selectable<Schema["facts"]>, v: Viewer, page: string): Fact {
+export function toFact(f: Selectable<Schema["facts"]>, v: Viewer, page: string, hidden: Set<string> = new Set()): Fact {
   return {
     id: f.id,
     text: f.text,
@@ -21,17 +22,18 @@ export function toFact(f: Selectable<Schema["facts"]>, v: Viewer, page: string):
     url: itemPath(page, "facts", f.id),
     ...(f.source ? { source: f.source } : {}),
     ...(f.happened_on ? { happenedOn: f.happened_on } : {}),
-    ...(f.file_id ? { imageUrl: filePath(f.file_id) } : {}),
+    // A file the viewer may not open (hiddenFiles) isn't shown, not even as a broken picture.
+    ...(f.file_id && !hidden.has(f.file_id) ? { imageUrl: filePath(f.file_id) } : {}),
     visibility: f.visibility as Visibility,
     mine: f.recorded_by === v.userId,
   };
 }
 
 /** Splits a person's current, visible facts (oldest first) into their traits. */
-export function splitTraits(facts: Selectable<Schema["facts"]>[], v: Viewer, page: string): Traits {
+export function splitTraits(facts: Selectable<Schema["facts"]>[], v: Viewer, page: string, hidden: Set<string> = new Set()): Traits {
   return {
-    needs: facts.filter((f) => f.kind === "need").map((f) => toFact(f, v, page)),
-    personality: facts.filter((f) => f.kind === "personality").map((f) => toFact(f, v, page)),
+    needs: facts.filter((f) => f.kind === "need").map((f) => toFact(f, v, page, hidden)),
+    personality: facts.filter((f) => f.kind === "personality").map((f) => toFact(f, v, page, hidden)),
   };
 }
 
@@ -48,7 +50,8 @@ export async function traitsOf(d: Kysely<Schema>, v: Viewer, personIds: string[]
         .orderBy("created_at")
         .execute()
     : [];
-  return new Map(personIds.map((id) => [id, splitTraits(rows.filter((r) => r.person_id === id), v, personPath(id))]));
+  const hidden = await hiddenFiles(v, rows.flatMap((r) => (r.file_id ? [r.file_id] : [])));
+  return new Map(personIds.map((id) => [id, splitTraits(rows.filter((r) => r.person_id === id), v, personPath(id), hidden)]));
 }
 
 /** A person in a traits lookup, with what they need and how they are. */

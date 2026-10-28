@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { getConversation } from "./conversations";
 import { db } from "./db";
 import { NotFoundError } from "./errors";
-import { shareFile } from "./files";
+import { markFiled, shareFile } from "./files";
 import { seed, type Seed } from "./testing/fixtures";
 
 let s: Seed;
@@ -224,4 +224,17 @@ test("a file that isn't the viewer's own waiting one is not found, before Claude
   const { model, calls } = fake([text("…")]);
   await expect(chat(s.b, [{ role: "user", content: "?" }], { fileId: file.id }, model)).rejects.toThrow(NotFoundError);
   expect(calls).toEqual([]);
+});
+
+test("once the file is filed, the chat on it goes on: the file still goes along, and Claude hears it is filed", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
+  const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend"), "text/plain");
+  await markFiled(s.a, file.id);
+  const { model, calls } = fake([text("Notiert.")]);
+  const r = await chat(s.a, [{ role: "user", content: "und sie hat am 3.5. Geburtstag" }], { fileId: file.id }, model);
+  expect(r).toMatchObject({ reply: "Notiert." });
+  expect((calls[0].messages[0].content as Anthropic.Beta.BetaContentBlockParam[])[0]).toMatchObject({ type: "document" });
+  expect(JSON.stringify(calls[0].system)).toContain("already filed");
+  // Someone else's file stays not found.
+  await expect(chat(s.b, [{ role: "user", content: "?" }], { fileId: file.id }, fake([text("…")]).model)).rejects.toThrow(NotFoundError);
 });

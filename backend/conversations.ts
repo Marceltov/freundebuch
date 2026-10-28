@@ -211,7 +211,7 @@ async function insertItems<P>(
     const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), SITUATION_DAYS)) : null;
     await tx
       .insertInto("facts")
-      .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f), file_id: c.fileIds?.length === 1 ? c.fileIds[0] : null })
+      .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f), file_id: new Set(c.fileIds ?? []).size === 1 ? c.fileIds![0] : null })
       .execute();
     if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
     filed.facts.push({ ...about("facts", factId, id(f.person), vis(f)), text: f.text, kind, checkAfter, defaultCheckAfter: kind === "situation" && f.checkAfter === undefined, supersedes: f.supersedes ?? null });
@@ -261,6 +261,9 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
     if (typeof p !== "string" || !p) throw new InvalidInputError("Each item needs the id of an existing person");
   };
   validateItems(r, person);
+  // Without a conversation, a file is kept only through a fact naming it: one file, and a fact to link it to.
+  if (r.fileIds?.length && (new Set(r.fileIds).size !== 1 || !r.facts?.length))
+    throw new InvalidInputError("remember links one file, to its facts; for several files, or none to link to, use record_conversation");
   for (const g of r.genders ?? []) {
     person(g.person);
     checkGender(g.gender);
@@ -607,7 +610,7 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     recordedBy: c.recorded_by,
     url: page,
     participants: participants.map((p) => ({ ...p, url: personPath(p.id) })),
-    files: await filesOf(c.id),
+    files: await filesOf(v, c.id),
     facts: facts.map((f) => ({ ...item("facts", f), ...about(f.person_id), text: f.text, category: f.category as FactCategory, status: f.status })),
     promises: promises.map((p) => ({ ...item("promises", p), ...about(p.person_id), text: p.text, byMe: !!p.by_me && !recorder, ...(p.by_me ? by : {}), due: p.due, done: !!p.done })),
     dates: dates.map((x) => ({ ...item("dates", x), ...about(x.person_id), kind: x.kind, date: x.date, label: x.label, yearly: !!x.yearly })),

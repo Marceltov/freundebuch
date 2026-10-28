@@ -212,6 +212,8 @@ const RelatedJson = z.object({
 /** How many waiting files inbox list shows (and hands over) at once. */
 const INBOX_SHOWN = 5;
 const UPLOAD_PATH = "/hochladen";
+/** The largest file inbox hands to an MCP client (base64 in the result); a larger one is opened in the app instead. */
+const MAX_ATTACH = 1024 * 1024;
 const InboxJson = z.object({
   files: z.array(PendingFileJson.extend({})).optional().describe("list: the waiting files, newest first"),
   url: z.string().optional().describe("upload: the page to drop files on, as an absolute URL"),
@@ -434,7 +436,7 @@ const CorrectArgs = z.discriminatedUnion("action", [
 
 const PrivateItem = z.boolean().optional().describe("Makes just this item private");
 const RememberInput = z.object({
-  fileIds: z.array(FileId).optional().describe("The shared files this is filed from, as evidence: they are linked and leave Prüfen"),
+  fileIds: z.array(FileId).optional().describe("One shared file this is filed from, as evidence: linked to the facts filed here, and it leaves Prüfen. For several files, record_conversation"),
   visibility: Visibility,
   genders: z
     .array(z.object({ person: PersonId, gender: Gender.nullable().describe("null when it isn't known") }))
@@ -603,7 +605,10 @@ export const TOOLS: readonly Tool[] = [
           ? ["Work through each file with the user: file what it shows with remember or record_conversation, passing its id in fileIds (that closes it); if nothing in it is worth filing, inbox done."]
           : [];
         if (files.length > INBOX_SHOWN) next.push(`${files.length - INBOX_SHOWN} more wait; list again after these.`);
-        return ok(InboxJson, { files: files.slice(0, INBOX_SHOWN) }, next);
+        const shown = files.slice(0, INBOX_SHOWN);
+        const large = (await Promise.all(shown.map(async (f) => ((await fileContent(v, f.id))?.bytes.byteLength ?? 0) > MAX_ATTACH && f.id))).filter(Boolean);
+        if (large.length) next.push(`Too large to hand over here: ${large.join(", ")}. Tell the user to open it under Prüfen in the freundebuch app and go through it in Erzählen.`);
+        return ok(InboxJson, { files: shown }, next);
       }
       if (!id) throw new InvalidInputError(`${action} needs the file's id`);
       await (action === "done" ? markFiled(v, id) : discardFile(v, id));
@@ -612,7 +617,7 @@ export const TOOLS: readonly Tool[] = [
     attach: async (v, out) => {
       const files = (out.files ?? []) as Array<{ id: string }>;
       const all = await Promise.all(files.map(async (f) => ({ id: f.id, ...(await fileContent(v, f.id)) })));
-      return all.filter((f): f is Attachment => !!f.bytes);
+      return all.filter((f): f is Attachment => !!f.bytes && f.bytes.byteLength <= MAX_ATTACH);
     },
   }),
   tool({

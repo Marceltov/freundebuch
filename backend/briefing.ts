@@ -11,6 +11,7 @@ import { householdPersons } from "./household";
 import { buildNetwork, type Network } from "./network";
 import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Viewer, type Visibility } from "./types";
 import { conversationPath, groupPath, itemPath, personPath } from "./urls";
+import { hiddenFiles } from "./files";
 import { splitTraits, toFact, type Traits } from "./traits";
 import { visible } from "./visibility";
 
@@ -132,7 +133,8 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   const suggested = setting?.interval_confirmed || household.includes(personId) ? null : await suggestInterval(v, personId);
   const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
-  const fact = (f: (typeof facts)[number]): Fact => toFact(f, v, page);
+  const hidden = await hiddenFiles(v, facts.flatMap((f) => (f.file_id ? [f.file_id] : [])));
+  const fact = (f: (typeof facts)[number]): Fact => toFact(f, v, page, hidden);
   const situations = facts
     .filter((f) => f.kind === "situation")
     .map((f) => ({ ...fact(f), since: today(f.created_at), checkAfter: f.check_after!, nudge: f.check_after! <= from }))
@@ -155,7 +157,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     freshness: fresh,
     nextDates,
     situations,
-    traits: splitTraits(facts, v, page),
+    traits: splitTraits(facts, v, page, hidden),
     known,
     open: {
       promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),

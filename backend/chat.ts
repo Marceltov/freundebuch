@@ -8,7 +8,7 @@ import { config } from "./config";
 import { getConversation } from "./conversations";
 import { today } from "./dates";
 import { fileBlock } from "./file-model";
-import { waitingFile } from "./files";
+import { chatFile } from "./files";
 import { FreundebuchError } from "./errors";
 import { logger } from "./log";
 import { INSTRUCTIONS } from "./mcp";
@@ -79,7 +79,7 @@ function recent(turns: ChatTurn[]): ChatTurn[] {
   return first < 0 ? [] : last.slice(first);
 }
 
-async function situation(v: Viewer, context: ChatContext, day: string): Promise<string> {
+async function situation(v: Viewer, context: ChatContext, day: string, filed = false): Promise<string> {
   const me = await getPerson(v, v.personId).catch(() => null);
   const lines = [`Today is ${day}.`, me ? `The user is ${me.name} (person id ${me.id}).` : ""];
   if (context.personId) {
@@ -88,7 +88,11 @@ async function situation(v: Viewer, context: ChatContext, day: string): Promise<
   } else if (context.conversationId) {
     const c = await getConversation(v, context.conversationId).catch(() => null);
     if (c) lines.push(`The user opened the chat on the conversation of ${c.date} (${c.id}) with ${c.participants.map((p) => p.name).join(", ")}.`);
-  } else if (context.fileId)
+  } else if (context.fileId && filed)
+    lines.push(
+      `The user opened the chat on a file they shared (fileId ${context.fileId}); it is in their first message. It is already filed: file what the user adds with remember or record_conversation as usual, without fileIds.`,
+    );
+  else if (context.fileId)
     lines.push(
       `The user opened the chat on a file they shared (fileId ${context.fileId}); it is in their first message, with what a first read suggested. Work it through with them: file what is worth keeping with remember or record_conversation, passing fileIds ["${context.fileId}"] (that closes it), and ask about people and privacy as you would for a ramble. If nothing in it is worth filing, call inbox with action done and id ${context.fileId}.`,
     );
@@ -119,12 +123,12 @@ export function linksOf(name: string, input: unknown, out: Record<string, unknow
 /** One message of the in-app chat: the whole conversation so far (the last turn is the user's), as `v`, on `model`. */
 export async function chat(v: Viewer, turns: ChatTurn[], context: ChatContext, model: ChatModel, now = Date.now()): Promise<ChatReply> {
   const day = today(now);
-  // The file first: one that isn't the viewer's own waiting file is not found, before anything is spent.
-  const file = context.fileId ? await waitingFile(v, context.fileId) : null;
+  // The file first: one that isn't the viewer's own is not found, before anything is spent. Filed already, it still goes along.
+  const file = context.fileId ? await chatFile(v, context.fileId) : null;
   if (!(await spend(v, day))) return { code: "chat_limit" };
   const system: Anthropic.Beta.BetaTextBlockParam[] = [
     { type: "text", text: INSTRUCTIONS + "\n" + CHAT_RULES, cache_control: { type: "ephemeral" } },
-    { type: "text", text: await situation(v, context, day) },
+    { type: "text", text: await situation(v, context, day, file?.filed) },
   ];
   const messages: Anthropic.Beta.BetaMessageParam[] = recent(turns).map((t) => ({ role: t.role, content: t.content }));
   // The file goes into the first user message only, framed as data, so the history before the latest turn stays cacheable.
