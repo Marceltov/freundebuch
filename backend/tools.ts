@@ -172,13 +172,21 @@ const Table = z.enum(ITEM_TABLES).describe("The kind of item");
 const ItemId = z.string().describe("The item's id, as a briefing shows it");
 
 const FoundJson = z.object({
+  people: z.array(PersonJson).describe("Best matches first, at most 5"),
+});
+const PeopleJson = z.object({
   people: z
     .array(
-      PersonJson.extend({
-        groups: z.array(z.string()).optional().describe("Only in the full list: the groups the user sees them in, by name; empty when in none"),
+      z.object({
+        id: PersonId,
+        name: z.string(),
+        aliases: z.array(z.string()),
+        url: z.string().describe("The person's page, as an absolute URL"),
+        lastSeen: Day.nullable().describe("When the user last saw them; null when never"),
+        groups: z.array(z.string()).describe("The groups the user sees them in, by name; empty when in none"),
       }),
     )
-    .describe("Best matches first, at most 5; without a name, everyone but the user, by name"),
+    .describe("By name"),
 });
 const DueJson = z.object({
   items: z.array(DueItemJson).describe("Most pressing first"),
@@ -500,23 +508,35 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "find_person",
     description:
-      "Find people by name or alias, tolerant of spelling, each with context that tells people of the same name apart; always call this before referring to a person by id. Without a name: everyone in the book but the user, by name, each with their groups, to go through all of them or find who is in no group.",
+      "Find people by name or alias, tolerant of spelling, each with context that tells people of the same name apart; always call this before referring to a person by id.",
     input: z.object({
-      name: z.string().optional().describe("A name or alias, as the user said it; leave it out to list everyone"),
+      name: z.string().describe("A name or alias, as the user said it"),
     }),
     output: FoundJson,
     annotations: { readOnlyHint: true },
     handler: async (v, { name }) => {
-      if (!name?.trim()) {
-        const [people, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
-        const named = new Map(groups.map((g) => [g.id, g.name]));
-        const all = people.map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, url: p.url, groups: p.groups.map((id) => named.get(id)!) }));
-        // The partner is the household, not someone to sort into a group.
-        const none = people.filter((p) => !p.groups.length && !p.household).map((p) => p.name);
-        return ok(FoundJson, { people: all }, none.length ? [`In no group: ${none.join(", ")}. Offer to put them in one with relate (kind group).`] : []);
-      }
       const people = await findPeople(v, name);
       return ok(FoundJson, { people }, foundNext(name, people));
+    },
+  }),
+  tool({
+    name: "people",
+    description:
+      "Everyone in the book but the user, by name, each with the groups the user sees them in. With withoutGroup, only those in no group yet (the partner, part of the household, never counts), to sort them into groups. To find one person by name, use find_person.",
+    input: z.object({
+      withoutGroup: z.boolean().optional().describe("Only the people in no group"),
+    }),
+    output: PeopleJson,
+    annotations: { readOnlyHint: true },
+    handler: async (v, { withoutGroup }) => {
+      const [all, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
+      const named = new Map(groups.map((g) => [g.id, g.name]));
+      const people = all
+        .filter((p) => !withoutGroup || (!p.groups.length && !p.household))
+        .map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, url: p.url, lastSeen: p.lastSeen, groups: p.groups.map((id) => named.get(id)!) }));
+      const next =
+        withoutGroup && people.length ? [`Offer to put ${people.map((p) => p.name).join(", ")} in a group with relate (kind group); reuse one that fits (groups).`] : [];
+      return ok(PeopleJson, { people }, next);
     },
   }),
   tool({
