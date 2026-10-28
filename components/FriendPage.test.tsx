@@ -16,6 +16,7 @@ const b: Briefing = {
   freshness: { lastSeen: null, intervalDays: null, ratio: null },
   nextDates: [],
   situations: [],
+  traits: { needs: [], personality: [] },
   known: [],
   open: {
     promises: [
@@ -88,7 +89,7 @@ test("Gehört zu lists each person by name with what they are to this one, linki
   expect(tile("x2")).toContain('aria-label="Aktionen"');
 });
 
-const fact = (id: string, text: string, category: "home" | "other" | "work" = "other") => ({ id, text, category, url: `/p/p1#facts-${id}`, ...own });
+const fact = (id: string, text: string, category: "home" | "other" | "work" | "health" = "other") => ({ id, text, category, url: `/p/p1#facts-${id}`, ...own });
 const role = (over: Partial<Briefing["roles"][number]> = {}): Briefing["roles"][number] => ({ label: "Vermieterin", with: "us", ids: ["r1", "r2"], ...over });
 
 test("the role line comes first, in the words filed; Unsere or Unser by the person's gender", () => {
@@ -131,3 +132,29 @@ test("Gerade los shows situations, nudges first; lasting facts go under Gut zu w
   expect(none).not.toContain("Gut zu wissen");
 });
 
+
+test("Worauf achten shows needs under Braucht, then personality under Wesen, between Gerade los and Gut zu wissen", () => {
+  const html = renderToStaticMarkup(
+    <FriendPage
+      b={{
+        ...b,
+        situations: [{ ...fact("s1", "sucht ein Auto"), since: "2026-09-01", checkAfter: "2026-12-13", nudge: false }],
+        traits: { needs: [fact("n1", "vegetarisch", "health")], personality: [fact("p1", "schüchtern in großen Runden")] },
+        known: [fact("k1", "arbeitet bei Hornbach", "work")],
+      }}
+      daysSince={null}
+      today="2026-10-27"
+    />,
+  );
+  const at = (s: string) => html.indexOf(s);
+  expect(at("Worauf achten")).toBeGreaterThan(at("Gerade los"));
+  expect(at("Braucht")).toBeGreaterThan(at("Worauf achten"));
+  expect(at("vegetarisch")).toBeGreaterThan(at("Braucht"));
+  expect(at("Wesen")).toBeGreaterThan(at("vegetarisch"));
+  expect(at("schüchtern in großen Runden")).toBeGreaterThan(at("Wesen"));
+  expect(at("Gut zu wissen")).toBeGreaterThan(at("schüchtern in großen Runden"));
+  expect(renderToStaticMarkup(<FriendPage b={b} daysSince={null} />)).not.toContain("Worauf achten");
+  const onlyNeeds = renderToStaticMarkup(<FriendPage b={{ ...b, traits: { needs: [fact("n1", "vegetarisch", "health")], personality: [] } }} daysSince={null} />);
+  expect(onlyNeeds).toContain("Braucht");
+  expect(onlyNeeds).not.toContain("Wesen");
+});

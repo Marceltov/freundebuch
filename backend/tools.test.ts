@@ -12,7 +12,7 @@ beforeEach(async () => {
 });
 
 test("one table holds every tool the MCP endpoint offers", () => {
-  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "record_conversation", "relate", "remember", "set_interval", "whats_due"]);
+  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "record_conversation", "relate", "remember", "set_interval", "traits", "whats_due"]);
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
@@ -138,6 +138,15 @@ describe("next: what Claude does after a call", () => {
     expect((await run(s.a, "correct", { action: "rename", id: s.lena, name: "Lena M." })).next).toEqual([]);
   });
 
+  test("correct: a fact made a trait says where it now shows", async () => {
+    const hiking = await factId("likes hiking");
+    const edit = await run(s.a, "correct", { action: "edit", table: "facts", id: hiking, patch: { kind: "personality" } });
+    expect(edit.fact).toMatchObject({ id: hiking, kind: "personality", checkAfter: null });
+    expect(edit.next).toEqual([`"likes hiking" now shows under Anna's traits, as personality: how the person is.`]);
+    const need = await run(s.a, "correct", { action: "edit", table: "facts", id: hiking, patch: { kind: "need" } });
+    expect(need.next).toEqual([`"likes hiking" now shows under Anna's traits, as a need: something to plan around.`]);
+  });
+
   test("correct merge says what moved; gender says which word to put in it", async () => {
     const merge = await run(s.a, "correct", { action: "merge", id: s.anna, drop: s.tom });
     // Tom's birthday (A's private) moved; the Anna ↔ Tom relationship became one with herself and went.
@@ -202,6 +211,31 @@ describe("next: what Claude does after a call", () => {
       'Ask about "sucht ein Auto" first: its day to ask, 2026-10-01, has come. When the user tells how it went, mark it outdated with correct; news instead supersedes it, with a new checkAfter agreed with the user.',
       "Offer to check in with Anna every 14 days; save it with set_interval once the user agrees.",
     ]);
+  });
+
+  test("briefing names what the person needs, right after the role", async () => {
+    await run(s.a, "relate", { kind: "relationship", from: s.anna, to: "us", label: "Vermieterin", inverse: "Mieter:in", visibility: "shared" });
+    await run(s.a, "remember", {
+      visibility: "shared",
+      facts: [
+        { person: s.anna, text: "vegetarian", category: "health", kind: "need" },
+        { person: s.anna, text: "nut allergy", category: "health", kind: "need" },
+        { person: s.anna, text: "shy in big groups", category: "other", kind: "personality" },
+      ],
+    });
+    const b = await run(s.a, "briefing", { personId: s.anna });
+    expect(b.traits.needs.map((f: { text: string }) => f.text)).toEqual(["vegetarian", "nut allergy"]);
+    expect(b.next.slice(0, 2)).toEqual(["Lead with who Anna is to the household: Vermieterin of you both.", "Keep in mind what Anna needs: vegetarian; nut allergy."]);
+  });
+
+  test("traits lists people and groups once each and names the needs to keep in mind", async () => {
+    const g = await run(s.a, "relate", { kind: "group", name: "Laufgruppe", members: [s.tom, s.anna], visibility: "shared" });
+    expect((await run(s.a, "traits", { groups: [g.id] })).next).toEqual([]);
+    await run(s.a, "remember", { visibility: "shared", facts: [{ person: s.anna, text: "vegetarian", category: "health", kind: "need" }] });
+    const r = await run(s.a, "traits", { people: [s.lena], groups: [g.id] });
+    expect(r.people.map((p: { name: string }) => p.name)).toEqual(["Lena", "Anna", "Tom"]);
+    expect(r.people[1].url).toMatch(new RegExp(`/p/${s.anna}$`));
+    expect(r.next).toEqual(["Keep these needs in mind for the plan: Anna: vegetarian."]);
   });
 
   test("whats_due suggests asking about the due situations", async () => {

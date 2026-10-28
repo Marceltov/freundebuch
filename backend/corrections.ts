@@ -208,11 +208,11 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
     if (!isDay(date) && !(yearly && isYearless(date)))
       throw new InvalidInputError(`A date must be a real date as YYYY-MM-DD, or --MM-DD when yearly; got "${date}"`);
   }
-  // A lasting fact has no day to ask again; a situation always has one, the default when it just became one.
+  // Only a situation has a day to ask again, the default when it just became one; a lasting fact or a trait never has one.
   let defaultCheckAfter = false;
   if (table === "facts") {
     const kind = (set.kind ?? (row as unknown as { kind: string }).kind) as string;
-    if (kind === "lasting") {
+    if (kind !== "situation") {
       if ("check_after" in set && set.check_after !== null) throw new InvalidInputError("checkAfter is for a situation; make it one with kind: situation");
       set.check_after = null;
     } else if (set.check_after === null) throw new InvalidInputError("A situation needs a checkAfter day; make it lasting to drop it");

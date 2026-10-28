@@ -267,3 +267,47 @@ test("007 adds an optional gender", async () => {
   await d.updateTable("persons").set({ gender: "nonbinary" }).where("id", "=", "anna").execute();
   await expect(d.updateTable("persons").set({ gender: "other" }).where("id", "=", "tom").execute()).rejects.toThrow(/CHECK constraint failed/);
 });
+
+test("008 lets a fact be a need or a personality trait and keeps every fact as it was", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  const d = new Kysely<any>({ dialect: new SqliteDialect({ database }) }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await migrateTo(d, "007_roles_situations_gender");
+  const t = Date.now();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "u", email: null, person_id: null, created_at: t }).execute();
+  await d.insertInto("persons").values({ id: "anna", name: "anna", created_by: "u", created_from: null, created_at: t }).execute();
+  const f = { person_id: "anna", category: "home", visibility: "shared", recorded_by: "u", conversation_id: null, created_at: t };
+  await d.insertInto("facts").values({ ...f, id: "f2", text: "moved", status: "current", kind: "situation", check_after: "2026-12-01" }).execute();
+  await d.insertInto("facts").values({ ...f, id: "f1", text: "moving", status: "outdated", superseded_by: "f2", source: "Instagram", happened_on: "2026-10-01" }).execute();
+  const before = await d.selectFrom("facts").selectAll().orderBy("id").execute();
+  await migrateTo(d, "008_traits");
+  expect(await d.selectFrom("facts").selectAll().orderBy("id").execute()).toEqual(before);
+  await d.insertInto("facts").values({ ...f, id: "f3", text: "vegetarian", status: "current", kind: "need" }).execute();
+  await d.insertInto("facts").values({ ...f, id: "f4", text: "shy", status: "current", kind: "personality" }).execute();
+  await expect(d.insertInto("facts").values({ ...f, id: "f5", text: "x", status: "current", kind: "rumour" }).execute()).rejects.toThrow(/CHECK constraint failed/);
+  await d.deleteFrom("facts").where("id", "=", "f2").execute();
+  expect(await d.selectFrom("facts").select("superseded_by").where("id", "=", "f1").executeTakeFirst()).toEqual({ superseded_by: null });
+  await d.deleteFrom("persons").where("id", "=", "anna").execute();
+  expect(await d.selectFrom("facts").selectAll().execute()).toEqual([]);
+  const { rows } = await sql<{ name: string }>`select name from sqlite_master where type = 'index' and tbl_name = 'facts' and name = 'facts_by_person'`.execute(d);
+  expect(rows).toHaveLength(1);
+});
+
+test("008 that fails partway leaves facts as they were, and runs once the cause is gone", async () => {
+  const database = new Database(":memory:");
+  const d = new Kysely<any>({ dialect: new SqliteDialect({ database }) }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await migrateTo(d, "007_roles_situations_gender");
+  const t = Date.now();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "u", email: null, person_id: null, created_at: t }).execute();
+  // A fact of a person who no longer exists, written while foreign keys were off: copying it fails once they are on.
+  const f = { category: "home", status: "current", visibility: "shared", recorded_by: "u", conversation_id: null, created_at: t, text: "x" };
+  database.pragma("foreign_keys = OFF");
+  await d.insertInto("facts").values({ ...f, id: "f1", person_id: "gone" }).execute();
+  database.pragma("foreign_keys = ON");
+  await expect(migrateTo(d, "008_traits")).rejects.toThrow();
+  const { rows } = await sql<{ name: string }>`select name from sqlite_master where type = 'table' and name like 'facts%' order by name`.execute(d);
+  expect(rows.map((r) => r.name)).toEqual(["facts"]);
+  expect(await d.selectFrom("facts").select("id").execute()).toEqual([{ id: "f1" }]);
+  await d.deleteFrom("facts").execute();
+  await migrateTo(d, "008_traits");
+});

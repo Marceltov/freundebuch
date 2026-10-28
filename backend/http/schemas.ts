@@ -74,6 +74,21 @@ const FactJson = {
   ...Own,
 };
 
+const Traits = z
+  .object({
+    needs: z.array(z.object(FactJson)).describe("Facts of kind need: what to plan around when meeting or inviting them"),
+    personality: z.array(z.object(FactJson)).describe("Facts of kind personality: how the person is"),
+  })
+  .describe("What the person needs and how they are, each as filed");
+
+export const TraitsJson = z
+  .object({
+    people: z
+      .array(z.object({ id: z.string(), name: z.string(), url: Url, ...Traits.shape }))
+      .describe("Each person once: the people named first, in the order given, then each group's members by name"),
+  })
+  .meta({ id: "Traits" });
+
 export const BriefingJson = z
   .object({
     person: z.object({
@@ -115,7 +130,8 @@ export const BriefingJson = z
         }),
       )
       .describe("What is going on and will end, nudging ones first: the best things to ask about"),
-    known: z.array(z.object(FactJson)).describe("What stays true about the person, by category"),
+    traits: Traits,
+    known: z.array(z.object(FactJson)).describe("What else stays true about the person, by category"),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
@@ -226,7 +242,9 @@ export const AliasJson = z.object({ alias: z.string().describe("Another name the
 const Ref = z.number().int().describe("An index into `people`");
 export const FactKind = z
   .enum(FACT_KINDS)
-  .describe("`situation`: going on and will end (moving, a new dog, looking for a car); `lasting` (default): stays true. A fact that supersedes another keeps its kind unless given");
+  .describe(
+    "`situation`: going on and will end (moving, a new dog, looking for a car, angry about the new job); `lasting` (default): stays true (works at Hornbach). The traits, which last and have no checkAfter: `need`: something to plan around when meeting or inviting them (needs a wheelchair, vegetarian, nut allergy, doesn't drink); `personality`: how the person is and how to deal with them (gets angry quickly, shy in big groups, hates phone calls). A fact that supersedes another keeps its kind unless given",
+  );
 export const CheckAfter = Day.describe(
   "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation must give a new one",
 );
@@ -495,8 +513,12 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingScreenshotListJson, ResolutionJson, ResolvedJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingScreenshotListJson, ResolutionJson, ResolvedJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");
+export const TraitsQuery = z.object({
+  people: z.string().optional().describe("Person ids, comma-separated"),
+  groups: z.string().optional().describe("Group ids, comma-separated; each stands for the members the caller sees"),
+});
 export const PeopleQuery = z.object({ q: z.string().optional().describe("A name or alias to search for; best matches first, at most 5. Without it, every person") });

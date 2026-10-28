@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Lock } from "lucide-react";
-import { daysBetween, getGroup, today } from "@/backend";
+import { HeartHandshake, Lock } from "lucide-react";
+import { daysBetween, getGroup, today, traitsFor } from "@/backend";
 import { copy } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { ago } from "@/components/format";
@@ -14,9 +14,13 @@ export async function generateMetadata({ params }: PageProps<"/g/[id]">) {
 }
 
 // One group: its name and other names, and everyone in it the viewer may see, never seen or most overdue first, each with the
-// orbit's freshness ring and when the viewer last saw them.
+// orbit's freshness ring and when the viewer last saw them; then what those of them with traits need and how they are.
 export default async function GroupPage({ params }: PageProps<"/g/[id]">) {
-  const g = await orNotFound(getGroup(await pageViewer(), (await params).id));
+  const viewer = await pageViewer();
+  const g = await orNotFound(getGroup(viewer, (await params).id));
+  // Who to keep in mind when planning something with the group: only the members with a trait, needs first.
+  // The group may be gone or private by now: that is not found, as above.
+  const traits = g.members.length ? (await orNotFound(traitsFor(viewer, { groups: [g.id] }))).filter((p) => p.needs.length + p.personality.length > 0) : [];
   const now = today();
   return (
     <article>
@@ -49,6 +53,37 @@ export default async function GroupPage({ params }: PageProps<"/g/[id]">) {
           </ul>
         )}
       </section>
+      {traits.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
+            <HeartHandshake aria-hidden className="h-[18px] w-[18px] text-carbon" />
+            {copy.traits}
+          </h2>
+          <ul>
+            {traits.map((p) => (
+              <li key={p.id} className="border-b border-rule py-2">
+                <Link href={p.url} className="font-semibold">
+                  {p.name}
+                </Link>
+                {(
+                  [
+                    [copy.needs, p.needs],
+                    [copy.personality, p.personality],
+                  ] as const
+                ).map(
+                  ([title, facts]) =>
+                    facts.length > 0 && (
+                      <p key={title} className="text-sm">
+                        <span className="text-muted">{title}: </span>
+                        {facts.map((f) => f.text).join(", ")}
+                      </p>
+                    ),
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </article>
   );
 }

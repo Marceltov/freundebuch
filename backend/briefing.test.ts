@@ -1,5 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
+import { markOutdated } from "./corrections";
 import { recordConversation, remember } from "./conversations";
 import { addRelationship } from "./relationships";
 import { buildNetwork } from "./network";
@@ -244,4 +245,30 @@ test("buildNetwork leaves out household persons without an edge and keeps each p
   const n = buildNetwork("p", [rel("1", "p", "x"), rel("2", "x", "p", "Kollegin"), rel("3", "h2", "p")], ["h1", "h2"], new Map([["p", "P"], ["x", "X"], ["h2", "H"]]), new Map());
   expect(n.nodes.map((x) => x.id)).toEqual(["p", "h2", "x"]);
   expect(n.edges.map((e) => e.id)).toEqual(["1", "2", "3"]);
+});
+
+test("traits come in their own field, needs and personality apart, and leave known", async () => {
+  await remember(s.a, {
+    visibility: "shared",
+    facts: [
+      { person: s.anna, text: "vegetarian", category: "health", kind: "need" },
+      { person: s.anna, text: "shy in big groups", category: "other", kind: "personality" },
+    ],
+  });
+  const b = await briefing(s.a, s.anna, "2026-10-23");
+  expect(b.traits.needs.map((f) => f.text)).toEqual(["vegetarian"]);
+  expect(b.traits.personality.map((f) => f.text)).toEqual(["shy in big groups"]);
+  expect(b.traits.needs[0]).toMatchObject({ category: "health", url: expect.stringMatching(`^/p/${s.anna}#facts-`), mine: true });
+  expect(b.known.map((f) => f.text)).not.toContain("vegetarian");
+  expect(b.known.map((f) => f.text)).not.toContain("shy in big groups");
+});
+
+test("B never sees A's private trait, and an outdated trait is gone", async () => {
+  await remember(s.a, { visibility: "private", facts: [{ person: s.anna, text: "needs a wheelchair", category: "health", kind: "need" }] });
+  const r = await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "nut allergy", category: "health", kind: "need" }] });
+  await markOutdated(s.a, r.filed.facts[0].id);
+  expect((await briefing(s.a, s.anna, "2026-10-23")).traits.needs.map((f) => f.text)).toEqual(["needs a wheelchair"]);
+  const b = await briefing(s.b, s.anna, "2026-10-23");
+  expect(b.traits).toEqual({ needs: [], personality: [] });
+  expect(JSON.stringify(b)).not.toContain("wheelchair");
 });

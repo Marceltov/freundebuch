@@ -32,6 +32,9 @@ export const copy = {
   // The friend page
   now: "Gerade los",
   known: "Gut zu wissen",
+  traits: "Worauf achten",
+  needs: "Braucht",
+  personality: "Wesen",
   networkOf: "Wer zu {name} gehört",
   allLinks: "Alle Verbindungen ({n})",
   roleUs: "Unsere {role}",
@@ -48,6 +51,8 @@ export const copy = {
   askFrom: "nachfragen ab {date}",
   makeSituation: "Ist gerade los",
   makeLasting: "Gut zu wissen",
+  makeNeed: "Braucht",
+  makePersonality: "Wesen",
   askOn: "Nachfragen am …",
   askOnTitle: "Nachfragen am",
   gender: "Geschlecht",

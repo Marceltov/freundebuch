@@ -27,14 +27,16 @@ import {
   PersonId,
   PersonJson,
   RecordedJson,
+  TraitsJson,
   HOUSEHOLD_TARGET,
   Visibility,
 } from "./http/schemas";
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
+import { traitsFor, type PersonTraits } from "./traits";
 import { addAlias, findPeople, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
-import { EXCHANGE_KINDS, FACT_CATEGORIES, type Viewer } from "./types";
+import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "./types";
 import { conversationPath, personPath } from "./urls";
 
 export type Tool = {
@@ -83,6 +85,9 @@ function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
 
 // The lines of `next`. Each is one short instruction in English, about what this call did.
 
+const TRAIT_WORDS: Record<TraitKind, string> = { need: "a need: something to plan around", personality: "personality: how the person is" };
+const nowTrait = (name: string, text: string, kind: TraitKind): Next => [`"${text}" now shows under ${name}'s traits, as ${TRAIT_WORDS[kind]}.`];
+
 const situationDay = (f: Pick<FiledFact, "name" | "text" | "kind" | "checkAfter" | "defaultCheckAfter">): Next =>
   f.kind !== "situation" || !f.checkAfter
     ? []
@@ -127,9 +132,15 @@ function relabel(personId: string, gender: string | null, rels: Relabel[]): Next
 
 const WITH: Record<string, (partner?: string) => string> = { us: () => "you both", me: () => "you", partner: (p) => p ?? "your partner" };
 
+function needsNext(people: PersonTraits[]): Next {
+  const needs = people.filter((p) => p.needs.length).map((p) => `${p.name}: ${p.needs.map((f) => f.text).join(", ")}`);
+  return needs.length ? [`Keep these needs in mind for the plan: ${needs.join("; ")}.`] : [];
+}
+
 function briefingNext(b: Briefing): Next {
   const next: Next = [];
   if (b.roles.length) next.push(`Lead with who ${b.person.name} is to the household: ${b.roles.map((r) => `${r.label} of ${WITH[r.with](r.partnerName)}`).join("; ")}.`);
+  if (b.traits.needs.length) next.push(`Keep in mind what ${b.person.name} needs: ${b.traits.needs.map((f) => f.text).join("; ")}.`);
   for (const f of b.situations.filter((x) => x.nudge))
     next.push(
       `Ask about "${f.text}" first: its day to ask, ${f.checkAfter}, has come. When the user tells how it went, mark it outdated with correct; news instead supersedes it, with a new checkAfter agreed with the user.`,
@@ -497,13 +508,28 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "briefing",
     description:
-      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name), what is going on (`situations`, with `nudge` once their day to ask has come), what stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, when they ask about a person, or \"how do I know X?\".",
+      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name), what is going on (`situations`, with `nudge` once their day to ask has come), what they need and how they are (`traits`: `needs` to plan around, `personality` to keep in mind), what else stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, when they ask about a person, or \"how do I know X?\".",
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },
     handler: async (v, { personId }) => {
       const b = await briefing(v, personId);
       return ok(BriefingOut, b, briefingNext(b));
+    },
+  }),
+  tool({
+    name: "traits",
+    description:
+      "What several people need and how they are: any mix of people and groups, each person once, needs first. Use it when the user plans something with several people (an evening, a trip, a party): who needs step-free access, who doesn't drink, who is vegetarian.",
+    input: z.object({
+      people: z.array(PersonId).optional().describe("The people to look up, as find_person returns them"),
+      groups: z.array(GroupId).optional().describe("Groups, each standing for its members"),
+    }),
+    output: TraitsJson,
+    annotations: { readOnlyHint: true },
+    handler: async (v, q) => {
+      const people = await traitsFor(v, q);
+      return ok(TraitsJson, { people }, needsNext(people));
     },
   }),
   tool({
@@ -615,7 +641,11 @@ export const TOOLS: readonly Tool[] = [
         }
         case "edit": {
           const { fact } = await editItem(v, a.table, a.id, a.patch);
-          return ok(CorrectedJson, { corrected, fact }, fact && ("kind" in a.patch || "checkAfter" in a.patch) ? situationDay(fact) : []);
+          return ok(
+            CorrectedJson,
+            { corrected, fact },
+            !fact ? [] : "kind" in a.patch && isTrait(fact.kind) ? nowTrait(fact.name, fact.text, fact.kind) : "kind" in a.patch || "checkAfter" in a.patch ? situationDay(fact) : [],
+          );
         }
         case "merge": {
           const m = await mergePeople(v, a.id, a.drop);
