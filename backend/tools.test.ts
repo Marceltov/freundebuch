@@ -12,7 +12,7 @@ beforeEach(async () => {
 });
 
 test("one table holds every tool the MCP endpoint offers", () => {
-  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "record_conversation", "relate", "remember", "set_interval", "whats_due"]);
+  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "record_conversation", "relate", "remember", "set_interval", "traits", "whats_due"]);
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
@@ -226,6 +226,16 @@ describe("next: what Claude does after a call", () => {
     const b = await run(s.a, "briefing", { personId: s.anna });
     expect(b.traits.needs.map((f: { text: string }) => f.text)).toEqual(["vegetarian", "nut allergy"]);
     expect(b.next.slice(0, 2)).toEqual(["Lead with who Anna is to the household: Vermieterin of you both.", "Keep in mind what Anna needs: vegetarian; nut allergy."]);
+  });
+
+  test("traits lists people and groups once each and names the needs to keep in mind", async () => {
+    const g = await run(s.a, "relate", { kind: "group", name: "Laufgruppe", members: [s.tom, s.anna], visibility: "shared" });
+    expect((await run(s.a, "traits", { groups: [g.id] })).next).toEqual([]);
+    await run(s.a, "remember", { visibility: "shared", facts: [{ person: s.anna, text: "vegetarian", category: "health", kind: "need" }] });
+    const r = await run(s.a, "traits", { people: [s.lena], groups: [g.id] });
+    expect(r.people.map((p: { name: string }) => p.name)).toEqual(["Lena", "Anna", "Tom"]);
+    expect(r.people[1].url).toMatch(new RegExp(`/p/${s.anna}$`));
+    expect(r.next).toEqual(["Keep these needs in mind for the plan: Anna: vegetarian."]);
   });
 
   test("whats_due suggests asking about the due situations", async () => {

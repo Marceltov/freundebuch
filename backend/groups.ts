@@ -49,17 +49,8 @@ export async function getGroup(v: Viewer, id: string): Promise<GroupView & { mem
   const row = await d.selectFrom("groups").select(["id", "name"]).where("id", "=", id).$call((qb) => visibleGroups(qb, v)).executeTakeFirst();
   if (!row) throw new NotFoundError("No such group");
   const [view] = await views(d, v, [row]);
-  const rows = await d
-    .selectFrom("group_members")
-    .innerJoin("persons", "persons.id", "group_members.person_id")
-    .select(["persons.id", "persons.name", "group_members.visibility"])
-    .where("group_members.group_id", "=", id)
-    .$call((qb) => visible(qb, v, "group_members"))
-    .execute();
-  const people = new Map<string, { name: string; private: boolean }>();
-  for (const r of rows) people.set(r.id, { name: r.name, private: (people.get(r.id)?.private ?? true) && r.visibility === "private" });
   const members = await Promise.all(
-    [...people].map(async ([personId, p]) => {
+    (await visibleMembers(d, v, id)).map(async ({ id: personId, ...p }) => {
       const f = await freshness(v, personId);
       return { personId, name: p.name, url: personPath(personId), private: p.private, lastSeen: f.lastSeen, ratio: f.ratio };
     }),
@@ -69,6 +60,28 @@ export async function getGroup(v: Viewer, id: string): Promise<GroupView & { mem
       Number(b.lastSeen === null) - Number(a.lastSeen === null) || (b.ratio ?? -Infinity) - (a.ratio ?? -Infinity) || a.name.localeCompare(b.name, "de"),
   );
   return { ...view, members };
+}
+
+/** The people in a group the viewer may see, by name; `private` when the viewer's own private membership is the only one they see. */
+async function visibleMembers(d: Kysely<Schema>, v: Viewer, groupId: string): Promise<Array<{ id: string; name: string; private: boolean }>> {
+  const rows = await d
+    .selectFrom("group_members")
+    .innerJoin("persons", "persons.id", "group_members.person_id")
+    .select(["persons.id", "persons.name", "group_members.visibility"])
+    .where("group_members.group_id", "=", groupId)
+    .$call((qb) => visible(qb, v, "group_members"))
+    .execute();
+  const people = new Map<string, { name: string; private: boolean }>();
+  for (const r of rows) people.set(r.id, { name: r.name, private: (people.get(r.id)?.private ?? true) && r.visibility === "private" });
+  return [...people].map(([id, p]) => ({ id, ...p })).sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+
+/** The people of a group the viewer sees, by name; NotFoundError when the viewer can't see the group. */
+export async function groupMembers(v: Viewer, groupId: string): Promise<Array<{ id: string; name: string }>> {
+  const d = await db();
+  const row = await d.selectFrom("groups").select("id").where("id", "=", groupId).$call((qb) => visibleGroups(qb, v)).executeTakeFirst();
+  if (!row) throw new NotFoundError("No such group");
+  return (await visibleMembers(d, v, groupId)).map(({ id, name }) => ({ id, name }));
 }
 
 /**

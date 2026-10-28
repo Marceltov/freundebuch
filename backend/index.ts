@@ -22,6 +22,7 @@ export { briefing, type Briefing } from "./briefing";
 export { getConversation, hasRecorded, listConversations, type ConversationSummary, type ConversationView } from "./conversations";
 export { whatsDue, type DueItem } from "./due";
 export { getPerson, peopleOverview, type PersonOverview } from "./people";
+export { traitsFor, type PersonTraits, type Traits } from "./traits";
 export { getGroup, listGroups, type GroupMember, type GroupView } from "./groups";
 export { daysBetween, today } from "./dates";
 export { NotFoundError } from "./errors";

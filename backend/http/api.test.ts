@@ -70,6 +70,15 @@ describe("people", () => {
     expect(res.json.known.map((f: { text: string }) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
   });
 
+  test("traits of people and groups; nothing named is 400", async () => {
+    const res = await call(s.a, "GET", `/traits?people=${s.anna},${s.tom}`);
+    expect(res.status).toBe(200);
+    expect(res.json.people.map((p: { name: string }) => p.name)).toEqual(["Anna", "Tom"]);
+    expect(res.json.people[0]).toMatchObject({ url: `${BASE}/p/${s.anna}`, needs: [], personality: [] });
+    expect((await call(s.a, "GET", "/traits")).status).toBe(400);
+    expect((await call(s.a, "GET", "/traits?groups=nope")).status).toBe(404);
+  });
+
   test("interval: set, then it shows in the briefing; out-of-range is 400", async () => {
     expect((await call(s.a, "PUT", `/people/${s.anna}/interval`, { days: 28, confirmed: true })).status).toBe(204);
     expect((await call(s.a, "GET", `/people/${s.anna}/briefing`)).json.freshness.intervalDays).toBe(28);

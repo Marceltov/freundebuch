@@ -27,11 +27,13 @@ import {
   PersonId,
   PersonJson,
   RecordedJson,
+  TraitsJson,
   HOUSEHOLD_TARGET,
   Visibility,
 } from "./http/schemas";
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
+import { traitsFor, type PersonTraits } from "./traits";
 import { addAlias, findPeople, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
 import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "./types";
@@ -129,6 +131,11 @@ function relabel(personId: string, gender: string | null, rels: Relabel[]): Next
 }
 
 const WITH: Record<string, (partner?: string) => string> = { us: () => "you both", me: () => "you", partner: (p) => p ?? "your partner" };
+
+function needsNext(people: PersonTraits[]): Next {
+  const needs = people.filter((p) => p.needs.length).map((p) => `${p.name}: ${p.needs.map((f) => f.text).join(", ")}`);
+  return needs.length ? [`Keep these needs in mind for the plan: ${needs.join("; ")}.`] : [];
+}
 
 function briefingNext(b: Briefing): Next {
   const next: Next = [];
@@ -508,6 +515,21 @@ export const TOOLS: readonly Tool[] = [
     handler: async (v, { personId }) => {
       const b = await briefing(v, personId);
       return ok(BriefingOut, b, briefingNext(b));
+    },
+  }),
+  tool({
+    name: "traits",
+    description:
+      "What several people need and how they are: any mix of people and groups, each person once, needs first. Use it when the user plans something with several people (an evening, a trip, a party): who needs step-free access, who doesn't drink, who is vegetarian.",
+    input: z.object({
+      people: z.array(PersonId).optional().describe("The people to look up, as find_person returns them"),
+      groups: z.array(GroupId).optional().describe("Groups, each standing for its members"),
+    }),
+    output: TraitsJson,
+    annotations: { readOnlyHint: true },
+    handler: async (v, q) => {
+      const people = await traitsFor(v, q);
+      return ok(TraitsJson, { people }, needsNext(people));
     },
   }),
   tool({

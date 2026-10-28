@@ -295,6 +295,86 @@
         }
       }
     },
+    "/api/v1/traits": {
+      "get": {
+        "operationId": "getTraits",
+        "summary": "What several people need and how they are",
+        "description": "Any mix of people and groups, each person once. As the caller sees it: private items of other users are never part of it.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "people",
+            "in": "query",
+            "required": false,
+            "description": "Person ids, comma-separated",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groups",
+            "in": "query",
+            "required": false,
+            "description": "Group ids, comma-separated; each stands for the members the caller sees",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The traits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Traits"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/people/{id}/interval": {
       "put": {
         "operationId": "setCheckInInterval",
@@ -3766,6 +3846,166 @@
           "recent",
           "relationships",
           "network"
+        ]
+      },
+      "Traits": {
+        "type": "object",
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                },
+                "needs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "work",
+                          "home",
+                          "family",
+                          "health",
+                          "hobby",
+                          "travel",
+                          "other"
+                        ]
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                      },
+                      "source": {
+                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                        "type": "string"
+                      },
+                      "happenedOn": {
+                        "description": "When it happened, when the screenshot showed it",
+                        "type": "string"
+                      },
+                      "imageUrl": {
+                        "description": "The screenshot it was read from (sign-in required)",
+                        "type": "string"
+                      },
+                      "visibility": {
+                        "type": "string",
+                        "enum": [
+                          "shared",
+                          "private"
+                        ],
+                        "description": "`private` items are visible only to whoever recorded them"
+                      },
+                      "mine": {
+                        "type": "boolean",
+                        "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text",
+                      "category",
+                      "url",
+                      "visibility",
+                      "mine"
+                    ]
+                  },
+                  "description": "Facts of kind need: what to plan around when meeting or inviting them"
+                },
+                "personality": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "work",
+                          "home",
+                          "family",
+                          "health",
+                          "hobby",
+                          "travel",
+                          "other"
+                        ]
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                      },
+                      "source": {
+                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                        "type": "string"
+                      },
+                      "happenedOn": {
+                        "description": "When it happened, when the screenshot showed it",
+                        "type": "string"
+                      },
+                      "imageUrl": {
+                        "description": "The screenshot it was read from (sign-in required)",
+                        "type": "string"
+                      },
+                      "visibility": {
+                        "type": "string",
+                        "enum": [
+                          "shared",
+                          "private"
+                        ],
+                        "description": "`private` items are visible only to whoever recorded them"
+                      },
+                      "mine": {
+                        "type": "boolean",
+                        "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text",
+                      "category",
+                      "url",
+                      "visibility",
+                      "mine"
+                    ]
+                  },
+                  "description": "Facts of kind personality: how the person is"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url",
+                "needs",
+                "personality"
+              ]
+            },
+            "description": "Each person once: the people named first, in the order given, then each group's members by name"
+          }
+        },
+        "required": [
+          "people"
         ]
       },
       "DueItem": {

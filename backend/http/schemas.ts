@@ -81,6 +81,14 @@ const Traits = z
   })
   .describe("What the person needs and how they are, each as filed");
 
+export const TraitsJson = z
+  .object({
+    people: z
+      .array(z.object({ id: z.string(), name: z.string(), url: Url, ...Traits.shape }))
+      .describe("Each person once: the people named first, in the order given, then each group's members by name"),
+  })
+  .meta({ id: "Traits" });
+
 export const BriefingJson = z
   .object({
     person: z.object({
@@ -505,8 +513,12 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingScreenshotListJson, ResolutionJson, ResolvedJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingScreenshotListJson, ResolutionJson, ResolvedJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");
+export const TraitsQuery = z.object({
+  people: z.string().optional().describe("Person ids, comma-separated"),
+  groups: z.string().optional().describe("Group ids, comma-separated; each stands for the members the caller sees"),
+});
 export const PeopleQuery = z.object({ q: z.string().optional().describe("A name or alias to search for; best matches first, at most 5. Without it, every person") });

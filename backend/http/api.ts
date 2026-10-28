@@ -12,6 +12,7 @@ import { InvalidInputError, InvalidRequestError, NotFoundError } from "../errors
 import { addGroupAlias, addToGroupById, createGroup, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../groups";
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
+import { traitsFor } from "../traits";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { createShareKey, discardScreenshot, listPending, resolveScreenshot, retryScreenshot, revokeShareKey, screenshotModel } from "../screenshots";
@@ -50,6 +51,8 @@ import {
   SettingsJson,
   ShareKeyJson,
   TableParam,
+  TraitsJson,
+  TraitsQuery,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -64,6 +67,8 @@ const E = {
 } as const;
 const { 400: E400, 401: E401, 403: E403, 404: E404 } = E;
 const NO_CONTENT = { description: "Done" } satisfies ResponseSpec;
+/** A comma-separated list of ids from the query, without empty entries. */
+const ids = (list?: string) => list?.split(",").map((x) => x.trim()).filter(Boolean);
 
 const OPS: AnyOp[] = [
   op({
@@ -118,6 +123,19 @@ const OPS: AnyOp[] = [
     params: { id: IdParam },
     responses: { 200: { description: "The briefing", schema: BriefingJson }, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => ({ status: 200, body: await briefing(viewer, params.id) })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/traits`,
+    operationId: "getTraits",
+    summary: "What several people need and how they are",
+    description: "Any mix of people and groups, each person once. As the caller sees it: private items of other users are never part of it.",
+    tags: ["People"],
+    auth: true,
+    params: {},
+    query: TraitsQuery,
+    responses: { 200: { description: "The traits", schema: TraitsJson }, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, query }) => ({ status: 200, body: { people: await traitsFor(viewer, { people: ids(query.people), groups: ids(query.groups) }) } })),
 
   op({
     method: "PUT",
