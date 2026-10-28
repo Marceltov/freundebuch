@@ -82,6 +82,7 @@ export interface Schema {
     id: string;
     user_id: string;
     sha256: string;
+    /** `nothing`: only on rows from before files, when a pre-read found nothing and the blob went. */
     status: "reading" | "pending" | "filed" | "nothing" | "failed";
     /** JSON of what Claude read (files.ts), once it has. */
     reading: string | null;

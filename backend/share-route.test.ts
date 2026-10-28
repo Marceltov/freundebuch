@@ -40,7 +40,7 @@ test("the Shortcut sends the image as the body with its share key: 202, stored a
   const res = await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png" });
   expect(res.status).toBe(202);
   const body = await res.json();
-  expect(body).toMatchObject({ status: "reading", duplicate: false, message: "Danke! freundebuch liest den Screenshot." });
+  expect(body).toMatchObject({ status: "reading", duplicate: false, message: "Danke! freundebuch liest die Datei, sie wartet unter „Prüfen“." });
   expect((await (await db()).selectFrom("files").select("user_id").where("id", "=", body.id).executeTakeFirstOrThrow()).user_id).toBe(s.a.userId);
 });
 

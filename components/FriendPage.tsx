@@ -414,12 +414,12 @@ function FactText({ f }: { f: Briefing["known"][number] }) {
           target="_blank"
           rel="noreferrer"
           className="ml-2 inline-block align-middle"
-          title={copy.screenshotOf.replace("{source}", f.source ?? "")}
+          title={copy.fileOf.replace("{source}", f.source ?? "")}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- a private image behind the sign-in, not for next/image */}
           <img
             src={f.imageUrl}
-            alt={copy.screenshot}
+            alt={copy.fileImage}
             loading="lazy"
             className="h-9 w-9 rounded-md bg-surface-2 object-cover object-top"
           />

@@ -1,26 +1,24 @@
-// Screenshots of social media posts, shared in from a phone. One goes: stored (shrunk, in the blob store) → read by Claude
-// (screenshot-model.ts) → filed as a fact on the person, with where it was posted and when it happened. When Claude isn't sure
-// whom it is about, or it looks sensitive, it waits on the sharing user's "Zu prüfen" page and they get a push. Pending
-// screenshots belong to the user who shared them; an image is shown to anyone else only through a fact they may see.
+// Files shared into freundebuch (a screenshot, a photo, a PDF, a text such as a chat export), from the phone or from Erzählen.
+// One goes: stored (images shrunk to WebP, the rest as it came, in the blob store) → pre-read by Claude (file-model.ts) into a
+// suggestion → waits under "Prüfen" until the user works it through with Claude (Erzählen opened on it, or the MCP tool inbox),
+// which files with the usual tools and links the facts to it (`file_id`), then marks it done. Nothing is filed unattended.
+// Waiting files belong to the user who shared them; a file is shown to anyone else only through a fact they may see.
 import { createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { config } from "./config";
-import { addDays, isDay, today } from "./dates";
-import { insertRelationships, MAX_LABEL, SITUATION_DAYS } from "./conversations";
-import type { Kysely } from "kysely";
-import { db, newId, now, type Schema } from "./db";
+import { today } from "./dates";
+import { db, newId, now } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { logger } from "./log";
 import { copy } from "./notify/copy";
 import { sendWebhook } from "./notify/webhook";
-import { insertAlias, insertPerson } from "./people";
-import { anthropicFileModel, fakeFileModel, type KnownPerson, type Reading, type FileModel } from "./file-model";
+import { anthropicFileModel, fakeFileModel, type FileModel, type KnownPerson, type Suggestion } from "./file-model";
 import { getSettings } from "./settings";
 import { processState } from "./state";
 import { store } from "./storage";
 import { spend } from "./usage";
-import { FACT_CATEGORIES, VISIBILITIES, type FactCategory, type Viewer, type Visibility } from "./types";
-import { itemPath, personPath, filePath } from "./urls";
+import type { Viewer } from "./types";
+import { filePath, personPath } from "./urls";
 import { viewerById } from "./users";
 import { visible } from "./visibility";
 
@@ -34,7 +32,7 @@ const EXT: Record<string, string> = { "image/webp": "webp", "application/pdf": "
 const NOT_TAKEN = "freundebuch takes images, PDFs and text files";
 export const PENDING_PATH = "/pruefen";
 
-export type FileStatus = "reading" | "pending" | "filed" | "nothing" | "failed";
+export type FileStatus = "reading" | "pending" | "filed" | "failed";
 
 // The model in use: a test's stand-in, Claude with the API key, the e2e stand-in, or none (sharing is off).
 const state = processState("files", () => ({ override: null as FileModel | null, queue: Promise.resolve() as Promise<unknown> }));
@@ -71,7 +69,9 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promis
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const d = await db();
   const seen = await d.selectFrom("files").select(["id", "status"]).where("user_id", "=", v.userId).where("sha256", "=", sha256).executeTakeFirst();
-  if (seen) return { ...seen, duplicate: true };
+  // An old pre-read that found "nothing" dropped its blob and filed nothing: sharing it again starts afresh.
+  if (seen?.status === "nothing") await d.deleteFrom("files").where("id", "=", seen.id).execute();
+  else if (seen) return { id: seen.id, status: seen.status, duplicate: true };
   const kind = kindOf(bytes, type);
   let stored: Uint8Array;
   let mediaType: string;
@@ -103,9 +103,9 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promis
   return { id, status: "reading", duplicate: false };
 }
 
-/** Reads the screenshots one after another, so a burst of shares doesn't become a burst of requests. */
+/** Reads the files one after another, so a burst of shares doesn't become a burst of requests. */
 export function queueRead(id: string, model: FileModel): Promise<void> {
-  const run = state.queue.then(async () => void (await readFile(id, model))).catch((e) => log.error({ err: e }, "reading a screenshot failed"));
+  const run = state.queue.then(async () => void (await readFile(id, model))).catch((e) => log.error({ err: e }, "reading a file failed"));
   state.queue = run;
   return run;
 }
@@ -118,7 +118,7 @@ export async function resumeReading(model: FileModel | null = fileModel()): Prom
     const rows = await (await db()).selectFrom("files").select("id").where("status", "=", "reading").orderBy("created_at").execute();
     for (const r of rows) void queueRead(r.id, model);
   } catch (e) {
-    log.error({ err: e }, "resuming the screenshots failed");
+    log.error({ err: e }, "resuming the files failed");
   }
 }
 
@@ -128,121 +128,54 @@ async function knownPeople(): Promise<KnownPerson[]> {
   return people.map((p) => ({ id: p.id, name: p.name, aliases: aliases.filter((a) => a.person_id === p.id).map((a) => a.alias) }));
 }
 
-/** Claude's answer as freundebuch takes it: a date that isn't a real past day is dropped, and a person id that doesn't exist
- * becomes a candidate list of the ids that do. */
-function clean(r: Reading, known: Set<string>, day: string): Reading {
-  const category: FactCategory = (FACT_CATEGORIES as readonly string[]).includes(r.category) ? r.category : "other";
-  const days = r.situation && Number.isInteger(r.checkAfterDays) ? Math.min(Math.max(r.checkAfterDays!, 1), 365) : null;
+/** Claude's suggestion as freundebuch keeps it: a person id that doesn't exist becomes a candidate list of the ids that do. */
+function clean(r: Suggestion, known: Set<string>): Suggestion {
   return {
-    ...r,
-    situation: !!r.situation,
-    checkAfterDays: days,
-    role: r.role && typeof r.role.label === "string" && r.role.label.trim() && typeof r.role.inverse === "string" && r.role.inverse.trim() && r.role.label.trim().length <= MAX_LABEL && r.role.inverse.trim().length <= MAX_LABEL
-      ? { label: r.role.label.trim(), inverse: r.role.inverse.trim() }
-      : null,
-    text: r.text.trim(),
-    category,
-    happenedOn: r.happenedOn && isDay(r.happenedOn) && r.happenedOn <= day ? r.happenedOn : null,
-    people: r.people.map((p) => {
-      const handle = p.handle ? { handle: p.handle.replace(/^@/, "") } : {};
-      if (p.personId && known.has(p.personId)) return { name: p.name, ...handle, personId: p.personId };
-      return { name: p.name, ...handle, candidates: [...new Set(p.candidates ?? [])].filter((c) => known.has(c)) };
-    }),
+    summary: r.summary.trim(),
+    people: r.people.map((p) =>
+      p.personId && known.has(p.personId) ? { name: p.name, personId: p.personId } : { name: p.name, candidates: [...new Set(p.candidates ?? [])].filter((c) => known.has(c)) },
+    ),
   };
 }
 
-/** Sure: something happened, nothing sensitive, and every person in it is one known person. */
-const sure = (r: Reading) => r.kind === "post" && !!r.text && !r.sensitive && r.people.length > 0 && r.people.every((p) => p.personId);
-
+/** Pre-reads a file: its suggestion (`pending`), or why not (`failed`). Either way the user hears of it and it waits. */
 export async function readFile(id: string, model: FileModel): Promise<FileStatus> {
   const d = await db();
   const row = await d.selectFrom("files").selectAll().where("id", "=", id).executeTakeFirst();
-  if (!row || row.status !== "reading") return row?.status ?? "failed";
+  if (!row || row.status !== "reading") return row && row.status !== "nothing" ? row.status : "failed";
   const v = await viewerById(row.user_id);
   const bytes = await store().get(row.blob_key);
-  const set = (status: FileStatus, reading: Reading | null = null) =>
-    d.updateTable("files").set({ status, reading: reading && JSON.stringify(reading) }).where("id", "=", id).where("status", "=", "reading").execute();
+  const set = (status: FileStatus, reading: Suggestion | { error: string }) =>
+    d.updateTable("files").set({ status, reading: JSON.stringify(reading) }).where("id", "=", id).where("status", "=", "reading").execute();
+  const click = `${PENDING_PATH}#${id}`;
   if (!v || !bytes) {
-    await set("failed");
+    await set("failed", { error: "the file is gone" });
     return "failed";
   }
   const day = today();
   if (!(await spend(v, day))) {
-    await set("failed");
-    await push(v, { title: copy.shotLimit, body: "", click: PENDING_PATH });
+    await set("failed", { error: "daily limit reached" });
+    await push(v, { title: copy.fileLimit, body: "", click });
     return "failed";
   }
   const people = await knownPeople();
-  const raw = await model.read({ bytes, type: row.media_type, people, today: day });
-  if (!raw) {
-    await set("failed");
-    await push(v, { title: copy.shotFailed, body: "", click: PENDING_PATH });
+  const read = await model.read({ bytes, type: row.media_type, people, today: day });
+  if ("error" in read) {
+    await set("failed", read);
+    await push(v, { title: copy.fileFailed, body: "", click });
     return "failed";
   }
-  const reading = clean(raw, new Set(people.map((p) => p.id)), day);
-  if (reading.kind === "nothing" || !reading.text) {
-    await set("nothing", reading);
-    await store().delete(row.blob_key);
-    await push(v, { title: copy.shotNothing, body: "" });
-    return "nothing";
-  }
-  if (!sure(reading)) {
-    await set("pending", reading);
-    const names = reading.people.map((p) => p.name).join(", ");
-    await push(v, { title: reading.sensitive ? copy.shotSensitive : copy.shotWho, body: names ? `${names}: ${reading.text}` : reading.text, click: `${PENDING_PATH}#${id}` });
-    return "pending";
-  }
-  await d.transaction().execute(async (tx) => {
-    for (const personId of new Set(reading.people.map((p) => p.personId!))) await insertFact(tx, v, id, reading, personId, "shared");
-    await insertRole(tx, v, reading, reading.people[0].personId!, "shared");
-    await tx.updateTable("files").set({ status: "filed", reading: JSON.stringify(reading) }).where("id", "=", id).execute();
-  });
-  return "filed";
-}
-
-async function insertFact(
-  tx: Kysely<Schema>,
-  v: Viewer,
-  shotId: string,
-  r: Pick<Reading, "text" | "category" | "platform" | "happenedOn" | "situation" | "checkAfterDays">,
-  personId: string,
-  visibility: Visibility,
-): Promise<string> {
-  const id = newId();
-  const kind = r.situation ? "situation" : "lasting";
-  const checkAfter = r.situation ? addDays(today(), r.checkAfterDays ?? SITUATION_DAYS) : null;
-  await tx
-    .insertInto("facts")
-    .values({
-      id,
-      person_id: personId,
-      text: r.text,
-      category: r.category,
-      kind,
-      check_after: checkAfter,
-      visibility,
-      recorded_by: v.userId,
-      conversation_id: null,
-      created_at: now(),
-      source: r.platform,
-      happened_on: r.happenedOn,
-      file_id: shotId,
-    })
-    .execute();
-  return id;
-}
-
-/** The poster's role to the viewer, when the screenshot said one: to "me" only, since one user's screenshot says nothing about the partner. */
-async function insertRole(tx: Kysely<Schema>, v: Viewer, r: Reading, posterId: string, visibility: Visibility): Promise<void> {
-  if (!r.role || posterId === v.personId) return;
-  await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: null, created_at: now() }, { from: posterId, to: "me", label: r.role.label, inverse: r.role.inverse, visibility });
+  const suggestion = clean(read, new Set(people.map((p) => p.id)));
+  await set("pending", suggestion);
+  await push(v, { title: copy.fileReady, body: suggestion.summary, click });
+  return "pending";
 }
 
 async function push(v: Viewer, m: { title: string; body: string; click?: string }): Promise<void> {
   const { webhookUrl } = await getSettings(v);
   if (!webhookUrl) return;
   const base = config.publicUrl();
-  await sendWebhook(webhookUrl, { title: m.title, body: m.body, tags: ["camera"], click: base && m.click ? `${base}${m.click}` : base });
+  await sendWebhook(webhookUrl, { title: m.title, body: m.body, tags: ["paperclip"], click: base && m.click ? `${base}${m.click}` : base });
 }
 
 export type PendingCandidate = { id: string; name: string; url: string };
@@ -250,38 +183,44 @@ export type PendingFile = {
   id: string;
   status: "reading" | "pending" | "failed";
   createdAt: number;
-  imageUrl: string;
-  /** What Claude read; null while reading or when it failed. */
-  reading: (Omit<Reading, "people"> & { people: Array<{ name: string; handle?: string; person: PendingCandidate | null; candidates: PendingCandidate[] }> }) | null;
+  /** The file itself (sign-in required). */
+  url: string;
+  /** image/webp, application/pdf or text/plain. */
+  type: string;
+  /** What Claude suggests to file; null while reading or when it failed. */
+  summary: string | null;
+  people: Array<{ name: string; person: PendingCandidate | null; candidates: PendingCandidate[] }>;
+  /** Why the pre-read failed, when it did. */
+  error: string | null;
 };
 
-/** The viewer's own screenshots that wait for them, newest first. The partner's never show. */
+/** The viewer's own files that wait for them, newest first. The partner's never show. */
 export async function listPending(v: Viewer): Promise<PendingFile[]> {
   const d = await db();
   const rows = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").execute();
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
-  const cand = (id: string): PendingCandidate | null => (names.has(id) ? { id, name: names.get(id)!, url: personPath(id) } : null);
+  const cand = (id: string): PendingCandidate | null => (names.has(id) ? { id, name: names.get(id)! , url: personPath(id) } : null);
   return rows.map((r) => {
-    const reading = r.reading ? (JSON.parse(r.reading) as Reading) : null;
+    // A pre-read from before files (a social media `Reading`) has `text` where a suggestion has `summary`.
+    const read = (r.reading ? JSON.parse(r.reading) : null) as (Partial<Suggestion> & { text?: string; error?: string }) | null;
     return {
       id: r.id,
       status: r.status as PendingFile["status"],
       createdAt: r.created_at,
-      imageUrl: filePath(r.id),
-      reading: reading && {
-        ...reading,
-        people: reading.people.map((p) => ({
-          name: p.name,
-          ...(p.handle ? { handle: p.handle } : {}),
-          person: p.personId ? cand(p.personId) : null,
-          candidates: (p.candidates ?? []).map(cand).filter((c): c is PendingCandidate => c !== null),
-        })),
-      },
+      url: filePath(r.id),
+      type: r.media_type,
+      summary: read?.summary ?? read?.text ?? null,
+      people: (read?.people ?? []).map((p) => ({
+        name: p.name,
+        person: p.personId ? cand(p.personId) : null,
+        candidates: (p.candidates ?? []).map(cand).filter((c): c is PendingCandidate => c !== null),
+      })),
+      error: r.status === "failed" ? (read?.error ?? null) : null,
     };
   });
 }
 
-/** How many of the viewer's screenshots wait for them (the badge in the navigation). */
+/** How many of the viewer's files wait for them (the badge in the navigation). */
 export async function pendingCount(v: Viewer): Promise<number> {
   const r = await (await db()).selectFrom("files").select((eb) => eb.fn.countAll<number>().as("n")).where("user_id", "=", v.userId).where("status", "in", ["pending", "failed"]).executeTakeFirst();
   return Number(r?.n ?? 0);
@@ -289,61 +228,19 @@ export async function pendingCount(v: Viewer): Promise<number> {
 
 async function ownPending(v: Viewer, id: string) {
   const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
-  if (!row || !["reading", "pending", "failed"].includes(row.status)) throw new NotFoundError("No such screenshot waiting");
+  if (!row || !["reading", "pending", "failed"].includes(row.status)) throw new NotFoundError("No such file waiting");
   return row;
 }
 
-export type Resolution = {
-  /** An existing person, or `name` for a new one. */
-  personId?: string;
-  name?: string;
-  /** Replaces what Claude read. */
-  text?: string;
-  visibility?: Visibility;
-};
-
-/** Files a waiting screenshot on the person the viewer picked. The handle Claude read becomes one of their other names, so the
- * next post of theirs is filed without asking. */
-export async function resolveFile(v: Viewer, id: string, r: Resolution): Promise<{ factId: string; personId: string; url: string }> {
-  const row = await ownPending(v, id);
-  if (row.status !== "pending" || !row.reading) throw new InvalidInputError("This screenshot hasn't been read yet");
-  if (!r.personId === !r.name?.trim()) throw new InvalidInputError("Give either personId or name");
-  const visibility = r.visibility ?? "shared";
-  if (!(VISIBILITIES as readonly string[]).includes(visibility)) throw new InvalidInputError("visibility must be shared or private");
-  const reading = JSON.parse(row.reading) as Reading;
-  const text = r.text?.trim() || reading.text;
-  if (!text) throw new InvalidInputError("Give the text to file");
-  const d = await db();
-  return d.transaction().execute(async (tx) => {
-    let personId = r.personId;
-    let name: string;
-    if (personId) {
-      const p = await tx.selectFrom("persons").select("name").where("id", "=", personId).executeTakeFirst();
-      if (!p) throw new NotFoundError("No such person");
-      name = p.name;
-    } else {
-      name = r.name!.trim();
-      personId = await insertPerson(tx, v, { name });
-    }
-    // The handle of the one person Claude couldn't place; with several unplaced, which handle is whose is unknown.
-    const open = reading.people.filter((p) => !p.personId);
-    if (open.length === 1 && open[0].handle) await insertAlias(tx, personId, name, open[0].handle);
-    const factId = await insertFact(tx, v, id, { ...reading, text }, personId, visibility);
-    if (reading.people.length === 1) await insertRole(tx, v, reading, personId, visibility);
-    await tx.updateTable("files").set({ status: "filed" }).where("id", "=", id).execute();
-    return { factId, personId, url: itemPath(personPath(personId), "facts", factId) };
-  });
-}
-
-/** Reads a screenshot again that failed. */
+/** Reads a file again whose pre-read failed. */
 export async function retryFile(v: Viewer, id: string, model: FileModel): Promise<void> {
   const row = await ownPending(v, id);
-  if (row.status !== "failed") throw new InvalidInputError("Only a screenshot that couldn't be read is read again");
+  if (row.status !== "failed") throw new InvalidInputError("Only a file that couldn't be read is read again");
   await (await db()).updateTable("files").set({ status: "reading" }).where("id", "=", id).execute();
   void queueRead(id, model);
 }
 
-/** Throws a waiting screenshot away, image and all. */
+/** Throws a waiting file away, blob and all. */
 export async function discardFile(v: Viewer, id: string): Promise<void> {
   const row = await ownPending(v, id);
   await (await db()).deleteFrom("files").where("id", "=", id).execute();
@@ -362,7 +259,7 @@ export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8
   return bytes && { bytes, type: row.media_type };
 }
 
-/** Drops filed screenshots no fact names any more (the fact was deleted, or its person), image and row. */
+/** Drops filed files no fact names any more (the fact was deleted, or its person), blob and row. */
 export async function pruneFiles(): Promise<number> {
   const d = await db();
   const rows = await d
@@ -378,7 +275,7 @@ export async function pruneFiles(): Promise<number> {
   return rows.length;
 }
 
-// The share key: the credential of the iPhone Shortcut. It can only hand in screenshots, nothing else, so it is no second way
+// The share key: the credential of the iPhone Shortcut. It can only hand in files, nothing else, so it is no second way
 // into the data (ADR 0007). Only its hash is stored; a new key replaces the old one.
 const KEY_PREFIX = "fbs_";
 const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");

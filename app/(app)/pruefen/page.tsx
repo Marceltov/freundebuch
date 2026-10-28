@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: copy.pending };
 
-// The viewer's own shared screenshots that wait for them (backend/screenshots.ts). The partner's never show here.
+// The viewer's own shared files that wait for them (backend/files.ts). The partner's never show here.
 export default async function PendingPage() {
   const pending = await listPending(await pageViewer());
   return (

@@ -468,39 +468,19 @@ export const SettingsJson = z
 export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
 
 const Candidate = z.object({ id: z.string(), name: Name, url: Url });
-export const PendingFileListJson = z
-  .array(
-    z.object({
-      id: z.string(),
-      status: z.enum(["reading", "pending", "failed"]).describe("`reading`: Claude is on it; `pending`: waits for the caller to decide; `failed`: couldn't be read (retry or discard)"),
-      createdAt: z.number().int().describe("When it was shared, ms since the epoch"),
-      imageUrl: Url.describe("The file (sign-in required)"),
-      reading: z
-        .object({
-          kind: z.enum(["post", "nothing"]),
-          platform: z.string().nullable(),
-          text: z.string(),
-          category: z.enum(FACT_CATEGORIES),
-          happenedOn: Day.nullable(),
-          sensitive: z.boolean(),
-          people: z.array(z.object({ name: z.string(), handle: z.string().optional(), person: Candidate.nullable(), candidates: z.array(Candidate) })),
-        })
-        .nullable()
-        .describe("What Claude read; null while reading or when it failed"),
-    }),
-  )
-  .meta({ id: "PendingFileList" });
-
-export const ResolutionJson = z
+export const PendingFileJson = z
   .object({
-    personId: z.string().optional().describe("The person it is about"),
-    name: z.string().optional().describe("Or the name of a new person"),
-    text: z.string().optional().describe("Replaces what Claude read"),
-    visibility: z.enum(VISIBILITIES).optional().describe("Default shared"),
+    id: z.string(),
+    status: z.enum(["reading", "pending", "failed"]).describe("`reading`: Claude is pre-reading it; `pending`: waits to be worked through; `failed`: couldn't be pre-read (see `error`; retry or discard)"),
+    createdAt: z.number().int().describe("When it was shared, ms since the epoch"),
+    url: Url.describe("The file itself (sign-in required)"),
+    type: z.string().describe("image/webp, application/pdf or text/plain"),
+    summary: z.string().nullable().describe("What Claude suggests to file, in German; null while reading or when it failed"),
+    people: z.array(z.object({ name: z.string(), person: Candidate.nullable(), candidates: z.array(Candidate) })).describe("Who is in it: the person when certain, else candidates"),
+    error: z.string().nullable().describe("Why the pre-read failed, when it did"),
   })
-  .meta({ id: "Resolution" });
-
-export const ResolvedJson = z.object({ factId: z.string(), personId: z.string(), url: ItemUrl }).meta({ id: "Resolved" });
+  .meta({ id: "PendingFile" });
+export const PendingFileListJson = z.array(PendingFileJson.extend({})).meta({ id: "PendingFileList" });
 export const ShareKeyJson = z.object({ key: z.string().describe("The share key; shown only now. Send it as `Authorization: Bearer <key>` to /api/share") }).meta({ id: "ShareKey" });
 
 export const CalendarFeedJson = z
@@ -514,7 +494,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingFileListJson, ResolutionJson, ResolvedJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

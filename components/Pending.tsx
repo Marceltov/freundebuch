@@ -1,16 +1,13 @@
 "use client";
 
-import { Check, Lock, RotateCw, Search, Trash2, UserPlus } from "lucide-react";
+import { FileText, RotateCw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { PendingFile } from "@/backend";
 import { copy } from "@/components/copy";
-import { dayMonth } from "@/components/format";
 
-type Pick = { personId: string; name: string } | { newName: string };
-
-// The "Zu prüfen" list: each waiting screenshot with what Claude read, and the choice of person. Filing goes through
-// POST /api/v1/screenshots/{id}/resolve, throwing away through DELETE, reading again through …/retry.
+// The "Prüfen" list: each waiting file with what Claude suggests to file and who is in it. Filing happens with Claude, not
+// here; throwing away goes through DELETE /api/v1/files/{id}, reading again through …/retry.
 export function PendingList({ items }: { items: PendingFile[] }) {
   const router = useRouter();
   const reading = items.some((i) => i.status === "reading");
@@ -33,126 +30,65 @@ export function PendingList({ items }: { items: PendingFile[] }) {
 
 const button = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-50";
 
+/** The file at a glance: an image's preview, else an icon with its kind. */
+export function FilePreview({ item }: { item: Pick<PendingFile, "url" | "type"> }) {
+  if (item.type.startsWith("image/"))
+    return (
+      <a href={item.url} target="_blank" rel="noreferrer" className="shrink-0">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a private image behind the sign-in, not for next/image */}
+        <img src={item.url} alt={copy.fileImage} className="h-32 w-20 rounded-lg bg-surface-2 object-cover object-top" />
+      </a>
+    );
+  return (
+    <a href={item.url} target="_blank" rel="noreferrer" className="flex h-32 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-surface-2 text-xs text-muted">
+      <FileText aria-hidden className="h-7 w-7 text-carbon" />
+      {item.type === "application/pdf" ? copy.filePdf : copy.fileText}
+    </a>
+  );
+}
+
 function PendingCard({ item, onDone }: { item: PendingFile; onDone: () => void }) {
-  const r = item.reading;
-  const first = r?.people[0];
-  const [pick, setPick] = useState<Pick | null>(first?.candidates.length === 1 ? { personId: first.candidates[0].id, name: first.candidates[0].name } : null);
-  const [text, setText] = useState(r?.text ?? "");
-  const [priv, setPriv] = useState(!!r?.sensitive);
-  const [query, setQuery] = useState("");
-  const [found, setFound] = useState<{ id: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    const q = query.trim();
-    if (!q) return;
-    const t = setTimeout(async () => {
-      const res = await fetch(`/api/v1/people?q=${encodeURIComponent(q)}`).catch(() => null);
-      setFound(res?.ok ? ((await res.json()) as { id: string; name: string }[]) : []);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  async function act(path: string, method: string, body?: unknown) {
+  async function act(path: string, method: string) {
     setBusy(true);
     setError(false);
-    const res = await fetch(`/api/v1/screenshots/${item.id}${path}`, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : {},
-      body: body ? JSON.stringify(body) : undefined,
-    }).catch(() => null);
+    const res = await fetch(`/api/v1/files/${item.id}${path}`, { method }).catch(() => null);
     setBusy(false);
     if (res?.ok) onDone();
     else setError(true);
   }
 
-  const file = () =>
-    pick && act("/resolve", "POST", { ...("personId" in pick ? { personId: pick.personId } : { name: pick.newName }), text, visibility: priv ? "private" : "shared" });
-  const pickName = pick && ("personId" in pick ? pick.name : pick.newName);
-  const candidates = [...new Map((r?.people ?? []).flatMap((p) => p.candidates).map((c) => [c.id, c])).values()];
-  const newName = query.trim() || first?.name || "";
-
+  const discard = (
+    <button type="button" disabled={busy} onClick={() => act("", "DELETE")} className={`${button} bg-surface-2`}>
+      <Trash2 aria-hidden className="h-4 w-4" />
+      {copy.pendingDiscard}
+    </button>
+  );
   return (
     <article className="flex gap-3 rounded-2xl bg-surface p-4 shadow-card">
-      <a href={item.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element -- a private image behind the sign-in, not for next/image */}
-        <img src={item.imageUrl} alt={copy.screenshot} className="h-32 w-20 rounded-lg bg-surface-2 object-cover object-top" />
-      </a>
+      <FilePreview item={item} />
       <div className="min-w-0 flex-1 space-y-2">
         {item.status === "reading" && <p className="text-muted">{copy.pendingReading}</p>}
         {item.status === "failed" && (
           <>
             <p className="text-error">{copy.pendingFailed}</p>
+            {item.error && <p className="text-xs break-words text-muted">{item.error}</p>}
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={busy} onClick={() => act("/retry", "POST")} className={`${button} bg-carbon text-on-carbon`}>
                 <RotateCw aria-hidden className="h-4 w-4" />
                 {copy.pendingRetry}
               </button>
-              <button type="button" disabled={busy} onClick={() => act("", "DELETE")} className={`${button} bg-surface-2`}>
-                <Trash2 aria-hidden className="h-4 w-4" />
-                {copy.pendingDiscard}
-              </button>
+              {discard}
             </div>
           </>
         )}
-        {item.status === "pending" && r && (
+        {item.status === "pending" && (
           <>
-            <p className="text-sm text-muted">
-              {[r.people.map((p) => p.name + (p.handle ? ` (@${p.handle})` : "")).join(", "), r.platform, r.happenedOn && dayMonth(r.happenedOn)].filter(Boolean).join(" · ")}
-            </p>
-            <label className="block text-sm">
-              <span className="sr-only">{copy.pendingText}</span>
-              <input value={text} onChange={(e) => setText(e.target.value)} className="w-full rounded-xl border border-rule bg-surface-2 px-3 py-2 focus:border-carbon focus:outline-none" />
-            </label>
-            {r.sensitive && <p className="text-sm text-error">{copy.pendingSensitive}</p>}
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-bold">{copy.pendingWho}</legend>
-              <div className="flex flex-wrap gap-2">
-                {[...candidates, ...(query.trim() ? found : []).filter((f) => !candidates.some((c) => c.id === f.id))].map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    aria-pressed={!!pick && "personId" in pick && pick.personId === c.id}
-                    onClick={() => setPick({ personId: c.id, name: c.name })}
-                    className={`${button} ${pick && "personId" in pick && pick.personId === c.id ? "bg-carbon text-on-carbon" : "bg-surface-2"}`}
-                  >
-                    {c.name}
-                  </button>
-                ))}
-                {newName && (
-                  <button
-                    type="button"
-                    aria-pressed={!!pick && "newName" in pick}
-                    onClick={() => setPick({ newName })}
-                    className={`${button} ${pick && "newName" in pick ? "bg-carbon text-on-carbon" : "bg-surface-2"}`}
-                  >
-                    <UserPlus aria-hidden className="h-4 w-4" />
-                    {copy.pendingNew.replace("{name}", newName)}
-                  </button>
-                )}
-              </div>
-              <label className="flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-1.5 text-sm">
-                <Search aria-hidden className="h-4 w-4 text-muted" />
-                <span className="sr-only">{copy.pendingSearch}</span>
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={copy.pendingSearch} className="min-w-0 flex-1 bg-transparent focus:outline-none" />
-              </label>
-            </fieldset>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} />
-              <Lock aria-hidden className="h-3.5 w-3.5" />
-              {copy.pendingPrivate}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={busy || !pick || !text.trim()} onClick={file} className={`${button} bg-carbon text-on-carbon`}>
-                <Check aria-hidden className="h-4 w-4" />
-                {pickName ? copy.pendingFile.replace("{name}", pickName) : copy.pendingWho}
-              </button>
-              <button type="button" disabled={busy} onClick={() => act("", "DELETE")} className={`${button} bg-surface-2`}>
-                <Trash2 aria-hidden className="h-4 w-4" />
-                {copy.pendingDiscard}
-              </button>
-            </div>
+            <p className="whitespace-pre-line">{item.summary}</p>
+            {item.people.length > 0 && <p className="text-sm text-muted">{item.people.map((p) => p.person?.name ?? p.name).join(", ")}</p>}
+            <div className="flex flex-wrap gap-2">{discard}</div>
           </>
         )}
         {error && (

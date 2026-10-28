@@ -15,7 +15,7 @@ import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
-import { createShareKey, discardFile, listPending, resolveFile, retryFile, revokeShareKey, fileModel } from "../files";
+import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
@@ -45,8 +45,6 @@ import {
   RelationshipIdsJson,
   PersonListJson,
   RecordedJson,
-  ResolutionJson,
-  ResolvedJson,
   SentJson,
   SettingsJson,
   ShareKeyJson,
@@ -490,19 +488,6 @@ const OPS: AnyOp[] = [
     params: {},
     responses: { 200: { description: "Waiting files", schema: PendingFileListJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: await listPending(viewer) })),
-
-  op({
-    method: "POST",
-    path: `${API_PREFIX}/files/{id}/resolve`,
-    operationId: "resolveFile",
-    summary: "File a waiting file on a person",
-    description: "Give `personId` or the `name` of a new person. The handle Claude read becomes one of the person's other names.",
-    tags: ["Files"],
-    auth: true,
-    params: { id: IdParam },
-    body: ResolutionJson,
-    responses: { 200: { description: "Filed", schema: ResolvedJson }, 400: E400, 401: E401, 404: E404 },
-  }).handle(async ({ viewer, params, body }) => ({ status: 200, body: await resolveFile(viewer, params.id, body) })),
 
   op({
     method: "POST",

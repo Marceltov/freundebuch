@@ -327,7 +327,7 @@ describe("settings", () => {
 });
 
 describe("files", () => {
-  test("list, resolve and discard the caller's waiting files; the share key is made and revoked", async () => {
+  test("list and discard the caller's waiting files; the share key is made and revoked", async () => {
     const { mkdtempSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
@@ -335,7 +335,7 @@ describe("files", () => {
     const { readFile, shareFile } = await import("../files");
     vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-api-")));
     const img = async (r: number) => new Uint8Array(await sharp({ create: { width: 20, height: 20, channels: 3, background: { r, g: 0, b: 0 } } }).png().toBuffer());
-    const unsure = { read: async () => ({ kind: "post" as const, platform: "LinkedIn", text: "Neuer Job", category: "work" as const, happenedOn: null, sensitive: false, people: [{ name: "Anna", candidates: [s.anna] }] }) };
+    const unsure = { read: async () => ({ summary: "Anna hat einen neuen Job", people: [{ name: "Anna", candidates: [s.anna] }] }) };
     const one = await shareFile(s.a, await img(1));
     const two = await shareFile(s.a, await img(2));
     await readFile(one.id, unsure);
@@ -344,13 +344,12 @@ describe("files", () => {
     const list = await call(s.a, "GET", "/files");
     expect(list.status).toBe(200);
     expect(list.json).toHaveLength(2);
-    expect(list.json[0].imageUrl).toBe(`${BASE}/api/files/${two.id}`);
-    expect(list.json[0].reading.people[0].candidates[0]).toEqual({ id: s.anna, name: "Anna", url: `${BASE}/p/${s.anna}` });
+    expect(list.json[0]).toMatchObject({ url: `${BASE}/api/files/${two.id}`, type: "image/webp", summary: "Anna hat einen neuen Job", error: null });
+    expect(list.json[0].people[0].candidates[0]).toEqual({ id: s.anna, name: "Anna", url: `${BASE}/p/${s.anna}` });
     expect((await call(s.b, "GET", "/files")).json).toEqual([]);
 
-    const done = await call(s.a, "POST", `/files/${one.id}/resolve`, { personId: s.anna });
-    expect(done.status).toBe(200);
-    expect(done.json.url).toBe(`${BASE}/p/${s.anna}#facts-${done.json.factId}`);
+    expect((await call(s.a, "POST", `/files/${one.id}/resolve`, { personId: s.anna })).status).toBe(404);
+    expect((await call(s.a, "DELETE", `/files/${one.id}`)).status).toBe(204);
     expect((await call(s.b, "DELETE", `/files/${two.id}`)).status).toBe(404);
     expect((await call(s.a, "DELETE", `/files/${two.id}`)).status).toBe(204);
     expect((await call(s.a, "GET", "/files")).json).toEqual([]);

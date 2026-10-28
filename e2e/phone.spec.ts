@@ -423,7 +423,7 @@ test("settings make a share key, and the key hands in a screenshot", async ({ pa
   const img = await sharp({ create: { width: 200, height: 400, channels: 3, background: { r: 9, g: 9, b: 9 } } }).png().toBuffer();
   const res = await fetch(`${baseURL}/api/share`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "image/png" }, body: img });
   expect(res.status).toBe(202);
-  expect((await res.json()).message).toBe("Danke! freundebuch liest den Screenshot.");
+  expect((await res.json()).message).toBe("Danke! freundebuch liest die Datei, sie wartet unter „Prüfen“.");
 });
 
 test("settings make a calendar feed that a calendar app can read, and end it", async ({ page, baseURL }) => {
