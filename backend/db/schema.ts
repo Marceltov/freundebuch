@@ -1,6 +1,7 @@
 // The tables, as Kysely sees them. Times are milliseconds since the epoch; booleans are 0/1 integers. An item's `conversation_id`
 // is null when no conversation recorded it.
 import type { ColumnType } from "kysely";
+import type { FactKind } from "../types";
 
 type Flag = ColumnType<number, number | undefined, number>;
 
@@ -49,8 +50,8 @@ export interface Schema {
     /** The day it happened (YYYY-MM-DD), when that is known. */
     happened_on: ColumnType<string | null, string | null | undefined, string | null>;
     screenshot_id: ColumnType<string | null, string | null | undefined, string | null>;
-    kind: ColumnType<"lasting" | "situation", "lasting" | "situation" | undefined, "lasting" | "situation">;
-    /** On a situation: the day (YYYY-MM-DD) after which to ask how it went; null on a lasting fact. */
+    kind: ColumnType<FactKind, FactKind | undefined, FactKind>;
+    /** On a situation: the day (YYYY-MM-DD) after which to ask how it went; null on any other kind. */
     check_after: ColumnType<string | null, string | null | undefined, string | null>;
   };
   promises: Item & { id: string; person_id: string; text: string; by_me: number; due: string | null; done: Flag };

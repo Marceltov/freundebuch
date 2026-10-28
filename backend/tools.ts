@@ -34,7 +34,7 @@ import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
 import { addAlias, findPeople, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
-import { EXCHANGE_KINDS, FACT_CATEGORIES, type Viewer } from "./types";
+import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "./types";
 import { conversationPath, personPath } from "./urls";
 
 export type Tool = {
@@ -82,6 +82,9 @@ function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
 }
 
 // The lines of `next`. Each is one short instruction in English, about what this call did.
+
+const TRAIT_WORDS: Record<TraitKind, string> = { need: "a need: something to plan around", personality: "personality: how the person is" };
+const nowTrait = (name: string, text: string, kind: TraitKind): Next => [`"${text}" now shows under ${name}'s traits, as ${TRAIT_WORDS[kind]}.`];
 
 const situationDay = (f: Pick<FiledFact, "name" | "text" | "kind" | "checkAfter" | "defaultCheckAfter">): Next =>
   f.kind !== "situation" || !f.checkAfter
@@ -615,7 +618,11 @@ export const TOOLS: readonly Tool[] = [
         }
         case "edit": {
           const { fact } = await editItem(v, a.table, a.id, a.patch);
-          return ok(CorrectedJson, { corrected, fact }, fact && ("kind" in a.patch || "checkAfter" in a.patch) ? situationDay(fact) : []);
+          return ok(
+            CorrectedJson,
+            { corrected, fact },
+            !fact ? [] : "kind" in a.patch && isTrait(fact.kind) ? nowTrait(fact.name, fact.text, fact.kind) : "kind" in a.patch || "checkAfter" in a.patch ? situationDay(fact) : [],
+          );
         }
         case "merge": {
           const m = await mergePeople(v, a.id, a.drop);

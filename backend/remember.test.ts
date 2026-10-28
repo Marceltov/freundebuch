@@ -90,3 +90,23 @@ test("remember sets a gender, shared like the name, and checks it", async () => 
   await expect(remember(s.a, { visibility: "shared", genders: [{ person: s.anna, gender: "other" as "female" }] })).rejects.toBeInstanceOf(InvalidInputError);
   await expect(remember(s.a, { visibility: "shared", genders: [{ person: "nope", gender: "male" }] })).rejects.toBeInstanceOf(NotFoundError);
 });
+
+test("a need and a personality trait are filed with their kind and no day to ask", async () => {
+  const r = await remember(s.a, {
+    visibility: "shared",
+    facts: [
+      { person: s.anna, text: "needs a wheelchair", category: "health", kind: "need" },
+      { person: s.anna, text: "gets angry quickly", category: "other", kind: "personality" },
+    ],
+  });
+  expect(r.filed.facts.map((f) => [f.kind, f.checkAfter])).toEqual([
+    ["need", null],
+    ["personality", null],
+  ]);
+});
+
+test("a trait with a checkAfter is refused", async () => {
+  await expect(
+    remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "vegetarian", category: "health", kind: "need", checkAfter: "2026-12-01" }] }),
+  ).rejects.toThrow(InvalidInputError);
+});

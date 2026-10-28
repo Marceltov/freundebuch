@@ -9,9 +9,16 @@ export const FACT_CATEGORIES = ["work", "home", "family", "health", "hobby", "tr
 export type FactCategory = (typeof FACT_CATEGORIES)[number];
 export const EXCHANGE_KINDS = ["gift_idea", "gift", "money", "lent", "help"] as const;
 export type ExchangeKind = (typeof EXCHANGE_KINDS)[number];
-/** A lasting fact is still true (works at Hornbach); a situation is going on and will end (moving, looking for a car). */
-export const FACT_KINDS = ["lasting", "situation"] as const;
+/**
+ * A lasting fact is still true (works at Hornbach); a situation is going on and will end (moving, looking for a car). The traits
+ * last too: a need is something to plan around (needs a wheelchair, vegetarian), a personality trait how the person is (gets angry
+ * quickly).
+ */
+export const FACT_KINDS = ["lasting", "situation", "need", "personality"] as const;
 export type FactKind = (typeof FACT_KINDS)[number];
+export const TRAIT_KINDS = ["need", "personality"] as const;
+export type TraitKind = (typeof TRAIT_KINDS)[number];
+export const isTrait = (kind: string): kind is TraitKind => (TRAIT_KINDS as readonly string[]).includes(kind);
 /** A person's gender, which the words of their relationships are written in; null when it isn't known. */
 export const GENDERS = ["female", "male", "nonbinary"] as const;
 export type Gender = (typeof GENDERS)[number];

@@ -138,6 +138,15 @@ describe("next: what Claude does after a call", () => {
     expect((await run(s.a, "correct", { action: "rename", id: s.lena, name: "Lena M." })).next).toEqual([]);
   });
 
+  test("correct: a fact made a trait says where it now shows", async () => {
+    const hiking = await factId("likes hiking");
+    const edit = await run(s.a, "correct", { action: "edit", table: "facts", id: hiking, patch: { kind: "personality" } });
+    expect(edit.fact).toMatchObject({ id: hiking, kind: "personality", checkAfter: null });
+    expect(edit.next).toEqual([`"likes hiking" now shows under Anna's traits, as personality: how the person is.`]);
+    const need = await run(s.a, "correct", { action: "edit", table: "facts", id: hiking, patch: { kind: "need" } });
+    expect(need.next).toEqual([`"likes hiking" now shows under Anna's traits, as a need: something to plan around.`]);
+  });
+
   test("correct merge says what moved; gender says which word to put in it", async () => {
     const merge = await run(s.a, "correct", { action: "merge", id: s.anna, drop: s.tom });
     // Tom's birthday (A's private) moved; the Anna ↔ Tom relationship became one with herself and went.

@@ -196,7 +196,7 @@ async function insertItems<P>(
       ? await tx.selectFrom("facts").select("kind").where("id", "=", f.supersedes).$call((qb) => visible(qb, v, "facts")).executeTakeFirst()
       : undefined;
     const kind = (f.kind ?? replaced?.kind ?? "lasting") as FactKind;
-    if (kind === "lasting" && f.checkAfter !== undefined) throw new InvalidInputError("checkAfter is for a situation; a lasting fact has none");
+    if (kind !== "situation" && f.checkAfter !== undefined) throw new InvalidInputError("checkAfter is for a situation; a lasting fact or trait has none");
     // News sets the day afresh: how long until it is worth asking again is agreed with the user, never carried over.
     if (replaced?.kind === "situation" && kind === "situation" && f.checkAfter === undefined)
       throw new InvalidInputError("News about a situation needs a new checkAfter: suggest when to ask again and agree it with the user");

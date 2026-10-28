@@ -3942,9 +3942,11 @@
                   "type": "string",
                   "enum": [
                     "lasting",
-                    "situation"
+                    "situation",
+                    "need",
+                    "personality"
                   ],
-                  "description": "`situation`: going on and will end (moving, a new dog, looking for a car); `lasting` (default): stays true. A fact that supersedes another keeps its kind unless given"
+                  "description": "`situation`: going on and will end (moving, a new dog, looking for a car, angry about the new job); `lasting` (default): stays true (works at Hornbach). The traits, which last and have no checkAfter: `need`: something to plan around when meeting or inviting them (needs a wheelchair, vegetarian, nut allergy, doesn't drink); `personality`: how the person is and how to deal with them (gets angry quickly, shy in big groups, hates phone calls). A fact that supersedes another keeps its kind unless given"
                 },
                 "checkAfter": {
                   "type": "string",
@@ -4315,7 +4317,9 @@
                       "type": "string",
                       "enum": [
                         "lasting",
-                        "situation"
+                        "situation",
+                        "need",
+                        "personality"
                       ]
                     },
                     "checkAfter": {

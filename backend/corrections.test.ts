@@ -418,3 +418,15 @@ test("a fact becomes a relationship and keeps its privacy", async () => {
   expect(moved.relationships).toMatchObject([{ fromId: s.anna, toId: s.b.personId, label: "Kollegin" }]);
   expect(await (await db()).selectFrom("facts").select("id").where("id", "=", shared).executeTakeFirst()).toBeUndefined();
 });
+
+test("edit turns a fact into a trait, which has no day to ask", async () => {
+  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "zieht um", category: "home", kind: "situation", checkAfter: "2026-11-30" }] });
+  const id = await factId("zieht um");
+  const row = async () => (await db()).selectFrom("facts").select(["kind", "check_after", "text", "category"]).where("id", "=", id).executeTakeFirstOrThrow();
+  await editItem(s.a, "facts", id, { kind: "personality" });
+  expect(await row()).toEqual({ kind: "personality", check_after: null, text: "zieht um", category: "home" });
+  await editItem(s.a, "facts", id, { kind: "need" });
+  expect(await row()).toEqual({ kind: "need", check_after: null, text: "zieht um", category: "home" });
+  await expect(editItem(s.a, "facts", id, { kind: "need", checkAfter: "2026-12-01" })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(editItem(s.a, "facts", id, { checkAfter: "2026-12-01" })).rejects.toBeInstanceOf(InvalidInputError);
+});
