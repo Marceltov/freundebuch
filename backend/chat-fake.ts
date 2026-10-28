@@ -1,7 +1,7 @@
 // A stand-in for Claude in e2e runs (FREUNDEBUCH_E2E=1, never in a production build: config.e2e()), so the chat can be tested
-// end to end without an API key or a bill. It knows three messages: "Notiz: …" files a conversation with the rest as its
-// transcript about the person whose page the chat was opened on; "Fehlertest" fails like an unreachable API; anything else
-// gets "Verstanden.".
+// end to end without an API key or a bill. It knows four messages: "Notiz: …" files a conversation with the rest as its
+// transcript about the person whose page the chat was opened on; "Erledigt", in a chat opened on a shared file, closes that
+// file (inbox done); "Fehlertest" fails like an unreachable API; anything else gets "Verstanden.". Tool results get "Erfasst.".
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChatModel } from "./chat";
 
@@ -12,6 +12,12 @@ const say = (text: string) => reply([{ type: "text", text, citations: null }], "
 export const fakeModel: ChatModel = {
   async create(p) {
     const last = p.messages[p.messages.length - 1];
+    const file = (p.system as Anthropic.Beta.BetaTextBlockParam[])[1].text.match(/\(fileId ([^)]+)\)/)?.[1];
+    // Opened on a file, the user's words are the last block of their first message.
+    const blocks = typeof last.content === "string" ? [] : (last.content ?? []);
+    const words = typeof last.content === "string" ? last.content : blocks.findLast((b): b is Anthropic.Beta.BetaTextBlockParam => b.type === "text")?.text;
+    if (file && words === "Erledigt" && p.messages.length === 1)
+      return reply([{ type: "tool_use", id: "fake_done", name: "inbox", input: { action: "done", id: file } }], "tool_use");
     if (typeof last.content !== "string") return say("Erfasst.");
     if (last.content === "Fehlertest") throw new Anthropic.APIConnectionError({ message: "the fake is down, as asked" });
     const note = last.content.match(/^Notiz:\s*(.+)$/s);

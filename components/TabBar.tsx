@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarHeart, History, House, MessageCirclePlus, Users, type LucideIcon } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatSheet } from "@/components/ChatSheet";
 import { copy } from "@/components/copy";
 
@@ -17,14 +17,29 @@ const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] 
   { href: "/bald", label: copy.tabSoon, icon: CalendarHeart, also: [] },
 ];
 
+const TELL_FILE = "freundebuch:tell-file";
+/** Opens Erzählen on a shared file waiting under Prüfen. */
+export const tellAbout = (fileId: string) => window.dispatchEvent(new CustomEvent(TELL_FILE, { detail: fileId }));
+
 export function TabBar({ chat = null }: { chat?: { userId: string; sharing: boolean } | null }) {
   const path = usePathname();
   const [talking, setTalking] = useState(false);
+  const [file, setFile] = useState<string | null>(null);
   const tellButton = useRef<HTMLButtonElement>(null);
   // Closing the chat hands the keyboard back to the button that opened it.
   const closeChat = useCallback(() => {
     setTalking(false);
+    setFile(null);
     tellButton.current?.focus();
+  }, []);
+  // "In Erzählen öffnen" on a Prüfen card opens the chat on that file (tellAbout).
+  useEffect(() => {
+    const open = (e: Event) => {
+      setFile((e as CustomEvent<string>).detail);
+      setTalking(true);
+    };
+    window.addEventListener(TELL_FILE, open);
+    return () => window.removeEventListener(TELL_FILE, open);
   }, []);
   const current = (t: (typeof TABS)[number]) => (t.href === "/" ? path === "/" : path.startsWith(t.href)) || t.also.some((p) => path.startsWith(p));
   return (
@@ -66,7 +81,7 @@ export function TabBar({ chat = null }: { chat?: { userId: string; sharing: bool
           ];
         })}
       </ul>
-      {talking && chat && <ChatSheet userId={chat.userId} sharing={chat.sharing} onClose={closeChat} />}
+      {talking && chat && <ChatSheet key={file ?? "chat"} userId={chat.userId} sharing={chat.sharing} file={file} onClose={closeChat} />}
     </nav>
   );
 }

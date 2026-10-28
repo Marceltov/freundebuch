@@ -1,13 +1,14 @@
 "use client";
 
-import { FileText, RotateCw, Trash2 } from "lucide-react";
+import { FileText, MessageCirclePlus, RotateCw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { PendingFile } from "@/backend";
 import { copy } from "@/components/copy";
+import { tellAbout } from "@/components/TabBar";
 
-// The "Prüfen" list: each waiting file with what Claude suggests to file and who is in it. Filing happens with Claude, not
-// here; throwing away goes through DELETE /api/v1/files/{id}, reading again through …/retry.
+// The "Prüfen" list: each waiting file with what Claude suggests to file and who is in it. Filing happens with Claude: "In
+// Erzählen öffnen" opens the chat on the file; throwing away goes through DELETE /api/v1/files/{id}, reading again …/retry.
 export function PendingList({ items }: { items: PendingFile[] }) {
   const router = useRouter();
   const reading = items.some((i) => i.status === "reading");
@@ -88,7 +89,13 @@ function PendingCard({ item, onDone }: { item: PendingFile; onDone: () => void }
           <>
             <p className="whitespace-pre-line">{item.summary}</p>
             {item.people.length > 0 && <p className="text-sm text-muted">{item.people.map((p) => p.person?.name ?? p.name).join(", ")}</p>}
-            <div className="flex flex-wrap gap-2">{discard}</div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => tellAbout(item.id)} className={`${button} bg-carbon text-on-carbon`}>
+                <MessageCirclePlus aria-hidden className="h-4 w-4" />
+                {copy.pendingTell}
+              </button>
+              {discard}
+            </div>
           </>
         )}
         {error && (
