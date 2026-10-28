@@ -546,6 +546,38 @@ test("traits: Worauf achten on the friend page and the group's page, and the men
   await expectNoSideScroll(page);
 });
 
+test("share: a person's page and a single fact go out as links", async ({ page, context, baseURL }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const recorded = await page.request.post("/api/v1/conversations", {
+    headers: { origin: baseURL! },
+    data: {
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Paul.",
+      transcript: "Anruf mit Paul Weber.",
+      visibility: "shared",
+      people: [{ name: "Paul Weber", present: true }],
+      facts: [{ person: 0, text: "Spielt Cello", category: "hobby" }],
+    },
+  });
+  const paul = (await recorded.json()).people[0].id;
+  // Without a share sheet (a desktop browser) the link is copied.
+  await page.addInitScript(() => Object.defineProperty(navigator, "share", { value: undefined }));
+  await page.goto(`/p/${paul}`);
+  await page.getByRole("button", { name: "Link teilen" }).click();
+  await expect(page.getByRole("button", { name: "Link kopiert" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${baseURL}/p/${paul}`);
+
+  const fact = page.locator("div", { hasText: /^Spielt Cello/ }).last();
+  await fact.getByRole("button", { name: "Aktionen" }).click();
+  await fact.getByRole("button", { name: "Link teilen" }).click();
+  await expect(fact.getByRole("button", { name: "Link kopiert" })).toBeVisible();
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  expect(link).toMatch(new RegExp(`^${baseURL}/p/${paul}#facts-`));
+  await page.goto(link);
+  await expect(page.locator(":target")).toHaveText(/Spielt Cello/);
+});
+
 test("pull to refresh: pulling down at the top loads what was filed meanwhile; the top bar doesn't move", async ({ page, baseURL }) => {
   await page.goto("/leute");
   await expect(page.getByText("Nora Pull")).toHaveCount(0);

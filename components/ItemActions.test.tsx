@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
-import { canEdit, factKindActions, ItemActions } from "./ItemActions";
+import { canEdit, factKindActions, ItemActions, rowPath } from "./ItemActions";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
@@ -37,4 +37,9 @@ test("the fact menu moves a fact to every other kind; only for who may edit it",
   expect(factKindActions("need", true).map((a) => a.label)).toEqual(["Gut zu wissen", "Ist gerade los", "Wesen"]);
   expect(factKindActions("need", false)).toEqual([]);
   expect(factKindActions(undefined, true)).toEqual([]);
+});
+
+test("an item's link points at its highlighted row on the page it is shared from", () => {
+  expect(rowPath("/p/p1", "facts", "f1")).toBe("/p/p1#facts-f1");
+  expect(rowPath("/c/c1", "promises", "x")).toBe("/c/c1#promises-x");
 });

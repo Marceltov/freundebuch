@@ -22,6 +22,10 @@ export async function userFromOidc(c: { sub: string; name: string; email?: strin
     if (!user) await tx.insertInto("users").values({ id: userId, oidc_sub: c.sub, name: c.name, email: c.email ?? null, person_id: null, created_at: t }).execute();
     await tx.insertInto("persons").values({ id: personId, name: c.name, created_by: userId, created_from: null, created_at: t }).execute();
     await tx.updateTable("users").set({ name: c.name, person_id: personId }).where("id", "=", userId).execute();
+    // Everyone who signs in is in the household's own group.
+    const household = await tx.selectFrom("groups").select("id").where("household", "=", 1).executeTakeFirst();
+    if (household)
+      await tx.insertInto("group_members").values({ group_id: household.id, person_id: personId, visibility: "shared", recorded_by: userId, conversation_id: null }).execute();
     return { userId, personId };
   });
 }

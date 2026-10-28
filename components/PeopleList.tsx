@@ -9,6 +9,13 @@ import { groupTint } from "@/components/Tiles";
 
 export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[] };
 
+/** The chip for the people in no group. */
+export const NO_GROUP = "none";
+
+/** Whether the person shows under the chip `group`: every one for none chosen, else its members, or with NO_GROUP those in none. */
+export const inGroup = (p: PersonRow, group: string | null) =>
+  !group || (group === NO_GROUP ? !p.groups.length : p.groups.includes(group));
+
 // Lower case, without accents and umlaut dots, so "lea" finds "Léa" and "muller" finds "Müller".
 const fold = (s: string) =>
   s
@@ -17,12 +24,14 @@ const fold = (s: string) =>
     .replace(/\p{M}/gu, "")
     .replace(/ß/g, "ss");
 
-// Leute: everyone, A to Z under their first letter, with a search over names and nicknames and the group chips to narrow it.
+// Leute: everyone, A to Z under their first letter, with a search over names and nicknames and the group chips to narrow it,
+// the last of them for the people in no group yet.
 export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { id: string; name: string; count: number }[] }) {
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<string | null>(null);
   const n = fold(q.trim());
-  const shown = people.filter((p) => (!group || p.groups.includes(group)) && (!n || [p.name, ...p.aliases].some((x) => fold(x).includes(n))));
+  const shown = people.filter((p) => inGroup(p, group) && (!n || [p.name, ...p.aliases].some((x) => fold(x).includes(n))));
+  const ungrouped = people.filter((p) => inGroup(p, NO_GROUP)).length;
   const letters = new Map<string, PersonRow[]>();
   for (const p of shown) {
     const l = fold(p.name).charAt(0).toUpperCase() || "#";
@@ -36,13 +45,13 @@ export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { 
       </label>
       {groups.length > 0 && (
         <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1">
-          {[{ id: null, name: copy.all, count: people.length }, ...groups].map((g) => (
+          {[{ id: null, name: copy.all, count: people.length }, ...groups, ...(ungrouped ? [{ id: NO_GROUP, name: copy.noGroup, count: ungrouped }] : [])].map((g) => (
             <button
               key={g.id ?? "all"}
               type="button"
               aria-pressed={group === g.id}
               onClick={() => setGroup(group === g.id ? null : g.id)}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs ${group === g.id ? "bg-carbon font-bold text-on-carbon" : g.id ? groupTint(g.id) : "bg-surface-2"}`}
+              className={`shrink-0 rounded-full px-3 py-1 text-xs ${group === g.id ? "bg-carbon font-bold text-on-carbon" : g.id && g.id !== NO_GROUP ? groupTint(g.id) : "bg-surface-2"}`}
             >
               {g.name} <span className="tabular-nums opacity-70">{g.count}</span>
             </button>

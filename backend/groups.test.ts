@@ -16,6 +16,7 @@ import {
   resolveOrCreateGroup,
 } from "./groups";
 import { setCheckInInterval } from "./intervals";
+import { userFromOidc } from "./users";
 import { addToGroup } from "./relationships";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -31,7 +32,7 @@ test("everyone sees the seeded groups, with counts of the people they may see", 
   await addToGroup(s.a, { name: "Familie", members: [s.anna], visibility: "shared" });
   await addToGroup(s.a, { name: "Familie", members: [s.tom], visibility: "private" });
   const a = await listGroups(s.a);
-  expect(a.map((g) => g.name)).toEqual(["Arbeit", "Familie", "Freunde"]);
+  expect(a.map((g) => g.name)).toEqual(["Arbeit", "Familie", "Freunde", "Haushalt"]);
   expect(a.find((g) => g.name === "Familie")).toMatchObject({ count: 2, aliases: ["Verwandte"], url: `/g/${await idOf("Familie")}` });
   expect((await listGroups(s.b)).find((g) => g.name === "Familie")!.count).toBe(1);
   expect((await listGroups(s.b)).find((g) => g.name === "Arbeit")).toMatchObject({ count: 0, aliases: ["Job", "Kollegen"] });
@@ -147,4 +148,22 @@ test("a group nobody sees any more and nobody made or started with is removed on
   await deleteGroup(s.a, familie); // stays for B, no longer seeded or anyone's own
   await removeFromGroup(s.b, familie, s.lena);
   expect(await (await db()).selectFrom("groups").select("id").where("id", "=", familie).execute()).toEqual([]);
+});
+
+test("Haushalt holds everyone who signs in, and can't be deleted, merged away or emptied of them", async () => {
+  const haushalt = await idOf("Haushalt");
+  const g = await getGroup(s.a, haushalt);
+  expect(g.members.map((m) => m.personId).sort()).toEqual([s.a.personId, s.b.personId].sort());
+  expect(g.household).toBe(true);
+  const newcomer = await userFromOidc({ sub: "c", name: "Carla" });
+  expect((await getGroup(s.a, haushalt)).members.map((m) => m.personId)).toContain(newcomer.personId);
+  await expect(deleteGroup(s.a, haushalt)).rejects.toThrow(InvalidInputError);
+  await expect(mergeGroups(s.a, await idOf("Freunde"), haushalt)).rejects.toThrow(InvalidInputError);
+  await expect(removeFromGroup(s.a, haushalt, s.b.personId)).rejects.toThrow(InvalidInputError);
+  expect((await getGroup(s.a, haushalt)).members).toHaveLength(3);
+  // Anyone else may come and go, and it may be renamed.
+  await addToGroupById(s.a, haushalt, s.anna, "shared");
+  await removeFromGroup(s.a, haushalt, s.anna);
+  await renameGroup(s.a, haushalt, "Zuhause");
+  expect((await getGroup(s.a, haushalt)).aliases).toContain("Haushalt");
 });

@@ -34,7 +34,7 @@ import {
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
 import { traitsFor, type PersonTraits } from "./traits";
-import { addAlias, findPeople, setGender, type Candidate, type Relabel } from "./people";
+import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
 import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "./types";
 import { conversationPath, personPath } from "./urls";
@@ -173,6 +173,20 @@ const ItemId = z.string().describe("The item's id, as a briefing shows it");
 
 const FoundJson = z.object({
   people: z.array(PersonJson).describe("Best matches first, at most 5"),
+});
+const PeopleJson = z.object({
+  people: z
+    .array(
+      z.object({
+        id: PersonId,
+        name: z.string(),
+        aliases: z.array(z.string()),
+        url: z.string().describe("The person's page, as an absolute URL"),
+        lastSeen: Day.nullable().describe("When the user last saw them; null when never"),
+        groups: z.array(z.string()).describe("The groups the user sees them in, by name; empty when in none"),
+      }),
+    )
+    .describe("By name"),
 });
 const DueJson = z.object({
   items: z.array(DueItemJson).describe("Most pressing first"),
@@ -503,6 +517,26 @@ export const TOOLS: readonly Tool[] = [
     handler: async (v, { name }) => {
       const people = await findPeople(v, name);
       return ok(FoundJson, { people }, foundNext(name, people));
+    },
+  }),
+  tool({
+    name: "people",
+    description:
+      "Everyone in the book but the user, by name, each with the groups the user sees them in. With withoutGroup, only those in no group yet, to sort them into groups (the household is in its own group, Haushalt). To find one person by name, use find_person.",
+    input: z.object({
+      withoutGroup: z.boolean().optional().describe("Only the people in no group"),
+    }),
+    output: PeopleJson,
+    annotations: { readOnlyHint: true },
+    handler: async (v, { withoutGroup }) => {
+      const [all, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
+      const named = new Map(groups.map((g) => [g.id, g.name]));
+      const people = all
+        .filter((p) => !withoutGroup || !p.groups.length)
+        .map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, url: p.url, lastSeen: p.lastSeen, groups: p.groups.map((id) => named.get(id)!) }));
+      const next =
+        withoutGroup && people.length ? [`Offer to put ${people.map((p) => p.name).join(", ")} in a group with relate (kind group); reuse one that fits (groups).`] : [];
+      return ok(PeopleJson, { people }, next);
     },
   }),
   tool({

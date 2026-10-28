@@ -67,7 +67,8 @@ export interface Schema {
     settled: Flag;
   };
   relationships: Item & { id: string; from_id: string; to_id: string; label: string; inverse: string; note: string | null };
-  groups: { id: string; name: string; created_by: string | null; created_at: number; seeded: Flag };
+  /** `household`: the group of everyone who signs in (Haushalt), which can't be deleted. */
+  groups: { id: string; name: string; created_by: string | null; created_at: number; seeded: Flag; household: Flag };
   group_aliases: { group_id: string; alias: string; norm: string };
   group_members: { group_id: string; person_id: string; visibility: string; recorded_by: string; conversation_id: string | null };
   chat_usage: { user_id: string; day: string; count: number };

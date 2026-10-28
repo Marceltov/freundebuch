@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { ArrowLeftRight, Cake, CalendarDays, ChevronRight, Coffee, Lock, MapPin, Mic, NotebookPen, Pin, Users } from "lucide-react";
 import type { ReactNode } from "react";
-import { anchorId, getConversation, itemPath, personPath, today, type ConversationView } from "@/backend";
+import { anchorId, conversationPath, getConversation, itemPath, personPath, today, type ConversationView } from "@/backend";
 import { copy, dateKindName, kindName } from "@/components/copy";
 import { Face } from "@/components/Face";
 import { dayMonth, longDay, shortDay } from "@/components/format";
 import { CATEGORY_ICON, EXCHANGE_ICON, KIND_ICON } from "@/components/icons";
 import { ItemActions } from "@/components/ItemActions";
+import { ShareButton } from "@/components/ShareButton";
 import { Section, Tile } from "@/components/Tiles";
 import { orNotFound, pageViewer } from "../../viewer";
 
@@ -48,6 +49,7 @@ export default async function ConversationPage({ params }: PageProps<"/c/[id]">)
           )}
         </div>
         {c.visibility === "private" && <Lock aria-label={copy.privateItem} className="h-4 w-4 text-muted" />}
+        <ShareButton path={conversationPath(c.id)} title={longDay(c.date)} />
         <ItemActions table="conversations" id={c.id} mine={c.recordedBy === v.userId} visibility={c.visibility} text={c.summary} field="summary" after="/" date={c.date} today={today()} />
       </header>
 

@@ -1,22 +1,26 @@
 "use client";
 
-import { Accessibility, Archive, BookOpen, CalendarClock, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Smile, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import { Accessibility, Archive, BookOpen, CalendarClock, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Share2, Smile, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FactKind } from "@/backend";
 import { copy } from "@/components/copy";
+import { linkTo, shareLink } from "@/components/ShareButton";
 
 type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversations";
 
 // What can be done to one item, behind a "…" button that opens a small menu over the page, each action with its icon and its
 // name: mark it done (a promise, an exchange or a gift idea) or outdated (a fact), which either user may; edit its text, change
 // its date or delete it, which either of us may for a shared item (a conversation only its recorder); and make it private or
-// shared, which only its recorder may (`mine`; the server checks again).
+// shared, which only its recorder may (`mine`; the server checks again); and share a link to its row, which anyone may.
 // Editing opens a sheet from the bottom, so the row or header it belongs to keeps its layout. Deleting asks once more in the
 // menu itself. Each goes to PATCH or DELETE /api/v1/items/{table}/{id}, then the page reloads its data.
 // `field`: what "edit" changes (`text`, `summary` for a conversation, `label` or `inverse` for a relationship: the other end's words). `after`: where to go once it is deleted. `date` (a
 // conversation's day) adds "change the date", up to `today` (the server's, in the configured time zone). `kind`, on a fact,
 // lets whoever may edit it move it to another kind (Gerade los, Gut zu wissen, Braucht, Wesen), and set the day to ask about a situation (`checkAfter`).
+
+/** The link to an item's highlighted row on the page it is shared from. */
+export const rowPath = (page: string, table: Exclude<Table, "conversations">, id: string) => `${page}#${table}-${id}`;
 
 /** Whether the viewer may edit or delete the item: their own, or a shared one of the partner's that isn't a conversation. */
 export function canEdit(table: Table, mine: boolean, visibility: "shared" | "private"): boolean {
@@ -69,6 +73,7 @@ export function ItemActions({
   const [draft, setDraft] = useState(text);
   const [day, setDay] = useState(date ?? "");
   const [busy, setBusy] = useState(false);
+  const [shared, setShared] = useState<false | "copied">(false);
   const [failed, setFailed] = useState(false);
 
   async function send(method: "PATCH" | "DELETE", body?: object) {
@@ -89,6 +94,7 @@ export function ItemActions({
 
   function close() {
     setOpen(false);
+    setShared(false);
     setConfirming(false);
   }
 
@@ -103,8 +109,8 @@ export function ItemActions({
   const done = table === "promises" || table === "exchanges";
   const title = editing === "date" ? copy.changeDate : editing === "ask" ? copy.askOnTitle : copy.edit;
   const editable = canEdit(table, mine, visibility);
-  // The partner's conversation: nothing either user may do to it, so no empty menu.
-  if (!done && table !== "facts" && !editable) return null;
+  // Every other item can at least be shared; the partner's conversation, whose page has its own share button, has nothing.
+  if (table === "conversations" && !editable) return null;
   return (
     <span className="relative ml-auto inline-flex shrink-0">
       <button
@@ -122,6 +128,17 @@ export function ItemActions({
         <>
           <span className="fixed inset-0 z-30" onClick={close} />
           <span className="absolute top-full right-0 z-40 mt-1 flex w-52 flex-col rounded-2xl bg-surface p-1.5 text-[15px] shadow-float ring-1 ring-rule">
+            {table !== "conversations" && (
+              <Item
+                icon={shared ? Check : Share2}
+                label={shared === "copied" ? copy.linkCopied : copy.shareLink}
+                onClick={async () => {
+                  const state = await shareLink(navigator, linkTo(rowPath(window.location.pathname, table, id)), text);
+                  if (state === "copied") setShared("copied");
+                  else if (state === "shared") close();
+                }}
+              />
+            )}
             {done && <Item icon={Check} label={copy.done} disabled={busy} onClick={() => send("PATCH", { done: true })} />}
             {table === "facts" && <Item icon={Archive} label={copy.outdated} disabled={busy} onClick={() => send("PATCH", { outdated: true })} />}
             {editable && (
