@@ -13,7 +13,7 @@ import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
 import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBILITIES, type FactKind, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
-import { pruneScreenshots } from "./screenshots";
+import { pruneFiles } from "./files";
 
 export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations";
 
@@ -333,7 +333,7 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
     .where("id", "=", id)
     .execute();
   // A fact read from a screenshot takes the image with it once no other fact names it.
-  if (table === "facts") await pruneScreenshots();
+  if (table === "facts") await pruneFiles();
 }
 
 /**
@@ -355,7 +355,7 @@ export async function factToRelationship(
     await tx.deleteFrom("facts").where("id", "=", factId).execute();
     return filed;
   });
-  await pruneScreenshots();
+  await pruneFiles();
   return { ids: relationships.map((x) => x.id), relationships };
 }
 

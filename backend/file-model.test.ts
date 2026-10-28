@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { expect, test } from "vitest";
 import { createLogger } from "./log";
-import { anthropicScreenshotModel } from "./screenshot-model";
+import { anthropicFileModel } from "./file-model";
 
 const input = { bytes: new Uint8Array([1]), type: "image/webp", people: [], today: "2026-10-28" };
 const good = { kind: "post", platform: "Instagram", text: "Urlaub", category: "travel", happenedOn: null, sensitive: false, situation: false, checkAfterDays: null, role: null, people: [] };
@@ -16,7 +16,7 @@ function withClient(reply: unknown) {
     if (reply instanceof Error) throw reply;
     return reply;
   };
-  const model = anthropicScreenshotModel("key", "claude-sonnet-5-5", { client: { messages: { create } } as never, log });
+  const model = anthropicFileModel("key", "claude-sonnet-5-5", { client: { messages: { create } } as never, log });
   return { model, lines, calls };
 }
 const message = (content: unknown[], stop_reason = "tool_use") => ({ content, stop_reason });

@@ -15,7 +15,7 @@ import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
-import { createShareKey, discardScreenshot, listPending, resolveScreenshot, retryScreenshot, revokeShareKey, screenshotModel } from "../screenshots";
+import { createShareKey, discardFile, listPending, resolveFile, retryFile, revokeShareKey, fileModel } from "../files";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
@@ -37,7 +37,7 @@ import {
   MergeJson,
   NewConversationJson,
   OrbitJson,
-  PendingScreenshotListJson,
+  PendingFileListJson,
   PeopleQuery,
   PersonJson,
   PersonPatchJson,
@@ -481,56 +481,56 @@ const OPS: AnyOp[] = [
 
   op({
     method: "GET",
-    path: `${API_PREFIX}/screenshots`,
-    operationId: "listPendingScreenshots",
-    summary: "The caller's shared screenshots that wait for them",
+    path: `${API_PREFIX}/files`,
+    operationId: "listPendingFiles",
+    summary: "The caller's shared files that wait for them",
     description: "Being read, waiting for a decision, or failed; newest first. Only the caller's own: the other user's never show.",
-    tags: ["Screenshots"],
+    tags: ["Files"],
     auth: true,
     params: {},
-    responses: { 200: { description: "Waiting screenshots", schema: PendingScreenshotListJson }, 401: E401 },
+    responses: { 200: { description: "Waiting files", schema: PendingFileListJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: await listPending(viewer) })),
 
   op({
     method: "POST",
-    path: `${API_PREFIX}/screenshots/{id}/resolve`,
-    operationId: "resolveScreenshot",
-    summary: "File a waiting screenshot on a person",
+    path: `${API_PREFIX}/files/{id}/resolve`,
+    operationId: "resolveFile",
+    summary: "File a waiting file on a person",
     description: "Give `personId` or the `name` of a new person. The handle Claude read becomes one of the person's other names.",
-    tags: ["Screenshots"],
+    tags: ["Files"],
     auth: true,
     params: { id: IdParam },
     body: ResolutionJson,
     responses: { 200: { description: "Filed", schema: ResolvedJson }, 400: E400, 401: E401, 404: E404 },
-  }).handle(async ({ viewer, params, body }) => ({ status: 200, body: await resolveScreenshot(viewer, params.id, body) })),
+  }).handle(async ({ viewer, params, body }) => ({ status: 200, body: await resolveFile(viewer, params.id, body) })),
 
   op({
     method: "POST",
-    path: `${API_PREFIX}/screenshots/{id}/retry`,
-    operationId: "retryScreenshot",
-    summary: "Read a failed screenshot again",
-    tags: ["Screenshots"],
+    path: `${API_PREFIX}/files/{id}/retry`,
+    operationId: "retryFile",
+    summary: "Read a failed file again",
+    tags: ["Files"],
     auth: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => {
-    const model = screenshotModel();
-    if (!model) throw new NotFoundError("Sharing screenshots is off on this instance");
-    await retryScreenshot(viewer, params.id, model);
+    const model = fileModel();
+    if (!model) throw new NotFoundError("Sharing files is off on this instance");
+    await retryFile(viewer, params.id, model);
     return { status: 204, body: undefined };
   }),
 
   op({
     method: "DELETE",
-    path: `${API_PREFIX}/screenshots/{id}`,
-    operationId: "discardScreenshot",
-    summary: "Throw a waiting screenshot away",
-    tags: ["Screenshots"],
+    path: `${API_PREFIX}/files/{id}`,
+    operationId: "discardFile",
+    summary: "Throw a waiting file away",
+    tags: ["Files"],
     auth: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => {
-    await discardScreenshot(viewer, params.id);
+    await discardFile(viewer, params.id);
     return { status: 204, body: undefined };
   }),
 
@@ -539,8 +539,8 @@ const OPS: AnyOp[] = [
     path: `${API_PREFIX}/me/share-key`,
     operationId: "createShareKey",
     summary: "A new share key for the iPhone Shortcut",
-    description: "The key can only hand in screenshots (POST /api/share). A new one replaces the old one.",
-    tags: ["Screenshots"],
+    description: "The key can only hand in files (POST /api/share). A new one replaces the old one.",
+    tags: ["Files"],
     auth: true,
     params: {},
     responses: { 200: { description: "The new key", schema: ShareKeyJson }, 401: E401 },
@@ -551,7 +551,7 @@ const OPS: AnyOp[] = [
     path: `${API_PREFIX}/me/share-key`,
     operationId: "revokeShareKey",
     summary: "Turn the caller's share key off",
-    tags: ["Screenshots"],
+    tags: ["Files"],
     auth: true,
     params: {},
     responses: { 204: NO_CONTENT, 401: E401 },

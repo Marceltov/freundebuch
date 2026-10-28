@@ -1828,13 +1828,13 @@
         }
       }
     },
-    "/api/v1/screenshots": {
+    "/api/v1/files": {
       "get": {
-        "operationId": "listPendingScreenshots",
-        "summary": "The caller's shared screenshots that wait for them",
+        "operationId": "listPendingFiles",
+        "summary": "The caller's shared files that wait for them",
         "description": "Being read, waiting for a decision, or failed; newest first. Only the caller's own: the other user's never show.",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -1846,11 +1846,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Waiting screenshots",
+            "description": "Waiting files",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PendingScreenshotList"
+                  "$ref": "#/components/schemas/PendingFileList"
                 }
               }
             }
@@ -1868,13 +1868,13 @@
         }
       }
     },
-    "/api/v1/screenshots/{id}/resolve": {
+    "/api/v1/files/{id}/resolve": {
       "post": {
-        "operationId": "resolveScreenshot",
-        "summary": "File a waiting screenshot on a person",
+        "operationId": "resolveFile",
+        "summary": "File a waiting file on a person",
         "description": "Give `personId` or the `name` of a new person. The handle Claude read becomes one of the person's other names.",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -1949,12 +1949,12 @@
         }
       }
     },
-    "/api/v1/screenshots/{id}/retry": {
+    "/api/v1/files/{id}/retry": {
       "post": {
-        "operationId": "retryScreenshot",
-        "summary": "Read a failed screenshot again",
+        "operationId": "retryFile",
+        "summary": "Read a failed file again",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -2012,12 +2012,12 @@
         }
       }
     },
-    "/api/v1/screenshots/{id}": {
+    "/api/v1/files/{id}": {
       "delete": {
-        "operationId": "discardScreenshot",
-        "summary": "Throw a waiting screenshot away",
+        "operationId": "discardFile",
+        "summary": "Throw a waiting file away",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -2069,9 +2069,9 @@
       "post": {
         "operationId": "createShareKey",
         "summary": "A new share key for the iPhone Shortcut",
-        "description": "The key can only hand in screenshots (POST /api/share). A new one replaces the old one.",
+        "description": "The key can only hand in files (POST /api/share). A new one replaces the old one.",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -2108,7 +2108,7 @@
         "operationId": "revokeShareKey",
         "summary": "Turn the caller's share key off",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -2290,7 +2290,7 @@
   },
   "components": {
     "schemas": {
-      "PendingScreenshotList": {
+      "PendingFileList": {
         "type": "array",
         "items": {
           "type": "object",
@@ -2315,7 +2315,7 @@
             },
             "imageUrl": {
               "type": "string",
-              "description": "The screenshot (sign-in required)"
+              "description": "The file (sign-in required)"
             },
             "reading": {
               "anyOf": [
@@ -3209,15 +3209,15 @@
                   "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                 },
                 "source": {
-                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                   "type": "string"
                 },
                 "happenedOn": {
-                  "description": "When it happened, when the screenshot showed it",
+                  "description": "When it happened, when the file showed it",
                   "type": "string"
                 },
                 "imageUrl": {
-                  "description": "The screenshot it was read from (sign-in required)",
+                  "description": "The file it was read from (sign-in required)",
                   "type": "string"
                 },
                 "visibility": {
@@ -3290,15 +3290,15 @@
                       "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                     },
                     "source": {
-                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                       "type": "string"
                     },
                     "happenedOn": {
-                      "description": "When it happened, when the screenshot showed it",
+                      "description": "When it happened, when the file showed it",
                       "type": "string"
                     },
                     "imageUrl": {
-                      "description": "The screenshot it was read from (sign-in required)",
+                      "description": "The file it was read from (sign-in required)",
                       "type": "string"
                     },
                     "visibility": {
@@ -3353,15 +3353,15 @@
                       "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                     },
                     "source": {
-                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                       "type": "string"
                     },
                     "happenedOn": {
-                      "description": "When it happened, when the screenshot showed it",
+                      "description": "When it happened, when the file showed it",
                       "type": "string"
                     },
                     "imageUrl": {
-                      "description": "The screenshot it was read from (sign-in required)",
+                      "description": "The file it was read from (sign-in required)",
                       "type": "string"
                     },
                     "visibility": {
@@ -3423,15 +3423,15 @@
                   "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                 },
                 "source": {
-                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                   "type": "string"
                 },
                 "happenedOn": {
-                  "description": "When it happened, when the screenshot showed it",
+                  "description": "When it happened, when the file showed it",
                   "type": "string"
                 },
                 "imageUrl": {
-                  "description": "The screenshot it was read from (sign-in required)",
+                  "description": "The file it was read from (sign-in required)",
                   "type": "string"
                 },
                 "visibility": {
@@ -3904,15 +3904,15 @@
                         "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                       },
                       "source": {
-                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                         "type": "string"
                       },
                       "happenedOn": {
-                        "description": "When it happened, when the screenshot showed it",
+                        "description": "When it happened, when the file showed it",
                         "type": "string"
                       },
                       "imageUrl": {
-                        "description": "The screenshot it was read from (sign-in required)",
+                        "description": "The file it was read from (sign-in required)",
                         "type": "string"
                       },
                       "visibility": {
@@ -3967,15 +3967,15 @@
                         "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                       },
                       "source": {
-                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                         "type": "string"
                       },
                       "happenedOn": {
-                        "description": "When it happened, when the screenshot showed it",
+                        "description": "When it happened, when the file showed it",
                         "type": "string"
                       },
                       "imageUrl": {
-                        "description": "The screenshot it was read from (sign-in required)",
+                        "description": "The file it was read from (sign-in required)",
                         "type": "string"
                       },
                       "visibility": {

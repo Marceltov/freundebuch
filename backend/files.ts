@@ -14,77 +14,108 @@ import { logger } from "./log";
 import { copy } from "./notify/copy";
 import { sendWebhook } from "./notify/webhook";
 import { insertAlias, insertPerson } from "./people";
-import { anthropicScreenshotModel, fakeScreenshotModel, type KnownPerson, type Reading, type ScreenshotModel } from "./screenshot-model";
+import { anthropicFileModel, fakeFileModel, type KnownPerson, type Reading, type FileModel } from "./file-model";
 import { getSettings } from "./settings";
 import { processState } from "./state";
 import { store } from "./storage";
 import { spend } from "./usage";
 import { FACT_CATEGORIES, VISIBILITIES, type FactCategory, type Viewer, type Visibility } from "./types";
-import { itemPath, personPath, screenshotPath } from "./urls";
+import { itemPath, personPath, filePath } from "./urls";
 import { viewerById } from "./users";
 import { visible } from "./visibility";
 
-const log = logger("screenshots");
+const log = logger("files");
 
-/** The largest upload taken: a phone screenshot is a few MB. */
+/** The largest upload taken: a phone screenshot or a letter as PDF is a few MB. */
 export const MAX_UPLOAD = 15 * 1024 * 1024;
 const WIDTH = 1080;
-const TYPE = "image/webp";
-const keyOf = (id: string) => `screenshots/${id}.webp`;
+/** Images are stored shrunk, as WebP; PDFs and text as they came. */
+const EXT: Record<string, string> = { "image/webp": "webp", "application/pdf": "pdf", "text/plain": "txt" };
+const NOT_TAKEN = "freundebuch takes images, PDFs and text files";
 export const PENDING_PATH = "/pruefen";
 
-export type ScreenshotStatus = "reading" | "pending" | "filed" | "nothing" | "failed";
+export type FileStatus = "reading" | "pending" | "filed" | "nothing" | "failed";
 
 // The model in use: a test's stand-in, Claude with the API key, the e2e stand-in, or none (sharing is off).
-const state = processState("screenshots", () => ({ override: null as ScreenshotModel | null, queue: Promise.resolve() as Promise<unknown> }));
-export const setScreenshotModelForTests = (m: ScreenshotModel | null) => {
+const state = processState("files", () => ({ override: null as FileModel | null, queue: Promise.resolve() as Promise<unknown> }));
+export const setFileModelForTests = (m: FileModel | null) => {
   state.override = m;
 };
-export function screenshotModel(): ScreenshotModel | null {
+export function fileModel(): FileModel | null {
   if (state.override) return state.override;
   const key = config.anthropicKey();
-  if (key) return anthropicScreenshotModel(key, config.anthropicModel());
-  return config.e2e() ? fakeScreenshotModel : null;
+  if (key) return anthropicFileModel(key, config.anthropicModel());
+  return config.e2e() ? fakeFileModel : null;
 }
 
-/** Stores a shared image for `v` and returns its entry; the same image shared again returns the first one (`duplicate`).
- * Reading it is queued (`queueRead`); the caller doesn't wait for it. */
-export async function shareScreenshot(v: Viewer, bytes: Uint8Array): Promise<{ id: string; status: ScreenshotStatus; duplicate: boolean }> {
-  if (bytes.byteLength === 0) throw new InvalidInputError("The image is empty");
+/** What `bytes` are, by the type they were sent with, or by their first bytes when that says nothing: a PDF, text (UTF-8
+ * without NUL), else an image for sharp to try. */
+function kindOf(bytes: Uint8Array, sent: string): "pdf" | "text" | "image" | null {
+  const type = sent.split(";")[0].trim().toLowerCase();
+  if (type === "application/pdf") return "pdf";
+  if (type.startsWith("text/")) return "text";
+  if (type.startsWith("image/")) return "image";
+  if (type && type !== "application/octet-stream") return null;
+  if (new TextDecoder().decode(bytes.subarray(0, 5)) === "%PDF-") return "pdf";
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (!text.includes("\0")) return "text";
+  } catch {}
+  return "image";
+}
+
+/** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`). `type` is
+ * what it was sent as ("" when unknown). Reading it is queued (`queueRead`); the caller doesn't wait for it. */
+export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
+  if (bytes.byteLength === 0) throw new InvalidInputError("The file is empty");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const d = await db();
-  const seen = await d.selectFrom("screenshots").select(["id", "status"]).where("user_id", "=", v.userId).where("sha256", "=", sha256).executeTakeFirst();
+  const seen = await d.selectFrom("files").select(["id", "status"]).where("user_id", "=", v.userId).where("sha256", "=", sha256).executeTakeFirst();
   if (seen) return { ...seen, duplicate: true };
-  let small: Uint8Array;
-  try {
-    small = new Uint8Array(await sharp(bytes).rotate().resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer());
-  } catch {
-    throw new InvalidInputError("That is not an image freundebuch can read");
-  }
+  const kind = kindOf(bytes, type);
+  let stored: Uint8Array;
+  let mediaType: string;
+  if (kind === "pdf" && new TextDecoder().decode(bytes.subarray(0, 5)) === "%PDF-") [stored, mediaType] = [bytes, "application/pdf"];
+  else if (kind === "text") {
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new InvalidInputError(NOT_TAKEN);
+    }
+    [stored, mediaType] = [bytes, "text/plain"];
+  } else if (kind === "image") {
+    try {
+      stored = new Uint8Array(await sharp(bytes).rotate().resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer());
+    } catch {
+      throw new InvalidInputError(type.startsWith("image/") ? "That is not an image freundebuch can read" : NOT_TAKEN);
+    }
+    mediaType = "image/webp";
+  } else throw new InvalidInputError(NOT_TAKEN);
   const id = newId();
-  await store().put(keyOf(id), small, TYPE);
+  const key = `files/${id}.${EXT[mediaType]}`;
+  await store().put(key, stored, mediaType);
   try {
-    await d.insertInto("screenshots").values({ id, user_id: v.userId, sha256, status: "reading", reading: null, created_at: now() }).execute();
+    await d.insertInto("files").values({ id, user_id: v.userId, sha256, status: "reading", reading: null, created_at: now(), media_type: mediaType, blob_key: key }).execute();
   } catch (e) {
-    await store().delete(keyOf(id));
+    await store().delete(key);
     throw e;
   }
   return { id, status: "reading", duplicate: false };
 }
 
 /** Reads the screenshots one after another, so a burst of shares doesn't become a burst of requests. */
-export function queueRead(id: string, model: ScreenshotModel): Promise<void> {
-  const run = state.queue.then(async () => void (await readScreenshot(id, model))).catch((e) => log.error({ err: e }, "reading a screenshot failed"));
+export function queueRead(id: string, model: FileModel): Promise<void> {
+  const run = state.queue.then(async () => void (await readFile(id, model))).catch((e) => log.error({ err: e }, "reading a screenshot failed"));
   state.queue = run;
   return run;
 }
 
 /** At start-up: reads again what a restart interrupted, and drops images no fact needs any more. */
-export async function resumeReading(model: ScreenshotModel | null = screenshotModel()): Promise<void> {
+export async function resumeReading(model: FileModel | null = fileModel()): Promise<void> {
   try {
-    await pruneScreenshots();
+    await pruneFiles();
     if (!model) return;
-    const rows = await (await db()).selectFrom("screenshots").select("id").where("status", "=", "reading").orderBy("created_at").execute();
+    const rows = await (await db()).selectFrom("files").select("id").where("status", "=", "reading").orderBy("created_at").execute();
     for (const r of rows) void queueRead(r.id, model);
   } catch (e) {
     log.error({ err: e }, "resuming the screenshots failed");
@@ -123,14 +154,14 @@ function clean(r: Reading, known: Set<string>, day: string): Reading {
 /** Sure: something happened, nothing sensitive, and every person in it is one known person. */
 const sure = (r: Reading) => r.kind === "post" && !!r.text && !r.sensitive && r.people.length > 0 && r.people.every((p) => p.personId);
 
-export async function readScreenshot(id: string, model: ScreenshotModel): Promise<ScreenshotStatus> {
+export async function readFile(id: string, model: FileModel): Promise<FileStatus> {
   const d = await db();
-  const row = await d.selectFrom("screenshots").selectAll().where("id", "=", id).executeTakeFirst();
+  const row = await d.selectFrom("files").selectAll().where("id", "=", id).executeTakeFirst();
   if (!row || row.status !== "reading") return row?.status ?? "failed";
   const v = await viewerById(row.user_id);
-  const bytes = await store().get(keyOf(id));
-  const set = (status: ScreenshotStatus, reading: Reading | null = null) =>
-    d.updateTable("screenshots").set({ status, reading: reading && JSON.stringify(reading) }).where("id", "=", id).where("status", "=", "reading").execute();
+  const bytes = await store().get(row.blob_key);
+  const set = (status: FileStatus, reading: Reading | null = null) =>
+    d.updateTable("files").set({ status, reading: reading && JSON.stringify(reading) }).where("id", "=", id).where("status", "=", "reading").execute();
   if (!v || !bytes) {
     await set("failed");
     return "failed";
@@ -142,7 +173,7 @@ export async function readScreenshot(id: string, model: ScreenshotModel): Promis
     return "failed";
   }
   const people = await knownPeople();
-  const raw = await model.read({ bytes, type: TYPE, people, today: day });
+  const raw = await model.read({ bytes, type: row.media_type, people, today: day });
   if (!raw) {
     await set("failed");
     await push(v, { title: copy.shotFailed, body: "", click: PENDING_PATH });
@@ -151,7 +182,7 @@ export async function readScreenshot(id: string, model: ScreenshotModel): Promis
   const reading = clean(raw, new Set(people.map((p) => p.id)), day);
   if (reading.kind === "nothing" || !reading.text) {
     await set("nothing", reading);
-    await store().delete(keyOf(id));
+    await store().delete(row.blob_key);
     await push(v, { title: copy.shotNothing, body: "" });
     return "nothing";
   }
@@ -164,7 +195,7 @@ export async function readScreenshot(id: string, model: ScreenshotModel): Promis
   await d.transaction().execute(async (tx) => {
     for (const personId of new Set(reading.people.map((p) => p.personId!))) await insertFact(tx, v, id, reading, personId, "shared");
     await insertRole(tx, v, reading, reading.people[0].personId!, "shared");
-    await tx.updateTable("screenshots").set({ status: "filed", reading: JSON.stringify(reading) }).where("id", "=", id).execute();
+    await tx.updateTable("files").set({ status: "filed", reading: JSON.stringify(reading) }).where("id", "=", id).execute();
   });
   return "filed";
 }
@@ -195,7 +226,7 @@ async function insertFact(
       created_at: now(),
       source: r.platform,
       happened_on: r.happenedOn,
-      screenshot_id: shotId,
+      file_id: shotId,
     })
     .execute();
   return id;
@@ -215,7 +246,7 @@ async function push(v: Viewer, m: { title: string; body: string; click?: string 
 }
 
 export type PendingCandidate = { id: string; name: string; url: string };
-export type PendingScreenshot = {
+export type PendingFile = {
   id: string;
   status: "reading" | "pending" | "failed";
   createdAt: number;
@@ -225,18 +256,18 @@ export type PendingScreenshot = {
 };
 
 /** The viewer's own screenshots that wait for them, newest first. The partner's never show. */
-export async function listPending(v: Viewer): Promise<PendingScreenshot[]> {
+export async function listPending(v: Viewer): Promise<PendingFile[]> {
   const d = await db();
-  const rows = await d.selectFrom("screenshots").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").execute();
+  const rows = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").execute();
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const cand = (id: string): PendingCandidate | null => (names.has(id) ? { id, name: names.get(id)!, url: personPath(id) } : null);
   return rows.map((r) => {
     const reading = r.reading ? (JSON.parse(r.reading) as Reading) : null;
     return {
       id: r.id,
-      status: r.status as PendingScreenshot["status"],
+      status: r.status as PendingFile["status"],
       createdAt: r.created_at,
-      imageUrl: screenshotPath(r.id),
+      imageUrl: filePath(r.id),
       reading: reading && {
         ...reading,
         people: reading.people.map((p) => ({
@@ -252,12 +283,12 @@ export async function listPending(v: Viewer): Promise<PendingScreenshot[]> {
 
 /** How many of the viewer's screenshots wait for them (the badge in the navigation). */
 export async function pendingCount(v: Viewer): Promise<number> {
-  const r = await (await db()).selectFrom("screenshots").select((eb) => eb.fn.countAll<number>().as("n")).where("user_id", "=", v.userId).where("status", "in", ["pending", "failed"]).executeTakeFirst();
+  const r = await (await db()).selectFrom("files").select((eb) => eb.fn.countAll<number>().as("n")).where("user_id", "=", v.userId).where("status", "in", ["pending", "failed"]).executeTakeFirst();
   return Number(r?.n ?? 0);
 }
 
 async function ownPending(v: Viewer, id: string) {
-  const row = await (await db()).selectFrom("screenshots").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
+  const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
   if (!row || !["reading", "pending", "failed"].includes(row.status)) throw new NotFoundError("No such screenshot waiting");
   return row;
 }
@@ -273,7 +304,7 @@ export type Resolution = {
 
 /** Files a waiting screenshot on the person the viewer picked. The handle Claude read becomes one of their other names, so the
  * next post of theirs is filed without asking. */
-export async function resolveScreenshot(v: Viewer, id: string, r: Resolution): Promise<{ factId: string; personId: string; url: string }> {
+export async function resolveFile(v: Viewer, id: string, r: Resolution): Promise<{ factId: string; personId: string; url: string }> {
   const row = await ownPending(v, id);
   if (row.status !== "pending" || !row.reading) throw new InvalidInputError("This screenshot hasn't been read yet");
   if (!r.personId === !r.name?.trim()) throw new InvalidInputError("Give either personId or name");
@@ -299,50 +330,50 @@ export async function resolveScreenshot(v: Viewer, id: string, r: Resolution): P
     if (open.length === 1 && open[0].handle) await insertAlias(tx, personId, name, open[0].handle);
     const factId = await insertFact(tx, v, id, { ...reading, text }, personId, visibility);
     if (reading.people.length === 1) await insertRole(tx, v, reading, personId, visibility);
-    await tx.updateTable("screenshots").set({ status: "filed" }).where("id", "=", id).execute();
+    await tx.updateTable("files").set({ status: "filed" }).where("id", "=", id).execute();
     return { factId, personId, url: itemPath(personPath(personId), "facts", factId) };
   });
 }
 
 /** Reads a screenshot again that failed. */
-export async function retryScreenshot(v: Viewer, id: string, model: ScreenshotModel): Promise<void> {
+export async function retryFile(v: Viewer, id: string, model: FileModel): Promise<void> {
   const row = await ownPending(v, id);
   if (row.status !== "failed") throw new InvalidInputError("Only a screenshot that couldn't be read is read again");
-  await (await db()).updateTable("screenshots").set({ status: "reading" }).where("id", "=", id).execute();
+  await (await db()).updateTable("files").set({ status: "reading" }).where("id", "=", id).execute();
   void queueRead(id, model);
 }
 
 /** Throws a waiting screenshot away, image and all. */
-export async function discardScreenshot(v: Viewer, id: string): Promise<void> {
-  await ownPending(v, id);
-  await (await db()).deleteFrom("screenshots").where("id", "=", id).execute();
-  await store().delete(keyOf(id));
+export async function discardFile(v: Viewer, id: string): Promise<void> {
+  const row = await ownPending(v, id);
+  await (await db()).deleteFrom("files").where("id", "=", id).execute();
+  await store().delete(row.blob_key);
 }
 
 /** The image, for the user who shared it or for a viewer who may see a fact filed from it; null otherwise. */
-export async function screenshotImage(v: Viewer, id: string): Promise<{ bytes: Uint8Array; type: string } | null> {
+export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8Array; type: string } | null> {
   const d = await db();
-  const row = await d.selectFrom("screenshots").select(["user_id", "status"]).where("id", "=", id).executeTakeFirst();
+  const row = await d.selectFrom("files").select(["user_id", "status", "blob_key", "media_type"]).where("id", "=", id).executeTakeFirst();
   if (!row) return null;
   const mine = row.user_id === v.userId;
-  const viaFact = !mine && !!(await d.selectFrom("facts").select("id").where("screenshot_id", "=", id).$call((qb) => visible(qb, v, "facts")).executeTakeFirst());
+  const viaFact = !mine && !!(await d.selectFrom("facts").select("id").where("file_id", "=", id).$call((qb) => visible(qb, v, "facts")).executeTakeFirst());
   if (!mine && !viaFact) return null;
-  const bytes = await store().get(keyOf(id));
-  return bytes && { bytes, type: TYPE };
+  const bytes = await store().get(row.blob_key);
+  return bytes && { bytes, type: row.media_type };
 }
 
 /** Drops filed screenshots no fact names any more (the fact was deleted, or its person), image and row. */
-export async function pruneScreenshots(): Promise<number> {
+export async function pruneFiles(): Promise<number> {
   const d = await db();
   const rows = await d
-    .selectFrom("screenshots")
-    .select("id")
+    .selectFrom("files")
+    .select(["id", "blob_key"])
     .where("status", "=", "filed")
-    .where(({ not, exists, selectFrom }) => not(exists(selectFrom("facts").select("facts.id").whereRef("facts.screenshot_id", "=", "screenshots.id"))))
+    .where(({ not, exists, selectFrom }) => not(exists(selectFrom("facts").select("facts.id").whereRef("facts.file_id", "=", "files.id"))))
     .execute();
   for (const r of rows) {
-    await store().delete(keyOf(r.id));
-    await d.deleteFrom("screenshots").where("id", "=", r.id).execute();
+    await store().delete(r.blob_key);
+    await d.deleteFrom("files").where("id", "=", r.id).execute();
   }
   return rows.length;
 }

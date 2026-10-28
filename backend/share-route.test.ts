@@ -6,8 +6,8 @@ import { afterAll, afterEach, beforeEach, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "./auth/session";
 import { sign } from "./auth/tokens";
 import { db } from "./db";
-import { createShareKey, setScreenshotModelForTests } from "./screenshots";
-import { screenshotRoute, shareRoute } from "./share-route";
+import { createShareKey, setFileModelForTests } from "./files";
+import { fileRoute, shareRoute } from "./share-route";
 import { resetSecretForTests } from "./secret";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -21,12 +21,12 @@ beforeEach(async () => {
   resetSecretForTests();
   s = await seed();
   // Never resolves: these tests are about the door, not the reading.
-  setScreenshotModelForTests({ read: () => new Promise(() => undefined) });
+  setFileModelForTests({ read: () => new Promise(() => undefined) });
 });
 afterEach(() => {
   vi.unstubAllEnvs();
   resetSecretForTests();
-  setScreenshotModelForTests(null);
+  setFileModelForTests(null);
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -41,7 +41,7 @@ test("the Shortcut sends the image as the body with its share key: 202, stored a
   expect(res.status).toBe(202);
   const body = await res.json();
   expect(body).toMatchObject({ status: "reading", duplicate: false, message: "Danke! freundebuch liest den Screenshot." });
-  expect((await (await db()).selectFrom("screenshots").select("user_id").where("id", "=", body.id).executeTakeFirstOrThrow()).user_id).toBe(s.a.userId);
+  expect((await (await db()).selectFrom("files").select("user_id").where("id", "=", body.id).executeTakeFirstOrThrow()).user_id).toBe(s.a.userId);
 });
 
 test("the share page sends a form with the cookie", async () => {
@@ -58,17 +58,37 @@ test("no credentials, a wrong key, or a cookie without Origin: 401", async () =>
   expect((await share(img as BodyInit, { cookie: cookie(s.a.userId).cookie, "content-type": "image/png" })).status).toBe(401);
 });
 
-test("not an image, text, or too large: refused, nothing stored", async () => {
+test("a PDF or a text file comes in as the body or as the form field file, and the answer links to Prüfen", async () => {
+  vi.stubEnv("PUBLIC_URL", "https://f.example");
+  const key = await createShareKey(s.a);
+  const pdf = await share(new TextEncoder().encode("%PDF-1.4\n1 0 obj") as BodyInit, { authorization: `Bearer ${key}`, "content-type": "application/pdf" });
+  expect(pdf.status).toBe(202);
+  const { id, url } = await pdf.json();
+  expect(url).toBe(`https://f.example/pruefen#${id}`);
+  const form = new FormData();
+  form.set("file", new Blob(["Patrick: Wochenende war gut"], { type: "text/plain" }), "chat.txt");
+  expect((await share(form, { authorization: `Bearer ${key}` })).status).toBe(202);
+  const types = await (await db()).selectFrom("files").select("media_type").orderBy("media_type").execute();
+  expect(types.map((t) => t.media_type)).toEqual(["application/pdf", "text/plain"]);
+});
+
+test("not an image, PDF or text, or too large: refused, nothing stored", async () => {
   const key = await createShareKey(s.a);
   const auth = { authorization: `Bearer ${key}` };
-  expect((await share("hello", { ...auth, "content-type": "text/plain" })).status).toBe(400);
+  expect((await share(new Uint8Array([0x50, 0x4b, 3, 4, 0, 0]) as BodyInit, { ...auth, "content-type": "application/zip" })).status).toBe(400);
   expect((await share("hello", { ...auth, "content-type": "image/png" })).status).toBe(400);
   expect((await share(new Uint8Array(16 * 1024 * 1024) as BodyInit, { ...auth, "content-type": "image/png" })).status).toBe(413);
-  expect(await (await db()).selectFrom("screenshots").selectAll().execute()).toEqual([]);
+  expect(await (await db()).selectFrom("files").selectAll().execute()).toEqual([]);
+});
+
+test("without PUBLIC_URL the link to Prüfen is the path", async () => {
+  const key = await createShareKey(s.a);
+  const { id, url } = await (await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png" })).json();
+  expect(url).toBe(`/pruefen#${id}`);
 });
 
 test("without an API key there is no sharing", async () => {
-  setScreenshotModelForTests(null);
+  setFileModelForTests(null);
   vi.stubEnv("FREUNDEBUCH_ANTHROPIC_API_KEY", "");
   expect((await share((await png()) as BodyInit, cookie(s.a.userId))).status).toBe(404);
 });
@@ -76,7 +96,7 @@ test("without an API key there is no sharing", async () => {
 test("the image is served to its user and refused to the partner and to the signed-out", async () => {
   const key = await createShareKey(s.a);
   const { id } = await (await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png" })).json();
-  const get = (headers: Record<string, string>) => screenshotRoute(new Request(`${BASE}/api/screenshots/${id}`, { headers: { host: "localhost:3000", ...headers } }), id);
+  const get = (headers: Record<string, string>) => fileRoute(new Request(`${BASE}/api/files/${id}`, { headers: { host: "localhost:3000", ...headers } }), id);
   const mine = await get(cookie(s.a.userId));
   expect(mine.status).toBe(200);
   expect(mine.headers.get("content-type")).toBe("image/webp");

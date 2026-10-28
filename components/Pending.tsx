@@ -3,7 +3,7 @@
 import { Check, Lock, RotateCw, Search, Trash2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { PendingScreenshot } from "@/backend";
+import type { PendingFile } from "@/backend";
 import { copy } from "@/components/copy";
 import { dayMonth } from "@/components/format";
 
@@ -11,7 +11,7 @@ type Pick = { personId: string; name: string } | { newName: string };
 
 // The "Zu prüfen" list: each waiting screenshot with what Claude read, and the choice of person. Filing goes through
 // POST /api/v1/screenshots/{id}/resolve, throwing away through DELETE, reading again through …/retry.
-export function PendingList({ items }: { items: PendingScreenshot[] }) {
+export function PendingList({ items }: { items: PendingFile[] }) {
   const router = useRouter();
   const reading = items.some((i) => i.status === "reading");
   // While Claude is still reading one, look again every few seconds.
@@ -33,7 +33,7 @@ export function PendingList({ items }: { items: PendingScreenshot[] }) {
 
 const button = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-50";
 
-function PendingCard({ item, onDone }: { item: PendingScreenshot; onDone: () => void }) {
+function PendingCard({ item, onDone }: { item: PendingFile; onDone: () => void }) {
   const r = item.reading;
   const first = r?.people[0];
   const [pick, setPick] = useState<Pick | null>(first?.candidates.length === 1 ? { personId: first.candidates[0].id, name: first.candidates[0].name } : null);

@@ -68,9 +68,9 @@ const FactJson = {
   text: z.string(),
   category: z.enum(FACT_CATEGORIES),
   url: ItemUrl,
-  source: z.string().optional().describe("Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot"),
-  happenedOn: Day.optional().describe("When it happened, when the screenshot showed it"),
-  imageUrl: Url.optional().describe("The screenshot it was read from (sign-in required)"),
+  source: z.string().optional().describe("Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file"),
+  happenedOn: Day.optional().describe("When it happened, when the file showed it"),
+  imageUrl: Url.optional().describe("The file it was read from (sign-in required)"),
   ...Own,
 };
 
@@ -468,13 +468,13 @@ export const SettingsJson = z
 export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
 
 const Candidate = z.object({ id: z.string(), name: Name, url: Url });
-export const PendingScreenshotListJson = z
+export const PendingFileListJson = z
   .array(
     z.object({
       id: z.string(),
       status: z.enum(["reading", "pending", "failed"]).describe("`reading`: Claude is on it; `pending`: waits for the caller to decide; `failed`: couldn't be read (retry or discard)"),
       createdAt: z.number().int().describe("When it was shared, ms since the epoch"),
-      imageUrl: Url.describe("The screenshot (sign-in required)"),
+      imageUrl: Url.describe("The file (sign-in required)"),
       reading: z
         .object({
           kind: z.enum(["post", "nothing"]),
@@ -489,7 +489,7 @@ export const PendingScreenshotListJson = z
         .describe("What Claude read; null while reading or when it failed"),
     }),
   )
-  .meta({ id: "PendingScreenshotList" });
+  .meta({ id: "PendingFileList" });
 
 export const ResolutionJson = z
   .object({
@@ -514,7 +514,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingScreenshotListJson, ResolutionJson, ResolvedJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingFileListJson, ResolutionJson, ResolvedJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

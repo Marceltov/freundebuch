@@ -6,7 +6,7 @@ import type { Schema } from "./db/schema";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { groupMembers } from "./groups";
 import { TRAIT_KINDS, type FactCategory, type Viewer, type Visibility } from "./types";
-import { itemPath, personPath, screenshotPath } from "./urls";
+import { itemPath, personPath, filePath } from "./urls";
 import { visible } from "./visibility";
 
 /** `needs`: what to plan around when meeting or inviting the person; `personality`: how they are. Each as filed. */
@@ -21,7 +21,7 @@ export function toFact(f: Selectable<Schema["facts"]>, v: Viewer, page: string):
     url: itemPath(page, "facts", f.id),
     ...(f.source ? { source: f.source } : {}),
     ...(f.happened_on ? { happenedOn: f.happened_on } : {}),
-    ...(f.screenshot_id ? { imageUrl: screenshotPath(f.screenshot_id) } : {}),
+    ...(f.file_id ? { imageUrl: filePath(f.file_id) } : {}),
     visibility: f.visibility as Visibility,
     mine: f.recorded_by === v.userId,
   };

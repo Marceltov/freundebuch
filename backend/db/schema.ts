@@ -49,7 +49,7 @@ export interface Schema {
     source: ColumnType<string | null, string | null | undefined, string | null>;
     /** The day it happened (YYYY-MM-DD), when that is known. */
     happened_on: ColumnType<string | null, string | null | undefined, string | null>;
-    screenshot_id: ColumnType<string | null, string | null | undefined, string | null>;
+    file_id: ColumnType<string | null, string | null | undefined, string | null>;
     kind: ColumnType<FactKind, FactKind | undefined, FactKind>;
     /** On a situation: the day (YYYY-MM-DD) after which to ask how it went; null on any other kind. */
     check_after: ColumnType<string | null, string | null | undefined, string | null>;
@@ -78,14 +78,18 @@ export interface Schema {
     share_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
     calendar_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
   };
-  screenshots: {
+  files: {
     id: string;
     user_id: string;
     sha256: string;
     status: "reading" | "pending" | "filed" | "nothing" | "failed";
-    /** JSON of a `Reading` (screenshots.ts), once Claude has read the image. */
+    /** JSON of what Claude read (files.ts), once it has. */
     reading: string | null;
     created_at: number;
+    /** What was shared: image/webp (images are stored as WebP), application/pdf or text/plain. */
+    media_type: ColumnType<string, string | undefined, string>;
+    /** Where its bytes are in the blob store (storage.ts). */
+    blob_key: string;
   };
   meta: { key: string; value: string };
 }
