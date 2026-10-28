@@ -4170,9 +4170,13 @@
       "NewConversation": {
         "type": "object",
         "properties": {
-          "fileId": {
-            "type": "string",
-            "description": "A shared file's id, as inbox lists it: what is filed from it links to it. Only the caller's own waiting file"
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A shared file's id, as inbox lists it. Only the caller's own waiting file"
+            },
+            "description": "The shared files this is filed from, as evidence: they are linked and leave Prüfen"
           },
           "date": {
             "type": "string",
@@ -5070,6 +5074,30 @@
               ]
             }
           },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The file (sign-in required)"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "url",
+                "type"
+              ]
+            },
+            "description": "The shared files it was filed with, as evidence"
+          },
           "facts": {
             "type": "array",
             "items": {
@@ -5439,6 +5467,7 @@
           "recordedBy",
           "url",
           "participants",
+          "files",
           "facts",
           "promises",
           "dates",

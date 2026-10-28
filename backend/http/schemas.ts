@@ -250,10 +250,11 @@ export const CheckAfter = Day.describe(
 );
 const Private = z.boolean().optional().describe("Makes just this item private; a private conversation makes every item private");
 
-export const FileId = z.string().describe("A shared file's id, as inbox lists it: what is filed from it links to it. Only the caller's own waiting file");
+export const FileId = z.string().describe("A shared file's id, as inbox lists it. Only the caller's own waiting file");
+const FileIds = z.array(FileId).describe("The shared files this is filed from, as evidence: they are linked and leave Prüfen");
 export const NewConversationJson = z
   .object({
-    fileId: FileId.optional(),
+    fileIds: FileIds.optional(),
     date: Day,
     kind: z.enum(CONVERSATION_KINDS),
     place: z.string().optional(),
@@ -397,6 +398,7 @@ export const ConversationJson = z
     recordedBy: z.string(),
     url: Url,
     participants: z.array(z.object({ id: PersonId, name: z.string(), url: Url })),
+    files: z.array(z.object({ id: z.string(), url: Url.describe("The file (sign-in required)"), type: z.string() })).describe("The shared files it was filed with, as evidence"),
     facts: z.array(z.object({ ...Item, personId: PersonId, name: Name, text: z.string(), category: z.enum(FACT_CATEGORIES), status: z.enum(["current", "outdated"]) })),
     promises: z.array(z.object({ ...Item, personId: PersonId, name: Name, text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), done: z.boolean() })),
     dates: z.array(z.object({ ...Item, personId: PersonId, name: Name, kind: z.enum(["birthday", "anniversary", "custom"]), date: z.string(), label: z.string().nullable(), yearly: z.boolean() })),

@@ -91,6 +91,8 @@ export interface Schema {
     media_type: ColumnType<string, string | undefined, string>;
     /** Where its bytes are in the blob store (storage.ts). */
     blob_key: string;
+    /** The conversation it was filed with, when one; whoever may see that conversation may open the file. */
+    conversation_id: ColumnType<string | null, string | null | undefined, string | null>;
   };
   meta: { key: string; value: string };
 }

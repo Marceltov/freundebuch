@@ -90,7 +90,7 @@ async function situation(v: Viewer, context: ChatContext, day: string): Promise<
     if (c) lines.push(`The user opened the chat on the conversation of ${c.date} (${c.id}) with ${c.participants.map((p) => p.name).join(", ")}.`);
   } else if (context.fileId)
     lines.push(
-      `The user opened the chat on a file they shared (fileId ${context.fileId}); it is in their first message, with what a first read suggested. Work it through with them: file what is worth keeping with remember or record_conversation, passing fileId ${context.fileId}, and ask about people and privacy as you would for a ramble. When it is worked through, call inbox with action done and id ${context.fileId}.`,
+      `The user opened the chat on a file they shared (fileId ${context.fileId}); it is in their first message, with what a first read suggested. Work it through with them: file what is worth keeping with remember or record_conversation, passing fileIds ["${context.fileId}"] (that closes it), and ask about people and privacy as you would for a ramble. If nothing in it is worth filing, call inbox with action done and id ${context.fileId}.`,
     );
   return lines.filter(Boolean).join("\n");
 }

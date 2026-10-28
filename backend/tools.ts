@@ -418,7 +418,7 @@ const CorrectArgs = z.discriminatedUnion("action", [
 
 const PrivateItem = z.boolean().optional().describe("Makes just this item private");
 const RememberInput = z.object({
-  fileId: FileId.optional(),
+  fileIds: z.array(FileId).optional().describe("The shared files this is filed from, as evidence: they are linked and leave Prüfen"),
   visibility: Visibility,
   genders: z
     .array(z.object({ person: PersonId, gender: Gender.nullable().describe("null when it isn't known") }))

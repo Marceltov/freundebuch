@@ -235,6 +235,7 @@ export const copy = {
   pendingDiscard: "Verwerfen",
   pendingRetry: "Nochmal lesen",
   fileImage: "Geteiltes Bild",
+  files: "Dateien",
   filePdf: "PDF",
   fileText: "Text",
   fileOf: "Datei von {source}",

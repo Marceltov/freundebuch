@@ -7,7 +7,8 @@ import { createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { config } from "./config";
 import { today } from "./dates";
-import { db, newId, now } from "./db";
+import type { Kysely } from "kysely";
+import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { logger } from "./log";
 import { copy } from "./notify/copy";
@@ -241,6 +242,24 @@ export async function markFiled(v: Viewer, id: string): Promise<void> {
   await (await db()).updateTable("files").set({ status: "filed" }).where("id", "=", id).execute();
 }
 
+/** Takes the viewer's waiting files for what is filed now (in `tx`): they are done, and `conversationId` links them to the
+ * conversation filed with them. NotFoundError when any isn't the viewer's own waiting file. */
+export async function claimFiles(tx: Kysely<Schema>, v: Viewer, ids: string[], conversationId: string | null): Promise<void> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return;
+  const rows = await tx.selectFrom("files").select("id").where("id", "in", unique).where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).execute();
+  if (rows.length !== unique.length) throw new NotFoundError("No such file waiting");
+  await tx.updateTable("files").set({ status: "filed", conversation_id: conversationId }).where("id", "in", unique).execute();
+}
+
+export type ConversationFile = { id: string; url: string; type: string };
+
+/** The files a conversation was filed with, oldest first. The caller has checked the viewer may see the conversation. */
+export async function filesOf(conversationId: string): Promise<ConversationFile[]> {
+  const rows = await (await db()).selectFrom("files").select(["id", "media_type"]).where("conversation_id", "=", conversationId).orderBy("created_at").execute();
+  return rows.map((r) => ({ id: r.id, url: filePath(r.id), type: r.media_type }));
+}
+
 async function ownPending(v: Viewer, id: string) {
   const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
   if (!row || !["reading", "pending", "failed"].includes(row.status)) throw new NotFoundError("No such file waiting");
@@ -262,14 +281,16 @@ export async function discardFile(v: Viewer, id: string): Promise<void> {
   await store().delete(row.blob_key);
 }
 
-/** The image, for the user who shared it or for a viewer who may see a fact filed from it; null otherwise. */
+/** The file, for the user who shared it, or for a viewer who may see a fact or the conversation filed from it; null otherwise. */
 export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8Array; type: string } | null> {
   const d = await db();
-  const row = await d.selectFrom("files").select(["user_id", "status", "blob_key", "media_type"]).where("id", "=", id).executeTakeFirst();
+  const row = await d.selectFrom("files").select(["user_id", "status", "blob_key", "media_type", "conversation_id"]).where("id", "=", id).executeTakeFirst();
   if (!row) return null;
   const mine = row.user_id === v.userId;
   const viaFact = !mine && !!(await d.selectFrom("facts").select("id").where("file_id", "=", id).$call((qb) => visible(qb, v, "facts")).executeTakeFirst());
-  if (!mine && !viaFact) return null;
+  const viaConversation =
+    !mine && !viaFact && !!row.conversation_id && !!(await d.selectFrom("conversations").select("id").where("id", "=", row.conversation_id).$call((qb) => visible(qb, v, "conversations")).executeTakeFirst());
+  if (!mine && !viaFact && !viaConversation) return null;
   const bytes = await store().get(row.blob_key);
   return bytes && { bytes, type: row.media_type };
 }
