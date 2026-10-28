@@ -1,7 +1,7 @@
-// POST /api/share: a screenshot comes in from a phone. The iPhone Shortcut sends the image as the body with the user's share
-// key (`Authorization: Bearer fbs_…`); the web app's share page (Android) sends it as the form field `image` with the cookie.
+// POST /api/share: a file comes in from a phone or the app. The iPhone Shortcut sends it as the body with the user's share
+// key (`Authorization: Bearer fbs_…`); the web app's share page (Android) sends it as the form field `file` with the cookie.
 // An API access token works too. 202: stored, Claude reads it in the background. Not in the REST table: its body isn't JSON.
-// GET /api/files/{id}: the image, for whoever may see it (fileContent).
+// GET /api/files/{id}: the file, for whoever may see it (fileContent).
 // Without an API key (and outside e2e) there is no sharing: 404.
 import { bearerOf, viewerFromRequest } from "./auth/session";
 import { FreundebuchError } from "./errors";
@@ -13,7 +13,7 @@ import type { Viewer } from "./types";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 
-/** Whether this instance takes screenshots: the same switch as the chat. */
+/** Whether this instance takes shared files: the same switch as the chat. */
 export const sharingEnabled = (): boolean => fileModel() !== null;
 
 async function viewerOf(req: Request): Promise<Viewer | null> {

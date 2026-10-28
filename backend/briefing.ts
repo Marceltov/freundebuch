@@ -23,8 +23,8 @@ type Own = { visibility: Visibility; mine: boolean };
 /** A birthday as recorded (`date`, `--MM-DD` without a year), the day it falls on next, and the age reached then when the year is known. */
 export type Birthday = { id: string; date: string; next: string; age: number | null };
 
-/** `source`, `happenedOn` and `imageUrl` for a fact read from a shared screenshot: where it was posted, when it happened (when
- * known), and the screenshot. */
+/** `source`, `happenedOn` and `imageUrl` for a fact filed from a shared file: where it was posted, when it happened (when
+ * known), and the file. */
 export type Fact = Own & { id: string; text: string; category: FactCategory; url: string; source?: string; happenedOn?: string; imageUrl?: string };
 
 /**

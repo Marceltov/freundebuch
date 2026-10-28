@@ -75,7 +75,7 @@ export function WebhookSettings({ webhookUrl }: { webhookUrl: string | null }) {
   );
 }
 
-// Sharing screenshots: how on Android, and the share key the iPhone Shortcut sends (POST/DELETE /api/v1/me/share-key). A new
+// Sharing files: how on Android, and the share key the iPhone Shortcut sends (POST/DELETE /api/v1/me/share-key). A new
 // key is shown once, right after it was made.
 export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl: string }) {
   const [key, setKey] = useState<string | null>(null);

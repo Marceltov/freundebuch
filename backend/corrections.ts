@@ -332,7 +332,7 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
     .deleteFrom(table as "facts")
     .where("id", "=", id)
     .execute();
-  // A fact read from a screenshot takes the image with it once no other fact names it.
+  // A fact filed from a shared file takes the file with it once nothing else names it.
   if (table === "facts") await pruneFiles();
 }
 

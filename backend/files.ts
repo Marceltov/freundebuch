@@ -295,13 +295,14 @@ export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8
   return bytes && { bytes, type: row.media_type };
 }
 
-/** Drops filed files no fact names any more (the fact was deleted, or its person), blob and row. */
+/** Drops filed files nothing names any more (no fact, no conversation: they were deleted), blob and row. */
 export async function pruneFiles(): Promise<number> {
   const d = await db();
   const rows = await d
     .selectFrom("files")
     .select(["id", "blob_key"])
     .where("status", "=", "filed")
+    .where("conversation_id", "is", null)
     .where(({ not, exists, selectFrom }) => not(exists(selectFrom("facts").select("facts.id").whereRef("facts.file_id", "=", "files.id"))))
     .execute();
   for (const r of rows) {

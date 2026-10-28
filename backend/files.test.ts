@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
 import { deleteItem } from "./corrections";
+import { recordConversation } from "./conversations";
 import { db } from "./db";
 import { putSettings } from "./settings";
 import type { FileInput, FileModel, Suggestion } from "./file-model";
@@ -211,4 +212,14 @@ test("a PDF and a text file are stored as they are, with their type; anything el
   const keys = await (await db()).selectFrom("files").select(["id", "blob_key"]).execute();
   expect(keys.find((k) => k.id === a.id)!.blob_key).toBe(`files/${a.id}.pdf`);
   expect(keys.find((k) => k.id === b.id)!.blob_key).toBe(`files/${b.id}.txt`);
+});
+
+test("a file kept by a conversation outlives pruning; once the conversation goes, it is pruned", async () => {
+  const file = await shareFile(s.a, await image());
+  const c = await recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "Chat", transcript: "t", visibility: "shared", fileIds: [file.id], people: [{ id: s.anna, present: true }] });
+  expect(await pruneFiles()).toBe(0);
+  expect(await fileContent(s.a, file.id)).not.toBeNull();
+  await deleteItem(s.a, "conversations", c.conversationId);
+  expect(await pruneFiles()).toBe(1);
+  expect(await fileContent(s.a, file.id)).toBeNull();
 });

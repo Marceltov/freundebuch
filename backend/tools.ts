@@ -154,7 +154,7 @@ function briefingNext(b: Briefing): Next {
     next.push(
       `Ask about "${f.text}" first: its day to ask, ${f.checkAfter}, has come. When the user tells how it went, mark it outdated with correct; news instead supersedes it, with a new checkAfter agreed with the user.`,
     );
-  if ([...b.situations, ...b.known].some((f) => f.source)) next.push("Some facts were read from screenshots the user shared: say where (source) and when (happenedOn) you know them from.");
+  if ([...b.situations, ...b.known].some((f) => f.source)) next.push("Some facts came from files the user shared: say where (source) and when (happenedOn) you know them from.");
   if (b.suggestedInterval !== undefined)
     next.push(`Offer to check in with ${b.person.name} every ${b.suggestedInterval} days; save it with set_interval once the user agrees.`);
   return next;
