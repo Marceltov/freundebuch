@@ -65,3 +65,8 @@ test("an unreachable Claude is a 502 with its code; the limit a 429", async () =
   vi.stubEnv("FREUNDEBUCH_CHAT_DAILY_LIMIT", "0");
   expect((await post({ turns: [{ role: "user", content: "x" }] })).status).toBe(429);
 });
+
+test("a file that isn't the caller's own waiting one is a 404", async () => {
+  const res = await post({ turns: [{ role: "user", content: "?" }], context: { fileId: "nope" } });
+  expect(res.status).toBe(404);
+});

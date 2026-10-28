@@ -250,8 +250,10 @@ export const CheckAfter = Day.describe(
 );
 const Private = z.boolean().optional().describe("Makes just this item private; a private conversation makes every item private");
 
+export const FileId = z.string().describe("A shared file's id, as inbox lists it: what is filed from it links to it. Only the caller's own waiting file");
 export const NewConversationJson = z
   .object({
+    fileId: FileId.optional(),
     date: Day,
     kind: z.enum(CONVERSATION_KINDS),
     place: z.string().optional(),

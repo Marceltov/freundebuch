@@ -4170,6 +4170,10 @@
       "NewConversation": {
         "type": "object",
         "properties": {
+          "fileId": {
+            "type": "string",
+            "description": "A shared file's id, as inbox lists it: what is filed from it links to it. Only the caller's own waiting file"
+          },
           "date": {
             "type": "string",
             "description": "A day, `YYYY-MM-DD`"

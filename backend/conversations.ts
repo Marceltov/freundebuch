@@ -20,6 +20,7 @@ import {
   type Viewer,
   type Visibility,
 } from "./types";
+import { waitingFile } from "./files";
 import { resolveOrCreateGroup } from "./groups";
 import { isHouseholdWord, resolvePairs, type Target } from "./household";
 import { conversationPath, groupPath, itemPath, personPath, type AnchoredTable } from "./urls";
@@ -31,6 +32,8 @@ type DateKind = "birthday" | "anniversary" | "custom";
 type Direction = "to_them" | "from_them";
 
 export type NewConversation = {
+  /** A shared file this conversation was told from (Items.fileId). */
+  fileId?: string;
   date: string;
   kind: ConversationKind;
   place?: string;
@@ -144,6 +147,8 @@ function validate(c: NewConversation): void {
  * situation going, and news about a situation must give its new checkAfter.
  */
 type Items<P> = {
+  /** A shared file (files.ts) this was filed from: its facts link to it and show it. Only the user's own waiting file. */
+  fileId?: string;
   facts?: Array<{ person: P; text: string; category: string; private?: boolean; supersedes?: string; kind?: string; checkAfter?: string }>;
   promises?: Array<{ person: P; text: string; byMe: boolean; due?: string; private?: boolean }>;
   dates?: Array<{ person: P; kind: string; date: string; label?: string; yearly: boolean; private?: boolean }>;
@@ -203,7 +208,7 @@ async function insertItems<P>(
     const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), SITUATION_DAYS)) : null;
     await tx
       .insertInto("facts")
-      .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f) })
+      .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f), file_id: c.fileId ?? null })
       .execute();
     if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
     filed.facts.push({ ...about("facts", factId, id(f.person), vis(f)), text: f.text, kind, checkAfter, defaultCheckAfter: kind === "situation" && f.checkAfter === undefined, supersedes: f.supersedes ?? null });
@@ -253,6 +258,7 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
     if (typeof p !== "string" || !p) throw new InvalidInputError("Each item needs the id of an existing person");
   };
   validateItems(r, person);
+  if (r.fileId) await waitingFile(v, r.fileId);
   for (const g of r.genders ?? []) {
     person(g.person);
     checkGender(g.gender);
@@ -429,6 +435,7 @@ async function assertNoNamesake(v: Viewer, c: NewConversation): Promise<void> {
 
 export async function recordConversation(v: Viewer, c: NewConversation): Promise<Recorded> {
   validate(c);
+  if (c.fileId) await waitingFile(v, c.fileId);
   await assertNoNamesake(v, c);
   const vis = (item: { private?: boolean }): Visibility => (c.visibility === "private" || item.private ? "private" : "shared");
   const items = [...(c.facts ?? []), ...(c.promises ?? []), ...(c.dates ?? []), ...(c.exchanges ?? []), ...(c.relationships ?? []), ...(c.groups ?? [])];

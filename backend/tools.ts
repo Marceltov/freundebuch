@@ -27,6 +27,7 @@ import {
   PersonId,
   PersonJson,
   RecordedJson,
+  FileId,
   TraitsJson,
   HOUSEHOLD_TARGET,
   Visibility,
@@ -417,6 +418,7 @@ const CorrectArgs = z.discriminatedUnion("action", [
 
 const PrivateItem = z.boolean().optional().describe("Makes just this item private");
 const RememberInput = z.object({
+  fileId: FileId.optional(),
   visibility: Visibility,
   genders: z
     .array(z.object({ person: PersonId, gender: Gender.nullable().describe("null when it isn't known") }))

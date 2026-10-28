@@ -226,6 +226,21 @@ export async function pendingCount(v: Viewer): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
+/** The viewer's own file that still waits, with its content and suggestion; NotFoundError for any other. */
+export async function waitingFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null }> {
+  const row = await ownPending(v, id);
+  const bytes = await store().get(row.blob_key);
+  if (!bytes) throw new NotFoundError("No such file waiting");
+  const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
+  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null };
+}
+
+/** Marks the viewer's waiting file done: worked through and filed, so it leaves Prüfen. Its blob stays while a fact names it. */
+export async function markFiled(v: Viewer, id: string): Promise<void> {
+  await ownPending(v, id);
+  await (await db()).updateTable("files").set({ status: "filed" }).where("id", "=", id).execute();
+}
+
 async function ownPending(v: Viewer, id: string) {
   const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
   if (!row || !["reading", "pending", "failed"].includes(row.status)) throw new NotFoundError("No such file waiting");
