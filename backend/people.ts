@@ -3,6 +3,7 @@
 import { sql, type Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
+import { householdPersons } from "./household";
 import { lastSeen } from "./intervals";
 import { norm, within } from "./names";
 import { GENDERS, type Gender, type Viewer } from "./types";
@@ -213,16 +214,17 @@ export async function listPeople(v: Viewer): Promise<PersonView[]> {
   return toViews(v, await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender"]).orderBy("name").execute());
 }
 
-/** Someone in the people list: last seen and groups as the viewer sees them. */
-export type PersonOverview = { id: string; name: string; aliases: string[]; url: string; lastSeen: string | null; groups: string[] };
+/** Someone in the people list: last seen and groups as the viewer sees them; `household` for the other user's own person. */
+export type PersonOverview = { id: string; name: string; aliases: string[]; url: string; lastSeen: string | null; groups: string[]; household: boolean };
 
 /** Everyone but the viewer, by name, with when the viewer last saw them and the ids of the groups the viewer sees them in. */
 export async function peopleOverview(v: Viewer): Promise<PersonOverview[]> {
   const d = await db();
-  const [people, aliases, memberships] = await Promise.all([
+  const [people, aliases, memberships, household] = await Promise.all([
     d.selectFrom("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),
     aliasesByPerson(),
     d.selectFrom("group_members").select(["person_id", "group_id"]).distinct().$call((qb) => visible(qb, v, "group_members")).execute(),
+    householdPersons(d),
   ]);
   const rows = await Promise.all(
     people.map(async (p) => ({
@@ -232,6 +234,7 @@ export async function peopleOverview(v: Viewer): Promise<PersonOverview[]> {
       url: personPath(p.id),
       lastSeen: await lastSeen(v, p.id),
       groups: memberships.filter((m) => m.person_id === p.id).map((m) => m.group_id),
+      household: household.includes(p.id),
     })),
   );
   return rows.sort((a, b) => a.name.localeCompare(b.name, "de"));

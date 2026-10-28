@@ -188,6 +188,25 @@ describe("next: what Claude does after a call", () => {
     expect(await fresh()).toEqual([]);
   });
 
+  test("find_person without a name lists everyone in the book, by name", async () => {
+    const all = await run(s.a, "find_person", {});
+    const names = all.people.map((p: Json) => p.name);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "de")));
+    expect(all.people.map((p: Json) => p.id)).toEqual(expect.arrayContaining([s.anna, s.lena, s.tom]));
+    expect(all.people.map((p: Json) => p.id)).not.toContain(s.a.personId);
+    expect((await run(s.a, "find_person", { name: " " })).people).toEqual(all.people);
+  });
+
+  test("the full list says each person's groups and names those in none", async () => {
+    await run(s.a, "relate", { kind: "group", name: "Laufgruppe", members: [s.anna, s.tom], visibility: "shared" });
+    const all = await run(s.a, "find_person", {});
+    const groups = Object.fromEntries(all.people.map((p: Json) => [p.name, p.groups]));
+    expect(groups).toMatchObject({ Anna: ["Laufgruppe"], Tom: ["Laufgruppe"], Lena: [] });
+    // Bob is the partner: part of the household, not someone to sort into a group.
+    expect(groups.Bob).toEqual([]);
+    expect(all.next).toEqual(["In no group: Lena. Offer to put them in one with relate (kind group)."]);
+  });
+
   test("find_person asks which one, or whether someone is new", async () => {
     expect((await run(s.a, "find_person", { name: "Anna" })).next).toEqual([]);
     const none = await run(s.a, "find_person", { name: "Zoe" });

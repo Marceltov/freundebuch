@@ -34,7 +34,7 @@ import {
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
 import { traitsFor, type PersonTraits } from "./traits";
-import { addAlias, findPeople, setGender, type Candidate, type Relabel } from "./people";
+import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
 import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "./types";
 import { conversationPath, personPath } from "./urls";
@@ -172,7 +172,13 @@ const Table = z.enum(ITEM_TABLES).describe("The kind of item");
 const ItemId = z.string().describe("The item's id, as a briefing shows it");
 
 const FoundJson = z.object({
-  people: z.array(PersonJson).describe("Best matches first, at most 5"),
+  people: z
+    .array(
+      PersonJson.extend({
+        groups: z.array(z.string()).optional().describe("Only in the full list: the groups the user sees them in, by name; empty when in none"),
+      }),
+    )
+    .describe("Best matches first, at most 5; without a name, everyone but the user, by name"),
 });
 const DueJson = z.object({
   items: z.array(DueItemJson).describe("Most pressing first"),
@@ -494,13 +500,21 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "find_person",
     description:
-      "Find people by name or alias, tolerant of spelling, each with context that tells people of the same name apart; always call this before referring to a person by id.",
+      "Find people by name or alias, tolerant of spelling, each with context that tells people of the same name apart; always call this before referring to a person by id. Without a name: everyone in the book but the user, by name, each with their groups, to go through all of them or find who is in no group.",
     input: z.object({
-      name: z.string().describe("A name or alias, as the user said it"),
+      name: z.string().optional().describe("A name or alias, as the user said it; leave it out to list everyone"),
     }),
     output: FoundJson,
     annotations: { readOnlyHint: true },
     handler: async (v, { name }) => {
+      if (!name?.trim()) {
+        const [people, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
+        const named = new Map(groups.map((g) => [g.id, g.name]));
+        const all = people.map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, url: p.url, groups: p.groups.map((id) => named.get(id)!) }));
+        // The partner is the household, not someone to sort into a group.
+        const none = people.filter((p) => !p.groups.length && !p.household).map((p) => p.name);
+        return ok(FoundJson, { people: all }, none.length ? [`In no group: ${none.join(", ")}. Offer to put them in one with relate (kind group).`] : []);
+      }
       const people = await findPeople(v, name);
       return ok(FoundJson, { people }, foundNext(name, people));
     },
