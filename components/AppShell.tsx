@@ -3,11 +3,12 @@ import { ImageUp, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 import { chatEnabled, sharingEnabled } from "@/backend";
 import { copy } from "@/components/copy";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { ShareWorker } from "@/components/ShareWorker";
 import { TabBar } from "@/components/TabBar";
 
 // The frame of every signed-in page: a slim top bar (the name, which leads home, and the settings cog), one column, phone
-// width first and at most max-w-2xl on a desktop, and the tab bar floating at the bottom. `userId` keeps the chat apart per user.
+// width first and at most max-w-2xl on a desktop, and the tab bar floating at the bottom. Pulling down at the top reloads. `userId` keeps the chat apart per user.
 // `pending`: how many shared screenshots wait for the viewer; a badge next to the cog leads there.
 export function AppShell({ userId, pending = 0, children }: { userId: string; pending?: number; children: ReactNode }) {
   return (
@@ -28,6 +29,7 @@ export function AppShell({ userId, pending = 0, children }: { userId: string; pe
           </Link>
         </div>
       </div>
+      <PullToRefresh />
       <main className="min-w-0 px-4 pt-2 pb-32">{children}</main>
       <TabBar chat={chatEnabled() ? { userId, sharing: sharingEnabled() } : null} />
       {sharingEnabled() && <ShareWorker />}
