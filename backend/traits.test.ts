@@ -1,4 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
+import { markOutdated } from "./corrections";
 import { remember } from "./conversations";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { addToGroup } from "./relationships";
@@ -49,4 +50,15 @@ test("an empty lookup is refused; an unknown person or a group the viewer can't 
   await expect(traitsFor(s.a, { people: ["nobody"] })).rejects.toThrow(NotFoundError);
   const mine = await addToGroup(s.a, { name: "Geheim", members: [s.anna], visibility: "private" });
   await expect(traitsFor(s.b, { groups: [mine.id] })).rejects.toThrow(NotFoundError);
+});
+
+test("someone named and in a group keeps the place they were named at", async () => {
+  const g = await addToGroup(s.a, { name: "Laufgruppe", members: [s.anna, s.tom], visibility: "shared" });
+  expect((await traitsFor(s.a, { people: [s.tom], groups: [g.id] })).map((p) => p.name)).toEqual(["Tom", "Anna"]);
+});
+
+test("an outdated trait is gone from the lookup", async () => {
+  const r = await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "nut allergy", category: "health", kind: "need" }] });
+  await markOutdated(s.a, r.filed.facts[0].id);
+  expect((await traitsFor(s.a, { people: [s.anna] }))[0].needs).toEqual([]);
 });
