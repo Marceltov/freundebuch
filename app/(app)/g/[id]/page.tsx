@@ -19,7 +19,8 @@ export default async function GroupPage({ params }: PageProps<"/g/[id]">) {
   const viewer = await pageViewer();
   const g = await orNotFound(getGroup(viewer, (await params).id));
   // Who to keep in mind when planning something with the group: only the members with a trait, needs first.
-  const traits = g.members.length ? (await traitsFor(viewer, { groups: [g.id] })).filter((p) => p.needs.length + p.personality.length > 0) : [];
+  // The group may be gone or private by now: that is not found, as above.
+  const traits = g.members.length ? (await orNotFound(traitsFor(viewer, { groups: [g.id] }))).filter((p) => p.needs.length + p.personality.length > 0) : [];
   const now = today();
   return (
     <article>

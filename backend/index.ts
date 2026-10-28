@@ -30,7 +30,7 @@ export { orbit, type Badge, type OrbitFace } from "./orbit";
 export { calendarRoute, hasCalendarKey } from "./calendar";
 export { getSettings } from "./settings";
 export { hasShareKey, listPending, pendingCount, type PendingScreenshot } from "./screenshots";
-export type { Viewer } from "./types";
+export type { FactKind, Viewer } from "./types";
 
 // The health probe asks the database a trivial question; opening it (and migrating) is part of answering.
 setDbProbe(async () => sql`select 1`.execute(await db()));

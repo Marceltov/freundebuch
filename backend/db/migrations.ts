@@ -379,31 +379,34 @@ const migrations: Record<string, Migration> = {
   // Dropping the old table sets every `superseded_by` pointing into it to null, so the links are written back after the rename.
   "008_traits": {
     async up(db) {
-      await db.schema
-        .createTable("facts_008")
-        .addColumn("id", "text", (c) => c.primaryKey())
-        .addColumn("person_id", "text", (c) => c.notNull().references("persons.id").onDelete("cascade"))
-        .addColumn("text", "text", (c) => c.notNull())
-        .addColumn("category", "text", (c) => c.notNull())
-        .addColumn("status", "text", (c) => c.notNull().defaultTo("current").check(oneOf("status", ["current", "outdated"])))
-        .addColumn("superseded_by", "text", (c) => c.references("facts.id").onDelete("set null"))
-        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
-        .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
-        .addColumn("conversation_id", "text", (c) => c.references("conversations.id").onDelete("cascade"))
-        .addColumn("created_at", "bigint", (c) => c.notNull())
-        .addColumn("source", "text")
-        .addColumn("happened_on", "text")
-        .addColumn("screenshot_id", "text", (c) => c.references("screenshots.id").onDelete("set null"))
-        .addColumn("kind", "text", (c) => c.notNull().defaultTo("lasting").check(oneOf("kind", ["lasting", "situation", "need", "personality"])))
-        .addColumn("check_after", "text")
-        .execute();
-      const links = await db.selectFrom("facts").select(["id", "superseded_by"]).where("superseded_by", "is not", null).execute();
-      await sql`insert into facts_008 (id, person_id, text, category, status, superseded_by, visibility, recorded_by, conversation_id, created_at, source, happened_on, screenshot_id, kind, check_after)
-        select id, person_id, text, category, status, null, visibility, recorded_by, conversation_id, created_at, source, happened_on, screenshot_id, kind, check_after from facts`.execute(db);
-      await db.schema.dropTable("facts").execute();
-      await db.schema.alterTable("facts_008").renameTo("facts").execute();
-      for (const l of links) await db.updateTable("facts").set({ superseded_by: l.superseded_by }).where("id", "=", l.id).execute();
-      await db.schema.createIndex("facts_by_person").on("facts").column("person_id").execute();
+      // SQLite keeps DDL in a transaction, but the Migrator doesn't open one: a failure must not leave facts half rebuilt.
+      await db.transaction().execute(async (tx) => {
+        await tx.schema
+          .createTable("facts_008")
+          .addColumn("id", "text", (c) => c.primaryKey())
+          .addColumn("person_id", "text", (c) => c.notNull().references("persons.id").onDelete("cascade"))
+          .addColumn("text", "text", (c) => c.notNull())
+          .addColumn("category", "text", (c) => c.notNull())
+          .addColumn("status", "text", (c) => c.notNull().defaultTo("current").check(oneOf("status", ["current", "outdated"])))
+          .addColumn("superseded_by", "text", (c) => c.references("facts.id").onDelete("set null"))
+          .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+          .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+          .addColumn("conversation_id", "text", (c) => c.references("conversations.id").onDelete("cascade"))
+          .addColumn("created_at", "bigint", (c) => c.notNull())
+          .addColumn("source", "text")
+          .addColumn("happened_on", "text")
+          .addColumn("screenshot_id", "text", (c) => c.references("screenshots.id").onDelete("set null"))
+          .addColumn("kind", "text", (c) => c.notNull().defaultTo("lasting").check(oneOf("kind", ["lasting", "situation", "need", "personality"])))
+          .addColumn("check_after", "text")
+          .execute();
+        const links = await tx.selectFrom("facts").select(["id", "superseded_by"]).where("superseded_by", "is not", null).execute();
+        await sql`insert into facts_008 (id, person_id, text, category, status, superseded_by, visibility, recorded_by, conversation_id, created_at, source, happened_on, screenshot_id, kind, check_after)
+          select id, person_id, text, category, status, null, visibility, recorded_by, conversation_id, created_at, source, happened_on, screenshot_id, kind, check_after from facts`.execute(tx);
+        await tx.schema.dropTable("facts").execute();
+        await tx.schema.alterTable("facts_008").renameTo("facts").execute();
+        for (const l of links) await tx.updateTable("facts").set({ superseded_by: l.superseded_by }).where("id", "=", l.id).execute();
+        await tx.schema.createIndex("facts_by_person").on("facts").column("person_id").execute();
+      });
     },
   },
 };

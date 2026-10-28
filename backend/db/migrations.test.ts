@@ -292,3 +292,22 @@ test("008 lets a fact be a need or a personality trait and keeps every fact as i
   const { rows } = await sql<{ name: string }>`select name from sqlite_master where type = 'index' and tbl_name = 'facts' and name = 'facts_by_person'`.execute(d);
   expect(rows).toHaveLength(1);
 });
+
+test("008 that fails partway leaves facts as they were, and runs once the cause is gone", async () => {
+  const database = new Database(":memory:");
+  const d = new Kysely<any>({ dialect: new SqliteDialect({ database }) }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await migrateTo(d, "007_roles_situations_gender");
+  const t = Date.now();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "u", email: null, person_id: null, created_at: t }).execute();
+  // A fact of a person who no longer exists, written while foreign keys were off: copying it fails once they are on.
+  const f = { category: "home", status: "current", visibility: "shared", recorded_by: "u", conversation_id: null, created_at: t, text: "x" };
+  database.pragma("foreign_keys = OFF");
+  await d.insertInto("facts").values({ ...f, id: "f1", person_id: "gone" }).execute();
+  database.pragma("foreign_keys = ON");
+  await expect(migrateTo(d, "008_traits")).rejects.toThrow();
+  const { rows } = await sql<{ name: string }>`select name from sqlite_master where type = 'table' and name like 'facts%' order by name`.execute(d);
+  expect(rows.map((r) => r.name)).toEqual(["facts"]);
+  expect(await d.selectFrom("facts").select("id").execute()).toEqual([{ id: "f1" }]);
+  await d.deleteFrom("facts").execute();
+  await migrateTo(d, "008_traits");
+});

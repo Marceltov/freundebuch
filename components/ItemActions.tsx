@@ -3,6 +3,7 @@
 import { Accessibility, Archive, BookOpen, CalendarClock, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Smile, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { FactKind } from "@/backend";
 import { copy } from "@/components/copy";
 
 type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversations";
@@ -22,18 +23,18 @@ export function canEdit(table: Table, mine: boolean, visibility: "shared" | "pri
   return mine || (table !== "conversations" && visibility === "shared");
 }
 
-export type FactKind = "lasting" | "situation" | "need" | "personality";
-const KIND_ACTIONS: Array<{ kind: FactKind; label: string; icon: LucideIcon }> = [
-  { kind: "lasting", label: copy.makeLasting, icon: BookOpen },
-  { kind: "situation", label: copy.makeSituation, icon: Sparkles },
-  { kind: "need", label: copy.makeNeed, icon: Accessibility },
-  { kind: "personality", label: copy.makePersonality, icon: Smile },
-];
+// Every kind a fact can have, in menu order: a kind the backend adds doesn't compile until it has its entry here.
+const KIND_ACTIONS: Record<FactKind, { label: string; icon: LucideIcon }> = {
+  lasting: { label: copy.makeLasting, icon: BookOpen },
+  situation: { label: copy.makeSituation, icon: Sparkles },
+  need: { label: copy.makeNeed, icon: Accessibility },
+  personality: { label: copy.makePersonality, icon: Smile },
+};
 
 /** The kind entries of a fact's menu, for whoever may edit it: every kind but its own. */
 export function factKindActions(kind: FactKind | undefined, editable: boolean): Array<{ kind: FactKind; label: string }> {
   if (!editable || !kind) return [];
-  return KIND_ACTIONS.filter((a) => a.kind !== kind).map(({ kind, label }) => ({ kind, label }));
+  return (Object.keys(KIND_ACTIONS) as FactKind[]).filter((k) => k !== kind).map((k) => ({ kind: k, label: KIND_ACTIONS[k].label }));
 }
 
 export function ItemActions({
@@ -129,7 +130,7 @@ export function ItemActions({
                 {factKindActions(kind, editable).map((a) => (
                   <Item
                     key={a.kind}
-                    icon={KIND_ACTIONS.find((x) => x.kind === a.kind)!.icon}
+                    icon={KIND_ACTIONS[a.kind].icon}
                     label={a.label}
                     disabled={busy}
                     onClick={() => send("PATCH", { patch: { kind: a.kind } })}
