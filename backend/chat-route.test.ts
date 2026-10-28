@@ -66,7 +66,7 @@ test("an unreachable Claude is a 502 with its code; the limit a 429", async () =
   expect((await post({ turns: [{ role: "user", content: "x" }] })).status).toBe(429);
 });
 
-test("a file that isn't the caller's own waiting one is a 404", async () => {
+test("an unknown file is no error: the chat goes on without it", async () => {
   const res = await post({ turns: [{ role: "user", content: "?" }], context: { fileId: "nope" } });
-  expect(res.status).toBe(404);
+  expect(res.status).toBe(200);
 });

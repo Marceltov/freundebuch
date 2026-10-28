@@ -115,59 +115,36 @@ test("a trait with a checkAfter is refused", async () => {
   ).rejects.toThrow(InvalidInputError);
 });
 
-test("facts remembered from one shared file link to it, which is then done; only the user's own waiting files are taken", async () => {
-  process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "fb-remember-"));
-  const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Wochenende war gut"), "text/plain");
-  const other = await shareFile(s.a, new TextEncoder().encode("noch eine"), "text/plain");
-  await expect(remember(s.b, { visibility: "shared", fileIds: [file.id], facts: [{ person: s.anna, text: "x", category: "other" }] })).rejects.toThrow(NotFoundError);
-  await expect(remember(s.a, { visibility: "shared", fileIds: ["nope"], facts: [{ person: s.anna, text: "x", category: "other" }] })).rejects.toThrow(NotFoundError);
-  const r = await remember(s.a, { visibility: "shared", fileIds: [file.id], facts: [{ person: s.anna, text: "war am Wochenende wandern", category: "hobby" }] });
-  const fileOf = async (id: string) => (await (await db()).selectFrom("facts").select("file_id").where("id", "=", id).executeTakeFirstOrThrow()).file_id;
-  expect(await fileOf(r.filed.facts[0].id)).toBe(file.id);
-  const status = async (id: string) => (await (await db()).selectFrom("files").select(["status", "conversation_id"]).where("id", "=", id).executeTakeFirstOrThrow());
-  expect(await status(file.id)).toEqual({ status: "filed", conversation_id: null });
-  // A file already worked through is not taken again.
-  await expect(remember(s.a, { visibility: "shared", fileIds: [file.id], facts: [{ person: s.anna, text: "x", category: "other" }] })).rejects.toThrow(NotFoundError);
-  expect(await status(other.id)).toMatchObject({ status: "reading" });
-});
-
-test("a conversation filed with several files links them all; a fact only when there was one file", async () => {
+test("a conversation filed from shared files keeps their transcripts, word for word, and the files are gone", async () => {
   process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "fb-remember-"));
   const one = await shareFile(s.a, new TextEncoder().encode("Bild 1"), "text/plain");
   const two = await shareFile(s.a, new TextEncoder().encode("Bild 2"), "text/plain");
+  const read = (id: string, transcript: string) =>
+    db().then((d) => d.updateTable("files").set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript, people: [] }) }).where("id", "=", id).execute());
+  await read(one.id, "[19:20] Patrick: Freitag Spieleabend bei Olivier");
+  await read(two.id, "Foto: Anna und Tom auf dem Hochzeitsfest");
+  await expect(
+    recordConversation(s.b, { date: "2026-10-20", kind: "message", summary: "x", transcript: "t", visibility: "shared", fileIds: [one.id], people: [{ id: s.anna, present: true }] }),
+  ).rejects.toThrow(NotFoundError);
   const c = await recordConversation(s.a, {
     date: "2026-10-20",
     kind: "message",
     summary: "Chat",
-    transcript: "Auf dem Screenshot steht: Freitag Spieleabend bei Olivier.",
+    transcript: "Marcel: Schau mal, was in der Gruppe steht.",
     visibility: "shared",
     fileIds: [one.id, two.id],
     people: [{ id: s.anna, present: true }],
     facts: [{ person: 0, text: "plant einen Spieleabend", category: "hobby" }],
   });
-  const files = await (await db()).selectFrom("files").select(["id", "status", "conversation_id"]).where("id", "in", [one.id, two.id]).orderBy("id").execute();
-  expect(files.every((f) => f.status === "filed" && f.conversation_id === c.conversationId)).toBe(true);
-  expect((await (await db()).selectFrom("facts").select("file_id").where("text", "=", "plant einen Spieleabend").executeTakeFirstOrThrow()).file_id).toBeNull();
-  expect((await getConversation(s.a, c.conversationId)).files.map((f) => f.id).sort()).toEqual([one.id, two.id].sort());
-  // The partner sees the files of a shared conversation, not of a private one.
-  expect(await fileContent(s.b, one.id)).not.toBeNull();
-  const three = await shareFile(s.a, new TextEncoder().encode("Bild 3"), "text/plain");
-  await recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "privat", transcript: "t", visibility: "private", fileIds: [three.id], people: [{ id: s.anna, present: true }] });
-  expect(await fileContent(s.b, three.id)).toBeNull();
-  expect(await fileContent(s.a, three.id)).not.toBeNull();
-});
-
-test("remember links only one file, to its facts: several files, or none to link them to, are refused before anything is filed", async () => {
-  process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "fb-remember-"));
-  const a = await shareFile(s.a, new TextEncoder().encode("eins"), "text/plain");
-  const b = await shareFile(s.a, new TextEncoder().encode("zwei"), "text/plain");
-  await expect(remember(s.a, { visibility: "shared", fileIds: [a.id, b.id], facts: [{ person: s.anna, text: "x", category: "other" }] })).rejects.toThrow(
-    "remember links one file, to its facts; for several files, or none to link to, use record_conversation",
+  const conv = await getConversation(s.a, c.conversationId);
+  expect(conv.transcript).toBe(
+    "Marcel: Schau mal, was in der Gruppe steht.\n\n--- Aus einer geteilten Datei ---\n[19:20] Patrick: Freitag Spieleabend bei Olivier\n\n--- Aus einer geteilten Datei ---\nFoto: Anna und Tom auf dem Hochzeitsfest",
   );
-  await expect(remember(s.a, { visibility: "shared", fileIds: [a.id], dates: [{ person: s.anna, kind: "birthday", date: "--05-03", yearly: true }] })).rejects.toThrow(InvalidInputError);
-  const status = await (await db()).selectFrom("files").select("status").where("id", "in", [a.id, b.id]).execute();
-  expect(status.map((x) => x.status)).toEqual(["reading", "reading"]);
-  // The same id twice is one file.
-  const r = await remember(s.a, { visibility: "shared", fileIds: [a.id, a.id], facts: [{ person: s.anna, text: "y", category: "other" }] });
-  expect((await (await db()).selectFrom("facts").select("file_id").where("id", "=", r.filed.facts[0].id).executeTakeFirstOrThrow()).file_id).toBe(a.id);
+  expect(await (await db()).selectFrom("files").select("id").where("id", "in", [one.id, two.id]).execute()).toEqual([]);
+  expect(await fileContent(s.a, one.id)).toBeNull();
+  expect((await (await db()).selectFrom("facts").select("file_id").where("text", "=", "plant einen Spieleabend").executeTakeFirstOrThrow()).file_id).toBeNull();
+  // A file already filed is gone: it can't be taken again.
+  await expect(
+    recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "x", transcript: "t", visibility: "shared", fileIds: [one.id], people: [{ id: s.anna, present: true }] }),
+  ).rejects.toThrow(NotFoundError);
 });

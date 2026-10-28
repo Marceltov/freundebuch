@@ -6,21 +6,21 @@ Sharing needs the instance's Anthropic API key (`FREUNDEBUCH_ANTHROPIC_API_KEY`)
 
 ## What happens to a shared file
 
-1. freundebuch stores it (images shrunk to 1080 px wide, PDFs and text as they are), and Claude reads it once: what it is, what could be filed for whom, and who is in it.
+1. freundebuch stores it for now (images shrunk to 1080 px wide, PDFs and text as they are), and Claude reads it once: it writes down what the file says, word for word (for a photo, what it shows), suggests what could be filed for whom, and notes who is in it.
 2. It waits under **Prüfen** with that suggestion, and you get a push message if you have [notifications](notifications.md) set up. A badge at the top of the app shows how many wait. Nothing is filed on its own.
-3. Tap **In Erzählen öffnen**: the chat opens on the file. Claude sees it and its suggestion, asks who is meant and whether something is private, and files with the same tools as when you tell it about a meeting. The file is then done and leaves Prüfen.
+3. Tap **In Erzählen öffnen**: the chat opens on the file. Claude sees it and its suggestion, asks who is meant and whether something is private, and files a conversation from it with the same tools as when you tell it about a meeting.
 
-If Claude couldn't read it, the card says why; **Nochmal lesen** tries again. **Verwerfen** throws a file away.
+**Only the text is kept.** Filing adds the file's transcript to the conversation's transcript, and the file itself is deleted. A file you close with nothing to file, or throw away (**Verwerfen**), is deleted too. So nothing of a shared file outlives its review but the words that were filed, which follow the conversation's privacy like any transcript.
 
-What is filed from a file keeps it: a fact shows it as a small picture, a conversation lists its files. Your partner sees a file only when they can see the fact or the conversation; files waiting for you are yours alone. Deleting what was filed from it deletes the file.
+If Claude couldn't read it, the card says why; **Nochmal lesen** tries again.
 
 ## From Claude (MCP)
 
-Ask Claude "Was wartet unter Prüfen?": the `inbox` tool hands it the waiting files themselves, and you go through them together. When you paste a picture or a PDF into the conversation with Claude, Claude sees it but can't pass it on to freundebuch: it writes out what it shows into what it files (the text word for word in the transcript). If you want the original kept, Claude gives you the link to **Hochladen**, where you drop the files; they then wait under Prüfen, and Claude files with them.
+Ask Claude "Was wartet unter Prüfen?": the `inbox` tool hands it the waiting files and their transcripts, and you go through them together. When you paste a picture or a PDF into the conversation with Claude, Claude sees it but can't pass it on to freundebuch: it writes out what it shows into the transcript it files. That is all freundebuch would keep of it anyway.
 
 ## In the app
 
-In **Erzählen**, the paperclip next to the text field picks files from your phone or computer. One file goes along with the chat at once, so you can tell Claude about it right away; several wait under Prüfen. **Hochladen** (`/hochladen`) takes several files at once. Sharing from the phone (below) is quicker while scrolling.
+In **Erzählen**, the paperclip next to the text field picks files (images, PDFs, text) from your phone or computer. One file goes along with the chat at once, so you can tell Claude about it right away; several wait under Prüfen. Sharing from the phone (below) is quicker while scrolling.
 
 ## Android
 

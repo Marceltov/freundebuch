@@ -1872,7 +1872,7 @@
       "post": {
         "operationId": "closeFile",
         "summary": "Close a waiting file as worked through",
-        "description": "For a file with nothing worth filing; filing with fileIds closes it on its own.",
+        "description": "For a file with nothing worth filing: it is deleted, like a discarded one. Filing a conversation with fileIds closes it on its own.",
         "tags": [
           "Files"
         ],
@@ -2299,6 +2299,13 @@
               "null"
             ]
           },
+          "transcript": {
+            "description": "What the file says, word for word (or what a photo shows): all that is kept of it once filed",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "people": {
             "type": "array",
             "items": {
@@ -2383,6 +2390,7 @@
           "url",
           "type",
           "summary",
+          "transcript",
           "people",
           "error"
         ]
@@ -2420,6 +2428,13 @@
             },
             "summary": {
               "description": "What Claude suggests to file, in German; null while reading or when it failed",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "transcript": {
+              "description": "What the file says, word for word (or what a photo shows): all that is kept of it once filed",
               "type": [
                 "string",
                 "null"
@@ -2509,6 +2524,7 @@
             "url",
             "type",
             "summary",
+            "transcript",
             "people",
             "error"
           ]
@@ -4230,7 +4246,7 @@
               "type": "string",
               "description": "A shared file's id, as inbox lists it. Only the caller's own waiting file"
             },
-            "description": "The shared files this is filed from, as evidence: they are linked and leave Prüfen"
+            "description": "The shared files this conversation was told from: their transcripts (text word for word, or what a photo shows) join this one, and the files are deleted"
           },
           "date": {
             "type": "string",
@@ -5128,30 +5144,6 @@
               ]
             }
           },
-          "files": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string",
-                  "description": "The file (sign-in required)"
-                },
-                "type": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "url",
-                "type"
-              ]
-            },
-            "description": "The shared files it was filed with, as evidence"
-          },
           "facts": {
             "type": "array",
             "items": {
@@ -5521,7 +5513,6 @@
           "recordedBy",
           "url",
           "participants",
-          "files",
           "facts",
           "promises",
           "dates",

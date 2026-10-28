@@ -36,7 +36,7 @@ The same privacy rules apply as everywhere else: a request sees what the token's
 
 ## Shared files
 
-- `POST /api/share` takes a file (image, PDF, plain text) as the body or as the form field `file`, with the session cookie or a share key (`Authorization: Bearer fbs_…`). It answers `202 { id, status, duplicate, message, url }`; `url` is where the file waits under Prüfen.
-- `GET /api/v1/files` lists the caller's waiting files: `{ id, status, url, type, summary, people, error }`. `POST /api/v1/files/{id}/done` closes one, `POST …/retry` reads a failed one again, `DELETE …` throws it away. `GET /api/files/{id}` is the file itself.
-- `POST /api/v1/conversations` takes `fileIds`: the files it was told from, linked and closed. A conversation lists its `files`.
+- `POST /api/share` takes a file (image, PDF, plain text up to 1 MB) as the body or as the form field `file`, with the session cookie or a share key (`Authorization: Bearer fbs_…`). It answers `202 { id, status, duplicate, message, url }`; `url` is where the file waits under Prüfen.
+- `GET /api/v1/files` lists the caller's waiting files: `{ id, status, url, type, summary, transcript, people, error }`. `POST /api/v1/files/{id}/done` closes one with nothing to file and `DELETE …` throws it away (both delete it); `POST …/retry` reads a failed one again. `GET /api/files/{id}` is the file itself, while it waits.
+- `POST /api/v1/conversations` takes `fileIds`: their transcripts are added to the conversation's, and the files are deleted.
 - Since 0.4 these are `files`, not `screenshots`, and `…/resolve` is gone: filing happens with Claude.

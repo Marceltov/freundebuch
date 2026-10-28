@@ -20,11 +20,14 @@ import {
   type Viewer,
   type Visibility,
 } from "./types";
-import { claimFiles, filesOf, type ConversationFile } from "./files";
+import { dropBlobs, takeFiles } from "./files";
 import { resolveOrCreateGroup } from "./groups";
 import { isHouseholdWord, resolvePairs, type Target } from "./household";
 import { conversationPath, groupPath, itemPath, personPath, type AnchoredTable } from "./urls";
 import { visible } from "./visibility";
+
+/** What heads a shared file's transcript inside a conversation's. */
+export const FROM_FILE = "--- Aus einer geteilten Datei ---";
 
 /** An index into `NewConversation.people`. */
 export type PersonRef = number;
@@ -32,7 +35,8 @@ type DateKind = "birthday" | "anniversary" | "custom";
 type Direction = "to_them" | "from_them";
 
 export type NewConversation = {
-  /** Shared files this conversation was told from (Items.fileIds); the conversation links them all. */
+  /** Shared files this conversation was told from (files.ts): the user's own waiting files. Their transcripts join this one,
+   * and the files go. */
   fileIds?: string[];
   date: string;
   kind: ConversationKind;
@@ -101,8 +105,6 @@ export type ConversationView = {
   recordedBy: string;
   url: string;
   participants: Array<{ id: string; name: string; url: string }>;
-  /** The shared files it was filed with, as evidence: whoever sees the conversation may open them. */
-  files: ConversationFile[];
   facts: Array<Item & About & { text: string; category: FactCategory; status: "current" | "outdated" }>;
   /** `byMe` and `by` as in a briefing: from the viewer's side, with the other user's name when they made the promise. */
   promises: Array<Item & About & { text: string; byMe: boolean; by?: string; due: string | null; done: boolean }>;
@@ -149,9 +151,6 @@ function validate(c: NewConversation): void {
  * situation going, and news about a situation must give its new checkAfter.
  */
 type Items<P> = {
-  /** Shared files (files.ts) this was filed from, as evidence: only the user's own waiting files, which are then done. A fact
-   * links its file when there was exactly one. */
-  fileIds?: string[];
   facts?: Array<{ person: P; text: string; category: string; private?: boolean; supersedes?: string; kind?: string; checkAfter?: string }>;
   promises?: Array<{ person: P; text: string; byMe: boolean; due?: string; private?: boolean }>;
   dates?: Array<{ person: P; kind: string; date: string; label?: string; yearly: boolean; private?: boolean }>;
@@ -211,7 +210,7 @@ async function insertItems<P>(
     const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), SITUATION_DAYS)) : null;
     await tx
       .insertInto("facts")
-      .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f), file_id: new Set(c.fileIds ?? []).size === 1 ? c.fileIds![0] : null })
+      .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f) })
       .execute();
     if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
     filed.facts.push({ ...about("facts", factId, id(f.person), vis(f)), text: f.text, kind, checkAfter, defaultCheckAfter: kind === "situation" && f.checkAfter === undefined, supersedes: f.supersedes ?? null });
@@ -261,9 +260,6 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
     if (typeof p !== "string" || !p) throw new InvalidInputError("Each item needs the id of an existing person");
   };
   validateItems(r, person);
-  // Without a conversation, a file is kept only through a fact naming it: one file, and a fact to link it to.
-  if (r.fileIds?.length && (new Set(r.fileIds).size !== 1 || !r.facts?.length))
-    throw new InvalidInputError("remember links one file, to its facts; for several files, or none to link to, use record_conversation");
   for (const g of r.genders ?? []) {
     person(g.person);
     checkGender(g.gender);
@@ -281,7 +277,6 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
       genders.push({ ...g, relabel: await relabelFor(tx, v, g.person, before.gender, g.gender) });
     }
     const names = new Map(people.map((p) => [p.id, p.name]));
-    await claimFiles(tx, v, r.fileIds ?? [], null);
     const filed = await insertItems(tx, v, base, r, (p) => p, vis, (p) => names.get(p) ?? "", personPath);
     return {
       filed,
@@ -449,7 +444,12 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
   const t = now();
   const base: ItemBase = { recorded_by: v.userId, conversation_id: conversationId, created_at: t };
 
-  return (await db()).transaction().execute(async (tx) => {
+  // The shared files it was told from: their transcripts join the conversation's, and the files go once it has committed.
+  let blobs: string[] = [];
+  const recorded = await (await db()).transaction().execute(async (tx) => {
+    const taken = await takeFiles(tx, v, c.fileIds ?? []);
+    blobs = taken.blobs;
+    const transcript = [c.transcript, ...taken.transcripts.map((t) => `${FROM_FILE}\n${t}`)].join("\n\n");
     await tx
       .insertInto("conversations")
       .values({
@@ -458,7 +458,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
         kind: c.kind,
         place: c.place?.trim() || null,
         summary: c.summary,
-        transcript: c.transcript,
+        transcript,
         transcript_private: transcriptPrivate,
         visibility: c.visibility,
         recorded_by: v.userId,
@@ -484,7 +484,6 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     for (const personId of present) await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).execute();
 
     const names = new Map(people.map((p) => [p.id, p.name]));
-    await claimFiles(tx, v, c.fileIds ?? [], conversationId);
     const filed = await insertItems(tx, v, base, c, id, vis, (p) => names.get(p) ?? "", () => conversationPath(conversationId));
     const target = (t: PersonRef | "me" | "us") => (isHouseholdWord(t) ? t : id(t));
     const relationships: FiledRelationship[] = [];
@@ -504,6 +503,8 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     };
     return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts, filed: { ...filed, relationships, groups } };
   });
+  await dropBlobs(blobs);
+  return recorded;
 }
 
 /** Why a private fact can't replace a shared one; corrections.ts refuses making such a replacement private later with the same words. */
@@ -610,7 +611,6 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     recordedBy: c.recorded_by,
     url: page,
     participants: participants.map((p) => ({ ...p, url: personPath(p.id) })),
-    files: await filesOf(v, c.id),
     facts: facts.map((f) => ({ ...item("facts", f), ...about(f.person_id), text: f.text, category: f.category as FactCategory, status: f.status })),
     promises: promises.map((p) => ({ ...item("promises", p), ...about(p.person_id), text: p.text, byMe: !!p.by_me && !recorder, ...(p.by_me ? by : {}), due: p.due, done: !!p.done })),
     dates: dates.map((x) => ({ ...item("dates", x), ...about(x.person_id), kind: x.kind, date: x.date, label: x.label, yearly: !!x.yearly })),

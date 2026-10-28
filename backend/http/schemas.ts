@@ -251,7 +251,7 @@ export const CheckAfter = Day.describe(
 const Private = z.boolean().optional().describe("Makes just this item private; a private conversation makes every item private");
 
 export const FileId = z.string().describe("A shared file's id, as inbox lists it. Only the caller's own waiting file");
-const FileIds = z.array(FileId).describe("The shared files this is filed from, as evidence: they are linked and leave Prüfen");
+const FileIds = z.array(FileId).describe("The shared files this conversation was told from: their transcripts (text word for word, or what a photo shows) join this one, and the files are deleted");
 export const NewConversationJson = z
   .object({
     fileIds: FileIds.optional(),
@@ -398,7 +398,6 @@ export const ConversationJson = z
     recordedBy: z.string(),
     url: Url,
     participants: z.array(z.object({ id: PersonId, name: z.string(), url: Url })),
-    files: z.array(z.object({ id: z.string(), url: Url.describe("The file (sign-in required)"), type: z.string() })).describe("The shared files it was filed with, as evidence"),
     facts: z.array(z.object({ ...Item, personId: PersonId, name: Name, text: z.string(), category: z.enum(FACT_CATEGORIES), status: z.enum(["current", "outdated"]) })),
     promises: z.array(z.object({ ...Item, personId: PersonId, name: Name, text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), done: z.boolean() })),
     dates: z.array(z.object({ ...Item, personId: PersonId, name: Name, kind: z.enum(["birthday", "anniversary", "custom"]), date: z.string(), label: z.string().nullable(), yearly: z.boolean() })),
@@ -480,6 +479,7 @@ export const PendingFileJson = z
     url: Url.describe("The file itself (sign-in required)"),
     type: z.string().describe("image/webp, application/pdf or text/plain"),
     summary: z.string().nullable().describe("What Claude suggests to file, in German; null while reading or when it failed"),
+    transcript: z.string().nullable().describe("What the file says, word for word (or what a photo shows): all that is kept of it once filed"),
     people: z.array(z.object({ name: z.string(), person: Candidate.nullable(), candidates: z.array(Candidate) })).describe("Who is in it: the person when certain, else candidates"),
     error: z.string().nullable().describe("Why the pre-read failed, when it did"),
   })

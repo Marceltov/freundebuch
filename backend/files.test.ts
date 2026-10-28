@@ -5,7 +5,6 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
 import { deleteItem } from "./corrections";
-import { getConversation, recordConversation, remember } from "./conversations";
 import { db } from "./db";
 import { putSettings } from "./settings";
 import type { FileInput, FileModel, Suggestion } from "./file-model";
@@ -53,7 +52,7 @@ let colour = 0;
 /** A different small PNG each call, so no two count as the same screenshot. */
 const image = async (width = 2000) => new Uint8Array(await sharp({ create: { width, height: 40, channels: 3, background: { r: colour++ % 256, g: 10, b: 20 } } }).png().toBuffer());
 
-const suggestion = (people: Suggestion["people"], summary = "Anna war in Lissabon im Urlaub"): Suggestion => ({ summary, people });
+const suggestion = (people: Suggestion["people"], summary = "Anna war in Lissabon im Urlaub"): Suggestion => ({ summary, transcript: "Anna: Urlaub in Lissabon!", people });
 const answering = (r: Suggestion | { error: string }): FileModel & { seen: FileInput[] } => {
   const seen: FileInput[] = [];
   return { seen, read: async (i) => (seen.push(i), r) };
@@ -88,6 +87,7 @@ test("an image is shrunk to 1080 px WebP and pre-read into a suggestion that wai
       url: `/api/files/${shot.id}`,
       type: "image/webp",
       summary: "Anna war in Lissabon im Urlaub",
+      transcript: "Anna: Urlaub in Lissabon!",
       people: [{ name: "Anna", person: { id: s.anna, name: "Anna", url: `/p/${s.anna}` }, candidates: [] }],
       error: null,
     },
@@ -214,49 +214,22 @@ test("a PDF and a text file are stored as they are, with their type; anything el
   expect(keys.find((k) => k.id === b.id)!.blob_key).toBe(`files/${b.id}.txt`);
 });
 
-test("a file kept by a conversation outlives pruning; once the conversation goes, it is pruned", async () => {
-  const file = await shareFile(s.a, await image());
-  const c = await recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "Chat", transcript: "t", visibility: "shared", fileIds: [file.id], people: [{ id: s.anna, present: true }] });
-  expect(await pruneFiles()).toBe(0);
-  expect(await fileContent(s.a, file.id)).not.toBeNull();
-  await deleteItem(s.a, "conversations", c.conversationId);
-  expect(await pruneFiles()).toBe(1);
-  expect(await fileContent(s.a, file.id)).toBeNull();
+test("a file a private fact was filed from too stays its recorder's: the shared fact neither opens nor shows it (from before files)", async () => {
+  const shot = await shareFile(s.a, await image());
+  await factFrom(shot.id);
+  await (await db())
+    .insertInto("facts")
+    .values({ id: "f-private", person_id: s.anna, text: "Trennung", category: "family", status: "current", visibility: "private", recorded_by: s.a.userId, conversation_id: null, created_at: Date.now(), file_id: shot.id })
+    .execute();
+  expect(await fileContent(s.b, shot.id)).toBeNull();
+  expect((await briefing(s.b, s.anna, "2026-10-25")).known.find((f) => f.text === "Urlaub in Lissabon")?.imageUrl).toBeUndefined();
+  expect((await briefing(s.a, s.anna, "2026-10-25")).known.find((f) => f.text === "Urlaub in Lissabon")?.imageUrl).toBe(`/api/files/${shot.id}`);
 });
 
-test("a file filed with anything private stays the recorder's: not through the conversation, a shared fact, or the briefing", async () => {
-  const chat = await shareFile(s.a, await image());
-  const c = await recordConversation(s.a, {
-    date: "2026-10-20",
-    kind: "message",
-    summary: "Chat",
-    transcript: "t",
-    visibility: "shared",
-    fileIds: [chat.id],
-    people: [{ id: s.anna, present: true }],
-    facts: [
-      { person: 0, text: "hat eine Diagnose", category: "health", private: true },
-      { person: 0, text: "plant einen Spieleabend", category: "hobby" },
-    ],
-  });
-  expect(await fileContent(s.b, chat.id)).toBeNull();
-  expect((await getConversation(s.b, c.conversationId)).files).toEqual([]);
-  expect((await getConversation(s.a, c.conversationId)).files.map((f) => f.id)).toEqual([chat.id]);
-
-  // One file, a private and a shared fact: the shared one doesn't open it, nor shows it in the briefing.
+test("a pre-read keeps the file's transcript, which the listing shows", async () => {
   const shot = await shareFile(s.a, await image());
-  await remember(s.a, {
-    visibility: "shared",
-    fileIds: [shot.id],
-    facts: [
-      { person: s.anna, text: "Trennung", category: "family", private: true },
-      { person: s.anna, text: "neue Wohnung", category: "home" },
-    ],
-  });
-  expect(await fileContent(s.b, shot.id)).toBeNull();
-  const b = await briefing(s.b, s.anna, "2026-10-25");
-  expect(b.known.find((f) => f.text === "neue Wohnung")?.imageUrl).toBeUndefined();
-  expect((await briefing(s.a, s.anna, "2026-10-25")).known.find((f) => f.text === "neue Wohnung")?.imageUrl).toBe(`/api/files/${shot.id}`);
+  await readFile(shot.id, answering({ summary: "s", transcript: "[19:20] Patrick: Freitag Spieleabend", people: [] }));
+  expect((await listPending(s.a))[0].transcript).toBe("[19:20] Patrick: Freitag Spieleabend");
 });
 
 test("a text file over 1 MB is refused: too long to hand to Claude whole", async () => {

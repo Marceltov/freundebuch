@@ -448,12 +448,6 @@ const migrations: Record<string, Migration> = {
     },
   },
 
-  // A conversation filed with shared files links them all, as evidence of what it says; deleting it keeps the files.
-  "011_conversation_files": {
-    async up(db) {
-      await db.schema.alterTable("files").addColumn("conversation_id", "text", (c) => c.references("conversations.id").onDelete("set null")).execute();
-    },
-  },
 };
 
 /** The name the household's own group starts with. */

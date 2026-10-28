@@ -1,8 +1,10 @@
 // Files shared into freundebuch (a screenshot, a photo, a PDF, a text such as a chat export), from the phone or from Erzählen.
 // One goes: stored (images shrunk to WebP, the rest as it came, in the blob store) → pre-read by Claude (file-model.ts) into a
-// suggestion → waits under "Prüfen" until the user works it through with Claude (Erzählen opened on it, or the MCP tool inbox),
-// which files with the usual tools and links the facts to it (`file_id`), then marks it done. Nothing is filed unattended.
-// Waiting files belong to the user who shared them; a file is shown to anyone else only through a fact they may see.
+// suggestion and a transcript (its text word for word, or what a photo shows) → waits under "Prüfen" until the user works it
+// through with Claude (Erzählen opened on it, or the MCP tool inbox). Filing it with record_conversation keeps only its
+// transcript, in the conversation's; the file itself goes once it is reviewed (filed, done or discarded). Nothing is filed
+// unattended. Waiting files belong to the user who shared them. Facts filed by the screenshot reading before files still show
+// their image, to whoever may see the fact.
 import { createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { config } from "./config";
@@ -141,6 +143,7 @@ async function knownPeople(): Promise<KnownPerson[]> {
 function clean(r: Suggestion, known: Set<string>): Suggestion {
   return {
     summary: r.summary.trim(),
+    transcript: r.transcript.trim(),
     people: r.people.map((p) =>
       p.personId && known.has(p.personId) ? { name: p.name, personId: p.personId } : { name: p.name, candidates: [...new Set(p.candidates ?? [])].filter((c) => known.has(c)) },
     ),
@@ -198,6 +201,8 @@ export type PendingFile = {
   type: string;
   /** What Claude suggests to file; null while reading or when it failed. */
   summary: string | null;
+  /** What the file says, word for word (or what a photo shows): all that is kept of it once filed. */
+  transcript: string | null;
   people: Array<{ name: string; person: PendingCandidate | null; candidates: PendingCandidate[] }>;
   /** Why the pre-read failed, when it did. */
   error: string | null;
@@ -219,6 +224,7 @@ export async function listPending(v: Viewer): Promise<PendingFile[]> {
       url: filePath(r.id),
       type: r.media_type,
       summary: read?.summary ?? read?.text ?? null,
+      transcript: read?.transcript ?? read?.text ?? null,
       people: (read?.people ?? []).map((p) => ({
         name: p.name,
         person: p.personId ? cand(p.personId) : null,
@@ -235,59 +241,52 @@ export async function pendingCount(v: Viewer): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-/** The viewer's own file for a chat on it, waiting or already filed, with its content and suggestion; NotFoundError for any
- * other (someone else's, thrown away, or gone). */
-export async function chatFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null; filed: boolean }> {
+/** The viewer's own waiting file for a chat on it, with its content and suggestion; NotFoundError for any other (someone
+ * else's, or gone: filed, closed or thrown away). */
+export async function chatFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null }> {
   const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
   const bytes = row && row.status !== "nothing" ? await store().get(row.blob_key) : null;
   if (!row || !bytes) throw new NotFoundError("No such file");
   const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
-  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null, filed: row.status === "filed" };
-}
-
-/** Marks the viewer's waiting file done: worked through and filed, so it leaves Prüfen. Its blob stays while a fact names it. */
-export async function markFiled(v: Viewer, id: string): Promise<void> {
-  await ownPending(v, id);
-  await (await db()).updateTable("files").set({ status: "filed" }).where("id", "=", id).execute();
-}
-
-/** Takes the viewer's waiting files for what is filed now (in `tx`): they are done, and `conversationId` links them to the
- * conversation filed with them. NotFoundError when any isn't the viewer's own waiting file. */
-export async function claimFiles(tx: Kysely<Schema>, v: Viewer, ids: string[], conversationId: string | null): Promise<void> {
-  const unique = [...new Set(ids)];
-  if (!unique.length) return;
-  const rows = await tx.selectFrom("files").select("id").where("id", "in", unique).where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).execute();
-  if (rows.length !== unique.length) throw new NotFoundError("No such file waiting");
-  await tx.updateTable("files").set({ status: "filed", conversation_id: conversationId }).where("id", "in", unique).execute();
+  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null };
 }
 
 /**
- * Of the files `ids`, those the viewer may not open although they may see something filed from them: another user's file that
- * was filed together with anything private (a private fact from it, or a conversation whose transcript is private because
- * something recorded with it is). Such a file is evidence of that private item, so it stays its recorder's.
+ * Takes the viewer's waiting files for a conversation filed now (in `tx`): their rows go, and their transcripts come back in
+ * the order given, for the conversation's transcript. The blobs are for the caller to delete once `tx` has committed.
+ * NotFoundError when any isn't the viewer's own waiting file.
+ */
+export async function takeFiles(tx: Kysely<Schema>, v: Viewer, ids: string[]): Promise<{ transcripts: string[]; blobs: string[] }> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return { transcripts: [], blobs: [] };
+  const rows = await tx.selectFrom("files").select(["id", "reading", "blob_key"]).where("id", "in", unique).where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).execute();
+  if (rows.length !== unique.length) throw new NotFoundError("No such file waiting");
+  await tx.deleteFrom("files").where("id", "in", unique).execute();
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const transcripts = unique.map((id) => {
+    const read = (byId.get(id)!.reading ? JSON.parse(byId.get(id)!.reading!) : null) as { transcript?: string; summary?: string; text?: string } | null;
+    return (read?.transcript ?? read?.summary ?? read?.text ?? "").trim();
+  });
+  return { transcripts: transcripts.filter(Boolean), blobs: rows.map((r) => r.blob_key) };
+}
+
+/** Deletes blobs whose rows are gone; a failure leaves a stray blob, never a broken row. */
+export async function dropBlobs(keys: string[]): Promise<void> {
+  for (const k of keys) await store().delete(k).catch((e) => log.warn({ err: e }, "deleting a file's blob failed"));
+}
+
+/**
+ * Of the files `ids`, those the viewer may not open although they may see a fact filed from them: another user's file that a
+ * private fact was filed from too. (Only facts filed by the screenshot reading before files name a file.)
  */
 export async function hiddenFiles(v: Viewer, ids: string[]): Promise<Set<string>> {
   const unique = [...new Set(ids)];
   if (!unique.length) return new Set();
   const d = await db();
-  const others = await d.selectFrom("files").select(["id", "conversation_id"]).where("id", "in", unique).where("user_id", "!=", v.userId).execute();
+  const others = await d.selectFrom("files").select("id").where("id", "in", unique).where("user_id", "!=", v.userId).execute();
   if (!others.length) return new Set();
   const viaFact = await d.selectFrom("facts").select("file_id").where("file_id", "in", others.map((o) => o.id)).where("visibility", "=", "private").execute();
-  const convs = others.map((o) => o.conversation_id).filter((c): c is string => !!c);
-  const privateConvs = convs.length ? await d.selectFrom("conversations").select("id").where("id", "in", convs).where("transcript_private", "=", 1).execute() : [];
-  const hidden = new Set(viaFact.map((f) => f.file_id!));
-  for (const o of others) if (o.conversation_id && privateConvs.some((c) => c.id === o.conversation_id)) hidden.add(o.id);
-  return hidden;
-}
-
-export type ConversationFile = { id: string; url: string; type: string };
-
-/** The files a conversation was filed with, oldest first, that the viewer may open. The caller has checked they may see the
- * conversation. */
-export async function filesOf(v: Viewer, conversationId: string): Promise<ConversationFile[]> {
-  const rows = await (await db()).selectFrom("files").select(["id", "media_type"]).where("conversation_id", "=", conversationId).orderBy("created_at").execute();
-  const hidden = await hiddenFiles(v, rows.map((r) => r.id));
-  return rows.filter((r) => !hidden.has(r.id)).map((r) => ({ id: r.id, url: filePath(r.id), type: r.media_type }));
+  return new Set(viaFact.map((f) => f.file_id!));
 }
 
 async function ownPending(v: Viewer, id: string) {
@@ -304,36 +303,33 @@ export async function retryFile(v: Viewer, id: string, model: FileModel): Promis
   void queueRead(id, model);
 }
 
-/** Throws a waiting file away, blob and all. */
+/** Closes a waiting file: worked through with nothing to file, or thrown away. Row and blob go. */
 export async function discardFile(v: Viewer, id: string): Promise<void> {
   const row = await ownPending(v, id);
   await (await db()).deleteFrom("files").where("id", "=", id).execute();
   await store().delete(row.blob_key);
 }
 
-/** The file, for the user who shared it, or for a viewer who may see a fact or the conversation filed from it; null otherwise. */
+/** The file, for the user who shared it, or for a viewer who may see a fact filed from it; null otherwise. */
 export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8Array; type: string } | null> {
   const d = await db();
-  const row = await d.selectFrom("files").select(["user_id", "status", "blob_key", "media_type", "conversation_id"]).where("id", "=", id).executeTakeFirst();
+  const row = await d.selectFrom("files").select(["user_id", "status", "blob_key", "media_type"]).where("id", "=", id).executeTakeFirst();
   if (!row) return null;
   const mine = row.user_id === v.userId;
   if (!mine && (await hiddenFiles(v, [id])).has(id)) return null;
   const viaFact = !mine && !!(await d.selectFrom("facts").select("id").where("file_id", "=", id).$call((qb) => visible(qb, v, "facts")).executeTakeFirst());
-  const viaConversation =
-    !mine && !viaFact && !!row.conversation_id && !!(await d.selectFrom("conversations").select("id").where("id", "=", row.conversation_id).$call((qb) => visible(qb, v, "conversations")).executeTakeFirst());
-  if (!mine && !viaFact && !viaConversation) return null;
+  if (!mine && !viaFact) return null;
   const bytes = await store().get(row.blob_key);
   return bytes && { bytes, type: row.media_type };
 }
 
-/** Drops filed files nothing names any more (no fact, no conversation: they were deleted), blob and row. */
+/** Drops filed files no fact names any more (the fact was deleted, or its person), blob and row. */
 export async function pruneFiles(): Promise<number> {
   const d = await db();
   const rows = await d
     .selectFrom("files")
     .select(["id", "blob_key"])
     .where("status", "=", "filed")
-    .where("conversation_id", "is", null)
     .where(({ not, exists, selectFrom }) => not(exists(selectFrom("facts").select("facts.id").whereRef("facts.file_id", "=", "files.id"))))
     .execute();
   for (const r of rows) {

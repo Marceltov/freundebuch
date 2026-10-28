@@ -335,7 +335,7 @@ describe("files", () => {
     const { readFile, shareFile } = await import("../files");
     vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-api-")));
     const img = async (r: number) => new Uint8Array(await sharp({ create: { width: 20, height: 20, channels: 3, background: { r, g: 0, b: 0 } } }).png().toBuffer());
-    const unsure = { read: async () => ({ summary: "Anna hat einen neuen Job", people: [{ name: "Anna", candidates: [s.anna] }] }) };
+    const unsure = { read: async () => ({ summary: "Anna hat einen neuen Job", transcript: "Anna: Neuer Job!", people: [{ name: "Anna", candidates: [s.anna] }] }) };
     const one = await shareFile(s.a, await img(1));
     const two = await shareFile(s.a, await img(2));
     await readFile(one.id, unsure);

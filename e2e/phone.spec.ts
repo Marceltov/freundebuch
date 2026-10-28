@@ -411,20 +411,6 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
   await expect(page.getByText("Nichts zu prüfen.")).toBeVisible();
 });
 
-test("Hochladen takes several files at once; they wait under Prüfen", async ({ page }) => {
-  await page.goto("/hochladen");
-  await expect(page.getByRole("heading", { name: "Dateien hochladen" })).toBeVisible();
-  await page.locator('input[type="file"]').setInputFiles([
-    { name: "chat.txt", mimeType: "text/plain", buffer: Buffer.from("Patrick: Freitag Spieleabend bei Olivier") },
-    { name: "brief.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\nEinladung") },
-  ]);
-  await expect(page.getByRole("status")).toContainText("2 Dateien warten unter „Prüfen“");
-  await expectNoSideScroll(page);
-  await page.goto("/pruefen");
-  await expect(page.getByText("PDF", { exact: true })).toBeVisible();
-  await expect(page.getByText("Text", { exact: true })).toBeVisible();
-});
-
 test("settings make a share key, and the key hands in a screenshot", async ({ page, baseURL }) => {
   await page.goto("/einstellungen");
   await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();

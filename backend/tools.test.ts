@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SITUATION_DAYS } from "./conversations";
-import { shareFile } from "./files";
+import { fileContent, shareFile } from "./files";
 import { addDays, today } from "./dates";
 import { db } from "./db/testing";
 import { seed, type Seed } from "./testing/fixtures";
@@ -317,7 +317,7 @@ describe("inbox", () => {
     const r = await run(s.a, "inbox", { action: "list" });
     expect(r.files.map((f: Json) => f.id)).toEqual([mine.id]);
     expect(r.next).toEqual([
-      "Work through each file with the user: file what it shows with remember or record_conversation, passing its id in fileIds (that closes it); if nothing in it is worth filing, inbox done.",
+      "Work through each file with the user: file what it shows with record_conversation, passing its id in fileIds (its transcript is kept, the file goes); if nothing in it is worth filing, inbox done.",
     ]);
     expect((await run(s.b, "inbox", { action: "list" })).files).toHaveLength(1);
     expect(await run(s.a, "inbox", { action: "list" })).toMatchObject({ files: [expect.objectContaining({ id: mine.id })] });
@@ -330,28 +330,14 @@ describe("inbox", () => {
     expect(r.next[1]).toBe("2 more wait; list again after these.");
   });
 
-  test("done closes a file, discard throws it away; neither works on the partner's", async () => {
+  test("done deletes a file with nothing to file; not the partner's; upload is gone", async () => {
     const one = await shareFile(s.a, text("eins"), "text/plain");
-    const two = await shareFile(s.a, text("zwei"), "text/plain");
     await expect(run(s.b, "inbox", { action: "done", id: one.id })).rejects.toThrow(/No such file/);
     expect(await run(s.a, "inbox", { action: "done", id: one.id })).toMatchObject({ done: true, next: [] });
-    expect(await run(s.a, "inbox", { action: "discard", id: two.id })).toMatchObject({ done: true });
     expect((await run(s.a, "inbox", { action: "list" })).files).toEqual([]);
+    expect(await fileContent(s.a, one.id)).toBeNull();
     await expect(run(s.a, "inbox", { action: "done" })).rejects.toThrow(/id/);
+    await expect(run(s.a, "inbox", { action: "upload" })).rejects.toThrow();
   });
 
-  test("a file over 1 MB is listed but not handed over, and next says where to open it", async () => {
-    const big = await shareFile(s.a, new TextEncoder().encode("%PDF-1.4\n" + "x".repeat(1024 * 1024)), "application/pdf");
-    const tool = toolByName("inbox")!;
-    const out = await tool.run(s.a, { action: "list" });
-    expect((out.files as Json[]).map((f) => f.id)).toEqual([big.id]);
-    expect(await tool.attach!(s.a, out)).toEqual([]);
-    expect(out.next).toContain(`Too large to hand over here: ${big.id}. Tell the user to open it under Prüfen in the freundebuch app and go through it in Erzählen.`);
-  });
-
-  test("upload gives the page to drop the originals on", async () => {
-    const r = await run(s.a, "inbox", { action: "upload" });
-    expect(r.url).toBe("/hochladen");
-    expect(r.next).toEqual(["Give the user this link: they drop the files there. When they say they have, list the inbox again and file with those files."]);
-  });
 });

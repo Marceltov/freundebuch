@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeftRight, Cake, CalendarDays, ChevronRight, Coffee, Lock, MapPin, Mic, NotebookPen, Paperclip, Pin, Users } from "lucide-react";
+import { ArrowLeftRight, Cake, CalendarDays, ChevronRight, Coffee, Lock, MapPin, Mic, NotebookPen, Pin, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { anchorId, conversationPath, getConversation, itemPath, personPath, today, type ConversationView } from "@/backend";
 import { copy, dateKindName, kindName } from "@/components/copy";
@@ -7,7 +7,6 @@ import { Face } from "@/components/Face";
 import { dayMonth, longDay, shortDay } from "@/components/format";
 import { CATEGORY_ICON, EXCHANGE_ICON, KIND_ICON } from "@/components/icons";
 import { ItemActions } from "@/components/ItemActions";
-import { FilePreview } from "@/components/Pending";
 import { ShareButton } from "@/components/ShareButton";
 import { Section, Tile } from "@/components/Tiles";
 import { orNotFound, pageViewer } from "../../viewer";
@@ -65,16 +64,6 @@ export default async function ConversationPage({ params }: PageProps<"/c/[id]">)
       <p className="mt-5 rounded-2xl bg-surface p-4 text-[15px] leading-relaxed shadow-card">{c.summary}</p>
 
       <Recorded c={c} userId={v.userId} />
-
-      {c.files.length > 0 && (
-        <Section title={copy.files} icon={Paperclip}>
-          <div className="flex flex-wrap gap-2">
-            {c.files.map((f) => (
-              <FilePreview key={f.id} item={f} />
-            ))}
-          </div>
-        </Section>
-      )}
 
       <Section title={copy.transcript} icon={Mic}>
         {c.transcript === null ? (

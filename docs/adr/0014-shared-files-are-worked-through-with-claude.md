@@ -17,15 +17,16 @@ decision-makers: Marcel Bruckner
 
 ## Decision Outcome
 
-Chosen option: Prüfen with Claude.
+Chosen option: Prüfen with Claude, keeping only text.
 
-* Images, PDFs and plain text are taken; the table `screenshots` becomes `files` (migration 010). Claude's first read is a short suggestion and never files.
-* In the app, **In Erzählen öffnen** starts a chat on the file; over MCP the tool `inbox` hands the files themselves to any Claude. Filing goes through `remember` and `record_conversation`, which take `fileIds`: the files are linked (to the conversation, and to a fact when there was one file) and closed.
-* A file pasted into an outside Claude can't reach a tool: Claude writes out what it shows into what it files, and offers **Hochladen** when the original should be kept.
+* Images, PDFs and plain text are taken; the table `screenshots` becomes `files` (migration 010). Claude's first read is a suggestion plus a **transcript** (the file's text word for word, or what a photo shows) and never files.
+* In the app, **In Erzählen öffnen** starts a chat on the file; over MCP the tool `inbox` hands the waiting files to any Claude. Filing goes through `record_conversation` with `fileIds`: the files' transcripts join the conversation's transcript, and the files are deleted. Closing or discarding a file deletes it too.
+* **Only transcripts are kept, from any source.** A shared file lives only until it is reviewed. A file pasted into an outside Claude can't reach a tool anyway: Claude writes out what it shows into the transcript, which is all freundebuch would keep.
 
 ### Consequences
 
 * Good, because any file works, and the conversation asks about people and privacy as a ramble does: nothing private is filed as shared unasked.
-* Good, because there is one way of filing, the tools, instead of a second one in the reading.
-* Bad, because nothing is filed until the user opens Prüfen once; a post that used to land on its own now waits.
-* Bad, because the REST routes moved (`/files`) and `resolve` is gone.
+* Good, because there is one way of filing, the tools, and one kind of evidence, the transcript, which follows the conversation's privacy.
+* Good, because files of other people's messages are not stored for good: less to leak, less to back up.
+* Bad, because the original is gone after the review: a photo is kept only as its description.
+* Bad, because nothing is filed until the user opens Prüfen once, and the REST routes moved (`/files`, `resolve` is gone).

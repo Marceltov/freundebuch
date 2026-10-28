@@ -12,6 +12,7 @@ const file = (over: Partial<PendingFile>): PendingFile => ({
   url: "/api/files/f1",
   type: "image/webp",
   summary: "WhatsApp-Gruppe Sunshine: Freitag Spieleabend",
+  transcript: "[19:20] Patrick: Freitag Spieleabend",
   people: [{ name: "Patrick", person: null, candidates: [] }],
   error: null,
   ...over,

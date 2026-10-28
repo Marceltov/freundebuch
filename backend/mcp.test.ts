@@ -426,5 +426,5 @@ test("inbox list hands an outside Claude the files themselves: images as images,
 test("the instructions say what to do with a file pasted into the conversation", async () => {
   const { INSTRUCTIONS } = await import("./mcp");
   expect(INSTRUCTIONS).toContain("write out what it shows");
-  expect(INSTRUCTIONS).toContain("inbox upload");
+  expect(INSTRUCTIONS).toContain("only their transcripts are kept");
 });
