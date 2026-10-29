@@ -475,6 +475,29 @@ const migrations: Record<string, Migration> = {
       });
     },
   },
+
+  // The journal: entries about the user's own life, cut from a ramble, private unless shared, and the people they name.
+  "012_journal": {
+    async up(db) {
+      await db.schema
+        .createTable("journal_entries")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("ramble_id", "text", (c) => c.notNull().references("rambles.id").onDelete("cascade"))
+        .addColumn("date", "text", (c) => c.notNull())
+        .addColumn("text", "text", (c) => c.notNull())
+        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+        .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      await db.schema.createIndex("journal_by_date").on("journal_entries").columns(["recorded_by", "date"]).execute();
+      await db.schema
+        .createTable("journal_mentions")
+        .addColumn("entry_id", "text", (c) => c.notNull().references("journal_entries.id").onDelete("cascade"))
+        .addColumn("person_id", "text", (c) => c.notNull().references("persons.id").onDelete("cascade"))
+        .addPrimaryKeyConstraint("journal_mentions_pk", ["entry_id", "person_id"])
+        .execute();
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

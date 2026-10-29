@@ -116,7 +116,7 @@ test("the recorder edits an item and bad values are invalid_input", async () => 
 test("sharing every item keeps the transcript private until the recorder shares it; a private item hides it again", async () => {
   const l = await lunch();
   const transcriptPrivate = async (id: string) =>
-    (await (await db()).selectFrom("rambles").select("transcript_private").where("id", "=", id).executeTakeFirstOrThrow()).transcript_private;
+    (await (await db()).selectFrom("rambles").select("transcript_private").where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", id)).executeTakeFirstOrThrow()).transcript_private;
   expect(await transcriptPrivate(l.conversation)).toBe(1);
   await setVisibility(s.a, "promises", l.privatePromise, "shared");
   await expect(shareTranscript(s.a, l.conversation)).rejects.toBeInstanceOf(InvalidInputError); // the private fact remains
@@ -350,7 +350,7 @@ test("a private membership keeps the transcript private when another item is sha
   const c = await choir({ private: true });
   const d = await db();
   const tp = async () =>
-    (await d.selectFrom("rambles").select("transcript_private").where("id", "=", c).executeTakeFirstOrThrow()).transcript_private;
+    (await d.selectFrom("rambles").select("transcript_private").where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", c)).executeTakeFirstOrThrow()).transcript_private;
   expect(await tp()).toBe(1);
   await setVisibility(s.a, "facts", await factId("sings alto"), "private");
   await setVisibility(s.a, "facts", await factId("sings alto"), "shared");

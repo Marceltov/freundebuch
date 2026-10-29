@@ -40,6 +40,10 @@ export interface Schema {
    * transcript is the recorder's whenever anything filed from it is private (`transcript_private`). */
   rambles: { id: string; date: string; transcript: string; transcript_private: Flag; visibility: string; recorded_by: string; created_at: number };
   participants: { conversation_id: string; person_id: string };
+  /** What the user thinks and feels about their own life, cut from a ramble; private unless they share it. */
+  journal_entries: { id: string; ramble_id: string; date: string; text: string; visibility: string; recorded_by: string; created_at: number };
+  /** The people a journal entry names. */
+  journal_mentions: { entry_id: string; person_id: string };
   facts: Item & {
     id: string;
     person_id: string;

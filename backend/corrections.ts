@@ -343,7 +343,12 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
     .where("id", "=", id)
     .execute();
   // A ramble goes with the last part told in it.
-  if (ramble && !(await d.selectFrom("conversations").select("id").where("ramble_id", "=", ramble).executeTakeFirst())) await d.deleteFrom("rambles").where("id", "=", ramble).execute();
+  if (
+    ramble &&
+    !(await d.selectFrom("conversations").select("id").where("ramble_id", "=", ramble).executeTakeFirst()) &&
+    !(await d.selectFrom("journal_entries").select("id").where("ramble_id", "=", ramble).executeTakeFirst())
+  )
+    await d.deleteFrom("rambles").where("id", "=", ramble).execute();
   // A fact filed from a shared file takes the file with it once nothing else names it.
   if (table === "facts") await pruneFiles();
 }
