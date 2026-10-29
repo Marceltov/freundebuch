@@ -32,6 +32,7 @@ export { getSettings } from "./settings";
 export { getReflection } from "./reflection";
 export { getRamble, listRambles, type RambleSummary, type RambleView } from "./rambles";
 export { journalEntries, type JournalEntry } from "./journal";
+export { getPlace, getSeries, listExperiences, type ExperienceView, type PlaceView, type SeriesView } from "./experiences";
 export { hasShareKey, listPending, pendingCount, type PendingFile } from "./files";
 export type { FactKind, Viewer } from "./types";
 

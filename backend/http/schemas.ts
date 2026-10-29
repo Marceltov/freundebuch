@@ -157,6 +157,7 @@ export const SeriesJson = SeriesSummaryJson.extend({
   place: Linked.nullable(),
   sessions: z.array(ExperienceJson.extend({})).describe("Its sessions the caller may see, oldest first"),
   skipped: z.array(Day).describe("Session days marked as skipped"),
+  missed: z.array(Day).describe("The latest session day that passed untold, if any"),
   visibility: Visibility,
   mine: z.boolean(),
 }).meta({ id: "Series" });

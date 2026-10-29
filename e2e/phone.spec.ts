@@ -670,3 +670,33 @@ test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, priv
   await page.goto("/tagebuch");
   await expect(page.getByText("Noch nichts im Tagebuch")).toBeVisible();
 });
+
+test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and its place; a private series not for the other user", async ({ page, baseURL }) => {
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  const sheet = page.getByRole("dialog", { name: "Erzählen" });
+  await sheet.getByLabel("Nachricht").fill("Erlebnis: Erste Stunde mit Toffee");
+  await sheet.getByRole("button", { name: "Senden" }).click();
+  await expect(sheet.getByText("Erfasst.")).toBeVisible({ timeout: 15_000 });
+  await sheet.getByRole("link", { name: "Erste Stunde mit Toffee ›" }).click();
+
+  // The chip opens the series, with the session and its place.
+  await expect(page.getByRole("heading", { name: "Hundeschule" })).toBeVisible();
+  await expect(page.getByText("Erste Stunde mit Toffee")).toBeVisible();
+  await expectNoSideScroll(page);
+  await page.getByRole("link", { name: "Pfotenglück" }).first().click();
+  await expect(page.getByRole("heading", { name: "Pfotenglück" })).toBeVisible();
+  await expect(page.getByText("Erste Stunde mit Toffee")).toBeVisible();
+  await page.goto("/verlauf");
+  await expect(page.getByText(/Erste Stunde mit Toffee/)).toBeVisible();
+
+  const priv = await page.request.post("/api/v1/rambles", {
+    headers: { origin: baseURL! },
+    data: { date: today, transcript: "t", visibility: "private", people: [], experiences: [{ kind: "Termin", title: "Gesprächsgruppe", series: { name: "Gruppe", rhythmDays: 7 } }] },
+  });
+  const seriesId = (await priv.json()).experiences[0].seriesId;
+  await page.goto("/api/e2e/login?name=Bodo Gast");
+  const res = await page.goto(`/s/${seriesId}`);
+  expect(res?.status()).toBe(404);
+  await page.goto("/verlauf");
+  await expect(page.getByText("Gesprächsgruppe")).toHaveCount(0);
+});

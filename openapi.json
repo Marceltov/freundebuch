@@ -5667,6 +5667,14 @@
             },
             "description": "Session days marked as skipped"
           },
+          "missed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A day, `YYYY-MM-DD`"
+            },
+            "description": "The latest session day that passed untold, if any"
+          },
           "visibility": {
             "type": "string",
             "enum": [
@@ -5690,6 +5698,7 @@
           "place",
           "sessions",
           "skipped",
+          "missed",
           "visibility",
           "mine"
         ]

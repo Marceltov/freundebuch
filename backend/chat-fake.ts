@@ -1,6 +1,7 @@
 // A stand-in for Claude in e2e runs (FREUNDEBUCH_E2E=1, never in a production build: config.e2e()), so the chat can be tested
-// end to end without an API key or a bill. It knows five messages: "Notiz: …" files a conversation with the rest as its
+// end to end without an API key or a bill. It knows six messages: "Notiz: …" files a conversation with the rest as its
 // transcript about the person whose page the chat was opened on; "Tagebuch: …" files the rest as a private journal entry;
+// "Erlebnis: …" files the rest as a session of the series "Hundeschule" (weekly) at "Pfotenglück";
 // "Erledigt", in a chat opened on a shared file, closes that file (inbox done); "Fehlertest" fails like an unreachable API; anything else gets "Verstanden.". Tool results get "Erfasst.".
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChatModel } from "./chat";
@@ -24,6 +25,19 @@ export const fakeModel: ChatModel = {
     const situation = (p.system as Anthropic.Beta.BetaTextBlockParam[])[1].text;
     const person = situation.match(/on the page of .+? \(([^)]+)\)/)?.[1];
     const day = situation.match(/Today is (\d{4}-\d{2}-\d{2})/)?.[1];
+    const lived = last.content.match(/^Erlebnis:\s*(.+)$/s);
+    if (lived && day)
+      return reply(
+        [
+          {
+            type: "tool_use",
+            id: "fake_record",
+            name: "record",
+            input: { date: day, visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: lived[1], place: "Pfotenglück", series: { name: "Hundeschule", rhythmDays: 7 } }] },
+          },
+        ],
+        "tool_use",
+      );
     const journal = last.content.match(/^Tagebuch:\s*(.+)$/s);
     if (journal && day)
       return reply([{ type: "tool_use", id: "fake_record", name: "record", input: { date: day, visibility: "shared", people: [], journal: [{ text: journal[1] }] } }], "tool_use");

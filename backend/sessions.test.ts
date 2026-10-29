@@ -4,6 +4,7 @@ import { skipSession, editItem } from "./corrections";
 import { db } from "./db/testing";
 import type { SeriesRef } from "./experiences";
 import { whatsDue } from "./due";
+import { getSeries } from "./experiences";
 import { missedSessions } from "./sessions";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -70,4 +71,9 @@ test("whats_due carries a missed session as kind session, linking the series", a
   const id = await dogSchool();
   const due = await whatsDue(s.a, "2026-09-10");
   expect(due.filter((i) => i.kind === "session")).toEqual([expect.objectContaining({ kind: "session", name: "Hundeschule mit Toffee", date: "2026-09-09", itemId: id, url: `/s/${id}` })]);
+});
+
+test("a series page knows its missed day", async () => {
+  const id = await dogSchool();
+  expect((await getSeries(s.a, id, "2026-09-10")).missed).toEqual(["2026-09-09"]);
 });

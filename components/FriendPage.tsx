@@ -17,6 +17,7 @@ import {
   Pin,
   Repeat,
   Sparkles,
+  Ticket,
   Users,
 } from "lucide-react";
 import { anchorId, type Briefing } from "@/backend";
@@ -26,6 +27,7 @@ import { ago, dayMonth, every, shortDay } from "@/components/format";
 import { GroupPicker } from "@/components/GroupPicker";
 import { CATEGORY_ICON, EXCHANGE_ICON, KIND_ICON } from "@/components/icons";
 import { ItemActions } from "@/components/ItemActions";
+import { ExperienceItem } from "@/components/Experiences";
 import { JournalItem } from "@/components/Journal";
 import { layoutNetwork, Network } from "@/components/Network";
 import { PersonMenu } from "@/components/PersonMenu";
@@ -341,6 +343,16 @@ export function FriendPage({
                 ` · ${e.amount}${e.currency ? ` ${e.currency}` : ""}`}
             </Tile>
           ))}
+        </Section>
+      )}
+
+      {b.experiences.length > 0 && (
+        <Section title={copy.experiences} icon={Ticket} plain>
+          <ul className="space-y-2">
+            {b.experiences.map((e) => (
+              <ExperienceItem key={e.id} e={e} />
+            ))}
+          </ul>
         </Section>
       )}
 

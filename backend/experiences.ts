@@ -2,7 +2,8 @@
 // of them (a course, a weekly training). Claude files them with record (conversations.ts); nothing here interprets. A series
 // stays a memory: nothing removes it on its own. Every read goes through visible().
 import { sql, type Kysely } from "kysely";
-import { assertDay, notFuture } from "./dates";
+import { assertDay, notFuture, today as todayOf } from "./dates";
+import { missedSessions } from "./sessions";
 import { db, newId, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
@@ -209,12 +210,14 @@ export type SeriesView = SeriesSummary & {
   /** Its sessions the viewer may see, oldest first. */
   sessions: ExperienceView[];
   skipped: string[];
+  /** The latest session day that passed untold (sessions.ts), if any. */
+  missed: string[];
   visibility: Visibility;
   mine: boolean;
 };
 
 /** One series the viewer may see, with its sessions by date and the days skipped. */
-export async function getSeries(v: Viewer, id: string): Promise<SeriesView> {
+export async function getSeries(v: Viewer, id: string, today = todayOf()): Promise<SeriesView> {
   const d = await db();
   const s = await d.selectFrom("series").selectAll().where("id", "=", id).$call((qb) => visible(qb, v, "series")).executeTakeFirst();
   if (!s) throw new NotFoundError("No such series");
@@ -234,6 +237,7 @@ export async function getSeries(v: Viewer, id: string): Promise<SeriesView> {
     place: place ? { id: place.id, name: place.name, url: placePath(place.id) } : null,
     sessions: sessions.reverse(),
     skipped: skips.map((x) => x.date),
+    missed: (await missedSessions(v, today)).filter((m) => m.seriesId === s.id).map((m) => m.date),
     visibility: s.visibility as Visibility,
     mine: s.recorded_by === v.userId,
   };

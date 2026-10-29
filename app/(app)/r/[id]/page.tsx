@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { BookOpen, Coffee, Lock, Mic, NotebookPen } from "lucide-react";
+import { BookOpen, Coffee, Lock, Mic, NotebookPen, Ticket } from "lucide-react";
 import { getRamble } from "@/backend";
 import { copy, kindName } from "@/components/copy";
 import { shortDay } from "@/components/format";
 import { KIND_ICON } from "@/components/icons";
+import { ExperienceItem } from "@/components/Experiences";
 import { JournalItem } from "@/components/Journal";
 import { RambleDelete } from "@/components/RambleDelete";
 import { Section } from "@/components/Tiles";
@@ -38,6 +39,15 @@ export default async function RamblePage({ params }: PageProps<"/r/[id]">) {
               </li>
             );
           })}
+        </Section>
+      )}
+      {r.experiences.length > 0 && (
+        <Section title={copy.experiences} icon={Ticket} plain>
+          <ul className="space-y-2">
+            {r.experiences.map((e) => (
+              <ExperienceItem key={e.id} e={e} />
+            ))}
+          </ul>
         </Section>
       )}
       {r.journal.length > 0 && (
