@@ -17,7 +17,7 @@ beforeEach(async () => {
 });
 
 test("one table holds every tool the MCP endpoint offers", () => {
-  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "inbox", "people", "record", "relate", "remember", "set_interval", "traits", "whats_due"]);
+  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "inbox", "journal", "people", "record", "relate", "remember", "set_interval", "traits", "whats_due"]);
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
@@ -347,4 +347,15 @@ test("record names the journal entries it filed, and that they are private", asy
   const r = await run(s.a, "record", { date: "2026-10-22", transcript: "Ich frage mich, ob ich den Job wechseln will.", visibility: "shared", people: [], journal: [{ text: "Ich frage mich, ob ich den Job wechseln will." }] });
   expect(r.journal).toEqual([expect.objectContaining({ visibility: "private", url: expect.stringMatching(/^\/tagebuch#journal-/) })]);
   expect(r.next).toContain("The journal entry is private to the user: say so in the read-back.");
+});
+
+test("journal hands Claude the entries of a period to interpret, never to diagnose", async () => {
+  await run(s.a, "record", { date: "2026-10-20", transcript: "t", visibility: "shared", people: [{ id: s.anna }], journal: [{ text: "Viel Stress im Job.", mentions: [0] }] });
+  const r = await run(s.a, "journal", { from: "2026-10-01", to: "2026-10-31" });
+  expect(r.entries.map((e: Json) => e.text)).toEqual(["Viel Stress im Job."]);
+  expect(r.next).toEqual([
+    "Interpret these entries for the user: the themes that come back, what changed over the period, and how the people and conversations they name tie in, quoting entries by their date. Reflect patterns; never diagnose or give health advice, and on heavy themes point gently to real help.",
+  ]);
+  expect((await run(s.a, "journal", { from: "2026-01-01", to: "2026-01-31" })).next).toEqual(["No journal entries in this period: say so, and offer to look at another one."]);
+  expect((await run(s.b, "journal", { from: "2026-10-01", to: "2026-10-31" })).entries).toEqual([]);
 });

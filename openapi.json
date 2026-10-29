@@ -375,6 +375,85 @@
         }
       }
     },
+    "/api/v1/journal": {
+      "get": {
+        "operationId": "getJournal",
+        "summary": "The caller's journal entries in a period",
+        "description": "The caller's own entries and the ones the other user shared, newest first. A private entry of the other user never shows.",
+        "tags": [
+          "Journal"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "The first day; 30 days before `to` when left out",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "The last day; today when left out",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "personId",
+            "in": "query",
+            "required": false,
+            "description": "Only the entries that name this person",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Journal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/people/{id}/interval": {
       "put": {
         "operationId": "setCheckInInterval",
@@ -3481,6 +3560,79 @@
             },
             "description": "What else stays true about the person, by category"
           },
+          "journal": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "people": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "A person's id"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "The people it names"
+                },
+                "rambleId": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "The caller wrote it: they may edit, share or delete it"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The entry on the Tagebuch page, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "text",
+                "people",
+                "rambleId",
+                "visibility",
+                "mine",
+                "url"
+              ]
+            },
+            "description": "The caller's own journal entries that name the person, the last few, newest first"
+          },
           "open": {
             "type": "object",
             "properties": {
@@ -3875,6 +4027,7 @@
           "situations",
           "traits",
           "known",
+          "journal",
           "open",
           "recent",
           "relationships",
@@ -4039,6 +4192,156 @@
         },
         "required": [
           "people"
+        ]
+      },
+      "JournalEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "description": "A day, `YYYY-MM-DD`"
+          },
+          "text": {
+            "type": "string"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url"
+              ]
+            },
+            "description": "The people it names"
+          },
+          "rambleId": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ],
+            "description": "`private` items are visible only to whoever recorded them"
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "The caller wrote it: they may edit, share or delete it"
+          },
+          "url": {
+            "type": "string",
+            "description": "The entry on the Tagebuch page, as an absolute URL"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "text",
+          "people",
+          "rambleId",
+          "visibility",
+          "mine",
+          "url"
+        ]
+      },
+      "Journal": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "people": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "A person's id"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "The people it names"
+                },
+                "rambleId": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "The caller wrote it: they may edit, share or delete it"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The entry on the Tagebuch page, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "text",
+                "people",
+                "rambleId",
+                "visibility",
+                "mine",
+                "url"
+              ]
+            },
+            "description": "Newest first"
+          }
+        },
+        "required": [
+          "entries"
         ]
       },
       "NewRamble": {

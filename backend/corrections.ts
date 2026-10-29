@@ -6,7 +6,7 @@
 import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { moveMembership } from "./groups";
-import { checkLabel, checkRelationship, insertRelationships, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS, type FiledRelationship } from "./conversations";
+import { checkLabel, checkRelationship, insertRelationships, MAX_JOURNAL, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS, type FiledRelationship } from "./conversations";
 import { resolveTarget, type Target } from "./household";
 import { db, now, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
@@ -15,9 +15,9 @@ import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBI
 import { visible } from "./visibility";
 import { pruneFiles } from "./files";
 
-export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations";
+export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations" | "journal_entries";
 
-export const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "conversations"] as const;
+export const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "conversations", "journal_entries"] as const;
 /** The tables whose items belong to a conversation and weigh on its transcript privacy. */
 const CONVERSATION_ITEMS = ["facts", "promises", "dates", "exchanges", "relationships"] as const;
 
@@ -182,6 +182,10 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     summary: { column: "summary", check: upTo(MAX_SUMMARY) },
     transcript: { column: "transcript", check: upTo(MAX_TRANSCRIPT) },
   },
+  journal_entries: {
+    text: { column: "text", check: (v, w) => upTo(MAX_JOURNAL)(text(v, w), w) },
+    date: { column: "date", check: conversationDay },
+  },
 };
 
 /**
@@ -259,6 +263,16 @@ async function raiseTranscriptPrivacy(d: Kysely<Schema>, conversationId: string)
   if (await holdsPrivate(d, conversationId)) await d.updateTable("rambles").set({ transcript_private: 1 }).where("id", "=", rambleOf(d, conversationId)).execute();
 }
 
+/**
+ * A journal entry's ramble: a private entry makes its transcript private. Sharing an entry of a private ramble is refused, as
+ * an item of a private conversation is. Runs after the entry's visibility was set, in the same transaction.
+ */
+async function journalVisibility(tx: Kysely<Schema>, entryId: string, visibility: Visibility): Promise<void> {
+  const r = await tx.selectFrom("journal_entries").innerJoin("rambles", "rambles.id", "journal_entries.ramble_id").select(["rambles.id", "rambles.visibility"]).where("journal_entries.id", "=", entryId).executeTakeFirstOrThrow();
+  if (visibility === "shared" && r.visibility === "private") throw new InvalidInputError("This entry belongs to a private ramble: it stays private");
+  if (visibility === "private") await tx.updateTable("rambles").set({ transcript_private: 1 }).where("id", "=", r.id).execute();
+}
+
 /** The ramble a conversation was told in, as a subquery. */
 const rambleOf = (d: Kysely<Schema>, conversationId: string) => d.selectFrom("conversations").select("ramble_id").where("id", "=", conversationId);
 
@@ -308,6 +322,7 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
       }
       await raiseTranscriptPrivacy(tx, id);
     } else if (row.conversation_id) await raiseTranscriptPrivacy(tx, row.conversation_id);
+    else if (table === "journal_entries") await journalVisibility(tx, id, visibility);
   });
 }
 
@@ -337,7 +352,12 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
   assertTable(table);
   const d = await db();
   await load(d, v, table, id, "editor");
-  const ramble = table === "conversations" ? (await rambleOf(d, id).executeTakeFirst())?.ramble_id : undefined;
+  const ramble =
+    table === "conversations"
+      ? (await rambleOf(d, id).executeTakeFirst())?.ramble_id
+      : table === "journal_entries"
+        ? (await d.selectFrom("journal_entries").select("ramble_id").where("id", "=", id).executeTakeFirst())?.ramble_id
+        : undefined;
   await d
     .deleteFrom(table as "facts")
     .where("id", "=", id)

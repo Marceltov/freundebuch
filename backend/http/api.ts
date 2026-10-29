@@ -13,6 +13,7 @@ import { addGroupAlias, addToGroupById, createGroup, deleteGroup, getGroup, list
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
+import { journalEntries } from "../journal";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
@@ -51,6 +52,8 @@ import {
   TableParam,
   TraitsJson,
   TraitsQuery,
+  JournalJson,
+  JournalQuery,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -134,6 +137,19 @@ const OPS: AnyOp[] = [
     query: TraitsQuery,
     responses: { 200: { description: "The traits", schema: TraitsJson }, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, query }) => ({ status: 200, body: { people: await traitsFor(viewer, { people: ids(query.people), groups: ids(query.groups) }) } })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/journal`,
+    operationId: "getJournal",
+    summary: "The caller's journal entries in a period",
+    description: "The caller's own entries and the ones the other user shared, newest first. A private entry of the other user never shows.",
+    tags: ["Journal"],
+    auth: true,
+    params: {},
+    query: JournalQuery,
+    responses: { 200: { description: "The entries", schema: JournalJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, query }) => ({ status: 200, body: { entries: await journalEntries(viewer, query) } })),
 
   op({
     method: "PUT",

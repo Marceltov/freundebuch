@@ -24,6 +24,7 @@ import {
   GroupJson,
   IntervalJson,
   NewRambleJson,
+  JournalJson,
   PersonId,
   PersonJson,
   RecordedRambleJson,
@@ -35,6 +36,7 @@ import {
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
 import { traitsFor, type PersonTraits } from "./traits";
+import { journalEntries } from "./journal";
 import { discardFile, fileContent, listPending } from "./files";
 import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
@@ -616,6 +618,30 @@ export const TOOLS: readonly Tool[] = [
       const files = (out.files ?? []) as Array<{ id: string }>;
       const all = await Promise.all(files.map(async (f) => ({ id: f.id, ...(await fileContent(v, f.id)) })));
       return all.filter((f): f is Attachment => !!f.bytes && f.bytes.byteLength <= MAX_ATTACH);
+    },
+  }),
+  tool({
+    name: "journal",
+    description:
+      "The user's journal: what they think, feel and plan about their own life, in a period (the last 30 days unless from/to say otherwise), optionally only the entries that name a person. Use it when the user asks how they have been, what has been on their mind, or how something developed (\"wie ging es mir im Frühling?\"); then interpret the entries, never just list them.",
+    input: z.object({
+      from: Day.optional().describe("The first day"),
+      to: Day.optional().describe("The last day; today when left out"),
+      personId: PersonId.optional().describe("Only the entries that name this person"),
+    }),
+    output: JournalJson,
+    annotations: { readOnlyHint: true },
+    handler: async (v, q) => {
+      const entries = await journalEntries(v, q);
+      return ok(
+        JournalJson,
+        { entries },
+        entries.length
+          ? [
+              "Interpret these entries for the user: the themes that come back, what changed over the period, and how the people and conversations they name tie in, quoting entries by their date. Reflect patterns; never diagnose or give health advice, and on heavy themes point gently to real help.",
+            ]
+          : ["No journal entries in this period: say so, and offer to look at another one."],
+      );
     },
   }),
   tool({

@@ -89,6 +89,25 @@ export const TraitsJson = z
   })
   .meta({ id: "Traits" });
 
+export const JournalEntryJson = z
+  .object({
+    id: z.string(),
+    date: Day,
+    text: z.string(),
+    people: z.array(z.object({ id: PersonId, name: z.string(), url: Url })).describe("The people it names"),
+    rambleId: z.string(),
+    visibility: Visibility,
+    mine: z.boolean().describe("The caller wrote it: they may edit, share or delete it"),
+    url: Url.describe("The entry on the Tagebuch page, as an absolute URL"),
+  })
+  .meta({ id: "JournalEntry" });
+export const JournalJson = z.object({ entries: z.array(JournalEntryJson.extend({})).describe("Newest first") }).meta({ id: "Journal" });
+export const JournalQuery = z.object({
+  from: Day.optional().describe("The first day; 30 days before `to` when left out"),
+  to: Day.optional().describe("The last day; today when left out"),
+  personId: PersonId.optional().describe("Only the entries that name this person"),
+});
+
 export const BriefingJson = z
   .object({
     person: z.object({
@@ -132,6 +151,7 @@ export const BriefingJson = z
       .describe("What is going on and will end, nudging ones first: the best things to ask about"),
     traits: Traits,
     known: z.array(z.object(FactJson)).describe("What else stays true about the person, by category"),
+    journal: z.array(JournalEntryJson.extend({})).describe("The caller's own journal entries that name the person, the last few, newest first"),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
@@ -550,7 +570,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");
