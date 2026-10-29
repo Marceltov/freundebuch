@@ -30,8 +30,8 @@ export const fakeModel: ChatModel = {
         {
           type: "tool_use",
           id: "fake_record",
-          name: "record_conversation",
-          input: { date: day, kind: "message", summary: note[1], transcript: note[1], visibility: "shared", people: [{ id: person, present: true }] },
+          name: "record",
+          input: { date: day, transcript: note[1], visibility: "shared", people: [{ id: person }], conversations: [{ kind: "message", summary: note[1], present: [0] }] },
         },
       ],
       "tool_use",

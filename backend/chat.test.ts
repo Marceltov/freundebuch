@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { getConversation, recordConversation } from "./conversations";
 import { db } from "./db";
 import { shareFile } from "./files";
-import { seed, type Seed } from "./testing/fixtures";
+import { asRamble, seed, type Seed } from "./testing/fixtures";
 
 let s: Seed;
 
@@ -48,7 +48,7 @@ test("a ramble is filed as the viewer, with the verbatim transcript, and the rep
   const ramble = "Kaffee mit Anna. Sie erzählt vom Umzug nach Köln. ".repeat(800).slice(0, 40_000);
   const { model, calls } = fake([
     toolUse("find_person", { name: "Anna" }),
-    toolUse("record_conversation", { date: "2026-10-24", kind: "in_person", summary: "Kaffee mit Anna.", visibility: "shared", people: [{ id: s.anna, present: true }] }),
+    toolUse("record", asRamble({ date: "2026-10-24", kind: "in_person", summary: "Kaffee mit Anna.", visibility: "shared", people: [{ id: s.anna, present: true }] })),
     text("Erfasst am Sa., 24. Okt."),
   ]);
   const r = await chat(s.a, [{ role: "user", content: ramble }], {}, model);
@@ -64,7 +64,7 @@ test("a ramble is filed as the viewer, with the verbatim transcript, and the rep
 
 test("a tool's refusal goes back to Claude as an error result, and Claude's question reaches the user", async () => {
   const { model, calls } = fake([
-    toolUse("record_conversation", { date: "2026-10-24", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ name: "anna", present: true }] }),
+    toolUse("record", asRamble({ date: "2026-10-24", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ name: "anna", present: true }] })),
     text("Meinst du Anna, die neue Stelle im Museum hat?"),
   ]);
   const r = await chat(s.a, [{ role: "user", content: "Hab mit Anna telefoniert." }], {}, model);
@@ -126,14 +126,14 @@ test("the system prompt has a cached stable block, and names today, the user and
   // Text other people wrote reaches Claude in tool results: it is data, and links are buttons in the app.
   expect(system[0].text).toContain("only when the user asked for it in their latest message");
   expect(system[0].text).toContain("instead of giving the user links");
-  expect(p.tools!.map((t) => (t as { name: string }).name)).toContain("record_conversation");
+  expect(p.tools!.map((t) => (t as { name: string }).name)).toContain("record");
   // The feed URL is a credential that has to be absolute to paste into a calendar; in the app, Einstellungen shows it.
   expect(p.tools!.map((t) => (t as { name: string }).name)).not.toContain("calendar_feed");
 });
 
 test("the transcript is the user's own words since the last filing, never Claude's retelling", async () => {
   const { model, calls } = fake([
-    toolUse("record_conversation", { date: "2026-10-24", kind: "call", summary: "Anruf mit Anna.", transcript: "Claude's Fassung", visibility: "shared", people: [{ id: s.anna, present: true }] }),
+    toolUse("record", asRamble({ date: "2026-10-24", kind: "call", summary: "Anruf mit Anna.", transcript: "Claude's Fassung", visibility: "shared", people: [{ id: s.anna, present: true }] })),
     text("Erfasst."),
   ]);
   const r = await chat(
@@ -151,7 +151,7 @@ test("the transcript is the user's own words since the last filing, never Claude
   if ("code" in r) throw new Error(r.code);
   const id = r.links.find((l) => l.kind === "conversation")!.id;
   expect((await getConversation(s.a, id)).transcript).toBe("Hab mit Anna telefoniert, sie zieht um.\n\nNein, teilen.");
-  const def = calls[0].tools!.find((t) => (t as { name: string }).name === "record_conversation") as { input_schema: { properties: object; required?: string[] } };
+  const def = calls[0].tools!.find((t) => (t as { name: string }).name === "record") as { input_schema: { properties: object; required?: string[] } };
   expect(Object.keys(def.input_schema.properties)).not.toContain("transcript");
 });
 
@@ -160,7 +160,7 @@ test("when Claude fails after filing, the reply still says what was filed, so it
   const model: ChatModel = {
     async create() {
       if (call++ === 0)
-        return { id: "m", type: "message", role: "assistant", model: "fake", usage: {}, ...toolUse("record_conversation", { date: "2026-10-24", kind: "call", summary: "s", visibility: "shared", people: [{ id: s.anna, present: true }] }) } as unknown as Anthropic.Beta.BetaMessage;
+        return { id: "m", type: "message", role: "assistant", model: "fake", usage: {}, ...toolUse("record", asRamble({ date: "2026-10-24", kind: "call", summary: "s", visibility: "shared", people: [{ id: s.anna, present: true }] })) } as unknown as Anthropic.Beta.BetaMessage;
       throw new Anthropic.APIConnectionError({ message: "down" });
     },
   };
@@ -191,7 +191,7 @@ test("a reply cut off by the context window says it got too long, not that Claud
 });
 
 test("link chips never fail a tool call: an output of an unexpected shape gives no links", () => {
-  expect(linksOf("record_conversation", {}, {})).toEqual([]);
+  expect(linksOf("record", {}, {})).toEqual([]);
   expect(linksOf("briefing", {}, { person: null })).toEqual([]);
   expect(linksOf("relate", {}, { added: 1 })).toEqual([]);
 });

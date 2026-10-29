@@ -7,6 +7,7 @@ import { fileContent, shareFile } from "./files";
 import { addDays, today } from "./dates";
 import { db } from "./db/testing";
 import { seed, type Seed } from "./testing/fixtures";
+import { asRamble } from "./testing/fixtures";
 import { TOOLS, toolByName } from "./tools";
 
 let s: Seed;
@@ -16,7 +17,7 @@ beforeEach(async () => {
 });
 
 test("one table holds every tool the MCP endpoint offers", () => {
-  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "inbox", "people", "record_conversation", "relate", "remember", "set_interval", "traits", "whats_due"]);
+  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "inbox", "people", "record", "relate", "remember", "set_interval", "traits", "whats_due"]);
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
@@ -27,9 +28,9 @@ test("a tool runs as the viewer and answers with paths, not absolute urls", asyn
 
 test("the descriptions tell Claude to file roles in words, to agree a situation's new day, and gender only when said", () => {
   const all = (name: string) => JSON.stringify([toolByName(name)!.description, toolByName(name)!.input.toJSONSchema()]);
-  for (const name of ["relate", "record_conversation", "correct"]) for (const word of ["Vermieterin", "inverse", '\\"us\\"']) expect(all(name), `${name} ${word}`).toContain(word);
-  for (const name of ["remember", "record_conversation"]) for (const word of ["situation", "checkAfter", "agree it with the user"]) expect(all(name), `${name} ${word}`).toContain(word);
-  for (const name of ["correct", "record_conversation", "remember"]) expect(all(name), name).toContain("never from the name");
+  for (const name of ["relate", "record", "correct"]) for (const word of ["Vermieterin", "inverse", '\\"us\\"']) expect(all(name), `${name} ${word}`).toContain(word);
+  for (const name of ["remember", "record"]) for (const word of ["situation", "checkAfter", "agree it with the user"]) expect(all(name), `${name} ${word}`).toContain(word);
+  for (const name of ["correct", "record", "remember"]) expect(all(name), name).toContain("never from the name");
   expect(all("correct")).toContain("relabel");
   expect(toolByName("briefing")!.description).toContain("roles");
 });
@@ -54,11 +55,11 @@ describe("next: what Claude does after a call", () => {
     for (const t of TOOLS) expect(t.output.shape, t.name).toHaveProperty("next");
   });
 
-  test("record_conversation returns what it filed, and next reads it back with each situation's day and what was already there", async () => {
+  test("record returns what it filed, and next reads it back with each situation's day and what was already there", async () => {
     const r = await run(
       s.a,
-      "record_conversation",
-      lunch({
+      "record",
+      asRamble(lunch({
         people: [{ id: s.anna, present: true }, { id: s.tom, present: false }, { name: "Marina", present: false }],
         facts: [
           { person: 0, text: "sucht ein Auto", category: "other", kind: "situation" },
@@ -70,9 +71,9 @@ describe("next: what Claude does after a call", () => {
           { from: 0, to: 1, label: "Partner:in", inverse: "Partner:in" },
           { from: 2, to: "us", label: "Vermieterin", inverse: "Mieter:in" },
         ],
-      }),
+      })),
     );
-    const c = `/c/${r.conversationId}`;
+    const c = `/c/${r.conversations[0].id}`;
     const auto = await factId("sucht ein Auto");
     expect(r.filed.facts).toEqual([
       { id: auto, personId: s.anna, name: "Anna", text: "sucht ein Auto", kind: "situation", checkAfter: SIX_WEEKS(), defaultCheckAfter: true, supersedes: null, visibility: "shared", url: `${c}#facts-${auto}` },
@@ -89,7 +90,7 @@ describe("next: what Claude does after a call", () => {
       expect.objectContaining({ fromName: "Marina", toName: "Bob", label: "Vermieterin", created: true }),
     ]);
     expect(r.next).toEqual([
-      "Read back in one or two sentences what you filed, with the day it happened (2026-10-22) and the link in url.",
+      "Read back in one or two sentences what you filed, part by part, with the day (2026-10-22) and the links.",
       "Marina is new in the book: say so in the read-back.",
       `Anna's situation "sucht ein Auto" nudges on ${SIX_WEEKS()}, a default because you gave no checkAfter: tell the user, and change it with correct (edit, table facts, patch { checkAfter }) if they want another day.`,
       'Anna\'s situation "zieht nach Köln" nudges on 2027-02-01: tell the user that day.',
@@ -215,8 +216,8 @@ describe("next: what Claude does after a call", () => {
   test("find_person asks which one, or whether someone is new", async () => {
     expect((await run(s.a, "find_person", { name: "Anna" })).next).toEqual([]);
     const none = await run(s.a, "find_person", { name: "Zoe" });
-    expect(none.next).toEqual(['No one in the book is called "Zoe". Ask the user whether this is someone new; if so, file them as a new person with record_conversation.']);
-    await run(s.a, "record_conversation", lunch({ people: [{ name: "Anna", present: true, confirmedNew: true }] }));
+    expect(none.next).toEqual(['No one in the book is called "Zoe". Ask the user whether this is someone new; if so, file them as a new person with record.']);
+    await run(s.a, "record", asRamble(lunch({ people: [{ name: "Anna", present: true, confirmedNew: true }] })));
     const two = await run(s.a, "find_person", { name: "anna" });
     const [first, other] = two.people.map((p: Json) => p.id);
     expect(first).toBe(s.anna);
@@ -227,7 +228,7 @@ describe("next: what Claude does after a call", () => {
   test("briefing leads with the role, asks about nudging situations first and offers the suggested interval", async () => {
     await run(s.a, "relate", { kind: "relationship", from: s.anna, to: "us", label: "Vermieterin", inverse: "Mieter:in", visibility: "shared" });
     await run(s.a, "remember", { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-10-01" }] });
-    for (const date of ["2026-10-06", "2026-09-22"]) await run(s.a, "record_conversation", lunch({ date }));
+    for (const date of ["2026-10-06", "2026-09-22"]) await run(s.a, "record", asRamble(lunch({ date })));
     const b = await run(s.a, "briefing", { personId: s.anna });
     expect(b.suggestedInterval).toBe(14);
     expect(b.next).toEqual([
@@ -317,7 +318,7 @@ describe("inbox", () => {
     const r = await run(s.a, "inbox", { action: "list" });
     expect(r.files.map((f: Json) => f.id)).toEqual([mine.id]);
     expect(r.next).toEqual([
-      "Work through each file with the user: file what it shows with record_conversation, passing its id in fileIds (its transcript is kept, the file goes); if nothing in it is worth filing, inbox done.",
+      "Work through each file with the user: file what it shows with record, passing its id in fileIds (its transcript is kept, the file goes); if nothing in it is worth filing, inbox done.",
     ]);
     expect((await run(s.b, "inbox", { action: "list" })).files).toHaveLength(1);
     expect(await run(s.a, "inbox", { action: "list" })).toMatchObject({ files: [expect.objectContaining({ id: mine.id })] });
@@ -340,4 +341,10 @@ describe("inbox", () => {
     await expect(run(s.a, "inbox", { action: "upload" })).rejects.toThrow();
   });
 
+});
+
+test("record names the journal entries it filed, and that they are private", async () => {
+  const r = await run(s.a, "record", { date: "2026-10-22", transcript: "Ich frage mich, ob ich den Job wechseln will.", visibility: "shared", people: [], journal: [{ text: "Ich frage mich, ob ich den Job wechseln will." }] });
+  expect(r.journal).toEqual([expect.objectContaining({ visibility: "private", url: expect.stringMatching(/^\/tagebuch#journal-/) })]);
+  expect(r.next).toContain("The journal entry is private to the user: say so in the read-back.");
 });

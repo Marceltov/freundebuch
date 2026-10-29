@@ -6,7 +6,7 @@ import { briefing } from "../briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../calendar";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { deleteItem, editItem, factToRelationship, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type ItemTable } from "../corrections";
-import { getConversation, recordConversation } from "../conversations";
+import { getConversation, record } from "../conversations";
 import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError, NotFoundError } from "../errors";
 import { addGroupAlias, addToGroupById, createGroup, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../groups";
@@ -35,7 +35,7 @@ import {
   IntervalJson,
   ItemPatchJson,
   MergeJson,
-  NewConversationJson,
+  NewRambleJson,
   OrbitJson,
   PendingFileListJson,
   PeopleQuery,
@@ -44,7 +44,7 @@ import {
   FactRelationshipJson,
   RelationshipIdsJson,
   PersonListJson,
-  RecordedJson,
+  RecordedRambleJson,
   SentJson,
   SettingsJson,
   ShareKeyJson,
@@ -354,18 +354,19 @@ const OPS: AnyOp[] = [
 
   op({
     method: "POST",
-    path: `${API_PREFIX}/conversations`,
-    operationId: "recordConversation",
-    summary: "Record a conversation",
+    path: `${API_PREFIX}/rambles`,
+    operationId: "record",
+    summary: "Record a ramble and its parts",
     description:
-      "Everything lands in one transaction: a bad item leaves nothing behind. A private conversation makes every item private. " +
+      "One ramble, split into conversations, journal entries and items; each item may be `in` one of its conversations. " +
+      "Everything lands in one transaction: a bad part leaves nothing behind. A private ramble makes every part private; journal entries are private unless `shared`. " +
       "A new person named like an existing person or alias is `ambiguous` (409, listing the candidates) unless `confirmedNew`.",
-    tags: ["Conversations"],
+    tags: ["Rambles"],
     auth: true,
     params: {},
-    body: NewConversationJson,
-    responses: { 201: { description: "Recorded", schema: RecordedJson }, 400: E400, 401: E401, 404: E404, 409: E[409] },
-  }).handle(async ({ viewer, body }) => ({ status: 201, body: await recordConversation(viewer, body) })),
+    body: NewRambleJson,
+    responses: { 201: { description: "Recorded", schema: RecordedRambleJson }, 400: E400, 401: E401, 404: E404, 409: E[409] },
+  }).handle(async ({ viewer, body }) => ({ status: 201, body: await record(viewer, body) })),
 
   op({
     method: "GET",

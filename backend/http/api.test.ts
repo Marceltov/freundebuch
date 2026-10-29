@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { sign } from "../auth/tokens";
 import { resetSecretForTests } from "../secret";
-import { seed, type Seed } from "../testing/fixtures";
+import { asRamble, seed, type Seed } from "../testing/fixtures";
 import type { Viewer } from "../types";
 import { dispatch } from "./api";
 
@@ -97,7 +97,7 @@ describe("people", () => {
   });
 
   test("merge moves a duplicate into the person and deletes it", async () => {
-    const rec = await call(s.a, "POST", "/conversations", lunch({ people: [{ name: "Maxi", present: true }, { name: "Max", present: false }] }));
+    const rec = await call(s.a, "POST", "/rambles", asRamble(lunch({ people: [{ name: "Maxi", present: true }, { name: "Max", present: false }] })));
     const [maxi, max] = rec.json.people.map((p: { id: string }) => p.id);
     expect((await call(s.a, "POST", `/people/${max}/merge`, { drop: maxi })).status).toBe(204);
     expect((await call(s.a, "GET", `/people/${maxi}`)).status).toBe(404);
@@ -106,7 +106,7 @@ describe("people", () => {
   });
 
   test("orbit", async () => {
-    await call(s.a, "POST", "/conversations", lunch({ visibility: "private" })); // the open promise keeps Max in the orbit
+    await call(s.a, "POST", "/rambles", asRamble(lunch({ visibility: "private" }))); // the open promise keeps Max in the orbit
     const res = await call(s.a, "GET", "/orbit");
     expect(res.status).toBe(200);
     expect(res.json.find((f: { name: string }) => f.name === "Max")).toMatchObject({ ring: expect.any(Number), angle: expect.any(Number), badges: ["promise"] });
@@ -124,36 +124,40 @@ describe("people", () => {
 
 describe("conversations and items", () => {
   test("record answers 201 with the Recorded shape, and the conversation reads back", async () => {
-    const rec = await call(s.a, "POST", "/conversations", lunch());
+    const rec = await call(s.a, "POST", "/rambles", asRamble(lunch()));
     expect(rec.status).toBe(201);
     expect(rec.json).toMatchObject({ people: [{ ref: 0, name: "Max", created: true }], counts: { facts: 1, promises: 1, dates: 0, exchanges: 0, relationships: 0, groups: 0 } });
-    const got = await call(s.a, "GET", `/conversations/${rec.json.conversationId}`);
+    const got = await call(s.a, "GET", `/conversations/${rec.json.conversations[0].id}`);
     expect(got.status).toBe(200);
     expect(got.json).toMatchObject({ summary: "Lunch with Max.", transcript: "Lunch with Max. He likes chess.", facts: [{ text: "likes chess" }] });
   });
 
   test("a new person named like an existing one is 409 ambiguous; confirmedNew creates them", async () => {
-    const res = await call(s.a, "POST", "/conversations", lunch({ people: [{ name: "Anna", present: true }] }));
+    const res = await call(s.a, "POST", "/rambles", asRamble(lunch({ people: [{ name: "Anna", present: true }] })));
     expect([res.status, res.json.code]).toEqual([409, "ambiguous"]);
     expect(res.json.error).toContain(s.anna);
-    const ok = await call(s.a, "POST", "/conversations", lunch({ people: [{ name: "Anna", present: true, confirmedNew: true }] }));
+    const ok = await call(s.a, "POST", "/rambles", asRamble(lunch({ people: [{ name: "Anna", present: true, confirmedNew: true }] })));
     expect(ok.status).toBe(201);
   });
 
+  test("a conversation is recorded as a ramble now: POST /conversations is gone", async () => {
+    expect((await call(s.a, "POST", "/conversations", lunch())).status).toBe(404);
+  });
+
   test("the domain's validation answers: bad day, unknown person, nothing is written", async () => {
-    const day = await call(s.a, "POST", "/conversations", lunch({ date: "2026-13-40" }));
+    const day = await call(s.a, "POST", "/rambles", asRamble(lunch({ date: "2026-13-40" })));
     expect([day.status, day.json.code]).toEqual([400, "invalid_input"]);
-    const ref = await call(s.a, "POST", "/conversations", lunch({ facts: [{ person: 5, text: "x", category: "work" }] }));
+    const ref = await call(s.a, "POST", "/rambles", asRamble(lunch({ facts: [{ person: 5, text: "x", category: "work" }] })));
     expect([ref.status, ref.json.code]).toEqual([400, "invalid_input"]);
-    const who = await call(s.a, "POST", "/conversations", lunch({ people: [{ id: "nope", present: true }] }));
+    const who = await call(s.a, "POST", "/rambles", asRamble(lunch({ people: [{ id: "nope", present: true }] })));
     expect(who.status).toBe(404);
-    const shape = await call(s.a, "POST", "/conversations", { date: "2026-10-22" });
+    const shape = await call(s.a, "POST", "/rambles", { date: "2026-10-22" });
     expect([shape.status, shape.json.code]).toEqual([400, "invalid_request"]);
     expect((await call(s.a, "GET", "/people?q=Max")).json).toEqual([]);
   });
 
   async function recorded() {
-    const rec = (await call(s.a, "POST", "/conversations", lunch())).json.conversationId;
+    const rec = (await call(s.a, "POST", "/rambles", asRamble(lunch()))).json.conversations[0].id;
     const c = (await call(s.a, "GET", `/conversations/${rec}`)).json;
     return { conversation: rec as string, fact: c.facts[0].id as string, promise: c.promises[0].id as string };
   }
@@ -388,7 +392,7 @@ describe("roles and situations", () => {
   });
 
   test("a fact becomes a relationship to us; a fact's kind is patched; a conversation files a role", async () => {
-    const r = await call(s.a, "POST", "/conversations", lunch({ facts: [{ person: 0, text: "unser Vermieter", category: "home" }] }));
+    const r = await call(s.a, "POST", "/rambles", asRamble(lunch({ facts: [{ person: 0, text: "unser Vermieter", category: "home" }] })));
     expect(r.status).toBe(201);
     const max = r.json.people[0].id;
     const fact = (await call(s.a, "GET", `/people/${max}/briefing`)).json.known[0].id;
@@ -398,7 +402,7 @@ describe("roles and situations", () => {
     expect((await call(s.b, "GET", `/people/${max}/briefing`)).json.roles).toMatchObject([{ label: "Vermieter:in", with: "us" }]);
     expect((await call(s.b, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", label: "Vermieter:in", inverse: "Mieter:in" })).status).toBe(404);
 
-    const again = await call(s.a, "POST", "/conversations", lunch({ people: [{ id: max, present: true }], facts: [{ person: 0, text: "sucht ein Auto", category: "other" }], relationships: [{ from: 0, to: "me", label: "Nachbar:in", inverse: "Nachbar:in" }] }));
+    const again = await call(s.a, "POST", "/rambles", asRamble(lunch({ people: [{ id: max, present: true }], facts: [{ person: 0, text: "sucht ein Auto", category: "other" }], relationships: [{ from: 0, to: "me", label: "Nachbar:in", inverse: "Nachbar:in" }] })));
     expect(again.json.counts.relationships).toBe(1);
     const car = (await call(s.a, "GET", `/people/${max}/briefing`)).json.known.find((f: { text: string }) => f.text === "sucht ein Auto").id;
     expect((await call(s.a, "PATCH", `/items/facts/${car}`, { patch: { kind: "situation", checkAfter: "2026-10-01" } })).status).toBe(204);

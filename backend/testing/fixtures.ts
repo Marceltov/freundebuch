@@ -65,3 +65,24 @@ export async function seed(): Promise<Seed> {
   });
   return { a, b, anna, tom, lena: coffee.people[0].id, dinner: dinner.conversationId, coffee: coffee.conversationId, call: call.conversationId };
 }
+
+/** A conversation in the shape record_conversation took, as the ramble record files it: one conversation, everything in it. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function asRamble(c: any): any {
+  const { kind, place, summary, people, facts, promises, dates, exchanges, relationships, groups, ...rest } = c;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const inIt = (xs: any[] | undefined) => xs?.map((x) => ({ ...x, in: 0 }));
+  return {
+    ...rest,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+    people: people.map(({ present, ...p }: any) => p),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    conversations: [{ kind, place, summary, present: people.flatMap((p: any, i: number) => (p.present ? [i] : [])) }],
+    facts: inIt(facts),
+    promises: inIt(promises),
+    dates: inIt(dates),
+    exchanges: inIt(exchanges),
+    relationships: inIt(relationships),
+    groups: inIt(groups),
+  };
+}
