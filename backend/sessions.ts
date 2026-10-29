@@ -1,7 +1,7 @@
 // Missed sessions: a series with a rhythm has a session day every rhythm_days from its start. When one has passed and nothing
 // was told of it, freundebuch asks, through whats_due, the daily notification and the chat. Only days after the series was
 // filed count (no backlog for a series "since January"), and only the latest; a day is told when a session of the series the
-// viewer may see falls on it or within half a rhythm after it. Whoever was at a session of the series (that they may see) is
+// viewer may see falls on it, the day before, or within half a rhythm after it. Whoever was at a session of the series (that they may see) is
 // asked; a skipped day, an ended series and a series without a rhythm never are. Nothing here files anything.
 import { addDays, daysBetween, today as todayOf } from "./dates";
 import { db } from "./db";
@@ -46,7 +46,8 @@ export async function missedSessions(v: Viewer, today: string): Promise<MissedSe
       .selectFrom("experiences")
       .select("id")
       .where("series_id", "=", s.id)
-      .where("date", ">=", day)
+      // A session held a day early (on rhythms of two days or more) counts too.
+      .where("date", ">=", addDays(day, rhythm >= 2 ? -1 : 0))
       .where("date", "<=", addDays(day, Math.floor(rhythm / 2)))
       .$call((qb) => visible(qb, v, "experiences"))
       .executeTakeFirst();

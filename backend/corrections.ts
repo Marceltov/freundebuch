@@ -142,6 +142,13 @@ const words = (which: string) => (value: unknown): string => {
   return (value as string).trim();
 };
 
+// A place as edit takes it: a name, { id }, { name, confirmedNew? }, or null to clear it.
+const placeRef = (value: unknown, what: string): unknown => {
+  if (value === null || typeof value === "string") return value;
+  if (value && typeof value === "object" && (typeof (value as { id?: unknown }).id === "string" || typeof (value as { name?: unknown }).name === "string")) return value;
+  throw new InvalidInputError(`${what} is a place's name, { id }, { name, confirmedNew: true }, or null`);
+};
+
 const FIELDS: Record<ItemTable, Record<string, Field>> = {
   facts: {
     text: { column: "text", check: text },
@@ -185,7 +192,7 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     date: { column: "date", check: conversationDay },
     kind: { column: "kind", check: oneOf(CONVERSATION_KINDS) },
     // A place by name or id, resolved below; null clears it.
-    place: { column: "place", check: (x) => x },
+    place: { column: "place", check: placeRef },
     summary: { column: "summary", check: upTo(MAX_SUMMARY) },
     transcript: { column: "transcript", check: upTo(MAX_TRANSCRIPT) },
   },
@@ -199,7 +206,7 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     date: { column: "date", check: conversationDay },
     kind: { column: "kind", check: (v, w) => upTo(MAX_KIND)(text(v, w), w).trim() },
     // A place by name or id, resolved below; null clears it.
-    place: { column: "place", check: (x) => x },
+    place: { column: "place", check: placeRef },
   },
   series: {
     name: { column: "name", check: (v, w) => upTo(MAX_TITLE)(text(v, w), w).trim() },
@@ -213,7 +220,7 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     },
     startsOn: { column: "starts_on", check: (v, w) => (v === null ? null : day(v, w)) },
     endsOn: { column: "ends_on", check: (v, w) => (v === null ? null : day(v, w)) },
-    place: { column: "place", check: (x) => x },
+    place: { column: "place", check: placeRef },
   },
 };
 
@@ -254,21 +261,24 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
       defaultCheckAfter = true;
     }
   }
-  if ((table === "conversations" || table === "experiences" || table === "series") && "place" in set) {
-    set.place_id = set.place === null || set.place === "" ? null : await resolvePlace(d, v, set.place as PlaceRef);
-    delete set.place;
-  }
-  // A conversation's transcript is its ramble's.
-  if (table === "conversations" && "transcript" in set) {
-    await d.updateTable("rambles").set({ transcript: set.transcript as string }).where("id", "=", rambleOf(d, id)).execute();
-    delete set.transcript;
-  }
-  if (Object.keys(set).length)
-    await d
-      .updateTable(table as "facts")
-      .set(set)
-      .where("id", "=", id)
-      .execute();
+  // One transaction: a new place is made only when the edit lands.
+  await d.transaction().execute(async (tx) => {
+    if ((table === "conversations" || table === "experiences" || table === "series") && "place" in set) {
+      set.place_id = set.place === null || set.place === "" ? null : await resolvePlace(tx, v, set.place as PlaceRef);
+      delete set.place;
+    }
+    // A conversation's transcript is its ramble's.
+    if (table === "conversations" && "transcript" in set) {
+      await tx.updateTable("rambles").set({ transcript: set.transcript as string }).where("id", "=", rambleOf(tx, id)).execute();
+      delete set.transcript;
+    }
+    if (Object.keys(set).length)
+      await tx
+        .updateTable(table as "facts")
+        .set(set)
+        .where("id", "=", id)
+        .execute();
+  });
   return table === "facts" ? { fact: { ...(await factState(d, id)), defaultCheckAfter } } : {};
 }
 

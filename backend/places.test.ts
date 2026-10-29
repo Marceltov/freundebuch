@@ -1,7 +1,8 @@
 import { beforeEach, expect, test } from "vitest";
 import { getConversation, record } from "./conversations";
 import { db } from "./db/testing";
-import { AmbiguousError } from "./errors";
+import { deleteItem, editItem } from "./corrections";
+import { AmbiguousError, InvalidInputError } from "./errors";
 import { addPlaceAlias, findPlaces, mergePlaces, renamePlace } from "./places";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -52,4 +53,28 @@ test("renaming keeps the old name as another name; merging moves conversations a
   const [found] = await findPlaces(s.a, "Hundeschule am See");
   expect(found).toMatchObject({ id: keep, name: "Hundeschule Pfotenglück", aliases: expect.arrayContaining(["Pfotenglück", "Hundeschule am See"]) });
   expect(await (await db()).selectFrom("places").select("id").where("id", "=", drop).execute()).toEqual([]);
+});
+
+test("minor: merging a place the partner sees into one they can't is refused, so its name never reaches them", async () => {
+  const mine = await at(s.a, "Tagesklinik Nord", "private");
+  const shared = await at(s.a, { name: "Tagesklinik", confirmedNew: true });
+  const hidden = (await placeOf(s.a, mine.conversations[0].id))!;
+  const seen = (await placeOf(s.a, shared.conversations[0].id))!;
+  await expect(mergePlaces(s.a, hidden, seen)).rejects.toThrow(InvalidInputError);
+  await mergePlaces(s.a, seen, hidden);
+  expect((await findPlaces(s.b, "Tagesklinik")).map((p) => p.name)).toEqual(["Tagesklinik"]);
+});
+
+test("minor: a conversation's place patch of the wrong type is refused, and a failing edit leaves no new place", async () => {
+  const r = await at(s.a, "Café Lisa");
+  await expect(editItem(s.a, "conversations", r.conversations[0].id, { place: 5 })).rejects.toThrow(InvalidInputError);
+  const before = (await (await db()).selectFrom("places").select("id").execute()).length;
+  await expect(editItem(s.a, "conversations", r.conversations[0].id, { place: "Neues Café", kind: "nope" })).rejects.toThrow(InvalidInputError);
+  expect((await (await db()).selectFrom("places").select("id").execute()).length).toBe(before);
+});
+
+test("minor: a place whose last part was deleted is found no more, not even by whoever made it", async () => {
+  const r = await at(s.a, "Eisdiele am Eck");
+  await deleteItem(s.a, "conversations", r.conversations[0].id);
+  expect(await findPlaces(s.a, "Eisdiele am Eck")).toEqual([]);
 });

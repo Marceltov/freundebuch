@@ -549,7 +549,7 @@ const migrations: Record<string, Migration> = {
       for (const r of rows as Array<{ id: string; recorded_by: string; place: string; created_at: number }>) {
         const name = r.place.trim();
         if (!name) continue;
-        const key = `${r.recorded_by}\u0000${name.toLowerCase()}`;
+        const key = `${r.recorded_by}\u0000${norm(name)}`;
         let id = made.get(key);
         if (!id) {
           id = crypto.randomUUID();

@@ -145,3 +145,8 @@ test("review I2: merging two people keeps the experiences of the one merged away
   await mergePeople(s.a, s.anna, r.people[0].id);
   expect((await listExperiences(s.a, { personId: s.anna })).map((e) => e.title)).toEqual(["Wanda"]);
 });
+
+test("minor: listExperiences narrows to the ids asked for", async () => {
+  const a = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Konzert", title: "Wanda" }, { kind: "Konzert", title: "Seeed" }] });
+  expect((await listExperiences(s.a, { ids: [a.experiences[1].id] })).map((e) => e.title)).toEqual(["Seeed"]);
+});

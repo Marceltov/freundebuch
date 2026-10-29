@@ -1,5 +1,5 @@
 // Places: where something happened, a record of its own with other names, as people have. A place exists for a viewer only
-// through a part they may see, or because they made it; so a place the other user holds only
+// through a part they may see; so a place the other user holds only
 // through private parts is neither found nor reused, and a new one is made. Parts are conversations, experiences and series. Names match as people's do (names.ts).
 import type { Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
@@ -15,15 +15,14 @@ export type PlaceCandidate = { id: string; name: string; aliases: string[]; url:
 
 export const MAX_PLACE = 120;
 
-/** The ids of the places the viewer may see: their own, and those with a part at them they may see. */
+/** The ids of the places the viewer may see: those with a part at them they may see. A place with nothing left at it is found no more. */
 export function visiblePlaceIds(d: Kysely<Schema>, v: Viewer) {
   return d
     .selectFrom("places")
     .select("places.id")
     .where((eb) =>
-      eb.or([
-        eb("places.created_by", "=", v.userId),
-        ...(["conversations", "experiences", "series"] as const).map((t) =>
+      eb.or(
+        (["conversations", "experiences", "series"] as const).map((t) =>
           eb(
             "places.id",
             "in",
@@ -34,7 +33,7 @@ export function visiblePlaceIds(d: Kysely<Schema>, v: Viewer) {
               .$call((qb) => visible(qb, v, t)) as never,
           ),
         ),
-      ]),
+      ),
     );
 }
 
@@ -124,6 +123,14 @@ export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Pr
   await d.transaction().execute(async (tx) => {
     const keep = await loadPlace(tx, v, keepId);
     const drop = await loadPlace(tx, v, dropId);
+    // Whoever sees the dropped place would see the kept one's name and other names after the merge: refused when they can't
+    // see it yet, so a name from a private context never reaches them. The other way round shows them nothing new.
+    for (const u of await tx.selectFrom("users").select(["id", "person_id"]).where("id", "!=", v.userId).execute()) {
+      const other: Viewer = { userId: u.id, personId: u.person_id ?? "" };
+      const sees = async (id: string) => !!(await tx.selectFrom("places").select("id").where("id", "=", id).where("id", "in", visiblePlaceIds(tx, other)).executeTakeFirst());
+      if ((await sees(dropId)) && !(await sees(keepId)))
+        throw new InvalidInputError(`Merge the other way round: keep "${drop.name}" (${dropId}) and drop "${keep.name}" (${keepId}), so the household doesn't learn a name only you can see`);
+    }
     for (const t of ["conversations", "experiences", "series"] as const) await tx.updateTable(t as "conversations").set({ place_id: keepId }).where("place_id", "=", dropId).execute();
     const aliases = await tx.selectFrom("place_aliases").select("alias").where("place_id", "=", dropId).execute();
     for (const a of [drop.name, ...aliases.map((x) => x.alias)]) if (norm(a) !== norm(keep.name)) await insertAlias(tx, keepId, a);

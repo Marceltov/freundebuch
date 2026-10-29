@@ -132,7 +132,7 @@ export type ExperienceView = {
   url: string;
 };
 export type SeriesSummary = { id: string; name: string; kind: string; rhythmDays: number | null; startsOn: string | null; endsOn: string | null; url: string };
-export type ExperienceQuery = { from?: string; to?: string; kind?: string; placeId?: string; seriesId?: string; personId?: string; limit?: number };
+export type ExperienceQuery = { from?: string; to?: string; kind?: string; placeId?: string; seriesId?: string; personId?: string; ids?: string[]; limit?: number };
 
 /** The experiences the viewer may see, newest first, narrowed by period, kind (any case), place, series or a person who was there. */
 export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promise<ExperienceView[]> {
@@ -149,6 +149,7 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
   if (q.placeId) query = query.where("place_id", "=", q.placeId);
   if (q.seriesId) query = query.where("series_id", "=", q.seriesId);
   if (q.personId) query = query.where("id", "in", (eb) => eb.selectFrom("experience_people").select("experience_id").where("person_id", "=", q.personId!));
+  if (q.ids) query = query.where("id", "in", q.ids.length ? q.ids : [""]);
   if (q.limit) query = query.limit(q.limit);
   const rows = await query.execute();
   if (!rows.length) return [];

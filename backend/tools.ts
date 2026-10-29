@@ -179,10 +179,7 @@ function foundNext(name: string, people: Candidate[]): Next {
 /** What record's read-back says of each experience: its title, day, and the series it is a session of. */
 async function experienceReadBack(v: Viewer, ids: string[]): Promise<string[]> {
   if (!ids.length) return [];
-  const all = await listExperiences(v, {});
-  return all
-    .filter((e) => ids.includes(e.id))
-    .map((e) => `Experience "${e.title}" on ${e.date}${e.series ? `, a session of the series "${e.series.name}"` : ""}${e.place ? ` at ${e.place.name}` : ""}: read it back with its link.`);
+  return (await listExperiences(v, { ids })).map((e) => `Experience "${e.title}" on ${e.date}${e.series ? `, a session of the series "${e.series.name}"` : ""}${e.place ? ` at ${e.place.name}` : ""}: read it back with its link.`);
 }
 
 const NewRamble = NewRambleJson.extend({});

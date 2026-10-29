@@ -77,3 +77,9 @@ test("a series page knows its missed day", async () => {
   const id = await dogSchool();
   expect((await getSeries(s.a, id, "2026-09-10")).missed).toEqual(["2026-09-09"]);
 });
+
+test("minor: a session held the day before its day counts as told", async () => {
+  const id = await dogSchool();
+  await lesson(s.a, id, "2026-09-08");
+  expect(await days(s.a, "2026-09-10")).toEqual([]);
+});

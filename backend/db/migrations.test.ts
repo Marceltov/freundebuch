@@ -417,9 +417,13 @@ test("015 turns each recorder's free-text places into place records and links th
   await d.insertInto("conversations").values({ ...c, id: "c2", recorded_by: "u", place: "Olympiahalle" }).execute();
   await d.insertInto("conversations").values({ ...c, id: "c3", recorded_by: "w", place: "Olympiahalle" }).execute();
   await d.insertInto("conversations").values({ ...c, id: "c4", recorded_by: "u", place: null }).execute();
+  await d.insertInto("conversations").values({ ...c, id: "c5", recorded_by: "u", place: "Café Lisa" }).execute();
+  await d.insertInto("conversations").values({ ...c, id: "c6", recorded_by: "u", place: "Cafe Lisa" }).execute();
   await migrateTo(d, "015_places");
   const rows = await d.selectFrom("conversations").leftJoin("places", "places.id", "conversations.place_id").select(["conversations.id", "places.id as placeId", "places.name", "places.created_by"]).orderBy("conversations.id").execute();
-  expect(rows.map((r) => r.name)).toEqual(["Olympiahalle", "Olympiahalle", "Olympiahalle", null]);
+  expect(rows.map((r) => r.name)).toEqual(["Olympiahalle", "Olympiahalle", "Olympiahalle", null, "Café Lisa", "Café Lisa"]);
+  // Names match as at runtime (norm): "Cafe Lisa" is the same place as "Café Lisa".
+  expect(rows[4].placeId).toBe(rows[5].placeId);
   expect(rows[0].placeId).toBe(rows[1].placeId);
   expect(rows[2].placeId).not.toBe(rows[0].placeId);
   expect(rows[2].created_by).toBe("w");
