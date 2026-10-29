@@ -30,6 +30,8 @@ export { orbit, type Badge, type OrbitFace } from "./orbit";
 export { calendarRoute, hasCalendarKey } from "./calendar";
 export { getSettings } from "./settings";
 export { getReflection } from "./reflection";
+export { getRamble, listRambles, type RambleSummary, type RambleView } from "./rambles";
+export { journalEntries, type JournalEntry } from "./journal";
 export { hasShareKey, listPending, pendingCount, type PendingFile } from "./files";
 export type { FactKind, Viewer } from "./types";
 

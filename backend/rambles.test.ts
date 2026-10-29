@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { getConversation, record } from "./conversations";
+import { getRamble, listRambles } from "./rambles";
 import { db } from "./db/testing";
 import { InvalidInputError } from "./errors";
 import { shareFile } from "./files";
@@ -82,4 +83,32 @@ test("deleting a ramble's last conversation keeps the ramble while a journal ent
   await deleteItem(s.a, "conversations", r.conversations[0].id);
   expect(await (await db()).selectFrom("rambles").select("id").where("id", "=", r.rambleId).execute()).toHaveLength(1);
   expect(await (await db()).selectFrom("journal_entries").select("id").where("ramble_id", "=", r.rambleId).execute()).toHaveLength(1);
+});
+
+test("listRambles: the recorder sees the ramble with its conversation and its entry; the partner only the conversation", async () => {
+  const r = await dogSchool();
+  const mine = (await listRambles(s.a)).find((x) => x.id === r.rambleId)!;
+  expect(mine).toMatchObject({ id: r.rambleId, url: `/r/${r.rambleId}` });
+  expect(mine.conversations.map((c) => c.id)).toEqual([r.conversations[0].id]);
+  expect(mine.journal.map((j) => j.id)).toEqual([r.journal[0].id]);
+  const theirs = (await listRambles(s.b)).find((x) => x.id === r.rambleId)!;
+  expect(theirs.conversations.map((c) => c.id)).toEqual([r.conversations[0].id]);
+  expect(theirs.journal).toEqual([]);
+  expect(JSON.stringify(await listRambles(s.b))).not.toContain("Job");
+});
+
+test("a ramble with only a private journal entry doesn't exist for the partner", async () => {
+  const r = await record(s.a, { date: "2026-10-29", transcript: "Mir geht es nicht gut.", visibility: "shared", people: [], journal: [{ text: "Mir geht es nicht gut." }] });
+  expect((await listRambles(s.b)).map((x) => x.id)).not.toContain(r.rambleId);
+  await expect(getRamble(s.b, r.rambleId)).rejects.toThrow(/No such ramble/);
+  const mine = await getRamble(s.a, r.rambleId);
+  expect(mine).toMatchObject({ transcript: "Mir geht es nicht gut.", journal: [expect.objectContaining({ text: "Mir geht es nicht gut." })] });
+});
+
+test("getRamble: the partner gets the shared conversation, no transcript while it is private", async () => {
+  const r = await dogSchool();
+  const b = await getRamble(s.b, r.rambleId);
+  expect(b.transcript).toBeNull();
+  expect(b.conversations).toHaveLength(1);
+  expect(b.journal).toEqual([]);
 });

@@ -649,14 +649,14 @@ export async function hasRecorded(v: Viewer): Promise<boolean> {
 }
 
 /** A conversation in the history: when, how, the summary, and who was there. */
-export type ConversationSummary = { id: string; date: string; kind: ConversationKind; summary: string; people: Array<{ id: string; name: string }>; url: string };
+export type ConversationSummary = { id: string; rambleId: string; date: string; kind: ConversationKind; summary: string; people: Array<{ id: string; name: string }>; url: string };
 
 /** Every conversation the viewer may see, newest first. */
 export async function listConversations(v: Viewer): Promise<ConversationSummary[]> {
   const d = await db();
   const convs = await d
     .selectFrom("conversations")
-    .select(["id", "date", "kind", "summary"])
+    .select(["id", "ramble_id", "date", "kind", "summary"])
     .$call((qb) => visible(qb, v, "conversations"))
     .orderBy("date", "desc")
     .orderBy("created_at", "desc")
@@ -676,6 +676,7 @@ export async function listConversations(v: Viewer): Promise<ConversationSummary[
     .execute();
   return convs.map((c) => ({
     id: c.id,
+    rambleId: c.ramble_id,
     date: c.date,
     kind: c.kind as ConversationKind,
     summary: c.summary,

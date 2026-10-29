@@ -628,3 +628,32 @@ test("pull to refresh: pulling down at the top loads what was filed meanwhile; t
   await expect(bar).toBeVisible();
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY)).toBe("none");
 });
+
+test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, private; the other user sees neither", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  const sheet = page.getByRole("dialog", { name: "Erzählen" });
+  // Opened on no page, one tap asks for a look back on the week.
+  await sheet.getByRole("button", { name: "Wie war meine Woche?" }).click();
+  await expect(sheet.getByText("Verstanden.")).toBeVisible({ timeout: 15_000 });
+  await sheet.getByLabel("Nachricht").fill("Tagebuch: Ich frage mich, ob ich öfter laufen gehen will.");
+  await sheet.getByRole("button", { name: "Senden" }).click();
+  await expect(sheet.getByText("Erfasst.")).toBeVisible({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+
+  await page.goto("/tagebuch");
+  const entry = page.getByRole("listitem").filter({ hasText: "öfter laufen gehen" });
+  await expect(entry).toBeVisible();
+  await expect(entry.getByLabel("Nur für dich")).toBeVisible();
+  await expectNoSideScroll(page);
+  await entry.getByRole("link", { name: "Erzählung" }).click();
+  await expect(page.getByRole("heading", { name: "Erzählung" })).toBeVisible();
+  await expect(page.getByText("Tagebuch: Ich frage mich").first()).toBeVisible();
+  await page.goto("/verlauf");
+  await expect(page.getByText("öfter laufen gehen")).toBeVisible();
+
+  await page.goto("/api/e2e/login?name=Bodo Gast");
+  await page.goto("/tagebuch");
+  await expect(page.getByText("Noch nichts im Tagebuch")).toBeVisible();
+  await page.goto("/verlauf");
+  await expect(page.getByText("öfter laufen gehen")).toHaveCount(0);
+});

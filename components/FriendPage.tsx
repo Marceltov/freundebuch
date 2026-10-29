@@ -13,6 +13,7 @@ import {
   MessageCircleQuestionMark,
   MessagesSquare,
   Mic,
+  NotebookPen,
   Pin,
   Repeat,
   Sparkles,
@@ -25,6 +26,7 @@ import { ago, dayMonth, every, shortDay } from "@/components/format";
 import { GroupPicker } from "@/components/GroupPicker";
 import { CATEGORY_ICON, EXCHANGE_ICON, KIND_ICON } from "@/components/icons";
 import { ItemActions } from "@/components/ItemActions";
+import { JournalItem } from "@/components/Journal";
 import { layoutNetwork, Network } from "@/components/Network";
 import { PersonMenu } from "@/components/PersonMenu";
 import { ShareButton } from "@/components/ShareButton";
@@ -126,6 +128,15 @@ export function FriendPage({
               >
                 {roles}
               </p>
+            )}
+            {viewerPersonId === b.person.id && (
+              <Link
+                href="/tagebuch"
+                className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-sm font-semibold text-carbon hover:bg-rule"
+              >
+                <NotebookPen aria-hidden className="h-4 w-4" />
+                {copy.journal}
+              </Link>
             )}
           </div>
           <ShareButton path={b.person.url} title={b.person.name} />
@@ -330,6 +341,16 @@ export function FriendPage({
                 ` · ${e.amount}${e.currency ? ` ${e.currency}` : ""}`}
             </Tile>
           ))}
+        </Section>
+      )}
+
+      {b.journal.length > 0 && (
+        <Section title={copy.journalAbout} icon={NotebookPen} plain>
+          <ul className="space-y-2">
+            {b.journal.map((e) => (
+              <JournalItem key={e.id} e={e} />
+            ))}
+          </ul>
         </Section>
       )}
 
