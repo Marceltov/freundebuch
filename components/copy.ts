@@ -247,6 +247,8 @@ export const copy = {
   aboutFile: "Zu dieser Datei",
   fileAttached: "Die Datei ist im Gespräch: erzähl, was du dazu weißt, oder frag Claude, was drinsteht.",
   fileImage: "Geteiltes Bild",
+  fileShared: "Geteilt am {day}",
+  fileSuggests: "Vorschlag",
   filePdf: "PDF",
   fileText: "Text",
   fileOf: "Datei von {source}",

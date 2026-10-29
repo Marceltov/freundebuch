@@ -2516,6 +2516,10 @@
             "maximum": 9007199254740991,
             "description": "When it was shared, ms since the epoch"
           },
+          "sharedOn": {
+            "type": "string",
+            "description": "The day it was shared: date what it shows by this (unless it shows another day), not by the day it is reviewed"
+          },
           "url": {
             "type": "string",
             "description": "The file itself (sign-in required)"
@@ -2619,6 +2623,7 @@
           "id",
           "status",
           "createdAt",
+          "sharedOn",
           "url",
           "type",
           "summary",
@@ -2649,6 +2654,10 @@
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
               "description": "When it was shared, ms since the epoch"
+            },
+            "sharedOn": {
+              "type": "string",
+              "description": "The day it was shared: date what it shows by this (unless it shows another day), not by the day it is reviewed"
             },
             "url": {
               "type": "string",
@@ -2753,6 +2762,7 @@
             "id",
             "status",
             "createdAt",
+            "sharedOn",
             "url",
             "type",
             "summary",

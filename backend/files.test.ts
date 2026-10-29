@@ -1,3 +1,4 @@
+import { today } from "./dates";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -84,6 +85,7 @@ test("an image is shrunk to 1080 px WebP and pre-read into a suggestion that wai
       id: shot.id,
       status: "pending",
       createdAt: expect.any(Number),
+      sharedOn: today(),
       url: `/api/files/${shot.id}`,
       type: "image/webp",
       summary: "Anna war in Lissabon im Urlaub",

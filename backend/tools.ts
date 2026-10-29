@@ -607,7 +607,10 @@ export const TOOLS: readonly Tool[] = [
       if (action === "list") {
         const files = await listPending(v);
         const next = files.length
-          ? ["Work through each file with the user: file what it shows with record, passing its id in fileIds (its transcript is kept, the file goes); if nothing in it is worth filing, inbox done."]
+          ? [
+              "Work through each file with the user: file what it shows with record, passing its id in fileIds (its transcript is kept, the file goes); if nothing in it is worth filing, inbox done.",
+              "Date what you file by when it happened: the day a file was shared (sharedOn) unless it shows another day, never the day it is reviewed.",
+            ]
           : [];
         if (files.length > INBOX_SHOWN) next.push(`${files.length - INBOX_SHOWN} more wait; list again after these.`);
         const shown = files.slice(0, INBOX_SHOWN);

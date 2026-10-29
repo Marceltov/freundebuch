@@ -319,7 +319,9 @@ describe("inbox", () => {
     expect(r.files.map((f: Json) => f.id)).toEqual([mine.id]);
     expect(r.next).toEqual([
       "Work through each file with the user: file what it shows with record, passing its id in fileIds (its transcript is kept, the file goes); if nothing in it is worth filing, inbox done.",
+      "Date what you file by when it happened: the day a file was shared (sharedOn) unless it shows another day, never the day it is reviewed.",
     ]);
+    expect(r.files[0].sharedOn).toBe(today());
     expect((await run(s.b, "inbox", { action: "list" })).files).toHaveLength(1);
     expect(await run(s.a, "inbox", { action: "list" })).toMatchObject({ files: [expect.objectContaining({ id: mine.id })] });
   });
@@ -328,7 +330,7 @@ describe("inbox", () => {
     for (let i = 0; i < 7; i++) await shareFile(s.a, text(`Datei ${i}`), "text/plain");
     const r = await run(s.a, "inbox", { action: "list" });
     expect(r.files).toHaveLength(5);
-    expect(r.next[1]).toBe("2 more wait; list again after these.");
+    expect(r.next[2]).toBe("2 more wait; list again after these.");
   });
 
   test("done deletes a file with nothing to file; not the partner's; upload is gone", async () => {
