@@ -4,7 +4,7 @@ Everything in freundebuch comes in by talking. After you meet, call or message s
 
 ## What Claude files
 
-From one ramble, Claude records a **conversation**: the date, how you met (in person, call, video, message, event), who was there, a short summary and your words verbatim as the transcript. Attached to it, whatever it heard:
+Claude keeps each ramble verbatim, as its transcript, and splits it into its parts. A meeting becomes a **conversation**: the date, how you met (in person, call, video, message, event), who was there and a short summary. What you tell about yourself becomes a [journal entry](journal.md), private to you. Attached to it, whatever it heard:
 
 | Item | Example |
 | --- | --- |

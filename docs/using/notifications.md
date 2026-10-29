@@ -7,6 +7,8 @@ freundebuch can remind you every day about:
 - people you're overdue to see,
 - situations to ask about ("💬 Frag mal nach: Jonas – sucht ein Auto").
 
+Once a week, if you turn it on, the same address also gets a short [reflection on your journal](journal.md#weekly-reflection).
+
 Notifications are optional, and each person sets their own. You only ever get your own reminders: your partner's private items never show up in yours.
 
 ## Set up a webhook

@@ -51,7 +51,7 @@ Opened on someone's page, the chat knows who you probably mean ("Es geht um Marv
 
 ## Verlauf, Leute, Bald
 
-- **Verlauf**: every conversation, newest first, by week and month.
+- **Verlauf**: every ramble, newest first, by week and month, with the conversations and your journal entries filed from it. The **Tagebuch** button opens your [journal](journal.md); a ramble opens on its own page (**Erzählung**) with its transcript.
 - **Leute**: everyone, A to Z, with a search over names and nicknames and the group chips; **Ohne Gruppe** narrows to those in no group yet.
 - **Bald**: the next two weeks: birthdays and other dates, your promises with a due day (tick them off right there), who would be glad to hear from you, and what to ask about.
 

@@ -22,4 +22,4 @@ Each person connects their own Claude with their own sign-in. Everything Claude 
 
 ## Tool permissions
 
-`record_conversation`, `remember`, `relate` and `set_interval` add data and are not marked destructive, so the Claude apps don't ask for confirmation on every ramble. `correct` can delete and is marked destructive. The read tools are read-only. [MCP tools](../reference/mcp-tools.md) lists them all.
+`record`, `remember`, `relate` and `set_interval` add data and are not marked destructive, so the Claude apps don't ask for confirmation on every ramble. `correct` can delete and is marked destructive. The read tools are read-only. [MCP tools](../reference/mcp-tools.md) lists them all.
