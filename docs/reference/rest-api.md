@@ -48,3 +48,10 @@ The same privacy rules apply as everywhere else: a request sees what the token's
 - `GET /api/v1/journal?from=&to=&personId=` lists journal entries, the last 30 days by default: the caller's own and the ones the other user shared.
 - `GET /api/v1/me/reflection` and `PUT` with `{ reflection: { day, hour } | null }` read and set the weekly reflection (day 0 = Sunday, in the server's time zone); `null` turns it off, the default.
 - Journal entries are changed through `/api/v1/items/journal_entries/{id}` like other items: `PATCH` its `text`, `date` or `visibility` and `DELETE` it, its writer only.
+
+## Experiences, series and places
+
+- `POST /api/v1/rambles` takes `experiences` (`{ date?, kind, title, summary?, place?, present?, series?, private? }`; `series` is an id or `{ name, rhythmDays?, startsOn?, endsOn? }`) and, on a conversation, `place` and `at` (the index of the experience it happened at). A `place` is a name, `{ id }`, or `{ name, confirmedNew: true }`; a name close to an existing place is refused as ambiguous (409).
+- `GET /api/v1/experiences?from=&to=&kind=&placeId=&seriesId=&personId=` lists experiences, with the kinds and series in use. `GET /api/v1/series/{id}` is a series with its sessions, skipped days and the latest missed one; `GET /api/v1/places/{id}` a place with everything at it; `GET /api/v1/places?q=` finds places by name.
+- Experiences and series are changed through `/api/v1/items/experiences/{id}` and `/api/v1/items/series/{id}` like other items (`PATCH` a field or `visibility`, `DELETE`), their recorder only; a series ends with `{ patch: { endsOn } }`. `/due` has items of kind `session`: a missed session day of a series.
+- A conversation has `placeId` next to `place` (the place's name) since 0.5.
