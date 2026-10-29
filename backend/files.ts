@@ -78,8 +78,10 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promis
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const d = await db();
   const seen = await d.selectFrom("files").select(["id", "status"]).where("user_id", "=", v.userId).where("sha256", "=", sha256).executeTakeFirst();
-  // An old pre-read that found "nothing" dropped its blob and filed nothing: sharing it again starts afresh.
+  // An old pre-read that found "nothing" dropped its blob and filed nothing: sharing it again starts afresh. One the screenshot
+  // reading filed stays for its fact, under a retired hash, so the same bytes can wait under Prüfen again.
   if (seen?.status === "nothing") await d.deleteFrom("files").where("id", "=", seen.id).execute();
+  else if (seen?.status === "filed") await d.updateTable("files").set({ sha256: `${sha256}:${seen.id}` }).where("id", "=", seen.id).execute();
   else if (seen) return { id: seen.id, status: seen.status, duplicate: true };
   const kind = kindOf(bytes, type);
   let stored: Uint8Array;

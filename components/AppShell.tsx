@@ -9,7 +9,7 @@ import { TabBar } from "@/components/TabBar";
 
 // The frame of every signed-in page: a slim top bar (the name, which leads home, and the settings cog), one column, phone
 // width first and at most max-w-2xl on a desktop, and the tab bar floating at the bottom. Pulling down at the top reloads. `userId` keeps the chat apart per user.
-// `pending`: how many shared screenshots wait for the viewer; a badge next to the cog leads there.
+// `pending`: how many shared files wait for the viewer; a badge next to the cog leads there.
 export function AppShell({ userId, pending = 0, children }: { userId: string; pending?: number; children: ReactNode }) {
   return (
     <div className="mx-auto min-h-dvh max-w-2xl pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">

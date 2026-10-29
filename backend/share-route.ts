@@ -62,6 +62,6 @@ export async function fileRoute(req: Request, id: string): Promise<Response> {
   const img = await fileContent(v, id);
   if (!img) return json({ error: "not found", code: "not_found" }, 404);
   return new Response(img.bytes as BodyInit, {
-    headers: { "Content-Type": img.type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" },
+    headers: { "Content-Type": img.type === "text/plain" ? "text/plain; charset=utf-8" : img.type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" },
   });
 }

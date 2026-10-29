@@ -243,3 +243,14 @@ test("an iPhone photo in HEIC is refused with what to do instead", async () => {
   await expect(shareFile(s.a, heic, "image/heic")).rejects.toThrow(hint);
   await expect(shareFile(s.a, heic, "")).rejects.toThrow(hint);
 });
+
+test("a file filed by the screenshot reading before files can be shared again: it is stored afresh", async () => {
+  const bytes = await image();
+  const first = await shareFile(s.a, bytes);
+  await (await db()).updateTable("files").set({ status: "filed" }).where("id", "=", first.id).execute();
+  const again = await shareFile(s.a, bytes);
+  expect(again).toMatchObject({ status: "reading", duplicate: false });
+  expect(again.id).not.toBe(first.id);
+  // The old row stays for the fact that may still show it.
+  expect((await (await db()).selectFrom("files").select("id").where("id", "=", first.id).execute())).toHaveLength(1);
+});

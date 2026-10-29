@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by [ADR 0014](0014-shared-files-are-worked-through-with-claude.md)
 date: 2026-10-25
 decision-makers: Marcel Bruckner
 ---
