@@ -106,3 +106,10 @@ test("the image is served to its user and refused to the partner and to the sign
   // the share key opens nothing but the door
   expect((await get({ authorization: `Bearer ${key}` })).status).toBe(401);
 });
+
+test("a text file is served as UTF-8, so umlauts show", async () => {
+  const key = await createShareKey(s.a);
+  const { id } = await (await share(new TextEncoder().encode("Grüße von Jürgen") as BodyInit, { authorization: `Bearer ${key}`, "content-type": "text/plain" })).json();
+  const res = await fileRoute(new Request(`${BASE}/api/files/${id}`, { headers: { host: "localhost:3000", ...cookie(s.a.userId) } }), id);
+  expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+});

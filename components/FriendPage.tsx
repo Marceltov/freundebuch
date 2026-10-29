@@ -394,7 +394,7 @@ export function FriendPage({
   );
 }
 
-// A fact's text, where it was read from and when, and the screenshot it came from.
+// A fact's text, where it was read from and when, and the file it came from (facts the screenshot reading filed before files).
 function FactText({ f }: { f: Briefing["known"][number] }) {
   return (
     <>

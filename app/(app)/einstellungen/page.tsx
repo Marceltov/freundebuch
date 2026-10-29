@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: copy.settings };
 
-// The viewer's own settings: the webhook for reminders, sharing screenshots (when the instance can read them), the calendar
+// The viewer's own settings: the webhook for reminders, sharing files (when the instance can read them), the calendar
 // feed, the groups with their other names, and the address to connect Claude with. The time of day the reminders go out is the
 // instance's (FREUNDEBUCH_NOTIFY_AT), not a setting here.
 export default async function SettingsPage() {

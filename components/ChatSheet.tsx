@@ -160,7 +160,8 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
     }
     const next: Turn[] = [...asked, { role: "assistant", content: failed ? copy.filedThenFailed.replace("{error}", message!) : body.reply, links: body.links, filed: body.filed }];
     setTurns(next);
-    save(userId, next);
+    // A chat opened on a file from Prüfen is its own: the chat kept on this device stays as it was.
+    if (!file) save(userId, next);
     if (body.filed) router.refresh();
   }
 
@@ -192,7 +193,7 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
 
   function reset() {
     setTurns([]);
-    save(userId, []);
+    if (!file) save(userId, []);
     setError(null);
   }
 

@@ -384,6 +384,10 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
   await page.goto("/");
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
   const sheet = page.getByRole("dialog", { name: "Erzählen" });
+  // A chat of its own first, which the chat on the file must leave as it is.
+  await sheet.getByRole("textbox").fill("Hallo von vorher");
+  await sheet.getByRole("button", { name: "Senden" }).click();
+  await expect(sheet.getByText("Verstanden.")).toBeVisible();
   await sheet.locator('input[type="file"]').setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png });
   // One file goes along with the chat at once.
   await expect(sheet.getByText("Zu dieser Datei")).toBeVisible();
@@ -409,6 +413,9 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
   await chat.getByRole("button", { name: "Schließen" }).click();
   await page.reload();
   await expect(page.getByText("Nichts zu prüfen.")).toBeVisible();
+  // The earlier chat is still there.
+  await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+  await expect(page.getByRole("dialog", { name: "Erzählen" }).getByText("Hallo von vorher")).toBeVisible();
 });
 
 test("settings make a share key, and the key hands in a screenshot", async ({ page, baseURL }) => {
