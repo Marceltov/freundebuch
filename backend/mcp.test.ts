@@ -11,6 +11,7 @@ import { logTo } from "./log";
 import { mcpRoute } from "./mcp";
 import { resetSecretForTests } from "./secret";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
+import { asRamble } from "./testing/fixtures";
 import type { Viewer } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the tests read tool results by shape, which the output schemas check
@@ -76,7 +77,7 @@ const ramble = (over: object = {}) => ({
 });
 
 describe("protocol", () => {
-  test("tools/list names the fourteen tools with their annotations", async () => {
+  test("tools/list names the fifteen tools with their annotations", async () => {
     const tools = (await (await rpc(s.a, "tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "briefing",
@@ -86,8 +87,9 @@ describe("protocol", () => {
       "get_transcript",
       "groups",
       "inbox",
+      "journal",
       "people",
-      "record_conversation",
+      "record",
       "relate",
       "remember",
       "set_interval",
@@ -95,10 +97,10 @@ describe("protocol", () => {
       "whats_due",
     ]);
     for (const t of tools) {
-      expect(t.annotations?.readOnlyHint === true, t.name).toBe(["find_person", "people", "briefing", "traits", "whats_due", "get_transcript", "groups"].includes(t.name));
+      expect(t.annotations?.readOnlyHint === true, t.name).toBe(["find_person", "people", "briefing", "traits", "journal", "whats_due", "get_transcript", "groups"].includes(t.name));
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
       // calendar_feed, which can end a calendar's subscription.
-      const writes = ["record_conversation", "relate", "remember", "set_interval"].includes(t.name);
+      const writes = ["record", "relate", "remember", "set_interval"].includes(t.name);
       expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed", "inbox"].includes(t.name) ? true : writes ? false : undefined);
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");
@@ -111,10 +113,10 @@ describe("protocol", () => {
     // Not every client passes the server instructions on, so the ask-first rules are in the descriptions too.
     const description = (name: string) => tools.find((t: { name: string }) => t.name === name).description;
     for (const phrase of ["resolve every person with find_person", "ask the user when a name fits more than one person or resembles an existing one", "keep it out of the summary"])
-      expect(description("record_conversation")).toContain(phrase);
+      expect(description("record")).toContain(phrase);
     expect(description("correct")).toContain("the conversation was on another day");
-    expect(description("record_conversation")).toContain("when the user says when it happened");
-    for (const name of ["record_conversation", "relate"]) {
+    expect(description("record")).toContain("a conversation on another day gets its own date");
+    for (const name of ["record", "relate"]) {
       expect(description(name), name).toContain("health, relationship trouble, money, anything said in confidence");
       expect(description(name), name).toContain("ask the user whether it should be private before calling");
     }
@@ -158,38 +160,39 @@ describe("protocol", () => {
 });
 
 describe("tools", () => {
-  test("record_conversation without visibility is an error and records nothing", async () => {
+  test("record without visibility is an error and records nothing", async () => {
     const { visibility, ...rest } = ramble();
     void visibility;
-    const r = await call(s.a, "record_conversation", rest);
+    const r = await call(s.a, "record", asRamble(rest));
     expect(r.isError).toBe(true);
     expect(await (await db()).selectFrom("conversations").select("id").where("summary", "=", "Lunch with Anna.").execute()).toEqual([]);
   });
 
   test("record, read back as structured content and JSON text", async () => {
-    const r = await call(s.a, "record_conversation", ramble());
+    const r = await call(s.a, "record", asRamble(ramble()));
     expect(r.isError).toBeUndefined();
     expect(r.structuredContent).toMatchObject({ people: [{ ref: 0, id: s.anna, name: "Anna", created: false }], counts: { facts: 2 } });
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
   });
 
   test("a result's filed items link absolutely, and next reaches clients that read only text", async () => {
-    const r = await call(s.a, "record_conversation", ramble());
-    const { conversationId, filed, next } = r.structuredContent;
+    const r = await call(s.a, "record", asRamble(ramble()));
+    const { conversations, filed, next } = r.structuredContent;
+    const conversationId = conversations[0].id;
     for (const f of filed.facts) expect(f.url).toBe(`http://localhost:3000/c/${conversationId}#facts-${f.id}`);
-    expect(next[0]).toBe("Read back in one or two sentences what you filed, with the day it happened (2026-10-22) and the link in url.");
+    expect(next[0]).toBe("Read back in one or two sentences what you filed, part by part, with the day (2026-10-22) and the links.");
     expect(JSON.parse(r.content[0].text).next).toEqual(next);
   });
 
   test("every person and conversation comes with an absolute link into the web app", async () => {
-    const r = (await call(s.a, "record_conversation", ramble())).structuredContent;
-    expect(r.url).toBe(`http://localhost:3000/c/${r.conversationId}`);
+    const r = (await call(s.a, "record", asRamble(ramble()))).structuredContent;
+    expect(r.conversations[0].url).toBe(`http://localhost:3000/c/${r.conversations[0].id}`);
     expect(r.people[0].url).toBe(`http://localhost:3000/p/${s.anna}`);
     expect((await call(s.a, "find_person", { name: "Anna" })).structuredContent.people[0].url).toBe(`http://localhost:3000/p/${s.anna}`);
     const b = (await call(s.a, "briefing", { personId: s.anna })).structuredContent;
     for (const f of b.known) expect(f.url).toBe(`http://localhost:3000/p/${s.anna}#facts-${f.id}`);
     expect(b.recent[0].url).toBe(`http://localhost:3000/c/${b.recent[0].id}`);
-    expect((await call(s.a, "get_transcript", { conversationId: r.conversationId })).structuredContent.url).toBe(r.url);
+    expect((await call(s.a, "get_transcript", { conversationId: r.conversations[0].id })).structuredContent.url).toBe(r.conversations[0].url);
   });
 
   test("a domain refusal is a readable tool error", async () => {
@@ -200,8 +203,8 @@ describe("tools", () => {
   test("a 40,000-character transcript round-trips verbatim", async () => {
     const transcript = "Anna erzählt vom Umzug nach Köln, über Ärger mit dem Vermieter. ".repeat(700).slice(0, 40_000);
     expect(transcript).toHaveLength(40_000);
-    const rec = await call(s.a, "record_conversation", ramble({ transcript, facts: [] }));
-    const got = await call(s.a, "get_transcript", { conversationId: rec.structuredContent.conversationId });
+    const rec = await call(s.a, "record", asRamble(ramble({ transcript, facts: [] })));
+    const got = await call(s.a, "get_transcript", { conversationId: rec.structuredContent.conversations[0].id });
     expect(got.structuredContent.transcript).toBe(transcript);
   });
 
@@ -211,15 +214,15 @@ describe("tools", () => {
     expect((await call(s.b, "get_transcript", { conversationId: s.coffee })).isError).toBe(true);
   });
 
-  test("record_conversation refuses a new person named like an existing one, listing who it may be", async () => {
-    const r = await call(s.a, "record_conversation", ramble({ people: [{ name: "anna", present: true }], facts: [] }));
+  test("record refuses a new person named like an existing one, listing who it may be", async () => {
+    const r = await call(s.a, "record", asRamble(ramble({ people: [{ name: "anna", present: true }], facts: [] })));
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toContain(s.anna);
     expect(r.content[0].text).toContain("confirmedNew");
   });
 
   test("find_person with two Annas returns both", async () => {
-    await call(s.a, "record_conversation", ramble({ people: [{ name: "Anna", present: true, confirmedNew: true }], facts: [] }));
+    await call(s.a, "record", asRamble(ramble({ people: [{ name: "Anna", present: true, confirmedNew: true }], facts: [] })));
     const r = await call(s.a, "find_person", { name: "anna" });
     expect(r.structuredContent.people.map((p: { name: string }) => p.name)).toEqual(["Anna", "Anna"]);
   });
@@ -252,7 +255,7 @@ describe("tools", () => {
   });
 
   test("correct maps each action to its correction", async () => {
-    await call(s.a, "record_conversation", ramble({ promises: [{ person: 0, text: "send the playlist", byMe: true }] }));
+    await call(s.a, "record", asRamble(ramble({ promises: [{ person: 0, text: "send the playlist", byMe: true }] })));
     const d = await db();
     const promise = (await d.selectFrom("promises").select("id").where("text", "=", "send the playlist").executeTakeFirstOrThrow()).id;
     const marathon = (await d.selectFrom("facts").select("id").where("text", "=", "training for a marathon").executeTakeFirstOrThrow()).id;
@@ -306,7 +309,7 @@ describe("tools", () => {
     expect(await call(s.a, "correct", { action: "gender", id: s.lena, gender: null })).toMatchObject(ok);
     expect((await call(s.a, "briefing", { personId: s.lena })).structuredContent.person.gender).toBeNull();
     expect(await call(s.a, "correct", { action: "to_relationship", id })).toMatchObject({ isError: true });
-    const rec = await call(s.a, "record_conversation", ramble({ people: [{ name: "Marina", present: true, gender: "female", confirmedNew: true }], facts: [], relationships: [{ from: 0, to: "us", label: "Vermieter:in", inverse: "Mieter:in" }] }));
+    const rec = await call(s.a, "record", asRamble(ramble({ people: [{ name: "Marina", present: true, gender: "female", confirmedNew: true }], facts: [], relationships: [{ from: 0, to: "us", label: "Vermieter:in", inverse: "Mieter:in" }] })));
     expect(rec.structuredContent.counts.relationships).toBe(2);
   });
 
@@ -352,8 +355,8 @@ describe("groups over MCP", () => {
 
 describe("privacy over MCP", () => {
   test("get_transcript stays null for B after A shares the private items, until A uses share_transcript", async () => {
-    const r = await call(s.a, "record_conversation", ramble());
-    const id = r.structuredContent.conversationId;
+    const r = await call(s.a, "record", asRamble(ramble()));
+    const id = r.structuredContent.conversations[0].id;
     const d = await db();
     const money = (await d.selectFrom("facts").select("id").where("text", "=", "worried about money").executeTakeFirstOrThrow()).id;
     expect(await call(s.a, "correct", { action: "visibility", table: "facts", id: money, visibility: "shared" })).toMatchObject({ structuredContent: { corrected: true } });
@@ -363,7 +366,7 @@ describe("privacy over MCP", () => {
   });
 
   test("B's briefing never shows A's private item from a ramble recorded through MCP", async () => {
-    await call(s.a, "record_conversation", ramble());
+    await call(s.a, "record", asRamble(ramble()));
     const mine = JSON.stringify((await call(s.a, "briefing", { personId: s.anna })).structuredContent);
     expect(mine).toContain("worried about money");
     const r = await call(s.b, "briefing", { personId: s.anna });

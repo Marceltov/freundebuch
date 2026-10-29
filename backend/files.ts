@@ -1,7 +1,7 @@
 // Files shared into freundebuch (a screenshot, a photo, a PDF, a text such as a chat export), from the phone or from Erzählen.
 // One goes: stored (images shrunk to WebP, the rest as it came, in the blob store) → pre-read by Claude (file-model.ts) into a
 // suggestion and a transcript (its text word for word, or what a photo shows) → waits under "Prüfen" until the user works it
-// through with Claude (Erzählen opened on it, or the MCP tool inbox). Filing it with record_conversation keeps only its
+// through with Claude (Erzählen opened on it, or the MCP tool inbox). Filing it with record keeps only its
 // transcript, in the conversation's; the file itself goes once it is reviewed (filed, done or discarded). Nothing is filed
 // unattended. Waiting files belong to the user who shared them. Facts filed by the screenshot reading before files still show
 // their image, to whoever may see the fact.

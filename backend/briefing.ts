@@ -12,11 +12,14 @@ import { buildNetwork, type Network } from "./network";
 import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Viewer, type Visibility } from "./types";
 import { conversationPath, groupPath, itemPath, personPath } from "./urls";
 import { hiddenFiles } from "./files";
+import { journalEntries, type JournalEntry } from "./journal";
 import { splitTraits, toFact, type Traits } from "./traits";
 import { visible } from "./visibility";
 
 const NEXT_DATES_DAYS = 60;
 const RECENT = 5;
+/** How many of the viewer's journal entries about the person a briefing shows. */
+const BRIEFING_JOURNAL = 5;
 
 /** Whose an item is: `mine` when the viewer recorded it, which is when the page offers edit, visibility and delete. */
 type Own = { visibility: Visibility; mine: boolean };
@@ -51,6 +54,8 @@ export type Briefing = {
   traits: Traits;
   /** What else stays true, by category, then as filed. */
   known: Fact[];
+  /** The viewer's own journal entries that name the person, the last few, newest first. Never the other user's. */
+  journal: JournalEntry[];
   open: {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
     promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null; url: string }>;
@@ -158,6 +163,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     nextDates,
     situations,
     traits: splitTraits(facts, v, page, hidden),
+    journal: await journalEntries(v, { from: "0000-01-01", to: from, personId, own: true, limit: BRIEFING_JOURNAL }),
     known,
     open: {
       promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),

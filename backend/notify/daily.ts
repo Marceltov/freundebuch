@@ -11,6 +11,7 @@ import { upcomingDates, whatsDue, type DueItem } from "../due";
 import { viewerById } from "../users";
 import type { Viewer } from "../types";
 import { sendWebhook, type WebhookMessage } from "./webhook";
+import { runReflectionsDue } from "../reflection";
 
 const log = logger("notify");
 const MAX_PER_USER = 10;
@@ -95,6 +96,7 @@ export function startScheduler(): void {
   if (running.timer) return;
   running.timer = setInterval(() => {
     runDailyIfDue().catch((e) => log.error(e, "daily reminders failed"));
+    runReflectionsDue().catch((e) => log.error(e, "weekly reflections failed"));
   }, 60_000);
   running.timer.unref();
 }

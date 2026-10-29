@@ -115,13 +115,13 @@ test("a private conversation makes all its items private", async () => {
     expect(rows.length, t).toBeGreaterThan(0);
     expect(new Set(rows.map((x) => x.visibility)), t).toEqual(new Set(["private"]));
   }
-  const conv = await d.selectFrom("conversations").select(["visibility", "transcript_private"]).where("id", "=", r.conversationId).executeTakeFirstOrThrow();
+  const conv = await d.selectFrom("rambles").select(["visibility", "transcript_private"]).where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", r.conversationId)).executeTakeFirstOrThrow();
   expect(conv).toEqual({ visibility: "private", transcript_private: 1 });
 });
 
 test("one private item makes the transcript private; none leaves it shared", async () => {
   const d = await db();
-  const tp = async (id: string) => (await d.selectFrom("conversations").select("transcript_private").where("id", "=", id).executeTakeFirstOrThrow()).transcript_private;
+  const tp = async (id: string) => (await d.selectFrom("rambles").select("transcript_private").where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", id)).executeTakeFirstOrThrow()).transcript_private;
   const open = await recordConversation(a, base({ facts: [{ person: 0, text: "new job", category: "work" }] }));
   expect(await tp(open.conversationId)).toBe(0);
   const closed = await recordConversation(a, base({ people: [{ id: open.people[0].id, present: true }], promises: [{ person: 0, text: "keep quiet", byMe: true, private: true }] }));

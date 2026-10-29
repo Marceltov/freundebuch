@@ -9,6 +9,8 @@ interface Item {
   visibility: string;
   recorded_by: string;
   conversation_id: string | null;
+  /** The ramble it was told in; null when filed outside one (remember, relate). */
+  ramble_id: ColumnType<string | null, string | null | undefined, string | null>;
   created_at: number;
 }
 
@@ -30,13 +32,20 @@ export interface Schema {
     kind: string;
     place: string | null;
     summary: string;
-    transcript: string;
-    transcript_private: Flag;
+    /** The ramble it was told in, which holds the transcript. */
+    ramble_id: string;
     visibility: string;
     recorded_by: string;
     created_at: number;
   };
+  /** What the user told, word for word: one ramble, split into conversations, journal entries and items that point to it. The
+   * transcript is the recorder's whenever anything filed from it is private (`transcript_private`). */
+  rambles: { id: string; date: string; transcript: string; transcript_private: Flag; visibility: string; recorded_by: string; created_at: number };
   participants: { conversation_id: string; person_id: string };
+  /** What the user thinks and feels about their own life, cut from a ramble; private unless they share it. */
+  journal_entries: { id: string; ramble_id: string; date: string; text: string; visibility: string; recorded_by: string; created_at: number };
+  /** The people a journal entry names. */
+  journal_mentions: { entry_id: string; person_id: string };
   facts: Item & {
     id: string;
     person_id: string;
@@ -70,13 +79,16 @@ export interface Schema {
   /** `household`: the group of everyone who signs in (Haushalt), which can't be deleted. */
   groups: { id: string; name: string; created_by: string | null; created_at: number; seeded: Flag; household: Flag };
   group_aliases: { group_id: string; alias: string; norm: string };
-  group_members: { group_id: string; person_id: string; visibility: string; recorded_by: string; conversation_id: string | null };
+  group_members: { group_id: string; person_id: string; visibility: string; recorded_by: string; conversation_id: string | null; ramble_id: ColumnType<string | null, string | null | undefined, string | null> };
   chat_usage: { user_id: string; day: string; count: number };
   user_settings: {
     user_id: string;
     webhook_url: string | null;
     share_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
     calendar_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
+    /** The weekly reflection: weekday (0 Sunday … 6 Saturday) and hour, local time; null is off. */
+    reflection_day: ColumnType<number | null, number | null | undefined, number | null>;
+    reflection_hour: ColumnType<number | null, number | null | undefined, number | null>;
   };
   files: {
     id: string;

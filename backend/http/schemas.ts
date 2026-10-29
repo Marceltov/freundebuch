@@ -89,6 +89,25 @@ export const TraitsJson = z
   })
   .meta({ id: "Traits" });
 
+export const JournalEntryJson = z
+  .object({
+    id: z.string(),
+    date: Day,
+    text: z.string(),
+    people: z.array(z.object({ id: PersonId, name: z.string(), url: Url })).describe("The people it names"),
+    rambleId: z.string(),
+    visibility: Visibility,
+    mine: z.boolean().describe("The caller wrote it: they may edit, share or delete it"),
+    url: Url.describe("The entry on the Tagebuch page, as an absolute URL"),
+  })
+  .meta({ id: "JournalEntry" });
+export const JournalJson = z.object({ entries: z.array(JournalEntryJson.extend({})).describe("Newest first") }).meta({ id: "Journal" });
+export const JournalQuery = z.object({
+  from: Day.optional().describe("The first day; 30 days before `to` when left out"),
+  to: Day.optional().describe("The last day; today when left out"),
+  personId: PersonId.optional().describe("Only the entries that name this person"),
+});
+
 export const BriefingJson = z
   .object({
     person: z.object({
@@ -132,6 +151,7 @@ export const BriefingJson = z
       .describe("What is going on and will end, nudging ones first: the best things to ask about"),
     traits: Traits,
     known: z.array(z.object(FactJson)).describe("What else stays true about the person, by category"),
+    journal: z.array(JournalEntryJson.extend({})).describe("The caller's own journal entries that name the person, the last few, newest first"),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
@@ -320,6 +340,50 @@ export const NewConversationJson = z
   })
   .meta({ id: "NewConversation" });
 
+// A ramble and its parts: the conversation's item lists, each item optionally `in` one of the ramble's conversations.
+const In = z.number().int().optional().describe("The index in conversations of the conversation this came from; leave out when it came from no conversation");
+const C = NewConversationJson.shape;
+export const NewRambleJson = z
+  .object({
+    fileIds: FileIds.optional(),
+    date: Day.describe("The day the user told it: today unless they say otherwise"),
+    transcript: C.transcript,
+    visibility: Visibility,
+    people: z
+      .array(C.people.element.omit({ present: true }))
+      .describe("Everyone the ramble names, each once; conversations, journal entries and items refer to them by index"),
+    conversations: z
+      .array(
+        z.object({
+          date: Day.optional().describe("When it happened, when not the ramble's day"),
+          kind: C.kind,
+          place: C.place,
+          summary: C.summary,
+          present: z.array(Ref).describe("Who took part, by index into people"),
+        }),
+      )
+      .optional()
+      .describe("The meetings, calls and messages it tells of, each its own conversation"),
+    journal: z
+      .array(
+        z.object({
+          date: Day.optional().describe("The day it is about, when not the ramble's day"),
+          text: z.string().describe("The entry in the user's own words: what they think, feel or plan about their own life"),
+          mentions: z.array(Ref).optional().describe("The people it names, by index into people"),
+          shared: z.boolean().optional().describe("Only when the user says to share this entry with the household; private otherwise"),
+        }),
+      )
+      .optional()
+      .describe("Journal entries about the user themselves, cut from the ramble"),
+    facts: z.array(C.facts.unwrap().element.extend({ in: In })).optional(),
+    promises: z.array(C.promises.unwrap().element.extend({ in: In })).optional(),
+    dates: z.array(C.dates.unwrap().element.extend({ in: In })).optional(),
+    exchanges: z.array(C.exchanges.unwrap().element.extend({ in: In })).optional(),
+    relationships: z.array(C.relationships.unwrap().element.extend({ in: In })).optional(),
+    groups: z.array(C.groups.unwrap().element.extend({ in: In })).optional(),
+  })
+  .meta({ id: "NewRamble" });
+
 // What a write filed, item by item: only the caller's own rows, or (a relationship that was there) one they may see.
 const Filed = {
   id: z.string(),
@@ -382,6 +446,14 @@ export const RecordedJson = z
     }).describe("Everything filed, with ids and links"),
   })
   .meta({ id: "Recorded" });
+
+export const RecordedRambleJson = RecordedJson.omit({ conversationId: true, url: true })
+  .extend({
+    rambleId: z.string(),
+    conversations: z.array(z.object({ id: z.string(), url: Url.describe("The conversation's page, as an absolute URL") })),
+    journal: z.array(z.object({ id: z.string(), visibility: Visibility, url: Url.describe("The entry on the Tagebuch page, as an absolute URL") })),
+  })
+  .meta({ id: "RecordedRamble" });
 
 const Name = z.string().describe("The name of the person it is about");
 const Item = { id: z.string(), visibility: Visibility, recordedBy: z.string().describe("The id of the user who recorded it"), url: ItemUrl.describe("Its highlighted row on the conversation's page, as an absolute URL") };
@@ -468,6 +540,18 @@ export const SettingsJson = z
   .object({ webhookUrl: z.url({ protocol: /^https?$/ }).nullable().describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https") })
   .meta({ id: "Settings" });
 
+export const ReflectionJson = z
+  .object({
+    reflection: z
+      .object({
+        day: z.number().int().min(0).max(6).describe("Weekday, 0 = Sunday, in the server's time zone"),
+        hour: z.number().int().min(0).max(23).describe("Hour of the day"),
+      })
+      .nullable()
+      .describe("When the weekly reflection on your journal is pushed to your webhook; null for off (the default)"),
+  })
+  .meta({ id: "Reflection" });
+
 export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
 
 const Candidate = z.object({ id: z.string(), name: Name, url: Url });
@@ -498,7 +582,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

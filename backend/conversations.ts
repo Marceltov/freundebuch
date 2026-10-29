@@ -23,7 +23,7 @@ import {
 import { dropBlobs, takeFiles } from "./files";
 import { resolveOrCreateGroup } from "./groups";
 import { isHouseholdWord, resolvePairs, type Target } from "./household";
-import { conversationPath, groupPath, itemPath, personPath, type AnchoredTable } from "./urls";
+import { conversationPath, groupPath, itemPath, journalPath, personPath, type AnchoredTable } from "./urls";
 import { visible } from "./visibility";
 
 /** What heads a shared file's transcript inside a conversation's. */
@@ -99,7 +99,9 @@ export type ConversationView = {
   kind: ConversationKind;
   place: string | null;
   summary: string;
-  /** null when the viewer may not read it: it is private to the recorder whenever anything recorded with it is private. */
+  /** The ramble it was told in. */
+  rambleId: string;
+  /** The ramble's transcript; null when the viewer may not read it: it is private to the recorder whenever anything told in the ramble is private. */
   transcript: string | null;
   visibility: Visibility;
   recordedBy: string;
@@ -316,8 +318,8 @@ export function checkGroup<P>(g: { name: string; members: P[] }, ref: (p: P) => 
   g.members.forEach(ref);
 }
 
-/** Who recorded an item, when, and with which conversation (null for one set directly). */
-export type ItemBase = { recorded_by: string; conversation_id: string | null; created_at: number };
+/** Who recorded an item, when, and with which conversation and ramble (null for one set directly). */
+export type ItemBase = { recorded_by: string; conversation_id: string | null; ramble_id?: string | null; created_at: number };
 
 /**
  * A relationship's word with its gender endings taken off, so "Vermieterin", "Vermieter" and "Vermieter:in" are one word, and
@@ -409,7 +411,7 @@ export async function insertMemberships(
   for (const m of new Set(personIds)) {
     const r = await tx
       .insertInto("group_members")
-      .values({ group_id: groupId, person_id: m, visibility, recorded_by: base.recorded_by, conversation_id: base.conversation_id })
+      .values({ group_id: groupId, person_id: m, visibility, recorded_by: base.recorded_by, conversation_id: base.conversation_id, ramble_id: base.ramble_id ?? null })
       .onConflict((oc) => oc.doNothing())
       .executeTakeFirst();
     added += Number(r.numInsertedOrUpdatedRows ?? 0);
@@ -421,7 +423,7 @@ export async function insertMemberships(
  * Refuses to create a person who may already exist: a new name equal to an existing person's name or alias, once normalised,
  * unless the entry says `confirmedNew`. The message lists each candidate with the hints the viewer may see.
  */
-async function assertNoNamesake(v: Viewer, c: NewConversation): Promise<void> {
+async function assertNoNamesake(v: Viewer, c: { people: Array<{ id?: string; name?: string; confirmedNew?: boolean }> }): Promise<void> {
   const found: string[] = [];
   for (const p of c.people) {
     if (p.id || p.confirmedNew) continue;
@@ -434,40 +436,106 @@ async function assertNoNamesake(v: Viewer, c: NewConversation): Promise<void> {
     throw new AmbiguousError(`${found.join(". ")}. Link an existing person by id, or set confirmedNew: true on a person the user confirmed is someone new`);
 }
 
-export async function recordConversation(v: Viewer, c: NewConversation): Promise<Recorded> {
-  validate(c);
-  await assertNoNamesake(v, c);
-  const vis = (item: { private?: boolean }): Visibility => (c.visibility === "private" || item.private ? "private" : "shared");
-  const items = [...(c.facts ?? []), ...(c.promises ?? []), ...(c.dates ?? []), ...(c.exchanges ?? []), ...(c.relationships ?? []), ...(c.groups ?? [])];
-  const transcriptPrivate = c.visibility === "private" || items.some((i) => i.private) ? 1 : 0;
-  const conversationId = newId();
-  const t = now();
-  const base: ItemBase = { recorded_by: v.userId, conversation_id: conversationId, created_at: t };
+/** The longest journal entry: a thought, not a transcript. */
+export const MAX_JOURNAL = 20_000;
 
-  // The shared files it was told from: their transcripts join the conversation's, and the files go once it has committed.
+/** A part of a ramble that came out of one of its conversations (`in`, an index into `conversations`); without, the ramble's own. */
+type In = { in?: number };
+/**
+ * One ramble, as Claude splits it: who it is about (`people`, named once), the conversations it tells of, the journal entries
+ * about the user, and what was learned, each item `in` the conversation it came from. Journal entries are private unless
+ * `shared`. At least one part.
+ */
+export type NewRamble = {
+  fileIds?: string[];
+  date: string;
+  transcript: string;
+  visibility: Visibility;
+  people: Array<{ id?: string; name?: string; aliases?: string[]; confirmedNew?: boolean; gender?: Gender }>;
+  conversations?: Array<{ date?: string; kind: ConversationKind; place?: string; summary: string; present: PersonRef[] }>;
+  journal?: Array<{ date?: string; text: string; mentions?: PersonRef[]; shared?: boolean }>;
+  facts?: Array<NonNullable<NewConversation["facts"]>[number] & In>;
+  promises?: Array<NonNullable<NewConversation["promises"]>[number] & In>;
+  dates?: Array<NonNullable<NewConversation["dates"]>[number] & In>;
+  exchanges?: Array<NonNullable<NewConversation["exchanges"]>[number] & In>;
+  relationships?: Array<NonNullable<NewConversation["relationships"]>[number] & In>;
+  groups?: Array<NonNullable<NewConversation["groups"]>[number] & In>;
+};
+
+export type RecordedRamble = Omit<Recorded, "conversationId" | "url"> & {
+  rambleId: string;
+  conversations: Array<{ id: string; url: string }>;
+  journal: Array<{ id: string; visibility: Visibility; url: string }>;
+};
+
+function validateRamble(r: NewRamble): void {
+  assertDay(r.date, "The ramble's date");
+  notFuture(r.date, "The ramble's date");
+  checkVisibility(r.visibility);
+  if (r.transcript.length > MAX_TRANSCRIPT) throw new InvalidInputError(`The transcript holds at most ${MAX_TRANSCRIPT} characters`);
+  for (const p of r.people) {
+    if (!p.id && !p.name?.trim()) throw new InvalidInputError("Each person needs an id (existing) or a name (new)");
+    if (p.gender !== undefined) checkGender(p.gender);
+  }
+  const ref = (x: PersonRef) => {
+    if (!Number.isInteger(x) || x < 0 || x >= r.people.length) throw new InvalidInputError(`Person ${x} is not in people`);
+  };
+  const conversations = r.conversations ?? [];
+  for (const c of conversations) {
+    if (c.date !== undefined) {
+      assertDay(c.date, "The conversation date");
+      notFuture(c.date, "The conversation date");
+    }
+    oneOf(c.kind, CONVERSATION_KINDS, "conversation kind");
+    if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
+    c.present.forEach(ref);
+  }
+  for (const j of r.journal ?? []) {
+    if (j.date !== undefined) {
+      assertDay(j.date, "The journal entry's date");
+      notFuture(j.date, "The journal entry's date");
+    }
+    if (!j.text.trim()) throw new InvalidInputError("A journal entry needs its text");
+    if (j.text.length > MAX_JOURNAL) throw new InvalidInputError(`A journal entry holds at most ${MAX_JOURNAL} characters`);
+    (j.mentions ?? []).forEach(ref);
+  }
+  validateItems(r, ref);
+  for (const x of r.relationships ?? []) checkRelationship(x, ref);
+  for (const g of r.groups ?? []) checkGroup(g, ref);
+  const items = [...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.relationships ?? []), ...(r.groups ?? [])];
+  for (const i of items)
+    if (i.in !== undefined && (!Number.isInteger(i.in) || i.in < 0 || i.in >= conversations.length))
+      throw new InvalidInputError(`Conversation ${i.in} is not in conversations`);
+  if (!conversations.length && !(r.journal ?? []).length && !items.length) throw new InvalidInputError("Nothing to file: give at least one conversation, journal entry or item");
+}
+
+/** Files one ramble and all its parts in one transaction: the transcript once, everything else pointing to it. */
+export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
+  validateRamble(r);
+  await assertNoNamesake(v, r);
+  const vis = (item: { private?: boolean }): Visibility => (r.visibility === "private" || item.private ? "private" : "shared");
+  const journalVis = (j: { shared?: boolean }): Visibility => (r.visibility === "shared" && j.shared ? "shared" : "private");
+  const items = [...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.relationships ?? []), ...(r.groups ?? [])];
+  const transcriptPrivate = r.visibility === "private" || items.some((i) => i.private) || (r.journal ?? []).some((j) => journalVis(j) === "private") ? 1 : 0;
+  const rambleId = newId();
+  const conversationIds = (r.conversations ?? []).map(() => newId());
+  const t = now();
+
+  // The shared files it was told from: their transcripts join the ramble's, and the files go once it has committed.
   let blobs: string[] = [];
   const recorded = await (await db()).transaction().execute(async (tx) => {
-    const taken = await takeFiles(tx, v, c.fileIds ?? []);
+    const taken = await takeFiles(tx, v, r.fileIds ?? []);
     blobs = taken.blobs;
-    const transcript = [c.transcript, ...taken.transcripts.map((t) => `${FROM_FILE}\n${t}`)].join("\n\n");
-    await tx
-      .insertInto("conversations")
-      .values({
-        id: conversationId,
-        date: c.date,
-        kind: c.kind,
-        place: c.place?.trim() || null,
-        summary: c.summary,
-        transcript,
-        transcript_private: transcriptPrivate,
-        visibility: c.visibility,
-        recorded_by: v.userId,
-        created_at: t,
-      })
-      .execute();
+    const transcript = [r.transcript, ...taken.transcripts.map((x) => `${FROM_FILE}\n${x}`)].join("\n\n");
+    await tx.insertInto("rambles").values({ id: rambleId, date: r.date, transcript, transcript_private: transcriptPrivate, visibility: r.visibility, recorded_by: v.userId, created_at: t }).execute();
+    for (const [i, c] of (r.conversations ?? []).entries())
+      await tx
+        .insertInto("conversations")
+        .values({ id: conversationIds[i], date: c.date ?? r.date, kind: c.kind, place: c.place?.trim() || null, summary: c.summary, ramble_id: rambleId, visibility: r.visibility, recorded_by: v.userId, created_at: t })
+        .execute();
 
     const people: Omit<Recorded["people"][number], "url">[] = [];
-    for (const [ref, p] of c.people.entries()) {
+    for (const [ref, p] of r.people.entries()) {
       if (p.id) {
         const row = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", p.id).executeTakeFirst();
         if (!row) throw new NotFoundError(`No such person: ${p.id}`);
@@ -475,36 +543,83 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
         people.push({ ref, id: row.id, name: row.name, created: false });
       } else {
         const name = p.name!.trim();
-        people.push({ ref, id: await insertPerson(tx, v, { name, aliases: p.aliases, createdFrom: conversationId, gender: p.gender }), name, created: true });
+        people.push({ ref, id: await insertPerson(tx, v, { name, aliases: p.aliases, createdFrom: conversationIds[0] ?? null, gender: p.gender }), name, created: true });
       }
     }
-    const id = (r: PersonRef) => people[r].id;
+    const id = (x: PersonRef) => people[x].id;
+    for (const [i, c] of (r.conversations ?? []).entries())
+      for (const personId of new Set([v.personId, ...c.present.map(id)])) await tx.insertInto("participants").values({ conversation_id: conversationIds[i], person_id: personId }).execute();
 
-    const present = new Set([v.personId, ...c.people.flatMap((p, r) => (p.present ? [id(r)] : []))]);
-    for (const personId of present) await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).execute();
+    const journal: RecordedRamble["journal"] = [];
+    for (const j of r.journal ?? []) {
+      const entryId = newId();
+      const visibility = journalVis(j);
+      await tx.insertInto("journal_entries").values({ id: entryId, ramble_id: rambleId, date: j.date ?? r.date, text: j.text.trim(), visibility, recorded_by: v.userId, created_at: t }).execute();
+      for (const personId of new Set((j.mentions ?? []).map(id))) await tx.insertInto("journal_mentions").values({ entry_id: entryId, person_id: personId }).execute();
+      journal.push({ id: entryId, visibility, url: journalPath(entryId) });
+    }
 
+    // Items go with the conversation they came from (`in`), or with none: each group is written with its own base.
     const names = new Map(people.map((p) => [p.id, p.name]));
-    const filed = await insertItems(tx, v, base, c, id, vis, (p) => names.get(p) ?? "", () => conversationPath(conversationId));
-    const target = (t: PersonRef | "me" | "us") => (isHouseholdWord(t) ? t : id(t));
+    const filed: Filed = { facts: [], promises: [], dates: [], exchanges: [] };
     const relationships: FiledRelationship[] = [];
-    for (const r of c.relationships ?? []) relationships.push(...(await insertRelationships(tx, v, base, { from: target(r.from), to: target(r.to), label: r.label, inverse: r.inverse, note: r.note, visibility: vis(r) })));
     const groups: FiledGroup[] = [];
-    for (const g of c.groups ?? []) {
-      const members = new Set(g.members.map(id)).size;
-      const { added, groupId } = await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g));
-      const { name } = await tx.selectFrom("groups").select("name").where("id", "=", groupId).executeTakeFirstOrThrow();
-      groups.push({ id: groupId, name, added, already: members - added, url: groupPath(groupId) });
+    const target = (x: PersonRef | "me" | "us") => (isHouseholdWord(x) ? x : id(x));
+    const slots = [undefined, ...conversationIds.keys()] as Array<number | undefined>;
+    for (const slot of slots) {
+      const conversationId = slot === undefined ? null : conversationIds[slot];
+      const mine = <T extends In>(xs: T[] | undefined) => (xs ?? []).filter((x) => x.in === slot);
+      const base: ItemBase = { recorded_by: v.userId, conversation_id: conversationId, ramble_id: rambleId, created_at: t };
+      const page = (personId: string) => (conversationId ? conversationPath(conversationId) : personPath(personId));
+      const part = { facts: mine(r.facts), promises: mine(r.promises), dates: mine(r.dates), exchanges: mine(r.exchanges) };
+      const got = await insertItems(tx, v, base, part, id, vis, (p) => names.get(p) ?? "", page);
+      for (const k of ["facts", "promises", "dates", "exchanges"] as const) (filed[k] as unknown[]).push(...got[k]);
+      for (const x of mine(r.relationships)) relationships.push(...(await insertRelationships(tx, v, base, { from: target(x.from), to: target(x.to), label: x.label, inverse: x.inverse, note: x.note, visibility: vis(x) })));
+      for (const g of mine(r.groups)) {
+        const members = new Set(g.members.map(id)).size;
+        const { added, groupId } = await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g));
+        const { name } = await tx.selectFrom("groups").select("name").where("id", "=", groupId).executeTakeFirstOrThrow();
+        groups.push({ id: groupId, name, added, already: members - added, url: groupPath(groupId) });
+      }
     }
 
     const counts = {
-      ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, c[k]?.length ?? 0])) as Recorded["counts"]),
+      ...(Object.fromEntries(ITEM_KINDS.map((k) => [k, r[k]?.length ?? 0])) as Recorded["counts"]),
       relationships: relationships.length,
       groups: groups.reduce((n, g) => n + g.added, 0),
     };
-    return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts, filed: { ...filed, relationships, groups } };
+    return {
+      rambleId,
+      conversations: conversationIds.map((c) => ({ id: c, url: conversationPath(c) })),
+      journal,
+      people: people.map((p) => ({ ...p, url: personPath(p.id) })),
+      counts,
+      filed: { ...filed, relationships, groups },
+    };
   });
   await dropBlobs(blobs);
   return recorded;
+}
+
+/** One conversation as one ramble: everything learned in it is `in` it. */
+export async function recordConversation(v: Viewer, c: NewConversation): Promise<Recorded> {
+  validate(c);
+  const inIt = <T>(xs: T[] | undefined) => xs?.map((x) => ({ ...x, in: 0 }));
+  const r = await record(v, {
+    fileIds: c.fileIds,
+    date: c.date,
+    transcript: c.transcript,
+    visibility: c.visibility,
+    people: c.people,
+    conversations: [{ date: c.date, kind: c.kind, place: c.place, summary: c.summary, present: c.people.flatMap((p, i) => (p.present ? [i] : [])) }],
+    facts: inIt(c.facts),
+    promises: inIt(c.promises),
+    dates: inIt(c.dates),
+    exchanges: inIt(c.exchanges),
+    relationships: inIt(c.relationships),
+    groups: inIt(c.groups),
+  });
+  return { conversationId: r.conversations[0].id, url: r.conversations[0].url, people: r.people, counts: r.counts, filed: r.filed };
 }
 
 /** Why a private fact can't replace a shared one; corrections.ts refuses making such a replacement private later with the same words. */
@@ -534,14 +649,14 @@ export async function hasRecorded(v: Viewer): Promise<boolean> {
 }
 
 /** A conversation in the history: when, how, the summary, and who was there. */
-export type ConversationSummary = { id: string; date: string; kind: ConversationKind; summary: string; people: Array<{ id: string; name: string }>; url: string };
+export type ConversationSummary = { id: string; rambleId: string; date: string; kind: ConversationKind; summary: string; people: Array<{ id: string; name: string }>; url: string };
 
 /** Every conversation the viewer may see, newest first. */
 export async function listConversations(v: Viewer): Promise<ConversationSummary[]> {
   const d = await db();
   const convs = await d
     .selectFrom("conversations")
-    .select(["id", "date", "kind", "summary"])
+    .select(["id", "ramble_id", "date", "kind", "summary"])
     .$call((qb) => visible(qb, v, "conversations"))
     .orderBy("date", "desc")
     .orderBy("created_at", "desc")
@@ -561,6 +676,7 @@ export async function listConversations(v: Viewer): Promise<ConversationSummary[
     .execute();
   return convs.map((c) => ({
     id: c.id,
+    rambleId: c.ramble_id,
     date: c.date,
     kind: c.kind as ConversationKind,
     summary: c.summary,
@@ -573,6 +689,7 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
   const d = await db();
   const c = await d.selectFrom("conversations").selectAll().where("id", "=", id).$call((qb) => visible(qb, v, "conversations")).executeTakeFirst();
   if (!c) throw new NotFoundError("No such conversation");
+  const ramble = await d.selectFrom("rambles").select(["transcript", "transcript_private"]).where("id", "=", c.ramble_id).executeTakeFirstOrThrow();
   const participants = await d
     .selectFrom("participants")
     .innerJoin("persons", "persons.id", "participants.person_id")
@@ -606,7 +723,8 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     kind: c.kind as ConversationKind,
     place: c.place,
     summary: c.summary,
-    transcript: c.recorded_by === v.userId || !c.transcript_private ? c.transcript : null,
+    rambleId: c.ramble_id,
+    transcript: c.recorded_by === v.userId || !ramble.transcript_private ? ramble.transcript : null,
     visibility: c.visibility as Visibility,
     recordedBy: c.recorded_by,
     url: page,

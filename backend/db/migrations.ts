@@ -448,6 +448,79 @@ const migrations: Record<string, Migration> = {
     },
   },
 
+
+  // A ramble (what the user told, word for word) is its own record, so one can be split into journal entries, conversations
+  // and items that all point to it. Each conversation's transcript moves into a ramble of its own, under the conversation's
+  // id. No rebuild of conversations: other tables cascade from it, so its columns are added and dropped in place.
+  "011_rambles": {
+    async up(db) {
+      await db.transaction().execute(async (tx) => {
+        await tx.schema
+          .createTable("rambles")
+          .addColumn("id", "text", (c) => c.primaryKey())
+          .addColumn("date", "text", (c) => c.notNull())
+          .addColumn("transcript", "text", (c) => c.notNull())
+          .addColumn("transcript_private", "integer", (c) => c.notNull().defaultTo(0))
+          .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+          .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+          .addColumn("created_at", "bigint", (c) => c.notNull())
+          .execute();
+        await sql`insert into rambles (id, date, transcript, transcript_private, visibility, recorded_by, created_at)
+          select id, date, transcript, transcript_private, visibility, recorded_by, created_at from conversations`.execute(tx);
+        await tx.schema.alterTable("conversations").addColumn("ramble_id", "text", (c) => c.references("rambles.id").onDelete("cascade")).execute();
+        await sql`update conversations set ramble_id = id`.execute(tx);
+        await tx.schema.alterTable("conversations").dropColumn("transcript").execute();
+        await tx.schema.alterTable("conversations").dropColumn("transcript_private").execute();
+        await tx.schema.createIndex("conversations_by_ramble").on("conversations").column("ramble_id").execute();
+      });
+    },
+  },
+
+  // The journal: entries about the user's own life, cut from a ramble, private unless shared, and the people they name.
+  "012_journal": {
+    async up(db) {
+      await db.schema
+        .createTable("journal_entries")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("ramble_id", "text", (c) => c.notNull().references("rambles.id").onDelete("cascade"))
+        .addColumn("date", "text", (c) => c.notNull())
+        .addColumn("text", "text", (c) => c.notNull())
+        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+        .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      await db.schema.createIndex("journal_by_date").on("journal_entries").columns(["recorded_by", "date"]).execute();
+      await db.schema
+        .createTable("journal_mentions")
+        .addColumn("entry_id", "text", (c) => c.notNull().references("journal_entries.id").onDelete("cascade"))
+        .addColumn("person_id", "text", (c) => c.notNull().references("persons.id").onDelete("cascade"))
+        .addPrimaryKeyConstraint("journal_mentions_pk", ["entry_id", "person_id"])
+        .execute();
+    },
+  },
+
+  // The weekly reflection on the journal: the weekday (0 Sunday … 6 Saturday) and hour it comes; both null, it is off.
+  "013_reflection": {
+    async up(db) {
+      await db.schema.alterTable("user_settings").addColumn("reflection_day", "integer").execute();
+      await db.schema.alterTable("user_settings").addColumn("reflection_hour", "integer").execute();
+    },
+  },
+
+  // Every item points to the ramble it was told in, with a conversation or without one (null: filed outside a ramble, with
+  // remember or relate). A ramble's transcript privacy and its deletion reach every item through it.
+  "014_ramble_items": {
+    async up(db) {
+      for (const t of ["facts", "promises", "dates", "exchanges", "relationships", "group_members"]) {
+        await db.schema
+          .alterTable(t)
+          .addColumn("ramble_id", "text", (c) => c.references("rambles.id").onDelete("cascade"))
+          .execute();
+        await sql`update ${sql.table(t)} set ramble_id = (select ramble_id from conversations where conversations.id = ${sql.ref(`${t}.conversation_id`)}) where conversation_id is not null`.execute(db);
+        await db.schema.createIndex(`${t}_by_ramble`).on(t).column("ramble_id").execute();
+      }
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

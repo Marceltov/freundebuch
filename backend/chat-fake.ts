@@ -1,7 +1,7 @@
 // A stand-in for Claude in e2e runs (FREUNDEBUCH_E2E=1, never in a production build: config.e2e()), so the chat can be tested
-// end to end without an API key or a bill. It knows four messages: "Notiz: …" files a conversation with the rest as its
-// transcript about the person whose page the chat was opened on; "Erledigt", in a chat opened on a shared file, closes that
-// file (inbox done); "Fehlertest" fails like an unreachable API; anything else gets "Verstanden.". Tool results get "Erfasst.".
+// end to end without an API key or a bill. It knows five messages: "Notiz: …" files a conversation with the rest as its
+// transcript about the person whose page the chat was opened on; "Tagebuch: …" files the rest as a private journal entry;
+// "Erledigt", in a chat opened on a shared file, closes that file (inbox done); "Fehlertest" fails like an unreachable API; anything else gets "Verstanden.". Tool results get "Erfasst.".
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChatModel } from "./chat";
 
@@ -24,14 +24,17 @@ export const fakeModel: ChatModel = {
     const situation = (p.system as Anthropic.Beta.BetaTextBlockParam[])[1].text;
     const person = situation.match(/on the page of .+? \(([^)]+)\)/)?.[1];
     const day = situation.match(/Today is (\d{4}-\d{2}-\d{2})/)?.[1];
+    const journal = last.content.match(/^Tagebuch:\s*(.+)$/s);
+    if (journal && day)
+      return reply([{ type: "tool_use", id: "fake_record", name: "record", input: { date: day, visibility: "shared", people: [], journal: [{ text: journal[1] }] } }], "tool_use");
     if (!note || !person || !day) return say("Verstanden.");
     return reply(
       [
         {
           type: "tool_use",
           id: "fake_record",
-          name: "record_conversation",
-          input: { date: day, kind: "message", summary: note[1], transcript: note[1], visibility: "shared", people: [{ id: person, present: true }] },
+          name: "record",
+          input: { date: day, transcript: note[1], visibility: "shared", people: [{ id: person }], conversations: [{ kind: "message", summary: note[1], present: [0] }] },
         },
       ],
       "tool_use",

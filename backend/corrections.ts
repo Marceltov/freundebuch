@@ -6,7 +6,7 @@
 import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { moveMembership } from "./groups";
-import { checkLabel, checkRelationship, insertRelationships, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS, type FiledRelationship } from "./conversations";
+import { checkLabel, checkRelationship, insertRelationships, MAX_JOURNAL, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS, type FiledRelationship } from "./conversations";
 import { resolveTarget, type Target } from "./household";
 import { db, now, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
@@ -15,9 +15,9 @@ import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBI
 import { visible } from "./visibility";
 import { pruneFiles } from "./files";
 
-export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations";
+export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations" | "journal_entries";
 
-export const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "conversations"] as const;
+export const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "conversations", "journal_entries"] as const;
 /** The tables whose items belong to a conversation and weigh on its transcript privacy. */
 const CONVERSATION_ITEMS = ["facts", "promises", "dates", "exchanges", "relationships"] as const;
 
@@ -30,6 +30,7 @@ type Row = {
   visibility: string;
   recorded_by: string;
   conversation_id?: string | null;
+  ramble_id?: string | null;
 };
 
 /**
@@ -52,7 +53,8 @@ async function load(d: Kysely<Schema>, v: Viewer, table: ItemTable, id: string, 
   if (!row) throw new NotFoundError("Not found");
   const recorder = row.recorded_by === v.userId;
   if (who === "recorder" && !recorder) throw new ForbiddenError("Only the person who recorded this may change who can see it");
-  if (who === "editor" && !recorder && table === "conversations") throw new ForbiddenError("Only the person who recorded a conversation may change or delete it");
+  if (who === "editor" && !recorder && (table === "conversations" || table === "journal_entries"))
+    throw new ForbiddenError(table === "conversations" ? "Only the person who recorded a conversation may change or delete it" : "Only the person who wrote a journal entry may change or delete it");
   return row;
 }
 
@@ -182,6 +184,10 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     summary: { column: "summary", check: upTo(MAX_SUMMARY) },
     transcript: { column: "transcript", check: upTo(MAX_TRANSCRIPT) },
   },
+  journal_entries: {
+    text: { column: "text", check: (v, w) => upTo(MAX_JOURNAL)(text(v, w), w) },
+    date: { column: "date", check: conversationDay },
+  },
 };
 
 /**
@@ -221,49 +227,79 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
       defaultCheckAfter = true;
     }
   }
-  await d
-    .updateTable(table as "facts")
-    .set(set)
-    .where("id", "=", id)
-    .execute();
+  // A conversation's transcript is its ramble's.
+  if (table === "conversations" && "transcript" in set) {
+    await d.updateTable("rambles").set({ transcript: set.transcript as string }).where("id", "=", rambleOf(d, id)).execute();
+    delete set.transcript;
+  }
+  if (Object.keys(set).length)
+    await d
+      .updateTable(table as "facts")
+      .set(set)
+      .where("id", "=", id)
+      .execute();
   return table === "facts" ? { fact: { ...(await factState(d, id)), defaultCheckAfter } } : {};
 }
 
-/** Whether the conversation, or anything recorded with it (memberships included), is private. */
-async function holdsPrivate(d: Kysely<Schema>, conversationId: string): Promise<boolean> {
-  const c = await d.selectFrom("conversations").select("visibility").where("id", "=", conversationId).executeTakeFirst();
-  if (c?.visibility === "private") return true;
-  for (const t of CONVERSATION_ITEMS)
-    if (await d.selectFrom(t).select("id").where("conversation_id", "=", conversationId).where("visibility", "=", "private").executeTakeFirst()) return true;
-  // Memberships have no id column.
-  return !!(await d
-    .selectFrom("group_members")
-    .select("group_id")
-    .where("conversation_id", "=", conversationId)
-    .where("visibility", "=", "private")
-    .executeTakeFirst());
+/**
+ * Whether the ramble, or any part told in it, is private: its conversations, journal entries and every item filed from it
+ * (memberships included), with a conversation or without one.
+ */
+async function holdsPrivate(d: Kysely<Schema>, rambleId: string): Promise<boolean> {
+  const r = await d.selectFrom("rambles").select("visibility").where("id", "=", rambleId).executeTakeFirst();
+  if (r?.visibility === "private") return true;
+  const conversations = d.selectFrom("conversations").select("id").where("ramble_id", "=", rambleId);
+  for (const t of ["conversations", "journal_entries"] as const)
+    if (await d.selectFrom(t).select("id").where("ramble_id", "=", rambleId).where("visibility", "=", "private").executeTakeFirst()) return true;
+  for (const t of [...CONVERSATION_ITEMS, "group_members"] as const)
+    if (
+      await d
+        .selectFrom(t as "facts")
+        .select("visibility")
+        .where((eb) => eb.or([eb("ramble_id", "=", rambleId), eb("conversation_id", "in", conversations)]))
+        .where("visibility", "=", "private")
+        .executeTakeFirst()
+    )
+      return true;
+  return false;
 }
 
 /**
- * The verbatim transcript turns private whenever the conversation or any item recorded with it does. It never turns shared again
- * here: the transcript still holds the text of a private item that was later deleted or shared, so only the recorder's explicit
+ * The verbatim transcript turns private whenever the ramble or any part of it does. It never turns shared again here: the
+ * transcript still holds the text of a private part that was later deleted or shared, so only the recorder's explicit
  * `shareTranscript` may lower it.
  */
-async function raiseTranscriptPrivacy(d: Kysely<Schema>, conversationId: string): Promise<void> {
-  if (await holdsPrivate(d, conversationId)) await d.updateTable("conversations").set({ transcript_private: 1 }).where("id", "=", conversationId).execute();
+async function raiseTranscriptPrivacy(d: Kysely<Schema>, rambleId: string): Promise<void> {
+  if (await holdsPrivate(d, rambleId)) await d.updateTable("rambles").set({ transcript_private: 1 }).where("id", "=", rambleId).execute();
+}
+
+/** The ramble a conversation was told in, as a subquery. */
+const rambleOf = (d: Kysely<Schema>, conversationId: string) => d.selectFrom("conversations").select("ramble_id").where("id", "=", conversationId);
+
+/** The ramble an item was told in: its own, or its conversation's; null for one filed outside a ramble. */
+async function rambleOfRow(d: Kysely<Schema>, table: ItemTable, row: Row): Promise<string | null> {
+  if (row.ramble_id) return row.ramble_id;
+  if (table === "conversations") return (await rambleOf(d, row.id).executeTakeFirst())?.ramble_id ?? null;
+  if (row.conversation_id) return (await rambleOf(d, row.conversation_id).executeTakeFirst())?.ramble_id ?? null;
+  return null;
 }
 
 /**
- * Lets the partner read the transcript of a conversation the viewer recorded: the recorder's word that it holds nothing private any
- * more. Refused while the conversation or anything recorded with it is private.
+ * Lets the partner read the transcript of a ramble the viewer recorded, by the ramble's id or one of its conversations': the
+ * recorder's word that it holds nothing private any more. Refused while the ramble or any part of it is private.
  */
-export async function shareTranscript(v: Viewer, conversationId: string): Promise<void> {
+export async function shareTranscript(v: Viewer, id: string): Promise<void> {
   const d = await db();
   await d.transaction().execute(async (tx) => {
-    await load(tx, v, "conversations", conversationId, "recorder");
-    if (await holdsPrivate(tx, conversationId))
-      throw new InvalidInputError("The conversation or something recorded with it is private: share those first, or keep the transcript private");
-    await tx.updateTable("conversations").set({ transcript_private: 0 }).where("id", "=", conversationId).execute();
+    const own = await tx.selectFrom("rambles").select(["id", "recorded_by"]).where("id", "=", id).$call((qb) => visible(qb, v, "rambles")).executeTakeFirst();
+    let rambleId: string;
+    if (own) {
+      if (own.recorded_by !== v.userId) throw new ForbiddenError("Only the person who recorded this may change who can see it");
+      rambleId = own.id;
+    } else rambleId = (await rambleOfRow(tx, "conversations", await load(tx, v, "conversations", id, "recorder")))!;
+    if (await holdsPrivate(tx, rambleId))
+      throw new InvalidInputError("Something told in this ramble is private: share it first, or keep the transcript private");
+    await tx.updateTable("rambles").set({ transcript_private: 0 }).where("id", "=", rambleId).execute();
   });
 }
 
@@ -297,8 +333,13 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
             .where("conversation_id", "=", id)
             .execute();
       }
-      await raiseTranscriptPrivacy(tx, id);
-    } else if (row.conversation_id) await raiseTranscriptPrivacy(tx, row.conversation_id);
+    }
+    const rambleId = await rambleOfRow(tx, table, row);
+    if (!rambleId) return;
+    // A part shared makes its ramble exist for the partner (the transcript stays as it was); a part made private makes the
+    // transcript private.
+    if (visibility === "shared" && (table === "conversations" || table === "journal_entries")) await tx.updateTable("rambles").set({ visibility }).where("id", "=", rambleId).execute();
+    await raiseTranscriptPrivacy(tx, rambleId);
   });
 }
 
@@ -320,18 +361,28 @@ async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, 
   if (replaced) throw new InvalidInputError(PRIVATE_REPLACES_SHARED);
 }
 
+/** Whether anything is left that was told in the ramble. */
+async function holdsAnything(d: Kysely<Schema>, rambleId: string): Promise<boolean> {
+  for (const t of ["conversations", "journal_entries", ...CONVERSATION_ITEMS] as const)
+    if (await d.selectFrom(t as "facts").select("id").where("ramble_id", "=", rambleId).executeTakeFirst()) return true;
+  return !!(await d.selectFrom("group_members").select("group_id").where("ramble_id", "=", rambleId).executeTakeFirst());
+}
+
 /**
- * Deletes an item the viewer recorded; a conversation takes its items and participants with it. The conversation's transcript_private
- * is deliberately not recomputed: the transcript still holds the text of what was deleted.
+ * Deletes an item the viewer recorded; a conversation takes its items and participants with it, and its ramble once nothing else
+ * was told in it. The ramble's transcript_private is deliberately not recomputed: the transcript still holds what was deleted.
  */
 export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promise<void> {
   assertTable(table);
   const d = await db();
-  await load(d, v, table, id, "editor");
+  const row = await load(d, v, table, id, "editor");
+  const ramble = table === "conversations" || table === "journal_entries" ? await rambleOfRow(d, table, row) : null;
   await d
     .deleteFrom(table as "facts")
     .where("id", "=", id)
     .execute();
+  // A ramble goes with the last part told in it.
+  if (ramble && !(await holdsAnything(d, ramble))) await d.deleteFrom("rambles").where("id", "=", ramble).execute();
   // A fact filed from a shared file takes the file with it once nothing else names it.
   if (table === "facts") await pruneFiles();
 }
@@ -351,7 +402,7 @@ export async function factToRelationship(
     const fact = (await load(tx, v, "facts", factId, "editor")) as Row & { person_id: string };
     const [froms, tos] = await Promise.all([resolveTarget(tx, v, r.from), resolveTarget(tx, v, r.to)]);
     if (!froms.includes(fact.person_id) && !tos.includes(fact.person_id)) throw new InvalidInputError("The relationship must have the fact's person on one end");
-    const filed = await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, created_at: now() }, { ...r, visibility: fact.visibility as Visibility });
+    const filed = await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, ramble_id: fact.ramble_id ?? null, created_at: now() }, { ...r, visibility: fact.visibility as Visibility });
     await tx.deleteFrom("facts").where("id", "=", factId).execute();
     return filed;
   });
@@ -423,6 +474,14 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
         .onConflict((oc) => oc.doNothing())
         .execute();
     await tx.deleteFrom("participants").where("person_id", "=", dropId).execute();
+    // Journal entries that named the one merged away name the one kept.
+    for (const m of await tx.selectFrom("journal_mentions").select("entry_id").where("person_id", "=", dropId).execute())
+      await tx
+        .insertInto("journal_mentions")
+        .values({ entry_id: m.entry_id, person_id: keepId })
+        .onConflict((oc) => oc.doNothing())
+        .execute();
+    await tx.deleteFrom("journal_mentions").where("person_id", "=", dropId).execute();
 
     for (const m of await tx.selectFrom("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute())
       await moveMembership(tx, m.recorded_by, { group_id: m.group_id, person_id: dropId }, { group_id: m.group_id, person_id: keepId });

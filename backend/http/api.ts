@@ -6,15 +6,18 @@ import { briefing } from "../briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../calendar";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { deleteItem, editItem, factToRelationship, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type ItemTable } from "../corrections";
-import { getConversation, recordConversation } from "../conversations";
+import { getConversation, record } from "../conversations";
 import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError, NotFoundError } from "../errors";
 import { addGroupAlias, addToGroupById, createGroup, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../groups";
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
+import { journalEntries } from "../journal";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
+import { getReflection, putReflection } from "../reflection";
+import { deleteRamble } from "../rambles";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
@@ -35,7 +38,7 @@ import {
   IntervalJson,
   ItemPatchJson,
   MergeJson,
-  NewConversationJson,
+  NewRambleJson,
   OrbitJson,
   PendingFileListJson,
   PeopleQuery,
@@ -44,13 +47,16 @@ import {
   FactRelationshipJson,
   RelationshipIdsJson,
   PersonListJson,
-  RecordedJson,
+  RecordedRambleJson,
   SentJson,
   SettingsJson,
+  ReflectionJson,
   ShareKeyJson,
   TableParam,
   TraitsJson,
   TraitsQuery,
+  JournalJson,
+  JournalQuery,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -134,6 +140,19 @@ const OPS: AnyOp[] = [
     query: TraitsQuery,
     responses: { 200: { description: "The traits", schema: TraitsJson }, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, query }) => ({ status: 200, body: { people: await traitsFor(viewer, { people: ids(query.people), groups: ids(query.groups) }) } })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/journal`,
+    operationId: "getJournal",
+    summary: "The caller's journal entries in a period",
+    description: "The caller's own entries and the ones the other user shared, newest first. A private entry of the other user never shows.",
+    tags: ["Journal"],
+    auth: true,
+    params: {},
+    query: JournalQuery,
+    responses: { 200: { description: "The entries", schema: JournalJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, query }) => ({ status: 200, body: { entries: await journalEntries(viewer, query) } })),
 
   op({
     method: "PUT",
@@ -354,18 +373,34 @@ const OPS: AnyOp[] = [
 
   op({
     method: "POST",
-    path: `${API_PREFIX}/conversations`,
-    operationId: "recordConversation",
-    summary: "Record a conversation",
+    path: `${API_PREFIX}/rambles`,
+    operationId: "record",
+    summary: "Record a ramble and its parts",
     description:
-      "Everything lands in one transaction: a bad item leaves nothing behind. A private conversation makes every item private. " +
+      "One ramble, split into conversations, journal entries and items; each item may be `in` one of its conversations. " +
+      "Everything lands in one transaction: a bad part leaves nothing behind. A private ramble makes every part private; journal entries are private unless `shared`. " +
       "A new person named like an existing person or alias is `ambiguous` (409, listing the candidates) unless `confirmedNew`.",
-    tags: ["Conversations"],
+    tags: ["Rambles"],
     auth: true,
     params: {},
-    body: NewConversationJson,
-    responses: { 201: { description: "Recorded", schema: RecordedJson }, 400: E400, 401: E401, 404: E404, 409: E[409] },
-  }).handle(async ({ viewer, body }) => ({ status: 201, body: await recordConversation(viewer, body) })),
+    body: NewRambleJson,
+    responses: { 201: { description: "Recorded", schema: RecordedRambleJson }, 400: E400, 401: E401, 404: E404, 409: E[409] },
+  }).handle(async ({ viewer, body }) => ({ status: 201, body: await record(viewer, body) })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/rambles/{id}`,
+    operationId: "deleteRamble",
+    summary: "Delete a ramble and everything told in it",
+    description: "Its transcript, conversations, journal entries and items. Only its recorder may.",
+    tags: ["Rambles"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 204: NO_CONTENT, 401: E401, 403: E403, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await deleteRamble(viewer, params.id);
+    return { status: 204, body: undefined };
+  }),
 
   op({
     method: "GET",
@@ -462,6 +497,32 @@ const OPS: AnyOp[] = [
     responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
   }).handle(async ({ viewer, body }) => {
     await putSettings(viewer, body);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/me/reflection`,
+    operationId: "getReflection",
+    summary: "When the caller's weekly reflection is pushed",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The setting", schema: ReflectionJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: { reflection: await getReflection(viewer) } })),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/me/reflection`,
+    operationId: "putReflection",
+    summary: "Turn the weekly reflection on (a day and an hour) or off (null)",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    body: ReflectionJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => {
+    await putReflection(viewer, body.reflection);
     return { status: 204, body: undefined };
   }),
 

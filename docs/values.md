@@ -38,11 +38,11 @@ Why you can trust freundebuch with what you know: what it keeps, who decides wha
 
 ### V4. Only words are kept
 
-What you tell Claude is kept as your words, the transcript, next to what was filed from it. A file you share (a screenshot, a chat, a photo, a letter) is kept only until you have gone through it: then only its transcript stays, the text word for word or what a photo shows, and the file is deleted.
+What you tell Claude is kept as your words: each ramble keeps its transcript, next to the conversations, journal entries and items filed from it. A file you share (a screenshot, a chat, a photo, a letter) is kept only until you have gone through it: then only its transcript stays, the text word for word or what a photo shows, and the file is deleted.
 
 **Rules out:** keeping shared files after their review, storing other people's messages beyond the words you filed, a summary in place of what was said.
 
-ADRs: [0014](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0014-shared-files-are-worked-through-with-claude.md).
+ADRs: [0014](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0014-shared-files-are-worked-through-with-claude.md), [0015](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0015-the-ramble-is-its-own-record.md).
 
 ### V5. You decide what is filed
 

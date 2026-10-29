@@ -12,7 +12,7 @@ import { absoluteUrls, publicUrl } from "./urls";
 
 const log = logger("mcp");
 
-export const INSTRUCTIONS = `freundebuch remembers what is going on in the lives of the people the user knows. The user rambles about a conversation; you file it with record_conversation. Before they meet someone, give them a briefing.
+export const INSTRUCTIONS = `freundebuch remembers what is going on in the lives of the people the user knows. The user rambles about their life (meeting someone, what they think and feel); you file it with record, split into its parts: a conversation for each meeting, call or message, a journal entry for what they think, feel or plan about their own life, and the facts and the rest that were learned. Before they meet someone, give them a briefing.
 Pass the ramble verbatim as transcript, never a summary. What the user tells you about someone outside a conversation (a birthday, a fact, a gift idea) goes to remember.
 Before recording, look for sensitive content: health, disability, temperament and other touchy traits, relationship trouble, money, anything said in confidence or "between us". If you find any, ask the user whether it should be private. Default to shared otherwise. When only part is sensitive, mark only those items private and keep that part out of the summary.
 Resolve every person with find_person first. When more than one candidate fits, or a new name resembles an existing person, ask the user which one; never guess and never create a duplicate.
@@ -20,7 +20,8 @@ Every tool result carries next: what to do now, worked out from what the call di
 Every person, conversation and item comes with a url to it in the web app; give the user the link whenever they may want to look at something there.
 Prefer an existing group, by name or other name, over a new one; when none fits, ask before creating one.
 Who someone is to the household ("our landlady", "my colleague") is a relationship to "us" or "me", never a fact; say in German words what each end is (label, inverse), in each one's gender. What is going on and will end is a situation with a checkAfter. What someone needs (plan around it) or how they are is a trait: a fact of kind need or personality. News about a situation needs a new checkAfter: suggest one and agree it with the user before filing.
-Files the user shared into freundebuch wait in inbox: work them through with the user and file each with record_conversation and its fileIds; only their transcripts are kept. A file pasted into this conversation (a screenshot, a photo, a PDF) reaches you but no tool: write out what it shows into the transcript you file, its text word for word, as evidence; freundebuch keeps only that text anyway.`;
+Files the user shared into freundebuch wait in inbox: work them through with the user and file each with record and its fileIds; only their transcripts are kept. A file pasted into this conversation (a screenshot, a photo, a PDF) reaches you but no tool: write out what it shows into the transcript you file, its text word for word, as evidence; freundebuch keeps only that text anyway.
+Journal entries are the user's own: private unless they say to share one. When they ask how they have been, or what has been on their mind, read the journal and interpret it: themes, changes over time, how people and events tie in, quoting entries by date. Reflect patterns back; never diagnose or give health advice, and on heavy themes point gently to real help.`;
 
 // A tool result: the body as structured content and, for clients that only read text, as JSON text. The body goes through the
 // tool's output schema first, which drops every field the schema doesn't name: what leaves is only what was declared. Its links

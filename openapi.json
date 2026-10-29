@@ -375,6 +375,85 @@
         }
       }
     },
+    "/api/v1/journal": {
+      "get": {
+        "operationId": "getJournal",
+        "summary": "The caller's journal entries in a period",
+        "description": "The caller's own entries and the ones the other user shared, newest first. A private entry of the other user never shows.",
+        "tags": [
+          "Journal"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "The first day; 30 days before `to` when left out",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "The last day; today when left out",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "personId",
+            "in": "query",
+            "required": false,
+            "description": "Only the entries that name this person",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Journal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/people/{id}/interval": {
       "put": {
         "operationId": "setCheckInInterval",
@@ -1293,13 +1372,13 @@
         }
       }
     },
-    "/api/v1/conversations": {
+    "/api/v1/rambles": {
       "post": {
-        "operationId": "recordConversation",
-        "summary": "Record a conversation",
-        "description": "Everything lands in one transaction: a bad item leaves nothing behind. A private conversation makes every item private. A new person named like an existing person or alias is `ambiguous` (409, listing the candidates) unless `confirmedNew`.",
+        "operationId": "record",
+        "summary": "Record a ramble and its parts",
+        "description": "One ramble, split into conversations, journal entries and items; each item may be `in` one of its conversations. Everything lands in one transaction: a bad part leaves nothing behind. A private ramble makes every part private; journal entries are private unless `shared`. A new person named like an existing person or alias is `ambiguous` (409, listing the candidates) unless `confirmedNew`.",
         "tags": [
-          "Conversations"
+          "Rambles"
         ],
         "security": [
           {
@@ -1314,7 +1393,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewConversation"
+                "$ref": "#/components/schemas/NewRamble"
               }
             }
           }
@@ -1325,7 +1404,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Recorded"
+                  "$ref": "#/components/schemas/RecordedRamble"
                 }
               }
             }
@@ -1362,6 +1441,70 @@
           },
           "409": {
             "description": "The request names more than one match (`ambiguous`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rambles/{id}": {
+      "delete": {
+        "operationId": "deleteRamble",
+        "summary": "Delete a ramble and everything told in it",
+        "description": "Its transcript, conversations, journal entries and items. Only its recorder may.",
+        "tags": [
+          "Rambles"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The item is visible to the caller, but this change is its recorder's: its visibility, a conversation, a transcript (`forbidden`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1757,6 +1900,95 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/reflection": {
+      "get": {
+        "operationId": "getReflection",
+        "summary": "When the caller's weekly reflection is pushed",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reflection"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putReflection",
+        "summary": "Turn the weekly reflection on (a day and an hour) or off (null)",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reflection"
               }
             }
           }
@@ -2838,6 +3070,43 @@
           "webhookUrl"
         ]
       },
+      "Reflection": {
+        "type": "object",
+        "properties": {
+          "reflection": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "day": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6,
+                    "description": "Weekday, 0 = Sunday, in the server's time zone"
+                  },
+                  "hour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 23,
+                    "description": "Hour of the day"
+                  }
+                },
+                "required": [
+                  "day",
+                  "hour"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the weekly reflection on your journal is pushed to your webhook; null for off (the default)"
+          }
+        },
+        "required": [
+          "reflection"
+        ]
+      },
       "Sent": {
         "type": "object",
         "properties": {
@@ -3481,6 +3750,79 @@
             },
             "description": "What else stays true about the person, by category"
           },
+          "journal": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "people": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "A person's id"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "The people it names"
+                },
+                "rambleId": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "The caller wrote it: they may edit, share or delete it"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The entry on the Tagebuch page, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "text",
+                "people",
+                "rambleId",
+                "visibility",
+                "mine",
+                "url"
+              ]
+            },
+            "description": "The caller's own journal entries that name the person, the last few, newest first"
+          },
           "open": {
             "type": "object",
             "properties": {
@@ -3875,6 +4217,7 @@
           "situations",
           "traits",
           "known",
+          "journal",
           "open",
           "recent",
           "relationships",
@@ -4039,6 +4382,1121 @@
         },
         "required": [
           "people"
+        ]
+      },
+      "JournalEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "description": "A day, `YYYY-MM-DD`"
+          },
+          "text": {
+            "type": "string"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url"
+              ]
+            },
+            "description": "The people it names"
+          },
+          "rambleId": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ],
+            "description": "`private` items are visible only to whoever recorded them"
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "The caller wrote it: they may edit, share or delete it"
+          },
+          "url": {
+            "type": "string",
+            "description": "The entry on the Tagebuch page, as an absolute URL"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "text",
+          "people",
+          "rambleId",
+          "visibility",
+          "mine",
+          "url"
+        ]
+      },
+      "Journal": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "people": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "A person's id"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "The people it names"
+                },
+                "rambleId": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "The caller wrote it: they may edit, share or delete it"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The entry on the Tagebuch page, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "text",
+                "people",
+                "rambleId",
+                "visibility",
+                "mine",
+                "url"
+              ]
+            },
+            "description": "Newest first"
+          }
+        },
+        "required": [
+          "entries"
+        ]
+      },
+      "NewRamble": {
+        "type": "object",
+        "properties": {
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A shared file's id, as inbox lists it. Only the caller's own waiting file"
+            },
+            "description": "The shared files this conversation was told from: their transcripts (text word for word, or what a photo shows) join this one, and the files are deleted"
+          },
+          "date": {
+            "type": "string",
+            "description": "The day the user told it: today unless they say otherwise"
+          },
+          "transcript": {
+            "type": "string",
+            "description": "The verbatim text; private to the recorder whenever anything recorded with it is private"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ],
+            "description": "`private` items are visible only to whoever recorded them"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "An existing person",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "A new person",
+                  "type": "string"
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "confirmedNew": {
+                  "description": "A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`",
+                  "type": "boolean"
+                },
+                "gender": {
+                  "type": "string",
+                  "enum": [
+                    "female",
+                    "male",
+                    "nonbinary"
+                  ],
+                  "description": "The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name"
+                }
+              }
+            },
+            "description": "Everyone the ramble names, each once; conversations, journal entries and items refer to them by index"
+          },
+          "conversations": {
+            "description": "The meetings, calls and messages it tells of, each its own conversation",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "description": "When it happened, when not the ramble's day",
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "in_person",
+                    "call",
+                    "message",
+                    "video",
+                    "event"
+                  ]
+                },
+                "place": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "present": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "An index into `people`"
+                  },
+                  "description": "Who took part, by index into people"
+                }
+              },
+              "required": [
+                "kind",
+                "summary",
+                "present"
+              ]
+            }
+          },
+          "journal": {
+            "description": "Journal entries about the user themselves, cut from the ramble",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "description": "The day it is about, when not the ramble's day",
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The entry in the user's own words: what they think, feel or plan about their own life"
+                },
+                "mentions": {
+                  "description": "The people it names, by index into people",
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "An index into `people`"
+                  }
+                },
+                "shared": {
+                  "description": "Only when the user says to share this entry with the household; private otherwise",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "text"
+              ]
+            }
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "work",
+                    "home",
+                    "family",
+                    "health",
+                    "hobby",
+                    "travel",
+                    "other"
+                  ]
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                },
+                "supersedes": {
+                  "description": "The id of the fact this replaces: news about a situation, or a lasting fact that ends it",
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "lasting",
+                    "situation",
+                    "need",
+                    "personality"
+                  ],
+                  "description": "`situation`: going on and will end (moving, a new dog, looking for a car, angry about the new job); `lasting` (default): stays true (works at Hornbach). The traits, which last and have no checkAfter: `need`: something to plan around when meeting or inviting them (needs a wheelchair, vegetarian, nut allergy, doesn't drink); `personality`: how the person is and how to deal with them (gets angry quickly, shy in big groups, hates phone calls). A fact that supersedes another keeps its kind unless given"
+                },
+                "checkAfter": {
+                  "type": "string",
+                  "description": "situation only: the day to ask how it went, estimated from how long it usually takes (a car: a few weeks, a house: months); six weeks after filing when left out; news that supersedes a situation must give a new one"
+                },
+                "in": {
+                  "description": "The index in conversations of the conversation this came from; leave out when it came from no conversation",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "person",
+                "text",
+                "category"
+              ]
+            }
+          },
+          "promises": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "byMe": {
+                  "type": "boolean"
+                },
+                "due": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                },
+                "in": {
+                  "description": "The index in conversations of the conversation this came from; leave out when it came from no conversation",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "person",
+                "text",
+                "byMe"
+              ]
+            }
+          },
+          "dates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "birthday",
+                    "anniversary",
+                    "custom"
+                  ]
+                },
+                "date": {
+                  "type": "string",
+                  "description": "`YYYY-MM-DD`, or `--MM-DD` for a yearly date without a year"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "yearly": {
+                  "type": "boolean"
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                },
+                "in": {
+                  "description": "The index in conversations of the conversation this came from; leave out when it came from no conversation",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "person",
+                "kind",
+                "date",
+                "yearly"
+              ]
+            }
+          },
+          "exchanges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "gift_idea",
+                    "gift",
+                    "money",
+                    "lent",
+                    "help"
+                  ]
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "to_them",
+                    "from_them"
+                  ]
+                },
+                "text": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                },
+                "in": {
+                  "description": "The index in conversations of the conversation this came from; leave out when it came from no conversation",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "person",
+                "kind",
+                "direction",
+                "text"
+              ]
+            }
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "An index into `people`"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "me",
+                        "us"
+                      ],
+                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                    }
+                  ]
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "An index into `people`"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "me",
+                        "us"
+                      ],
+                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                    }
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "description": "What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)"
+                },
+                "inverse": {
+                  "type": "string",
+                  "description": "What `to` is to `from`, the same way: Mieter, Mutter, Kollegin, Nachbar:in"
+                },
+                "note": {
+                  "description": "Anything more about it: \"seit der Schulzeit\"",
+                  "type": "string"
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                },
+                "in": {
+                  "description": "The index in conversations of the conversation this came from; leave out when it came from no conversation",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "label",
+                "inverse"
+              ]
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "members": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "An index into `people`"
+                  }
+                },
+                "private": {
+                  "description": "Makes just this item private; a private conversation makes every item private",
+                  "type": "boolean"
+                },
+                "in": {
+                  "description": "The index in conversations of the conversation this came from; leave out when it came from no conversation",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "name",
+                "members"
+              ]
+            }
+          }
+        },
+        "required": [
+          "date",
+          "transcript",
+          "visibility",
+          "people"
+        ]
+      },
+      "RecordedRamble": {
+        "type": "object",
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "An index into `people`"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "created": {
+                  "type": "boolean"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "ref",
+                "id",
+                "name",
+                "created",
+                "url"
+              ]
+            }
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "facts": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "promises": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "dates": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "exchanges": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "relationships": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groups": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "The group memberships written"
+              }
+            },
+            "required": [
+              "facts",
+              "promises",
+              "dates",
+              "exchanges",
+              "relationships",
+              "groups"
+            ]
+          },
+          "filed": {
+            "type": "object",
+            "properties": {
+              "facts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the person it is about"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "lasting",
+                        "situation",
+                        "need",
+                        "personality"
+                      ]
+                    },
+                    "checkAfter": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "A day, `YYYY-MM-DD`"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "A situation's day to ask how it went; null for a lasting fact"
+                    },
+                    "defaultCheckAfter": {
+                      "type": "boolean",
+                      "description": "Whether the server chose checkAfter, six weeks from now, because none was given"
+                    },
+                    "supersedes": {
+                      "description": "The fact it replaced, now outdated",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personId",
+                    "name",
+                    "visibility",
+                    "url",
+                    "text",
+                    "kind",
+                    "checkAfter",
+                    "defaultCheckAfter",
+                    "supersedes"
+                  ]
+                }
+              },
+              "promises": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the person it is about"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "byMe": {
+                      "type": "boolean"
+                    },
+                    "due": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "A day, `YYYY-MM-DD`"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personId",
+                    "name",
+                    "visibility",
+                    "url",
+                    "text",
+                    "byMe",
+                    "due"
+                  ]
+                }
+              },
+              "dates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the person it is about"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "birthday",
+                        "anniversary",
+                        "custom"
+                      ]
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "yearly": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personId",
+                    "name",
+                    "visibility",
+                    "url",
+                    "kind",
+                    "date",
+                    "label",
+                    "yearly"
+                  ]
+                }
+              },
+              "exchanges": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the person it is about"
+                    },
+                    "visibility": {
+                      "type": "string",
+                      "enum": [
+                        "shared",
+                        "private"
+                      ],
+                      "description": "`private` items are visible only to whoever recorded them"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "gift_idea",
+                        "gift",
+                        "money",
+                        "lent",
+                        "help"
+                      ]
+                    },
+                    "direction": {
+                      "type": "string",
+                      "enum": [
+                        "to_them",
+                        "from_them"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personId",
+                    "name",
+                    "visibility",
+                    "url",
+                    "kind",
+                    "direction",
+                    "text"
+                  ]
+                }
+              },
+              "relationships": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "fromId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "fromName": {
+                      "type": "string"
+                    },
+                    "toId": {
+                      "type": "string",
+                      "description": "A person's id"
+                    },
+                    "toName": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "What from is to to, as stored: an existing relationship keeps its own words"
+                    },
+                    "inverse": {
+                      "type": "string",
+                      "description": "What to is to from, as stored"
+                    },
+                    "created": {
+                      "type": "boolean",
+                      "description": "false when the caller already saw the same relationship, which was kept as it was"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Its highlighted row on the page of from (of to when from is the household), as an absolute URL"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "fromId",
+                    "fromName",
+                    "toId",
+                    "toName",
+                    "label",
+                    "inverse",
+                    "created",
+                    "url"
+                  ]
+                },
+                "description": "One per pair: \"us\" is one per household person"
+              },
+              "groups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "The group's own name; the name given may have been another name of it"
+                    },
+                    "added": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "already": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "How many of the members the caller had put in it before"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "Where it opens in the web app, as an absolute URL"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "added",
+                    "already",
+                    "url"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "facts",
+              "promises",
+              "dates",
+              "exchanges",
+              "relationships",
+              "groups"
+            ],
+            "description": "Everything filed, with ids and links"
+          },
+          "rambleId": {
+            "type": "string"
+          },
+          "conversations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The conversation's page, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "url"
+              ]
+            }
+          },
+          "journal": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The entry on the Tagebuch page, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "visibility",
+                "url"
+              ]
+            }
+          }
+        },
+        "required": [
+          "people",
+          "counts",
+          "filed",
+          "rambleId",
+          "conversations",
+          "journal"
         ]
       },
       "DueItem": {

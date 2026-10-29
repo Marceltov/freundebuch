@@ -134,15 +134,15 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
     }
   }
 
-  async function send() {
-    const text = draft.trim();
+  async function send(offered?: string) {
+    const text = (offered ?? draft).trim();
     if (!text || busy) return;
     setBusy(true);
     setError(null);
     // The message moves into the chat at once; the field is free while Claude works.
     const asked: Turn[] = [...turns, { role: "user", content: text }];
     setTurns(asked);
-    setDraft("");
+    if (!offered) setDraft("");
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -155,7 +155,7 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
     // Nothing filed: the message goes back into the field to send again. Filed before the failure: say so, so it isn't sent twice.
     if (failed && !body?.filed) {
       setTurns(turns);
-      setDraft(text);
+      if (!offered) setDraft(text);
       return setError(message);
     }
     const next: Turn[] = [...asked, { role: "assistant", content: failed ? copy.filedThenFailed.replace("{error}", message!) : body.reply, links: body.links, filed: body.filed }];
@@ -229,6 +229,12 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
             </span>
           )}
           {turns.length === 0 && <p className="mt-6 text-center text-muted">{copy.chatHello}</p>}
+          {/* Opened on no page: one tap asks Claude to look back on the week's journal. */}
+          {turns.length === 0 && !about && !busy && (
+            <button type="button" onClick={() => send(copy.reflectOffer)} className="self-center rounded-full bg-surface-2 px-3.5 py-1.5 text-sm font-semibold text-carbon hover:bg-rule">
+              {copy.reflectOffer}
+            </button>
+          )}
           {turns.map((t, i) =>
             t.role === "user" ? (
               <p key={i} className="max-w-[85%] self-end rounded-2xl rounded-br-md bg-carbon px-3.5 py-2.5 whitespace-pre-wrap text-on-carbon">

@@ -4,19 +4,20 @@ The MCP endpoint is `POST ${PUBLIC_URL}/mcp`: stateless, protocol version 2026-0
 
 | Tool | Kind | What it does |
 | --- | --- | --- |
-| `record_conversation` | write | Files a conversation: the verbatim transcript, a summary, who was there or mentioned, and the facts, promises, exchanges, dates and relationships learned. A fact is `lasting`, a `situation` with a `checkAfter` day, or a trait (`need` or `personality`); a relationship says in words what each end is (`label`, `inverse`) and may go to `"me"` or `"us"` (a role: "our landlady"); a new person may get a gender. |
-| `remember` | write | Files a fact, a date (a birthday), a promise, a gift idea or a person's gender about people already in the book, without a conversation. Facts take `kind` and `checkAfter` as in `record_conversation`. |
+| `record` | write | Files a ramble, its verbatim transcript, split into its parts: conversations (each with a summary and who was there), [journal entries](../using/journal.md) (private unless `shared`), and the facts, promises, exchanges, dates, relationships and groups learned, each optionally naming the conversation it came from (`in`). A fact is `lasting`, a `situation` with a `checkAfter` day, or a trait (`need` or `personality`); a relationship says in words what each end is (`label`, `inverse`) and may go to `"me"` or `"us"` (a role: "our landlady"); a new person may get a gender. |
+| `remember` | write | Files a fact, a date (a birthday), a promise, a gift idea or a person's gender about people already in the book, without a conversation. Facts take `kind` and `checkAfter` as in `record`. |
 | `find_person` | read | Finds people by name or alias, tolerant of spelling, with context to tell namesakes apart. Claude calls it before referring to anyone. |
 | `people` | read | Everyone in the book but you, by name, each with the groups you see them in and when you last saw them. With `withoutGroup`, only those in no group yet (never your partner), and `next` offers to sort them in. |
 | `briefing` | read | Everything worth knowing about one person before you meet them: who they are to you (`roles`, read from your side: `us`, `me` or `partner`), what is going on (`situations`, with `nudge` once their `checkAfter` has come), what they need and how they are (`traits`), what else stays true (`known`), the one-hop `network`, and a suggested check-in interval. |
 | `traits` | read | What several people need and how they are: any mix of people and groups, each person once, needs first. For planning something with several people. |
-| `inbox` | destructive | Files you shared that wait under Prüfen: `list` (each with Claude's first read, its transcript and who is in it, and the files themselves as MCP content, five at a time, none over 1 MB) and `done` (close one with nothing to file; it is deleted). Filing with `fileIds` on `record_conversation` adds the files' transcripts to the conversation's and deletes the files: only text is kept. |
+| `inbox` | destructive | Files you shared that wait under Prüfen: `list` (each with Claude's first read, its transcript and who is in it, and the files themselves as MCP content, five at a time, none over 1 MB) and `done` (close one with nothing to file; it is deleted). Filing with `fileIds` on `record` adds the files' transcripts to the ramble's and deletes the files: only text is kept. |
 | `whats_due` | read | Upcoming dates, promises with a due date, overdue people and situations to ask about (`situation`); 14 days ahead by default. |
 | `relate` | write | Records a relationship between two people, or between a person and `"me"` / `"us"` (a role: "our landlady", "my doctor"), or puts people in a group, outside of a conversation. The same relationship again, either way round or in another gender form, files nothing new. A group name finds an existing group by its name or another name (Kollegen → Arbeit). |
 | `groups` | read | Every group you see, with its other names and how many people are in it. Claude calls it before putting someone in a group. `household` marks the household's own group (Haushalt to start with), which may be renamed but not deleted, merged away or emptied of whoever signs in. |
 | `set_interval` | write | Saves how often you want to see a person, in days, or none. |
-| `correct` | destructive | Marks done or outdated, edits (including a conversation's date and a relationship's words), deletes, changes visibility, renames, adds an alias, sets a person's gender (and returns their relationships to put in it), turns a fact into a relationship (`to_relationship`), merges duplicates, shares a transcript; `edit` with `{ kind, checkAfter }` moves a fact between lasting, situation, need and personality; takes someone out of a group, renames, merges or deletes a group and adds or drops its other names. |
-| `get_transcript` | read | The verbatim ramble a conversation was recorded from. |
+| `correct` | destructive | Marks done or outdated, edits (including a conversation's date and a relationship's words), deletes, changes visibility, renames, adds an alias, sets a person's gender (and returns their relationships to put in it), turns a fact into a relationship (`to_relationship`), merges duplicates, shares a ramble's transcript (by the ramble's or a conversation's id), deletes a ramble with everything told in it (`delete_ramble`, its recorder only); `edit` with `{ kind, checkAfter }` moves a fact between lasting, situation, need and personality; takes someone out of a group, renames, merges or deletes a group and adds or drops its other names. |
+| `journal` | read | Your journal entries (and the ones your partner shared) in a period, the last 30 days by default, optionally only those naming a person; each with its day, text, people and ramble. |
+| `get_transcript` | read | The verbatim ramble, by the ramble's id (`rambleId`, as `record` and `journal` return it) or one of its conversations' (`conversationId`). |
 | `calendar_feed` | destructive | Gives you the secret URL of your [calendar feed](../using/calendar.md), making one when you have none; replaces or revokes it, which ends the old URL. Not in the in-app chat. |
 
 ## What a result tells Claude
@@ -25,18 +26,19 @@ Every tool result carries `next`: short instructions, built by the server from w
 
 | Tool | What `next` says |
 | --- | --- |
-| `record_conversation` | Read back what was filed, with the day it happened and the link; who is new in the book; each situation's day, and that it is the six-week default when Claude gave none; a relationship that was already there and was kept; people who were in a group already. |
+| `record` | Read back what was filed, part by part, with the day and the link, and say that a journal entry is private to you; who is new in the book; each situation's day, and that it is the six-week default when Claude gave none; a relationship that was already there and was kept; people who were in a group already. |
 | `remember` | Each situation's day, and whether it is the default; for a gender it sets, which word of which relationship to put in it, as with `correct`. |
 | `relate` | A relationship that was already there (either way round, or in another gender form) and was kept; people who were in the group already. |
 | `correct` | `outdated` on a situation: file how it ended as a lasting fact, if worth keeping. `edit` that makes a fact a situation or changes its day: the day. `merge`: what moved, and to look the person over for anything doubled. `gender`: which word of which relationship to put in the new gender. `to_relationship`: a relationship that was already there. |
-| `find_person` | None found: ask whether this is someone new, then `record_conversation`. Several: ask which one, with the context that tells them apart. |
+| `find_person` | None found: ask whether this is someone new, then `record`. Several: ask which one, with the context that tells them apart. |
 | `briefing` | Lead with the role ("Vermieterin of you both"); ask about each nudging situation first; say where a fact from a shared file comes from; offer the suggested interval. |
 | `whats_due` | Suggest asking about each due situation. |
+| `journal` | Interpret the entries: themes, changes, the people and conversations around them, quoting entries by date; reflect, never diagnose. None in the period: say so and offer another one. |
 | `calendar_feed` | Give the URL only to you; an existing feed can't be shown again, so offer `replace`; a replaced or revoked URL has stopped working. |
 | `get_transcript` | A transcript private to whoever recorded it: answer from the summary. |
 | `set_interval`, `groups` | Nothing. |
 
-The write tools also return what they filed (`filed` for `record_conversation` and `remember`, `relationships` for `relate` and `to_relationship`): each item with its id and link, each situation's `checkAfter` and `defaultCheckAfter`, and whether each relationship was new (`created`). `next` and these details are built only from what you may see: the other user's private items never show, not even in a count.
+The write tools also return what they filed (`filed` for `record` and `remember`, `relationships` for `relate` and `to_relationship`): each item with its id and link, each situation's `checkAfter` and `defaultCheckAfter`, and whether each relationship was new (`created`). `next` and these details are built only from what you may see: the other user's private items never show, not even in a count.
 
 The server also sends Claude instructions with the connection, for what it needs to know before a call. In short:
 

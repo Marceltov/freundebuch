@@ -20,7 +20,11 @@ export const API_PREFIX = "/api/v1";
 export type AnchoredTable = "facts" | "promises" | "dates" | "exchanges" | "relationships";
 export const personPath = (id: string) => `/p/${id}`;
 export const conversationPath = (id: string) => `/c/${id}`;
+/** A ramble: its transcript and what was filed from it. */
+export const ramblePath = (id: string) => `/r/${id}`;
 export const groupPath = (id: string) => `/g/${id}`;
+/** A journal entry, highlighted on the Tagebuch page. */
+export const journalPath = (id: string) => `/tagebuch#journal-${id}`;
 export const filePath = (id: string) => `/api/files/${id}`;
 /** The element id of an item's row on a page; a link ending in `#` + this scrolls to the row and highlights it. */
 export const anchorId = (table: AnchoredTable, id: string) => `${table}-${id}`;

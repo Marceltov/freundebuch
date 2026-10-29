@@ -7,7 +7,9 @@ import type { FactKind } from "@/backend";
 import { copy } from "@/components/copy";
 import { linkTo, shareLink } from "@/components/ShareButton";
 
-type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversations";
+type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversations" | "journal_entries";
+// A conversation and a journal entry are their recorder's alone to change; neither gets a link to its row.
+const OWN: Table[] = ["conversations", "journal_entries"];
 
 // What can be done to one item, behind a "…" button that opens a small menu over the page, each action with its icon and its
 // name: mark it done (a promise, an exchange or a gift idea) or outdated (a fact), which either user may; edit its text, change
@@ -20,11 +22,11 @@ type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversatio
 // lets whoever may edit it move it to another kind (Gerade los, Gut zu wissen, Braucht, Wesen), and set the day to ask about a situation (`checkAfter`).
 
 /** The link to an item's highlighted row on the page it is shared from. */
-export const rowPath = (page: string, table: Exclude<Table, "conversations">, id: string) => `${page}#${table}-${id}`;
+export const rowPath = (page: string, table: Exclude<Table, "conversations" | "journal_entries">, id: string) => `${page}#${table}-${id}`;
 
 /** Whether the viewer may edit or delete the item: their own, or a shared one of the partner's that isn't a conversation. */
 export function canEdit(table: Table, mine: boolean, visibility: "shared" | "private"): boolean {
-  return mine || (table !== "conversations" && visibility === "shared");
+  return mine || (!OWN.includes(table) && visibility === "shared");
 }
 
 // Every kind a fact can have, in menu order: a kind the backend adds doesn't compile until it has its entry here.
@@ -110,7 +112,7 @@ export function ItemActions({
   const title = editing === "date" ? copy.changeDate : editing === "ask" ? copy.askOnTitle : copy.edit;
   const editable = canEdit(table, mine, visibility);
   // Every other item can at least be shared; the partner's conversation, whose page has its own share button, has nothing.
-  if (table === "conversations" && !editable) return null;
+  if (OWN.includes(table) && !editable) return null;
   return (
     <span className="relative ml-auto inline-flex shrink-0">
       <button
@@ -128,7 +130,7 @@ export function ItemActions({
         <>
           <span className="fixed inset-0 z-30" onClick={close} />
           <span className="absolute top-full right-0 z-40 mt-1 flex w-52 flex-col rounded-2xl bg-surface p-1.5 text-[15px] shadow-float ring-1 ring-rule">
-            {table !== "conversations" && (
+            {table !== "conversations" && table !== "journal_entries" && (
               <Item
                 icon={shared ? Check : Share2}
                 label={shared === "copied" ? copy.linkCopied : copy.shareLink}
