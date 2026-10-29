@@ -17,6 +17,7 @@ import { journalEntries } from "../journal";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { getReflection, putReflection } from "../reflection";
+import { deleteRamble } from "../rambles";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
@@ -385,6 +386,21 @@ const OPS: AnyOp[] = [
     body: NewRambleJson,
     responses: { 201: { description: "Recorded", schema: RecordedRambleJson }, 400: E400, 401: E401, 404: E404, 409: E[409] },
   }).handle(async ({ viewer, body }) => ({ status: 201, body: await record(viewer, body) })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/rambles/{id}`,
+    operationId: "deleteRamble",
+    summary: "Delete a ramble and everything told in it",
+    description: "Its transcript, conversations, journal entries and items. Only its recorder may.",
+    tags: ["Rambles"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 204: NO_CONTENT, 401: E401, 403: E403, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await deleteRamble(viewer, params.id);
+    return { status: 204, body: undefined };
+  }),
 
   op({
     method: "GET",

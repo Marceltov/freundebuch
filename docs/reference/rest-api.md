@@ -44,6 +44,7 @@ The same privacy rules apply as everywhere else: a request sees what the token's
 ## Rambles and the journal
 
 - `POST /api/v1/rambles` files a ramble and its parts, as the MCP tool `record` does: `conversations`, `journal` (`{ date?, text, mentions?, shared? }`, private unless `shared`) and the item lists, each item with an optional `in` (the index of its conversation). It answers `201` with the ramble's id, each part's id and link, and what was filed. It replaces `POST /api/v1/conversations` (removed in 0.4); reading conversations is unchanged.
+- `DELETE /api/v1/rambles/{id}` deletes a ramble with its transcript, conversations, journal entries and items; only its recorder may (403 for the other user).
 - `GET /api/v1/journal?from=&to=&personId=` lists journal entries, the last 30 days by default: the caller's own and the ones the other user shared.
 - `GET /api/v1/me/reflection` and `PUT` with `{ reflection: { day, hour } | null }` read and set the weekly reflection (day 0 = Sunday, in the server's time zone); `null` turns it off, the default.
-- Journal entries are changed through `/api/v1/items/journal_entries/{id}` like other items: `PATCH` its `text` or `date`, or its `visibility` (its writer only), and `DELETE`.
+- Journal entries are changed through `/api/v1/items/journal_entries/{id}` like other items: `PATCH` its `text`, `date` or `visibility` and `DELETE` it, its writer only.

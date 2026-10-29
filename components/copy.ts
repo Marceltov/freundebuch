@@ -78,6 +78,8 @@ export const copy = {
   journalPrivate: "Nur für dich",
   journalAbout: "Aus deinem Tagebuch",
   ramble: "Erzählung",
+  rambleRemove: "Erzählung löschen, mit allem daraus",
+  rambleItems: "Sonst erfasst",
   withOthers: "mit {names}",
   everyDays: "alle {n} Tage",
   everyWeeks: "alle {n} Wochen",

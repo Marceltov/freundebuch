@@ -656,4 +656,14 @@ test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, priv
   await expect(page.getByText("Noch nichts im Tagebuch")).toBeVisible();
   await page.goto("/verlauf");
   await expect(page.getByText("öfter laufen gehen")).toHaveCount(0);
+
+  // Its recorder deletes the ramble, and the entry goes with it.
+  await page.goto("/api/e2e/login?name=Erika Muster");
+  await page.goto("/tagebuch");
+  await page.getByRole("listitem").filter({ hasText: "öfter laufen gehen" }).getByRole("link", { name: "Erzählung" }).click();
+  await page.getByRole("button", { name: "Erzählung löschen, mit allem daraus" }).click();
+  await page.getByRole("button", { name: "Wirklich löschen?" }).click();
+  await expect(page).toHaveURL("/verlauf");
+  await page.goto("/tagebuch");
+  await expect(page.getByText("Noch nichts im Tagebuch")).toBeVisible();
 });

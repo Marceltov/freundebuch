@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Coffee, Lock, Mic, NotebookPen } from "lucide-react";
+import { BookOpen, Coffee, Lock, Mic, NotebookPen } from "lucide-react";
 import { getRamble } from "@/backend";
 import { copy, kindName } from "@/components/copy";
 import { shortDay } from "@/components/format";
 import { KIND_ICON } from "@/components/icons";
 import { JournalItem } from "@/components/Journal";
+import { RambleDelete } from "@/components/RambleDelete";
 import { Section } from "@/components/Tiles";
 import { orNotFound, pageViewer } from "../../viewer";
 
@@ -48,6 +49,18 @@ export default async function RamblePage({ params }: PageProps<"/r/[id]">) {
           </ul>
         </Section>
       )}
+      {r.items.length > 0 && (
+        <Section title={copy.rambleItems} icon={BookOpen} list>
+          {r.items.map((x) => (
+            <li key={x.id} className="py-1 text-sm">
+              <Link href={x.person.url} className="font-semibold text-carbon">
+                {x.person.name}
+              </Link>
+              : {x.text}
+            </li>
+          ))}
+        </Section>
+      )}
       <Section title={copy.transcript} icon={Mic}>
         {r.transcript === null ? (
           <p className="flex items-center gap-1.5 text-sm text-muted">
@@ -58,6 +71,7 @@ export default async function RamblePage({ params }: PageProps<"/r/[id]">) {
           <p className="text-sm whitespace-pre-wrap text-muted">{r.transcript}</p>
         )}
       </Section>
+      {r.recordedBy === v.userId && <RambleDelete id={r.id} />}
     </div>
   );
 }

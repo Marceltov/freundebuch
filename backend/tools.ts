@@ -37,6 +37,7 @@ import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
 import { traitsFor, type PersonTraits } from "./traits";
 import { journalEntries } from "./journal";
+import { deleteRamble, rambleTranscript } from "./rambles";
 import { discardFile, fileContent, listPending } from "./files";
 import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
@@ -178,6 +179,7 @@ const CalendarFeed = CalendarFeedJson.extend({});
 
 const GroupId = z.string().describe("A group's id, as groups or relate return it");
 const ConversationId = z.string().describe("A conversation's id, as a briefing's recent conversations or record return it");
+const RambleId = z.string().describe("A ramble's id, as record and journal return it");
 const Table = z.enum(ITEM_TABLES).describe("The kind of item");
 const ItemId = z.string().describe("The item's id, as a briefing shows it");
 
@@ -260,8 +262,9 @@ const CorrectedJson = z.object({
   relabel: Relabels.optional().describe("gender: the person's relationships the user may edit (their own and the partner's shared ones), whose words are written in each end's gender"),
 });
 const TranscriptJson = z.object({
-  conversationId: z.string(),
-  url: z.string().describe("The conversation's page, as an absolute URL"),
+  rambleId: z.string(),
+  conversationId: z.string().nullable().describe("The conversation asked for; null when asked by the ramble's id"),
+  url: z.string().describe("The conversation's page, or the ramble's, as an absolute URL"),
   date: Day,
   transcript: z.string().nullable().describe("Null when the other user recorded it and it is private to them"),
 });
@@ -319,6 +322,7 @@ const CORRECT_ACTIONS = [
   "alias",
   "merge",
   "share_transcript",
+  "delete_ramble",
   "ungroup",
   "group_rename",
   "group_alias",
@@ -332,13 +336,13 @@ const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, only its recorder (table, id). rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a conversation the user recorded, once nothing in it is private any more (id); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
   id: z
     .string()
     .describe(
-      "The item's id as a briefing shows it; for rename, alias and merge, a person's id (merge: the person to keep); for share_transcript, a conversation's id; for the group actions, the group's id (group_merge: the group to keep)",
+      "The item's id as a briefing shows it; for rename, alias and merge, a person's id (merge: the person to keep); for share_transcript, a ramble's or conversation's id; for delete_ramble, a ramble's id; for the group actions, the group's id (group_merge: the group to keep)",
     ),
   person: PersonId.optional().describe("ungroup: the person to take out"),
   patch: z.record(z.string(), z.unknown()).optional().describe("edit: new values for the item's own fields"),
@@ -396,7 +400,8 @@ const CorrectArgs = z.discriminatedUnion("action", [
       drop: PersonId.describe("The duplicate; it is deleted"),
     })
     .describe("Merge a duplicate person"),
-  z.object({ action: z.literal("share_transcript"), id: ConversationId }).describe("Let the partner read a conversation's transcript"),
+  z.object({ action: z.literal("share_transcript"), id: z.string().describe("A ramble's id, or one of its conversations'") }).describe("Let the partner read a ramble's transcript"),
+  z.object({ action: z.literal("delete_ramble"), id: RambleId }).describe("Delete a ramble with everything told in it"),
   z.object({ action: z.literal("ungroup"), id: GroupId, person: PersonId }).describe("Take a person out of a group"),
   z
     .object({
@@ -785,6 +790,9 @@ export const TOOLS: readonly Tool[] = [
         case "share_transcript":
           await shareTranscript(v, a.id);
           break;
+        case "delete_ramble":
+          await deleteRamble(v, a.id);
+          break;
         case "ungroup":
           await removeFromGroup(v, a.id, a.person);
           break;
@@ -819,17 +827,16 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "get_transcript",
     description:
-      "The verbatim ramble a conversation was recorded from. Use it when the user asks what exactly was said, or a briefing's summary isn't enough.",
-    input: z.object({ conversationId: ConversationId }),
+      "The verbatim ramble, by one of its conversations' id or the ramble's own (journal entries carry it). Use it when the user asks what exactly was said, or a summary isn't enough.",
+    input: z.object({ conversationId: ConversationId.optional(), rambleId: RambleId.optional() }),
     output: TranscriptJson,
     annotations: { readOnlyHint: true },
-    handler: async (v, { conversationId }) => {
-      const c = await getConversation(v, conversationId);
-      return ok(
-        TranscriptJson,
-        { conversationId: c.id, url: conversationPath(c.id), date: c.date, transcript: c.transcript },
-        c.transcript === null ? ["The transcript is private to whoever recorded it: answer from the conversation's summary instead."] : [],
-      );
+    handler: async (v, { conversationId, rambleId }) => {
+      if (!conversationId && !rambleId) throw new InvalidInputError("Give conversationId or rambleId");
+      const t = conversationId
+        ? await getConversation(v, conversationId).then((c) => ({ rambleId: c.rambleId, conversationId: c.id, url: conversationPath(c.id), date: c.date, transcript: c.transcript }))
+        : { ...(await rambleTranscript(v, rambleId!)), conversationId: null };
+      return ok(TranscriptJson, t, t.transcript === null ? ["The transcript is private to whoever recorded it: answer from the summary instead."] : []);
     },
   }),
 ];

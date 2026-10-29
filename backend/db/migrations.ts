@@ -506,6 +506,21 @@ const migrations: Record<string, Migration> = {
       await db.schema.alterTable("user_settings").addColumn("reflection_hour", "integer").execute();
     },
   },
+
+  // Every item points to the ramble it was told in, with a conversation or without one (null: filed outside a ramble, with
+  // remember or relate). A ramble's transcript privacy and its deletion reach every item through it.
+  "014_ramble_items": {
+    async up(db) {
+      for (const t of ["facts", "promises", "dates", "exchanges", "relationships", "group_members"]) {
+        await db.schema
+          .alterTable(t)
+          .addColumn("ramble_id", "text", (c) => c.references("rambles.id").onDelete("cascade"))
+          .execute();
+        await sql`update ${sql.table(t)} set ramble_id = (select ramble_id from conversations where conversations.id = ${sql.ref(`${t}.conversation_id`)}) where conversation_id is not null`.execute(db);
+        await db.schema.createIndex(`${t}_by_ramble`).on(t).column("ramble_id").execute();
+      }
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

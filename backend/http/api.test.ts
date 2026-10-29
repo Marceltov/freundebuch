@@ -434,3 +434,13 @@ describe("reflection", () => {
     expect((await call(s.b, "GET", "/me/reflection")).json).toEqual({ reflection: null });
   });
 });
+
+describe("rambles", () => {
+  test("DELETE /rambles/{id}: the recorder deletes a ramble with every part; the partner can't, an unknown one is 404", async () => {
+    const r = (await call(s.a, "POST", "/rambles", { date: "2026-10-29", transcript: "t", visibility: "shared", people: [{ id: s.anna }], conversations: [{ kind: "call", summary: "Anruf", present: [0] }] })).json;
+    expect((await call(s.b, "DELETE", `/rambles/${r.rambleId}`)).status).toBe(403);
+    expect((await call(s.a, "DELETE", `/rambles/${r.rambleId}`)).status).toBe(204);
+    expect((await call(s.a, "GET", `/conversations/${r.conversations[0].id}`)).status).toBe(404);
+    expect((await call(s.a, "DELETE", `/rambles/${r.rambleId}`)).status).toBe(404);
+  });
+});

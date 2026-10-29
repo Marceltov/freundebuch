@@ -10,7 +10,7 @@ There is nothing to fill in. Ramble as you always do; Claude splits what you tel
 - **conversations**: when you met, called or messaged someone;
 - what you learned about people (facts, promises, dates, gifts, relationships).
 
-All of them link to the same transcript, your words as you said them. On the web, a ramble's page (**Erzählung**) shows the transcript and every part filed from it.
+All of them link to the same transcript, your words as you said them. On the web, a ramble's page (**Erzählung**) shows the transcript and every part filed from it; there you can also delete the ramble with everything that came from it.
 
 ## Private unless you share
 

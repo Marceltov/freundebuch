@@ -318,8 +318,8 @@ export function checkGroup<P>(g: { name: string; members: P[] }, ref: (p: P) => 
   g.members.forEach(ref);
 }
 
-/** Who recorded an item, when, and with which conversation (null for one set directly). */
-export type ItemBase = { recorded_by: string; conversation_id: string | null; created_at: number };
+/** Who recorded an item, when, and with which conversation and ramble (null for one set directly). */
+export type ItemBase = { recorded_by: string; conversation_id: string | null; ramble_id?: string | null; created_at: number };
 
 /**
  * A relationship's word with its gender endings taken off, so "Vermieterin", "Vermieter" and "Vermieter:in" are one word, and
@@ -411,7 +411,7 @@ export async function insertMemberships(
   for (const m of new Set(personIds)) {
     const r = await tx
       .insertInto("group_members")
-      .values({ group_id: groupId, person_id: m, visibility, recorded_by: base.recorded_by, conversation_id: base.conversation_id })
+      .values({ group_id: groupId, person_id: m, visibility, recorded_by: base.recorded_by, conversation_id: base.conversation_id, ramble_id: base.ramble_id ?? null })
       .onConflict((oc) => oc.doNothing())
       .executeTakeFirst();
     added += Number(r.numInsertedOrUpdatedRows ?? 0);
@@ -569,7 +569,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     for (const slot of slots) {
       const conversationId = slot === undefined ? null : conversationIds[slot];
       const mine = <T extends In>(xs: T[] | undefined) => (xs ?? []).filter((x) => x.in === slot);
-      const base: ItemBase = { recorded_by: v.userId, conversation_id: conversationId, created_at: t };
+      const base: ItemBase = { recorded_by: v.userId, conversation_id: conversationId, ramble_id: rambleId, created_at: t };
       const page = (personId: string) => (conversationId ? conversationPath(conversationId) : personPath(personId));
       const part = { facts: mine(r.facts), promises: mine(r.promises), dates: mine(r.dates), exchanges: mine(r.exchanges) };
       const got = await insertItems(tx, v, base, part, id, vis, (p) => names.get(p) ?? "", page);

@@ -359,3 +359,26 @@ test("journal hands Claude the entries of a period to interpret, never to diagno
   expect((await run(s.a, "journal", { from: "2026-01-01", to: "2026-01-31" })).next).toEqual(["No journal entries in this period: say so, and offer to look at another one."]);
   expect((await run(s.b, "journal", { from: "2026-10-01", to: "2026-10-31" })).entries).toEqual([]);
 });
+
+describe("rambles over MCP (review I3, I4)", () => {
+  let s: Seed;
+  beforeEach(async () => {
+    s = await seed();
+  });
+  const journalOnly = (v: Seed["a"]) => run(v, "record", { date: today(), transcript: "Nur über mich.", visibility: "shared", people: [], journal: [{ text: "Nur über mich." }] });
+
+  test("get_transcript reads a ramble by its id; share_transcript shares it by its id", async () => {
+    const r = await journalOnly(s.a);
+    const got = await run(s.a, "get_transcript", { rambleId: r.rambleId });
+    expect(got).toMatchObject({ rambleId: r.rambleId, conversationId: null, transcript: "Nur über mich." });
+    await run(s.a, "correct", { action: "visibility", table: "journal_entries", id: r.journal[0].id, visibility: "shared" });
+    await run(s.a, "correct", { action: "share_transcript", id: r.rambleId });
+    expect((await run(s.b, "get_transcript", { rambleId: r.rambleId })).transcript).toBe("Nur über mich.");
+  });
+
+  test("correct delete_ramble deletes a ramble and every part of it, for its recorder", async () => {
+    const r = await journalOnly(s.a);
+    await run(s.a, "correct", { action: "delete_ramble", id: r.rambleId });
+    expect((await run(s.a, "journal", {})).entries.map((e: Json) => e.id)).not.toContain(r.journal[0].id);
+  });
+});

@@ -255,7 +255,7 @@ test("007 turns each relationship's type into what each end is, in words, and ke
   await d.insertInto("relationships").values({ ...row, id: "r7", label: "Hebamme", inverse: "Mutter" }).execute();
   await expect(d.insertInto("relationships").values({ ...row, id: "r8", label: "", inverse: "Mutter" }).execute()).rejects.toThrow(/CHECK constraint failed/);
   const { rows } = await sql<{ name: string }>`pragma index_list(relationships)`.execute(d);
-  expect(rows.map((r) => r.name).filter((n) => !n.startsWith("sqlite_")).sort()).toEqual(["relationships_by_from", "relationships_by_to"]);
+  expect(rows.map((r) => r.name).filter((n) => !n.startsWith("sqlite_")).sort()).toEqual(["relationships_by_from", "relationships_by_ramble", "relationships_by_to"]);
 });
 
 test("007 makes every existing fact lasting", async () => {
@@ -382,4 +382,24 @@ test("011 moves each conversation's transcript into a ramble of its own and keep
   await d.deleteFrom("rambles").where("id", "=", (await d.selectFrom("conversations").select("ramble_id").where("id", "=", r1.id).executeTakeFirstOrThrow()).ramble_id).execute();
   expect(await d.selectFrom("conversations").select("id").execute()).toEqual([{ id: "c2" }]);
   expect(await d.selectFrom("facts").selectAll().execute()).toEqual([]);
+});
+
+test("014 links every item of a conversation to the conversation's ramble", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  const d = new Kysely<any>({ dialect: new SqliteDialect({ database }) }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await migrateTo(d, "013_reflection");
+  const t = Date.now();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "u", email: null, person_id: null, created_at: t }).execute();
+  await d.insertInto("persons").values({ id: "anna", name: "anna", created_by: "u", created_from: null, created_at: t }).execute();
+  await d.insertInto("rambles").values({ id: "r1", date: "2026-10-20", transcript: "t", transcript_private: 0, visibility: "shared", recorded_by: "u", created_at: t }).execute();
+  await d.insertInto("conversations").values({ id: "c1", ramble_id: "r1", kind: "call", place: null, summary: "s", visibility: "shared", recorded_by: "u", date: "2026-10-20", created_at: t }).execute();
+  const f = { person_id: "anna", text: "x", category: "other", status: "current", visibility: "shared", recorded_by: "u", created_at: t };
+  await d.insertInto("facts").values({ ...f, id: "f1", conversation_id: "c1" }).execute();
+  await d.insertInto("facts").values({ ...f, id: "f2", conversation_id: null }).execute();
+  await migrateTo(d, "014_ramble_items");
+  expect(await d.selectFrom("facts").select(["id", "ramble_id"]).orderBy("id").execute()).toEqual([
+    { id: "f1", ramble_id: "r1" },
+    { id: "f2", ramble_id: null },
+  ]);
 });
