@@ -13,6 +13,7 @@ exclude_docs: |
 nav:
   - Home: index.md
   - What freundebuch stands for: values.md
+  - Where freundebuch is going: roadmap.md
   - Getting started: getting-started.md
   - Using it:
       - Rambling to Claude: using/rambling.md
