@@ -13,6 +13,7 @@ import { FreundebuchError, NotFoundError } from "./errors";
 import { logger } from "./log";
 import { INSTRUCTIONS } from "./mcp";
 import { getPerson } from "./people";
+import { missedSessions } from "./sessions";
 import { TOOLS, toolByName } from "./tools";
 import { spend } from "./usage";
 import type { Viewer } from "./types";
@@ -95,6 +96,10 @@ async function situation(v: Viewer, context: ChatContext, day: string, gone = fa
       `The user opened the chat on a file they shared (fileId ${context.fileId}); it is in their first message, with what a first read suggested. Work it through with them: file what is worth keeping with record, passing fileIds ["${context.fileId}"]: its transcript joins the conversation's and the file goes. Ask about people and privacy as you would for a ramble. If nothing in it is worth filing, call inbox with action done and id ${context.fileId}.`,
       `It was shared on ${sharedOn}: date the ramble and what you file by when it happened, ${sharedOn} unless the file shows another day; not the day it is reviewed (${day}).`,
     );
+  // Opened on no page: a missed session of a series the user is part of, so Claude asks about it first.
+  if (!context.personId && !context.conversationId && !context.fileId)
+    for (const m of await missedSessions(v, day))
+      lines.push(`A session of the series ${m.name} on ${m.date} hasn't been told yet: ask the user how it went (then file it with record, series ${m.seriesId}), or whether it was skipped (correct series_skip).`);
   return lines.filter(Boolean).join("\n");
 }
 

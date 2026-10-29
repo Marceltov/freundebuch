@@ -440,3 +440,22 @@ describe("series over MCP", () => {
     expect(b.experiences.map((e: Json) => e.title)).toEqual(["Erste Stunde"]);
   });
 });
+
+describe("missed sessions over MCP", () => {
+  let s: Seed;
+  beforeEach(async () => {
+    s = await seed();
+  });
+  test("whats_due's next asks how a missed session went, or whether it was skipped", async () => {
+    const r = await run(s.a, "record", { date: "2026-09-02", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
+    await (await db()).updateTable("series").set({ created_at: Date.parse("2026-09-02T20:00:00Z") }).where("id", "=", r.experiences[0].seriesId).execute();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-10T09:00:00Z"));
+    try {
+      const due = await run(s.a, "whats_due", {});
+      expect(due.next.join(" ")).toContain('Ask how "Hundeschule mit Toffee" on 2026-09-09 went');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

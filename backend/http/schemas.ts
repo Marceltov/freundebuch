@@ -262,7 +262,9 @@ export const BriefingJson = z
 
 export const DueItemJson = z
   .object({
-    kind: z.enum(["date", "promise", "overdue", "situation"]).describe("`situation`: something going on whose checkAfter has come; ask how it went"),
+    kind: z
+      .enum(["date", "promise", "overdue", "situation", "session"])
+      .describe("`situation`: something going on whose checkAfter has come; ask how it went. `session`: a session day of a series that passed untold (name: the series, itemId: its id); ask how it went or whether it was skipped"),
     personId: PersonId,
     name: z.string(),
     date: z.string().optional(),

@@ -723,7 +723,10 @@ export const TOOLS: readonly Tool[] = [
       return ok(
         DueJson,
         { items },
-        items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
+        [
+          ...items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
+          ...items.filter((i) => i.kind === "session").map((i) => `Ask how "${i.name}" on ${i.date} went, and file it with record (series ${i.itemId}); if it was skipped, correct series_skip.`),
+        ],
       );
     },
   }),

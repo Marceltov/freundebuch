@@ -10,6 +10,7 @@ export const copy = {
   promiseBody: "für {name}",
   promiseTheirs: "📌 {name} wollte: {text}",
   situation: "💬 Frag mal nach: {name} – {text}",
+  sessionMissed: "🐾 {name} am {day}: noch nicht erzählt",
   more: "+{n} weitere",
   today: "heute",
   tomorrow: "morgen",

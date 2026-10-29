@@ -4,7 +4,7 @@ import { chat, linksOf, type ChatModel } from "./chat";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getConversation, recordConversation } from "./conversations";
+import { getConversation, record, recordConversation } from "./conversations";
 import { db } from "./db";
 import { shareFile } from "./files";
 import { asRamble, seed, type Seed } from "./testing/fixtures";
@@ -256,4 +256,12 @@ test("what record filed as an experience shows as a link chip with its title", (
   const input = { date: "2026-10-28", experiences: [{ kind: "Kurs", title: "Erste Stunde Hundeschule" }] };
   const out = { conversations: [], people: [], experiences: [{ id: "e1", seriesId: "s1", visibility: "shared", url: "/s/s1#experience-e1" }] };
   expect(linksOf("record", input, out)).toEqual([{ kind: "experience", id: "e1", name: "Erste Stunde Hundeschule", url: "/s/s1#experience-e1" }]);
+});
+
+test("opened on no page, the chat tells Claude about a missed session so it asks first", async () => {
+  const r = await record(s.a, { date: "2026-09-02", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
+  await (await db()).updateTable("series").set({ created_at: Date.parse("2026-09-02T20:00:00Z") }).where("id", "=", r.experiences[0].seriesId!).execute();
+  const { model, calls } = fake([text("Wie war die Hundeschule am Mittwoch?")]);
+  await chat(s.a, [{ role: "user", content: "Hallo" }], {}, model, Date.parse("2026-09-10T09:00:00Z"));
+  expect(JSON.stringify(calls[0].system)).toContain("Hundeschule mit Toffee on 2026-09-09");
 });

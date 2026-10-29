@@ -7120,9 +7120,10 @@
               "date",
               "promise",
               "overdue",
-              "situation"
+              "situation",
+              "session"
             ],
-            "description": "`situation`: something going on whose checkAfter has come; ask how it went"
+            "description": "`situation`: something going on whose checkAfter has come; ask how it went. `session`: a session day of a series that passed untold (name: the series, itemId: its id); ask how it went or whether it was skipped"
           },
           "personId": {
             "type": "string",
