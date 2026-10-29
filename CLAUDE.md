@@ -24,6 +24,8 @@ freundebuch: a personal CRM for one household, AI-first (capture happens through
 
 ## Rules
 
+- What freundebuch stands for is `docs/values.md`: changes are judged against it, and a review names the point it touches ("this breaks V2").
+
 - AI-native: MCP is the main interface. Every feature works over MCP first (tools, their descriptions, what the briefing returns); the REST API and the web UI follow.
 - Code, identifiers, API, tool names/descriptions, logs and docs are English. Every UI string is German: `components/copy.ts` for the web UI, `backend/notify/copy.ts` for the notifications.
 - Never commit superpowers artifacts (`.superpowers/`, specs, plans). Architectural decisions go to `docs/adr/NNNN-*.md` (MADR).
