@@ -66,12 +66,12 @@ test("context shows relationships and when the viewer last saw the person", asyn
   await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, label: "Partner:in", inverse: "Partner:in", note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
   for (const date of ["2026-10-01", "2026-10-20"]) {
     const id = newId();
-    await d.insertInto("conversations").values({ id, date, kind: "call", place: null, summary: "s", ramble_id: await ramble(d, id, a.userId), visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
+    await d.insertInto("conversations").values({ id, date, kind: "call", summary: "s", ramble_id: await ramble(d, id, a.userId), visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
     await d.insertInto("participants").values([{ conversation_id: id, person_id: anna }, { conversation_id: id, person_id: b.personId }]).execute();
   }
   // A conversation the viewer was not part of does not count as seeing Anna.
   const other = newId();
-  await d.insertInto("conversations").values({ id: other, date: "2026-10-22", kind: "call", place: null, summary: "s", ramble_id: await ramble(d, other, a.userId), visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
+  await d.insertInto("conversations").values({ id: other, date: "2026-10-22", kind: "call", summary: "s", ramble_id: await ramble(d, other, a.userId), visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
   await d.insertInto("participants").values({ conversation_id: other, person_id: anna }).execute();
   const [c] = await findPeople(b, "Anna");
   expect(c.context).toEqual(["Partner:in of Tom", "last seen 2026-10-20"]);
@@ -84,7 +84,7 @@ test("context never contains anything from a private item of the other user", as
   const d = await db();
   await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, label: "Partner:in", inverse: "Partner:in", note: null, visibility: "private", recorded_by: b.userId, conversation_id: null, created_at: now() }).execute();
   const cid = newId();
-  await d.insertInto("conversations").values({ id: cid, date: "2026-10-20", kind: "call", place: null, summary: "s", ramble_id: await ramble(d, cid, a.userId), visibility: "private", recorded_by: b.userId, created_at: now() }).execute();
+  await d.insertInto("conversations").values({ id: cid, date: "2026-10-20", kind: "call", summary: "s", ramble_id: await ramble(d, cid, a.userId), visibility: "private", recorded_by: b.userId, created_at: now() }).execute();
   await d.insertInto("participants").values([{ conversation_id: cid, person_id: anna }, { conversation_id: cid, person_id: b.personId }]).execute();
   expect((await findPeople(a, "Anna"))[0].context).toEqual([]);
   expect((await findPeople(b, "Anna"))[0].context).toEqual(["Partner:in of Tom", "last seen 2026-10-20"]);
@@ -101,7 +101,7 @@ test("addAlias adds, dedupes by norm and is found", async () => {
 test("getPerson hides createdFrom when the conversation is not visible", async () => {
   const d = await db();
   const cid = newId();
-  await d.insertInto("conversations").values({ id: cid, date: "2026-10-20", kind: "call", place: null, summary: "s", ramble_id: await ramble(d, cid, a.userId), visibility: "private", recorded_by: b.userId, created_at: now() }).execute();
+  await d.insertInto("conversations").values({ id: cid, date: "2026-10-20", kind: "call", summary: "s", ramble_id: await ramble(d, cid, a.userId), visibility: "private", recorded_by: b.userId, created_at: now() }).execute();
   const id = await createPerson(b, { name: "Carl", createdFrom: cid });
   expect((await getPerson(b, id)).createdFrom).toBe(cid);
   expect((await getPerson(a, id)).createdFrom).toBeNull();

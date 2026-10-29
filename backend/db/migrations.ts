@@ -521,6 +521,46 @@ const migrations: Record<string, Migration> = {
       }
     },
   },
+
+  // Places are records of their own, with other names as people have: each recorder's free-text conversation places become
+  // one place per distinct name, and conversations point to it.
+  "015_places": {
+    async up(db) {
+      await db.schema
+        .createTable("places")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("name", "text", (c) => c.notNull())
+        .addColumn("created_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      await db.schema
+        .createTable("place_aliases")
+        .addColumn("place_id", "text", (c) => c.notNull().references("places.id").onDelete("cascade"))
+        .addColumn("alias", "text", (c) => c.notNull())
+        .addColumn("norm", "text", (c) => c.notNull())
+        .addPrimaryKeyConstraint("place_aliases_pk", ["place_id", "norm"])
+        .execute();
+      await db.schema
+        .alterTable("conversations")
+        .addColumn("place_id", "text", (c) => c.references("places.id").onDelete("set null"))
+        .execute();
+      const rows = await db.selectFrom("conversations").select(["id", "recorded_by", "place", "created_at"]).where("place", "is not", null).orderBy("created_at").execute();
+      const made = new Map<string, string>();
+      for (const r of rows as Array<{ id: string; recorded_by: string; place: string; created_at: number }>) {
+        const name = r.place.trim();
+        if (!name) continue;
+        const key = `${r.recorded_by}\u0000${name.toLowerCase()}`;
+        let id = made.get(key);
+        if (!id) {
+          id = crypto.randomUUID();
+          made.set(key, id);
+          await db.insertInto("places").values({ id, name, created_by: r.recorded_by, created_at: r.created_at }).execute();
+        }
+        await db.updateTable("conversations").set({ place_id: id }).where("id", "=", r.id).execute();
+      }
+      await db.schema.alterTable("conversations").dropColumn("place").execute();
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

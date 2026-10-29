@@ -15,6 +15,14 @@ export const ErrorJson = z
 
 export const Visibility = z.enum(VISIBILITIES).describe("`private` items are visible only to whoever recorded them");
 export const Day = z.string().describe("A day, `YYYY-MM-DD`");
+/** How a part names where it happened. */
+export const PlaceRefJson = z
+  .union([
+    z.string().describe("The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"),
+    z.object({ id: z.string().describe("An existing place's id") }),
+    z.object({ name: z.string(), confirmedNew: z.boolean().optional().describe("The user confirmed it is a new place, not the close one") }),
+  ])
+  .describe("Where it happened: a place's name, { id }, or { name, confirmedNew: true }");
 export const PersonId = z.string().describe("A person's id");
 const Url = z.string().describe("Where it opens in the web app, as an absolute URL");
 // An item links to its row on the page that shows it, which scrolls to the row and highlights it.
@@ -277,7 +285,7 @@ export const NewConversationJson = z
     fileIds: FileIds.optional(),
     date: Day,
     kind: z.enum(CONVERSATION_KINDS),
-    place: z.string().optional(),
+    place: PlaceRefJson.optional(),
     summary: z.string(),
     transcript: z.string().describe("The verbatim text; private to the recorder whenever anything recorded with it is private"),
     visibility: Visibility,
@@ -463,7 +471,8 @@ export const ConversationJson = z
     id: z.string(),
     date: Day,
     kind: z.enum(CONVERSATION_KINDS),
-    place: z.string().nullable(),
+    place: z.string().nullable().describe("The place's name"),
+    placeId: z.string().nullable(),
     summary: z.string(),
     transcript: z.string().nullable().describe("Null when the viewer may not read it"),
     visibility: Visibility,

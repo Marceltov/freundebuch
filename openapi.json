@@ -4628,7 +4628,40 @@
                   ]
                 },
                 "place": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "An existing place's id"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "confirmedNew": {
+                          "description": "The user confirmed it is a new place, not the close one",
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ]
+                    }
+                  ],
+                  "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }"
                 },
                 "summary": {
                   "type": "string"
@@ -5731,7 +5764,40 @@
             ]
           },
           "place": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "An existing place's id"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "confirmedNew": {
+                    "description": "The user confirmed it is a new place, not the close one",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            ],
+            "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }"
           },
           "summary": {
             "type": "string"
@@ -6558,6 +6624,13 @@
             ]
           },
           "place": {
+            "description": "The place's name",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "placeId": {
             "type": [
               "string",
               "null"
@@ -6975,6 +7048,7 @@
           "date",
           "kind",
           "place",
+          "placeId",
           "summary",
           "transcript",
           "visibility",

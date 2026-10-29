@@ -30,7 +30,7 @@ export interface Schema {
     id: string;
     date: string;
     kind: string;
-    place: string | null;
+    place_id: string | null;
     summary: string;
     /** The ramble it was told in, which holds the transcript. */
     ramble_id: string;
@@ -42,6 +42,8 @@ export interface Schema {
    * transcript is the recorder's whenever anything filed from it is private (`transcript_private`). */
   rambles: { id: string; date: string; transcript: string; transcript_private: Flag; visibility: string; recorded_by: string; created_at: number };
   participants: { conversation_id: string; person_id: string };
+  places: { id: string; name: string; created_by: string; created_at: number };
+  place_aliases: { place_id: string; alias: string; norm: string };
   /** What the user thinks and feels about their own life, cut from a ramble; private unless they share it. */
   journal_entries: { id: string; ramble_id: string; date: string; text: string; visibility: string; recorded_by: string; created_at: number };
   /** The people a journal entry names. */

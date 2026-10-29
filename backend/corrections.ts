@@ -14,6 +14,7 @@ import { norm } from "./names";
 import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBILITIES, type FactKind, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
 import { pruneFiles } from "./files";
+import { resolvePlace, type PlaceRef } from "./places";
 
 export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations" | "journal_entries";
 
@@ -180,7 +181,8 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
   conversations: {
     date: { column: "date", check: conversationDay },
     kind: { column: "kind", check: oneOf(CONVERSATION_KINDS) },
-    place: { column: "place", check: optionalText },
+    // A place by name or id, resolved below; null clears it.
+    place: { column: "place", check: (x) => x },
     summary: { column: "summary", check: upTo(MAX_SUMMARY) },
     transcript: { column: "transcript", check: upTo(MAX_TRANSCRIPT) },
   },
@@ -226,6 +228,10 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
       set.check_after = addDays(today(), SITUATION_DAYS);
       defaultCheckAfter = true;
     }
+  }
+  if (table === "conversations" && "place" in set) {
+    set.place_id = set.place === null || set.place === "" ? null : await resolvePlace(d, v, set.place as PlaceRef);
+    delete set.place;
   }
   // A conversation's transcript is its ramble's.
   if (table === "conversations" && "transcript" in set) {

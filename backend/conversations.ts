@@ -5,6 +5,7 @@ import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
+import { resolvePlace, type PlaceRef } from "./places";
 import { checkGender, insertPerson, namedLike, relabelFor, type Relabel } from "./people";
 import {
   CONVERSATION_KINDS,
@@ -40,7 +41,7 @@ export type NewConversation = {
   fileIds?: string[];
   date: string;
   kind: ConversationKind;
-  place?: string;
+  place?: PlaceRef;
   summary: string;
   transcript: string;
   visibility: Visibility;
@@ -97,7 +98,9 @@ export type ConversationView = {
   id: string;
   date: string;
   kind: ConversationKind;
+  /** Where it happened: the place's name, and its id (null when none was told). */
   place: string | null;
+  placeId: string | null;
   summary: string;
   /** The ramble it was told in. */
   rambleId: string;
@@ -452,7 +455,7 @@ export type NewRamble = {
   transcript: string;
   visibility: Visibility;
   people: Array<{ id?: string; name?: string; aliases?: string[]; confirmedNew?: boolean; gender?: Gender }>;
-  conversations?: Array<{ date?: string; kind: ConversationKind; place?: string; summary: string; present: PersonRef[] }>;
+  conversations?: Array<{ date?: string; kind: ConversationKind; place?: PlaceRef; summary: string; present: PersonRef[] }>;
   journal?: Array<{ date?: string; text: string; mentions?: PersonRef[]; shared?: boolean }>;
   facts?: Array<NonNullable<NewConversation["facts"]>[number] & In>;
   promises?: Array<NonNullable<NewConversation["promises"]>[number] & In>;
@@ -528,11 +531,13 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     blobs = taken.blobs;
     const transcript = [r.transcript, ...taken.transcripts.map((x) => `${FROM_FILE}\n${x}`)].join("\n\n");
     await tx.insertInto("rambles").values({ id: rambleId, date: r.date, transcript, transcript_private: transcriptPrivate, visibility: r.visibility, recorded_by: v.userId, created_at: t }).execute();
-    for (const [i, c] of (r.conversations ?? []).entries())
+    for (const [i, c] of (r.conversations ?? []).entries()) {
+      const placeId = c.place === undefined || c.place === "" ? null : await resolvePlace(tx, v, c.place);
       await tx
         .insertInto("conversations")
-        .values({ id: conversationIds[i], date: c.date ?? r.date, kind: c.kind, place: c.place?.trim() || null, summary: c.summary, ramble_id: rambleId, visibility: r.visibility, recorded_by: v.userId, created_at: t })
+        .values({ id: conversationIds[i], date: c.date ?? r.date, kind: c.kind, place_id: placeId, summary: c.summary, ramble_id: rambleId, visibility: r.visibility, recorded_by: v.userId, created_at: t })
         .execute();
+    }
 
     const people: Omit<Recorded["people"][number], "url">[] = [];
     for (const [ref, p] of r.people.entries()) {
@@ -721,7 +726,8 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     id: c.id,
     date: c.date,
     kind: c.kind as ConversationKind,
-    place: c.place,
+    place: c.place_id ? ((await d.selectFrom("places").select("name").where("id", "=", c.place_id).executeTakeFirst())?.name ?? null) : null,
+    placeId: c.place_id,
     summary: c.summary,
     rambleId: c.ramble_id,
     transcript: c.recorded_by === v.userId || !ramble.transcript_private ? ramble.transcript : null,
