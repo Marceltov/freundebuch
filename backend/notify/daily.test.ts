@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { record } from "../conversations";
 import { db } from "../db";
+import { logsOf } from "../log";
 import { seed, type Seed } from "../testing/fixtures";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { runDaily, runDailyIfDue } from "./daily";
@@ -123,6 +124,12 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
     expect(sent).toHaveLength(first);
     await runDailyIfDue(NOW + 24 * 3600_000, fetchFn); // the next day
     expect(sent.length).toBeGreaterThan(first);
+  });
+
+  test("logs only on the tick that served someone", async () => {
+    const said = async (at: number) => (await logsOf(() => runDailyIfDue(at, fetchFn))).filter((l) => l.msg === "daily reminders sent");
+    expect(await said(NOW)).toEqual([expect.objectContaining({ users: 1, sent: sent.length })]);
+    expect(await said(NOW + 60_000)).toEqual([]);
   });
 
   test("a failing receiver for A doesn't stop B, and neither is sent to again", async () => {

@@ -58,6 +58,7 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
   const d = await db();
   const rows = await d.selectFrom("user_settings").select(["user_id", "webhook_url"]).where("webhook_url", "is not", null).execute();
   let sent = 0;
+  let users = 0;
   for (const row of rows) {
     try {
       if (onlyNew) {
@@ -66,6 +67,7 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
       }
       const v = await viewerById(row.user_id);
       if (!v) continue;
+      users++;
       // A missed session goes out once, the morning after its day.
       const items = (await whatsDue(v, from, 1)).filter((i) => i.kind !== "session" || i.date === addDays(from, -1));
       const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
@@ -77,7 +79,8 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
       log.error({ err: errorFields(e) }, "daily reminders failed for a user");
     }
   }
-  log.info({ sent }, "daily reminders sent");
+  // The scheduler ticks every minute: a tick that served nobody says nothing.
+  if (users) log.info({ users, sent }, "daily reminders sent");
   return sent;
 }
 
