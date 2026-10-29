@@ -55,3 +55,12 @@ test("the scheduler reflects for whoever chose this day and hour, once", async (
   expect(await runReflectionsDue(THU_19 + 60_000, model, fetchFn)).toBe(0);
   expect(await runReflectionsDue(THU_19 + 24 * 3600_000, model, fetchFn)).toBe(0);
 });
+
+test("without a webhook the hour isn't used up: one added later that hour still gets this week's reflection", async () => {
+  await record(s.a, { date: "2026-10-27", transcript: "t", visibility: "shared", people: [], journal: [{ text: "Gute Woche." }] });
+  await putReflection(s.a, { day: 4, hour: 19 });
+  await putSettings(s.a, { webhookUrl: null });
+  expect(await runReflectionsDue(THU_19, model, fetchFn)).toBe(0);
+  await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+  expect(await runReflectionsDue(THU_19 + 10 * 60_000, model, fetchFn)).toBe(1);
+});

@@ -99,9 +99,9 @@ export type ConversationView = {
   kind: ConversationKind;
   place: string | null;
   summary: string;
-  /** null when the viewer may not read it: it is private to the recorder whenever anything recorded with it is private. */
   /** The ramble it was told in. */
   rambleId: string;
+  /** The ramble's transcript; null when the viewer may not read it: it is private to the recorder whenever anything told in the ramble is private. */
   transcript: string | null;
   visibility: Visibility;
   recordedBy: string;

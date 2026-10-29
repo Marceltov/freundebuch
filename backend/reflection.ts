@@ -126,9 +126,11 @@ export async function runReflectionsDue(now = Date.now(), model: ReflectionModel
   for (const row of rows) {
     const mark = await d.selectFrom("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
     if (mark?.value === day) continue;
-    await d.insertInto("meta").values({ key: doneKey(row.user_id), value: day }).onConflict((oc) => oc.column("key").doUpdateSet({ value: day })).execute();
     const v = await viewerById(row.user_id);
-    if (v && (await runReflection(v, now, model, fetchFn).catch((e) => (log.error({ err: e }, "a reflection failed"), false)))) sent++;
+    // Without a webhook nothing could go out: the day stays open, so one added later this hour still gets it.
+    if (!v || !(await getSettings(v)).webhookUrl) continue;
+    await d.insertInto("meta").values({ key: doneKey(row.user_id), value: day }).onConflict((oc) => oc.column("key").doUpdateSet({ value: day })).execute();
+    if ((await runReflection(v, now, model, fetchFn).catch((e) => (log.error({ err: e }, "a reflection failed"), false)))) sent++;
   }
   return sent;
 }
