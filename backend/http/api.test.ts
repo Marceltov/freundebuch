@@ -423,3 +423,14 @@ describe("journal", () => {
     expect(b.json.entries.map((e: { text: string }) => e.text)).toEqual(["Geteilt"]);
   });
 });
+
+describe("reflection", () => {
+  test("GET and PUT /me/reflection: off by default, a day and an hour, null to turn it off", async () => {
+    expect((await call(s.a, "GET", "/me/reflection")).json).toEqual({ reflection: null });
+    expect((await call(s.a, "PUT", "/me/reflection", { reflection: { day: 0, hour: 18 } })).status).toBe(204);
+    expect((await call(s.a, "GET", "/me/reflection")).json).toEqual({ reflection: { day: 0, hour: 18 } });
+    expect((await call(s.a, "PUT", "/me/reflection", { reflection: { day: 9, hour: 18 } })).status).toBe(400);
+    expect((await call(s.a, "PUT", "/me/reflection", { reflection: null })).status).toBe(204);
+    expect((await call(s.b, "GET", "/me/reflection")).json).toEqual({ reflection: null });
+  });
+});

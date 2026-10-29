@@ -16,6 +16,7 @@ import { traitsFor } from "../traits";
 import { journalEntries } from "../journal";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
+import { getReflection, putReflection } from "../reflection";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
 import { API_PREFIX, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
@@ -48,6 +49,7 @@ import {
   RecordedRambleJson,
   SentJson,
   SettingsJson,
+  ReflectionJson,
   ShareKeyJson,
   TableParam,
   TraitsJson,
@@ -479,6 +481,32 @@ const OPS: AnyOp[] = [
     responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
   }).handle(async ({ viewer, body }) => {
     await putSettings(viewer, body);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/me/reflection`,
+    operationId: "getReflection",
+    summary: "When the caller's weekly reflection is pushed",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The setting", schema: ReflectionJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: { reflection: await getReflection(viewer) } })),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/me/reflection`,
+    operationId: "putReflection",
+    summary: "Turn the weekly reflection on (a day and an hour) or off (null)",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    body: ReflectionJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => {
+    await putReflection(viewer, body.reflection);
     return { status: 204, body: undefined };
   }),
 

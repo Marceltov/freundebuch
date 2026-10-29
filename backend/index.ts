@@ -29,6 +29,7 @@ export { NotFoundError } from "./errors";
 export { orbit, type Badge, type OrbitFace } from "./orbit";
 export { calendarRoute, hasCalendarKey } from "./calendar";
 export { getSettings } from "./settings";
+export { getReflection } from "./reflection";
 export { hasShareKey, listPending, pendingCount, type PendingFile } from "./files";
 export type { FactKind, Viewer } from "./types";
 

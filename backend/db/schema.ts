@@ -84,6 +84,9 @@ export interface Schema {
     webhook_url: string | null;
     share_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
     calendar_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
+    /** The weekly reflection: weekday (0 Sunday … 6 Saturday) and hour, local time; null is off. */
+    reflection_day: ColumnType<number | null, number | null | undefined, number | null>;
+    reflection_hour: ColumnType<number | null, number | null | undefined, number | null>;
   };
   files: {
     id: string;

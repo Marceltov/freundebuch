@@ -540,6 +540,18 @@ export const SettingsJson = z
   .object({ webhookUrl: z.url({ protocol: /^https?$/ }).nullable().describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https") })
   .meta({ id: "Settings" });
 
+export const ReflectionJson = z
+  .object({
+    reflection: z
+      .object({
+        day: z.number().int().min(0).max(6).describe("Weekday, 0 = Sunday, in the server's time zone"),
+        hour: z.number().int().min(0).max(23).describe("Hour of the day"),
+      })
+      .nullable()
+      .describe("When the weekly reflection on your journal is pushed to your webhook; null for off (the default)"),
+  })
+  .meta({ id: "Reflection" });
+
 export const SentJson = z.object({ sent: z.boolean().describe("Whether the receiver accepted the message") }).meta({ id: "Sent" });
 
 const Candidate = z.object({ id: z.string(), name: Name, url: Url });
@@ -570,7 +582,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

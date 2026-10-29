@@ -1,17 +1,17 @@
 import { headers } from "next/headers";
-import { CalendarDays, ImageUp, LogOut, Plug, Users } from "lucide-react";
-import { getSettings, hasCalendarKey, hasShareKey, listGroups, mcpResource, publicUrl, sharingEnabled } from "@/backend";
+import { CalendarDays, ImageUp, LogOut, Plug, Sparkles, Users } from "lucide-react";
+import { getReflection, getSettings, hasCalendarKey, hasShareKey, listGroups, mcpResource, publicUrl, sharingEnabled } from "@/backend";
 import { copy } from "@/components/copy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupSettings } from "@/components/GroupSettings";
-import { CalendarSettings, ShareSettings, WebhookSettings } from "@/components/Settings";
+import { CalendarSettings, ReflectionSettings, ShareSettings, WebhookSettings } from "@/components/Settings";
 import { pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: copy.settings };
 
-// The viewer's own settings: the webhook for reminders, sharing files (when the instance can read them), the calendar
+// The viewer's own settings: the webhook for reminders, the weekly reflection, sharing files (when the instance can read them), the calendar
 // feed, the groups with their other names, and the address to connect Claude with. The time of day the reminders go out is the
 // instance's (FREUNDEBUCH_NOTIFY_AT), not a setting here.
 export default async function SettingsPage() {
@@ -22,6 +22,13 @@ export default async function SettingsPage() {
       <h1 className="font-display text-3xl font-bold">{copy.settings}</h1>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <WebhookSettings webhookUrl={webhookUrl} />
+      </section>
+      <section id="rueckblick" className="rounded-2xl bg-surface p-5 shadow-card">
+        <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
+          <Sparkles aria-hidden className="h-4 w-4" />
+          {copy.reflectionTitle}
+        </h2>
+        <ReflectionSettings reflection={await getReflection(v)} hasWebhook={!!webhookUrl} />
       </section>
       {sharingEnabled() && (
         <section id="teilen" className="rounded-2xl bg-surface p-5 shadow-card">

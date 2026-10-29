@@ -1867,6 +1867,95 @@
         }
       }
     },
+    "/api/v1/me/reflection": {
+      "get": {
+        "operationId": "getReflection",
+        "summary": "When the caller's weekly reflection is pushed",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reflection"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putReflection",
+        "summary": "Turn the weekly reflection on (a day and an hour) or off (null)",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reflection"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/settings/test": {
       "post": {
         "operationId": "testWebhook",
@@ -2915,6 +3004,43 @@
         },
         "required": [
           "webhookUrl"
+        ]
+      },
+      "Reflection": {
+        "type": "object",
+        "properties": {
+          "reflection": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "day": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6,
+                    "description": "Weekday, 0 = Sunday, in the server's time zone"
+                  },
+                  "hour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 23,
+                    "description": "Hour of the day"
+                  }
+                },
+                "required": [
+                  "day",
+                  "hour"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the weekly reflection on your journal is pushed to your webhook; null for off (the default)"
+          }
+        },
+        "required": [
+          "reflection"
         ]
       },
       "Sent": {

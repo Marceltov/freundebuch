@@ -19,6 +19,7 @@ export const copy = {
   shareThanks: "Danke! freundebuch liest die Datei, sie wartet unter „Prüfen“.",
   shareDuplicate: "Diese Datei hat freundebuch schon.",
   fileReady: "📎 Neu unter „Prüfen“",
+  reflectionTitle: "🪞 Deine Woche",
   fileFailed: "📎 Die Datei konnte nicht gelesen werden",
   calendarName: "freundebuch",
   calendarBirthday: "🎂 {name}",

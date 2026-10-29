@@ -498,6 +498,14 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+
+  // The weekly reflection on the journal: the weekday (0 Sunday … 6 Saturday) and hour it comes; both null, it is off.
+  "013_reflection": {
+    async up(db) {
+      await db.schema.alterTable("user_settings").addColumn("reflection_day", "integer").execute();
+      await db.schema.alterTable("user_settings").addColumn("reflection_hour", "integer").execute();
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

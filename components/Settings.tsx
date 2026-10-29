@@ -195,3 +195,62 @@ export function CalendarSettings({ hasFeed }: { hasFeed: boolean }) {
     </div>
   );
 }
+
+// The weekly reflection (GET/PUT /api/v1/me/reflection): off, or a weekday and an hour. Saved on every change.
+export function ReflectionSettings({ reflection, hasWebhook }: { reflection: { day: number; hour: number } | null; hasWebhook: boolean }) {
+  const [value, setValue] = useState(reflection);
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function save(next: { day: number; hour: number } | null) {
+    setValue(next);
+    const res = await fetch("/api/v1/me/reflection", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reflection: next }),
+    }).catch(() => null);
+    setStatus(res?.ok ? { ok: true, text: copy.saved } : { ok: false, text: copy.actionFailed });
+  }
+
+  const select = "rounded-xl border border-rule bg-surface-2 px-3 py-2 text-sm focus:border-carbon focus:outline-none";
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-muted">{copy.reflectionHint}</p>
+      {!hasWebhook && <p className="text-muted">{copy.reflectionNeedsWebhook}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="sr-only" htmlFor="reflection-day">
+          {copy.reflectionDay}
+        </label>
+        <select
+          id="reflection-day"
+          value={value ? String(value.day) : "off"}
+          onChange={(e) => save(e.target.value === "off" ? null : { day: Number(e.target.value), hour: value?.hour ?? 18 })}
+          className={select}
+        >
+          <option value="off">{copy.reflectionOff}</option>
+          {copy.weekdays.map((d, i) => (
+            <option key={d} value={i}>
+              {d}
+            </option>
+          ))}
+        </select>
+        {value && (
+          <>
+            <label className="sr-only" htmlFor="reflection-hour">
+              {copy.reflectionHour}
+            </label>
+            <select id="reflection-hour" value={value.hour} onChange={(e) => save({ day: value.day, hour: Number(e.target.value) })} className={select}>
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {`${String(h).padStart(2, "0")}:00`}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+        <span role="status" className={status?.ok === false ? "text-error" : "text-muted"}>
+          {status?.text}
+        </span>
+      </div>
+    </div>
+  );
+}
