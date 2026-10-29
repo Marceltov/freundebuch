@@ -238,3 +238,16 @@ test("once the file is filed it is gone: the chat on it goes on without it, and 
   expect(JSON.stringify(calls[0].system)).toContain("filed now and gone");
 });
 
+
+test("opened on a shared file, Claude learns the day it was shared and dates what it files by that, not by the day of review", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
+  const file = await shareFile(s.a, new TextEncoder().encode("Anna: bin wieder da"), "text/plain");
+  await (await db()).updateTable("files").set({ status: "pending", created_at: Date.parse("2026-10-20T10:00:00Z") }).where("id", "=", file.id).execute();
+  const { model, calls } = fake([text("ok")]);
+  await chat(s.a, [{ role: "user", content: "?" }], { fileId: file.id }, model, Date.parse("2026-10-29T10:00:00Z"));
+  const first = calls[0].messages[0].content as Anthropic.Beta.BetaContentBlockParam[];
+  expect((first[1] as { text: string }).text).toContain("Shared on 2026-10-20");
+  const system = JSON.stringify(calls[0].system);
+  expect(system).toContain("2026-10-20");
+  expect(system).toContain("not the day it is reviewed");
+});

@@ -197,6 +197,8 @@ export type PendingFile = {
   id: string;
   status: "reading" | "pending" | "failed";
   createdAt: number;
+  /** The day it was shared (YYYY-MM-DD, in the configured time zone): what it shows is dated by it, not by the day of review. */
+  sharedOn: string;
   /** The file itself (sign-in required). */
   url: string;
   /** image/webp, application/pdf or text/plain. */
@@ -223,6 +225,7 @@ export async function listPending(v: Viewer): Promise<PendingFile[]> {
       id: r.id,
       status: r.status as PendingFile["status"],
       createdAt: r.created_at,
+      sharedOn: today(r.created_at),
       url: filePath(r.id),
       type: r.media_type,
       summary: read?.summary ?? read?.text ?? null,
@@ -245,12 +248,12 @@ export async function pendingCount(v: Viewer): Promise<number> {
 
 /** The viewer's own waiting file for a chat on it, with its content and suggestion; NotFoundError for any other (someone
  * else's, or gone: filed, closed or thrown away). */
-export async function chatFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null }> {
+export async function chatFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null; sharedOn: string }> {
   const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
   const bytes = row && row.status !== "nothing" ? await store().get(row.blob_key) : null;
   if (!row || !bytes) throw new NotFoundError("No such file");
   const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
-  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null };
+  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null, sharedOn: today(row.created_at) };
 }
 
 /**

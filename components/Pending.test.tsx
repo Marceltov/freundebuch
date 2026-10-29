@@ -9,6 +9,7 @@ const file = (over: Partial<PendingFile>): PendingFile => ({
   id: "f1",
   status: "pending",
   createdAt: 0,
+  sharedOn: "2026-10-20",
   url: "/api/files/f1",
   type: "image/webp",
   summary: "WhatsApp-Gruppe Sunshine: Freitag Spieleabend",

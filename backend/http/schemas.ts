@@ -560,6 +560,7 @@ export const PendingFileJson = z
     id: z.string(),
     status: z.enum(["reading", "pending", "failed"]).describe("`reading`: Claude is pre-reading it; `pending`: waits to be worked through; `failed`: couldn't be pre-read (see `error`; retry or discard)"),
     createdAt: z.number().int().describe("When it was shared, ms since the epoch"),
+    sharedOn: Day.describe("The day it was shared: date what it shows by this (unless it shows another day), not by the day it is reviewed"),
     url: Url.describe("The file itself (sign-in required)"),
     type: z.string().describe("image/webp, application/pdf or text/plain"),
     summary: z.string().nullable().describe("What Claude suggests to file, in German; null while reading or when it failed"),

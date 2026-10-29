@@ -428,6 +428,9 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
   await page.getByRole("button", { name: "In Erzählen öffnen" }).click();
   const chat = page.getByRole("dialog", { name: "Erzählen" });
   await expect(chat.getByText("Zu dieser Datei")).toBeVisible();
+  // The file and what a first read suggested are in the chat, so there is something to answer to.
+  await expect(chat.getByRole("img", { name: "Geteiltes Bild" })).toBeVisible();
+  await expect(chat.getByText("Anna Reise war in Lissabon im Urlaub")).toBeVisible();
   await chat.getByRole("textbox").fill("Erledigt");
   await chat.getByRole("button", { name: "Senden" }).click();
   await expect(chat.getByText("Erfasst.")).toBeVisible();

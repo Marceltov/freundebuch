@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Paperclip, SendHorizontal, SquarePen, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { ChatContext, ChatLink } from "@/backend";
+import type { ChatContext, ChatLink, PendingFile } from "@/backend";
 import { copy } from "@/components/copy";
 import { recentTurns } from "@/components/chatTurns";
 import { shortDay } from "@/components/format";
+import { FilePreview } from "@/components/Pending";
 
 type Turn = { role: "user" | "assistant"; content: string; links?: ChatLink[]; filed?: boolean };
 
@@ -52,6 +53,15 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
   // Opened on a file from Prüfen, it is a conversation of its own about that file.
   const [turns, setTurns] = useState<Turn[]>(() => (file ? [] : load(userId)));
   const [fileId, setFileId] = useState<string | null>(file);
+  // Opened from Prüfen: the file and what a first read suggested, shown at the top, so there is something to answer to.
+  const [shown, setShown] = useState<PendingFile | null>(null);
+  useEffect(() => {
+    if (!file) return;
+    fetch("/api/v1/files")
+      .then((r) => (r.ok ? (r.json() as Promise<PendingFile[]>) : []))
+      .then((fs) => setShown(fs.find((f) => f.id === file) ?? null))
+      .catch(() => {});
+  }, [file]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -228,7 +238,20 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
               </button>
             </span>
           )}
-          {turns.length === 0 && <p className="mt-6 text-center text-muted">{copy.chatHello}</p>}
+          {shown && (
+            <div className="flex gap-3 self-stretch rounded-2xl bg-surface p-3 shadow-card">
+              <FilePreview item={shown} />
+              <div className="min-w-0 text-sm">
+                <p className="text-muted">{copy.fileShared.replace("{day}", shortDay(shown.sharedOn))}</p>
+                {shown.summary && (
+                  <p className="mt-1 whitespace-pre-line">
+                    <b>{copy.fileSuggests}:</b> {shown.summary}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          {turns.length === 0 && !shown && <p className="mt-6 text-center text-muted">{copy.chatHello}</p>}
           {/* Opened on no page: one tap asks Claude to look back on the week's journal. */}
           {turns.length === 0 && !about && !busy && (
             <button type="button" onClick={() => send(copy.reflectOffer)} className="self-center rounded-full bg-surface-2 px-3.5 py-1.5 text-sm font-semibold text-carbon hover:bg-rule">
