@@ -1,7 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { chat, linksOf, type ChatModel } from "./chat";
-import { getConversation } from "./conversations";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { getConversation, recordConversation } from "./conversations";
+import { db } from "./db";
+import { shareFile } from "./files";
 import { seed, type Seed } from "./testing/fixtures";
 
 let s: Seed;
@@ -194,3 +199,42 @@ test("link chips never fail a tool call: an output of an unexpected shape gives 
 test("what remember filed shows its people as link chips", () => {
   expect(linksOf("remember", {}, { counts: {}, people: [{ id: "p1", name: "Malou", url: "/p/p1" }] })).toEqual([{ kind: "person", id: "p1", name: "Malou", url: "/p/p1" }]);
 });
+
+test("opened on a shared file, Claude gets the file and its suggestion as data in the first message, and files with its id", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
+  const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend bei Olivier"), "text/plain");
+  await (await db()).updateTable("files").set({ status: "pending", reading: JSON.stringify({ summary: "Freitag Spieleabend bei Olivier", people: [] }) }).where("id", "=", file.id).execute();
+  const { model, calls } = fake([text("Darin steht ein Spieleabend am Freitag. Bei wem soll ich das ablegen?")]);
+  const r = await chat(s.a, [{ role: "user", content: "Was steht da drin?" }], { fileId: file.id }, model);
+  expect(r).toMatchObject({ reply: expect.stringContaining("Spieleabend") });
+  const first = calls[0].messages[0].content as Anthropic.Beta.BetaContentBlockParam[];
+  expect(first[0]).toMatchObject({ type: "document", source: { type: "text", data: "Patrick: Freitag Spieleabend bei Olivier" } });
+  expect(first[1]).toMatchObject({ type: "text", text: expect.stringContaining(`<shared_file id="${file.id}">`) });
+  expect((first[1] as { text: string }).text).toContain("Freitag Spieleabend bei Olivier");
+  expect(first[2]).toEqual({ type: "text", text: "Was steht da drin?" });
+  const system = JSON.stringify(calls[0].system);
+  expect(system).toContain(`fileId ${file.id}`);
+  expect(system).toContain("inbox");
+});
+
+test("a file that isn't the viewer's own goes nowhere: nothing is attached and nothing about it shows", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
+  const file = await shareFile(s.a, new TextEncoder().encode("GEHEIMNIS-4711"), "text/plain");
+  const { model, calls } = fake([text("…")]);
+  await chat(s.b, [{ role: "user", content: "?" }], { fileId: file.id }, model);
+  expect(calls[0].messages[0].content).toBe("?");
+  expect(JSON.stringify(calls[0])).not.toContain("GEHEIMNIS-4711");
+});
+
+
+test("once the file is filed it is gone: the chat on it goes on without it, and Claude hears its text is in the transcript", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
+  const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend"), "text/plain");
+  await recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "Chat", transcript: "t", visibility: "shared", fileIds: [file.id], people: [{ id: s.anna, present: true }] });
+  const { model, calls } = fake([text("Notiert.")]);
+  const r = await chat(s.a, [{ role: "user", content: "und sie hat am 3.5. Geburtstag" }], { fileId: file.id }, model);
+  expect(r).toMatchObject({ reply: "Notiert." });
+  expect(calls[0].messages[0].content).toBe("und sie hat am 3.5. Geburtstag");
+  expect(JSON.stringify(calls[0].system)).toContain("filed now and gone");
+});
+

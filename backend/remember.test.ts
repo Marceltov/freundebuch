@@ -1,7 +1,11 @@
 import { beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
 import { getPerson } from "./people";
-import { remember } from "./conversations";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { getConversation, recordConversation, remember } from "./conversations";
+import { fileContent, shareFile } from "./files";
 import { db } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { addDays, today } from "./dates";
@@ -109,4 +113,38 @@ test("a trait with a checkAfter is refused", async () => {
   await expect(
     remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "vegetarian", category: "health", kind: "need", checkAfter: "2026-12-01" }] }),
   ).rejects.toThrow(InvalidInputError);
+});
+
+test("a conversation filed from shared files keeps their transcripts, word for word, and the files are gone", async () => {
+  process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "fb-remember-"));
+  const one = await shareFile(s.a, new TextEncoder().encode("Bild 1"), "text/plain");
+  const two = await shareFile(s.a, new TextEncoder().encode("Bild 2"), "text/plain");
+  const read = (id: string, transcript: string) =>
+    db().then((d) => d.updateTable("files").set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript, people: [] }) }).where("id", "=", id).execute());
+  await read(one.id, "[19:20] Patrick: Freitag Spieleabend bei Olivier");
+  await read(two.id, "Foto: Anna und Tom auf dem Hochzeitsfest");
+  await expect(
+    recordConversation(s.b, { date: "2026-10-20", kind: "message", summary: "x", transcript: "t", visibility: "shared", fileIds: [one.id], people: [{ id: s.anna, present: true }] }),
+  ).rejects.toThrow(NotFoundError);
+  const c = await recordConversation(s.a, {
+    date: "2026-10-20",
+    kind: "message",
+    summary: "Chat",
+    transcript: "Marcel: Schau mal, was in der Gruppe steht.",
+    visibility: "shared",
+    fileIds: [one.id, two.id],
+    people: [{ id: s.anna, present: true }],
+    facts: [{ person: 0, text: "plant einen Spieleabend", category: "hobby" }],
+  });
+  const conv = await getConversation(s.a, c.conversationId);
+  expect(conv.transcript).toBe(
+    "Marcel: Schau mal, was in der Gruppe steht.\n\n--- Aus einer geteilten Datei ---\n[19:20] Patrick: Freitag Spieleabend bei Olivier\n\n--- Aus einer geteilten Datei ---\nFoto: Anna und Tom auf dem Hochzeitsfest",
+  );
+  expect(await (await db()).selectFrom("files").select("id").where("id", "in", [one.id, two.id]).execute()).toEqual([]);
+  expect(await fileContent(s.a, one.id)).toBeNull();
+  expect((await (await db()).selectFrom("facts").select("file_id").where("text", "=", "plant einen Spieleabend").executeTakeFirstOrThrow()).file_id).toBeNull();
+  // A file already filed is gone: it can't be taken again.
+  await expect(
+    recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "x", transcript: "t", visibility: "shared", fileIds: [one.id], people: [{ id: s.anna, present: true }] }),
+  ).rejects.toThrow(NotFoundError);
 });

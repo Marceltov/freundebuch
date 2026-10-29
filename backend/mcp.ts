@@ -6,7 +6,7 @@ import { bearerOf, viewerFromRequest } from "./auth/session";
 import { verify } from "./auth/tokens";
 import { FreundebuchError } from "./errors";
 import { logger } from "./log";
-import { TOOLS } from "./tools";
+import { TOOLS, type Attachment } from "./tools";
 import type { Viewer } from "./types";
 import { absoluteUrls, publicUrl } from "./urls";
 
@@ -19,17 +19,28 @@ Resolve every person with find_person first. When more than one candidate fits, 
 Every tool result carries next: what to do now, worked out from what the call did (read back what was filed, tell the user a situation's day, ask about a nudging situation, offer an interval). Follow it before you answer.
 Every person, conversation and item comes with a url to it in the web app; give the user the link whenever they may want to look at something there.
 Prefer an existing group, by name or other name, over a new one; when none fits, ask before creating one.
-Who someone is to the household ("our landlady", "my colleague") is a relationship to "us" or "me", never a fact; say in German words what each end is (label, inverse), in each one's gender. What is going on and will end is a situation with a checkAfter. What someone needs (plan around it) or how they are is a trait: a fact of kind need or personality. News about a situation needs a new checkAfter: suggest one and agree it with the user before filing.`;
+Who someone is to the household ("our landlady", "my colleague") is a relationship to "us" or "me", never a fact; say in German words what each end is (label, inverse), in each one's gender. What is going on and will end is a situation with a checkAfter. What someone needs (plan around it) or how they are is a trait: a fact of kind need or personality. News about a situation needs a new checkAfter: suggest one and agree it with the user before filing.
+Files the user shared into freundebuch wait in inbox: work them through with the user and file each with record_conversation and its fileIds; only their transcripts are kept. A file pasted into this conversation (a screenshot, a photo, a PDF) reaches you but no tool: write out what it shows into the transcript you file, its text word for word, as evidence; freundebuch keeps only that text anyway.`;
 
 // A tool result: the body as structured content and, for clients that only read text, as JSON text. The body goes through the
 // tool's output schema first, which drops every field the schema doesn't name: what leaves is only what was declared. Its links
 // are made absolute against `base`, the server's public URL.
-function result<S extends z.ZodType>(base: string, schema: S, body: z.input<S>) {
+function result<S extends z.ZodType>(base: string, schema: S, body: z.input<S>, files: Attachment[] = []) {
   const out = absoluteUrls(base, schema.parse(body)) as Record<string, unknown>;
   return {
     structuredContent: out,
-    content: [{ type: "text" as const, text: JSON.stringify(out) }],
+    content: [{ type: "text" as const, text: JSON.stringify(out) }, ...files.map(attachment)],
   };
+}
+
+// A file as MCP content: an image the client shows its model, else an embedded resource (text as text, a PDF as a blob).
+function attachment(f: Attachment) {
+  const data = Buffer.from(f.bytes).toString("base64");
+  if (f.type.startsWith("image/")) return { type: "image" as const, data, mimeType: f.type };
+  const uri = `freundebuch:file/${f.id}`;
+  return f.type === "text/plain"
+    ? { type: "resource" as const, resource: { uri, mimeType: f.type, text: new TextDecoder().decode(f.bytes) } }
+    : { type: "resource" as const, resource: { uri, mimeType: f.type, blob: data } };
 }
 
 // FreundebuchErrors are refusals the model can read. The SDK turns any other throw into a tool error carrying its message (a
@@ -64,7 +75,10 @@ function server(v: Viewer, base: string): McpServer {
         outputSchema: t.output,
         annotations: t.annotations,
       },
-      guard(async (args: unknown) => result(base, t.output, await t.run(v, args))) as never,
+      guard(async (args: unknown) => {
+        const out = await t.run(v, args);
+        return result(base, t.output, out, t.attach ? await t.attach(v, out) : []);
+      }) as never,
     );
   return s;
 }

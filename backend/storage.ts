@@ -1,6 +1,6 @@
-// Where the shared screenshots live: files under DATA_DIR (the default) or an S3-compatible bucket (FREUNDEBUCH_STORAGE=s3).
-// Keys are relative paths such as `screenshots/<id>.webp`. The bucket stays private: images reach a browser only through
-// freundebuch, after the visibility check (screenshots.ts), never by a direct or presigned link.
+// Where the shared files live: files under DATA_DIR (the default) or an S3-compatible bucket (FREUNDEBUCH_STORAGE=s3).
+// Keys are relative paths such as `files/<id>.webp`. The bucket stays private: files reach a browser only through
+// freundebuch, after the visibility check (files.ts), never by a direct or presigned link.
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { AwsClient } from "aws4fetch";

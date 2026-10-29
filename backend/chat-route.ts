@@ -1,6 +1,7 @@
 // POST /api/chat: the in-app chat, for the web app only. The signed-in browser's own identity cookie (same-origin, as for the
 // REST API); an access token is refused, so scripts and Claude keep using REST and MCP. Not in the REST table or OpenAPI.
 // Without an API key (and outside e2e) there is no chat: 404, and the app shows no button.
+import { NotFoundError } from "./errors";
 import * as z from "zod";
 import { viewerFromRequest } from "./auth/session";
 import { anthropicModel, chat, MAX_TURNS, type ChatModel } from "./chat";
@@ -18,7 +19,7 @@ const Body = z.object({
     .max(MAX_TURNS)
     .refine((t) => t[t.length - 1].role === "user", "the last turn must be the user's")
     .refine((t) => t.reduce((n, x) => n + x.content.length, 0) <= MAX_TOTAL_CHARS, `at most ${MAX_TOTAL_CHARS} characters in all`),
-  context: z.object({ personId: z.string().optional(), conversationId: z.string().optional() }).optional(),
+  context: z.object({ personId: z.string().optional(), conversationId: z.string().optional(), fileId: z.string().optional() }).optional(),
 });
 
 let override: ChatModel | null = null;
@@ -57,6 +58,13 @@ export async function chatRoute(req: Request): Promise<Response> {
   } catch {
     return json({ error: "The request body must be JSON", code: "invalid_request" }, 400);
   }
-  const reply = await chat(v, parsed.turns, parsed.context ?? {}, m);
+  let reply: Awaited<ReturnType<typeof chat>>;
+  try {
+    reply = await chat(v, parsed.turns, parsed.context ?? {}, m);
+  } catch (e) {
+    // The page it was opened on (a file that is gone, or someone else's) doesn't exist for the caller.
+    if (e instanceof NotFoundError) return json({ error: e.message, code: "not_found" }, 404);
+    throw e;
+  }
   return "code" in reply ? json(reply, STATUS[reply.code]) : json(reply);
 }

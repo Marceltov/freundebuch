@@ -11,6 +11,7 @@ import { householdPersons } from "./household";
 import { buildNetwork, type Network } from "./network";
 import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Viewer, type Visibility } from "./types";
 import { conversationPath, groupPath, itemPath, personPath } from "./urls";
+import { hiddenFiles } from "./files";
 import { splitTraits, toFact, type Traits } from "./traits";
 import { visible } from "./visibility";
 
@@ -23,8 +24,8 @@ type Own = { visibility: Visibility; mine: boolean };
 /** A birthday as recorded (`date`, `--MM-DD` without a year), the day it falls on next, and the age reached then when the year is known. */
 export type Birthday = { id: string; date: string; next: string; age: number | null };
 
-/** `source`, `happenedOn` and `imageUrl` for a fact read from a shared screenshot: where it was posted, when it happened (when
- * known), and the screenshot. */
+/** `source`, `happenedOn` and `imageUrl` for a fact filed from a shared file: where it was posted, when it happened (when
+ * known), and the file. */
 export type Fact = Own & { id: string; text: string; category: FactCategory; url: string; source?: string; happenedOn?: string; imageUrl?: string };
 
 /**
@@ -132,7 +133,8 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   const suggested = setting?.interval_confirmed || household.includes(personId) ? null : await suggestInterval(v, personId);
   const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
-  const fact = (f: (typeof facts)[number]): Fact => toFact(f, v, page);
+  const hidden = await hiddenFiles(v, facts.flatMap((f) => (f.file_id ? [f.file_id] : [])));
+  const fact = (f: (typeof facts)[number]): Fact => toFact(f, v, page, hidden);
   const situations = facts
     .filter((f) => f.kind === "situation")
     .map((f) => ({ ...fact(f), since: today(f.created_at), checkAfter: f.check_after!, nudge: f.check_after! <= from }))
@@ -155,7 +157,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     freshness: fresh,
     nextDates,
     situations,
-    traits: splitTraits(facts, v, page),
+    traits: splitTraits(facts, v, page, hidden),
     known,
     open: {
       promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),

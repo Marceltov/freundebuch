@@ -3,5 +3,5 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   (await import("./backend/notify/daily")).startScheduler();
   // Screenshots a restart interrupted are read again.
-  void (await import("./backend/screenshots")).resumeReading();
+  void (await import("./backend/files")).resumeReading();
 }

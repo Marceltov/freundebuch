@@ -10,7 +10,7 @@ Everything lives in `DATA_DIR` (`/data` in the container):
 
 - `freundebuch.db`: the SQLite database, with every person, conversation and transcript.
 - `secret`: the signing secret, unless `FREUNDEBUCH_SECRET` is set.
-- `screenshots/`: the [shared screenshots](../using/sharing.md), unless `FREUNDEBUCH_STORAGE=s3`.
+- `files/` and, from before 0.4, `screenshots/`: the [shared files](../using/sharing.md), unless `FREUNDEBUCH_STORAGE=s3`.
 
 Back up the whole directory. The database runs in WAL mode, so copy it while the container is stopped (or back up the volume with a tool that snapshots it):
 
@@ -20,7 +20,7 @@ cp -a ./data ./data.backup   # or wherever the volume lives
 docker compose start freundebuch
 ```
 
-With `FREUNDEBUCH_STORAGE=s3` the screenshots are in the bucket instead: a backup is the directory plus the bucket. Switching between `files` and `s3` doesn't move existing screenshots; copy `screenshots/` into the bucket (or back) yourself, keeping the key names.
+With `FREUNDEBUCH_STORAGE=s3` the shared files are in the bucket instead: a backup is the directory plus the bucket. Switching between `files` and `s3` doesn't move existing files; copy `files/` and `screenshots/` into the bucket (or back) yourself, keeping the key names.
 
 ## Upgrading
 

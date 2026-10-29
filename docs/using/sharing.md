@@ -1,28 +1,31 @@
-# Sharing screenshots
+# Sharing files
 
-Your friends post their trips, festivals, new jobs and other big moments on Instagram, LinkedIn and elsewhere. freundebuch can't read those feeds (see [why](#why-screenshots)), but it can read a screenshot. Take one while scrolling, share it with freundebuch, and it lands on the person's page. The next time you ask about them, or get a briefing, it's there: "Urlaub in Lissabon · Instagram, 12. Oktober".
+Your friends post their trips, festivals, new jobs and other big moments on Instagram, LinkedIn and elsewhere; a group chat tells you who has a birthday and who is moving; a letter invites you to a wedding. freundebuch can't read those feeds and chats (see [why](#why-screenshots)), but it can read what you share with it: a **screenshot**, a **photo**, a **PDF**, or a **text file** such as a WhatsApp chat export. Voice notes come later ([#58](https://github.com/Marceltov/freundebuch/issues/58)).
 
-Sharing needs the instance's Anthropic API key (`FREUNDEBUCH_ANTHROPIC_API_KEY`), the same one the chat uses. Each screenshot counts as one chat message against the daily limit.
+Sharing needs the instance's Anthropic API key (`FREUNDEBUCH_ANTHROPIC_API_KEY`), the same one the chat uses. Each shared file counts as one chat message against the daily limit.
 
-## What happens to a screenshot
+## What happens to a shared file
 
-1. freundebuch stores it, shrunk to 1080 px wide, and Claude reads it: whose post it is, what happened, where it was posted and when.
-2. **Sure** about the person, and nothing sensitive in it: it is filed as a fact on that person, shared with your household like anything else you file. You get no message.
-3. **Not sure** (two people could be meant, or the person isn't in freundebuch yet), or it looks **sensitive** (health, a breakup, money): it waits under **Zu prüfen**, and you get a push message if you have [notifications](notifications.md) set up. A badge at the top of the app shows how many wait.
-4. **Nothing personal** in it (an ad, a meme): it is thrown away, with a short push.
+1. freundebuch stores it for now (images shrunk to 1080 px wide, PDFs and text as they are), and Claude reads it once: it writes down what the file says, word for word (for a photo, what it shows), suggests what could be filed for whom, and notes who is in it.
+2. It waits under **Prüfen** with that suggestion, and you get a push message if you have [notifications](notifications.md) set up. A badge at the top of the app shows how many wait. Nothing is filed on its own.
+3. Tap **In Erzählen öffnen**: the chat opens on the file. Claude sees it and its suggestion, asks who is meant and whether something is private, and files a conversation from it with the same tools as when you tell it about a meeting.
 
-On **Zu prüfen** you pick the person, or create a new one, correct the text if needed, and choose **Nur für mich** to file it privately. The account name Claude read (`@anna.reist`) becomes one of the person's other names, so their next post is filed without asking.
+**Only the text is kept.** Filing adds the file's transcript to the conversation's transcript, and the file itself is deleted. A file you close with nothing to file, or throw away (**Verwerfen**), is deleted too. So nothing of a shared file outlives its review but the words that were filed, which follow the conversation's privacy like any transcript.
 
-The screenshot is kept and shown as a small picture next to the fact. Your partner sees it only when they can see the fact; screenshots waiting for you are yours alone. Deleting the fact deletes the screenshot.
+If Claude couldn't read it, the card says why; **Nochmal lesen** tries again.
+
+## From Claude (MCP)
+
+Ask Claude "Was wartet unter Prüfen?": the `inbox` tool hands it the waiting files and their transcripts, and you go through them together. When you paste a picture or a PDF into the conversation with Claude, Claude sees it but can't pass it on to freundebuch: it writes out what it shows into the transcript it files. That is all freundebuch would keep of it anyway.
 
 ## In the app
 
-In **Erzählen**, the picture button next to the text field picks one or more screenshots from your photos and hands them in. This works on any phone or computer without setting anything up, but you have to open freundebuch first; sharing from the phone (below) is quicker while scrolling.
+In **Erzählen**, the paperclip next to the text field picks files (images, PDFs, text) from your phone or computer. One file goes along with the chat at once, so you can tell Claude about it right away; several wait under Prüfen. Sharing from the phone (below) is quicker while scrolling.
 
 ## Android
 
 1. Open freundebuch in Chrome and add it to the home screen (menu → **Zum Startbildschirm hinzufügen** / **App installieren**).
-2. Take a screenshot, tap **Teilen**, pick **freundebuch**.
+2. Take a screenshot (or pick a photo, a PDF, a chat export), tap **Teilen**, pick **freundebuch**. freundebuch opens on Prüfen.
 
 If freundebuch asks you to share again right after installing it, do so: the first share can arrive before the app is ready.
 
@@ -30,12 +33,13 @@ If freundebuch asks you to share again right after installing it, do so: the fir
 
 iOS doesn't let web apps appear in the share sheet, so a Shortcut does the sending.
 
-1. In freundebuch, open **Einstellungen → Screenshots teilen** and tap **Schlüssel erzeugen**. Copy the key; it is shown only once. The key can only hand in screenshots: it can't read anything.
+1. In freundebuch, open **Einstellungen → Dateien teilen** and tap **Schlüssel erzeugen**. Copy the key; it is shown only once. The key can only hand in files: it can't read anything.
 2. In the **Kurzbefehle** app, create a shortcut named "An freundebuch":
-    - In its details, turn on **Im Share-Sheet anzeigen** and set the input to **Bilder**.
+    - In its details, turn on **Im Share-Sheet anzeigen** and set the input to **Bilder**, **PDFs**, **Text** and **Dateien**.
+    - Add **Wenn** *Kurzbefehleingabe* *ist* **Bild**, and inside it **Bild konvertieren** to **JPEG**: iPhone photos are HEIC, which freundebuch can't read yet. PDFs and text skip it.
     - Add **Inhalte von URL abrufen** with the address shown in the settings (`https://<your instance>/api/share`). Method **POST**, header `Authorization` with the value `Bearer <your key>`, request body **Datei** with **Kurzbefehleingabe**.
-    - Optionally add **Ergebnis anzeigen** with `message` from the result ("Danke! freundebuch liest den Screenshot.").
-3. Take a screenshot, tap **Teilen**, pick **An freundebuch**.
+    - Add **URL öffnen** with `url` from the result: it takes you straight to the file under Prüfen. (Or **Ergebnis anzeigen** with `message`, to stay where you are.)
+3. Take a screenshot (or pick a file), tap **Teilen**, pick **An freundebuch**.
 
 A new key replaces the old one; **Schlüssel löschen** turns sharing from the Shortcut off.
 

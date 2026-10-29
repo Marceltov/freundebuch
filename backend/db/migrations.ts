@@ -433,6 +433,21 @@ const migrations: Record<string, Migration> = {
       });
     },
   },
+
+  // Shared files, not only screenshots: the table and the facts' link are renamed, and each file says its type and where its
+  // blob is. Blobs already stored stay under their key (screenshots/<id>.webp); new ones go to files/<id>.<ext>.
+  "010_files": {
+    async up(db) {
+      await db.transaction().execute(async (tx) => {
+        await tx.schema.alterTable("screenshots").renameTo("files").execute();
+        await tx.schema.alterTable("facts").renameColumn("screenshot_id", "file_id").execute();
+        await tx.schema.alterTable("files").addColumn("media_type", "text", (c) => c.notNull().defaultTo("image/webp")).execute();
+        await tx.schema.alterTable("files").addColumn("blob_key", "text").execute();
+        await sql`update files set blob_key = 'screenshots/' || id || '.webp'`.execute(tx);
+      });
+    },
+  },
+
 };
 
 /** The name the household's own group starts with. */

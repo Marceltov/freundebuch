@@ -152,7 +152,7 @@ test("002 folds groups whose names differ only in case or spacing into one, keep
   ]);
 });
 
-test("004: a fact keeps its source, day and screenshot; deleting the screenshot leaves the fact without one", async () => {
+test("a fact keeps its source, day and file; deleting the file leaves the fact without one (004, 010)", async () => {
   const d = await db();
   const t = now();
   const user = newId();
@@ -160,16 +160,16 @@ test("004: a fact keeps its source, day and screenshot; deleting the screenshot 
   const shot = newId();
   await d.insertInto("users").values({ id: user, oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: t }).execute();
   await d.insertInto("persons").values({ id: person, name: "Anna", created_by: user, created_from: null, created_at: t }).execute();
-  await d.insertInto("screenshots").values({ id: shot, user_id: user, sha256: "h", status: "filed", reading: null, created_at: t }).execute();
-  await expect(d.insertInto("screenshots").values({ id: newId(), user_id: user, sha256: "h", status: "pending", reading: null, created_at: t }).execute()).rejects.toThrow(/UNIQUE/);
-  await expect(d.insertInto("screenshots").values({ id: newId(), user_id: user, sha256: "x", status: "lost" as never, reading: null, created_at: t }).execute()).rejects.toThrow(/CHECK/);
+  await d.insertInto("files").values({ id: shot, user_id: user, sha256: "h", status: "filed", reading: null, created_at: t, blob_key: "k" }).execute();
+  await expect(d.insertInto("files").values({ id: newId(), user_id: user, sha256: "h", status: "pending", reading: null, created_at: t, blob_key: "k" }).execute()).rejects.toThrow(/UNIQUE/);
+  await expect(d.insertInto("files").values({ id: newId(), user_id: user, sha256: "x", status: "lost" as never, reading: null, created_at: t, blob_key: "k" }).execute()).rejects.toThrow(/CHECK/);
   const fact = newId();
   await d
     .insertInto("facts")
-    .values({ id: fact, person_id: person, text: "Urlaub in Lissabon", category: "travel", status: "current", visibility: "shared", recorded_by: user, conversation_id: null, created_at: t, source: "Instagram", happened_on: "2026-10-12", screenshot_id: shot })
+    .values({ id: fact, person_id: person, text: "Urlaub in Lissabon", category: "travel", status: "current", visibility: "shared", recorded_by: user, conversation_id: null, created_at: t, source: "Instagram", happened_on: "2026-10-12", file_id: shot })
     .execute();
-  await d.deleteFrom("screenshots").where("id", "=", shot).execute();
-  expect(await d.selectFrom("facts").select(["source", "happened_on", "screenshot_id"]).where("id", "=", fact).executeTakeFirst()).toEqual({ source: "Instagram", happened_on: "2026-10-12", screenshot_id: null });
+  await d.deleteFrom("files").where("id", "=", shot).execute();
+  expect(await d.selectFrom("facts").select(["source", "happened_on", "file_id"]).where("id", "=", fact).executeTakeFirst()).toEqual({ source: "Instagram", happened_on: "2026-10-12", file_id: null });
 });
 
 test("005 keeps one of the same relationship recorded twice by one user, with the note of a dropped one", async () => {
@@ -329,4 +329,22 @@ test("009 makes Haushalt, a group of everyone who signed in, reusing a group of 
     { person_id: "p-u", recorded_by: "u", visibility: "shared" },
     { person_id: "p-w", recorded_by: "w", visibility: "shared" },
   ]);
+});
+
+test("010 renames screenshots to files and keeps every row, link and blob", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  const d = new Kysely<any>({ dialect: new SqliteDialect({ database }) }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await migrateTo(d, "009_household_group");
+  const t = Date.now();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "u", email: null, person_id: null, created_at: t }).execute();
+  await d.insertInto("persons").values({ id: "anna", name: "anna", created_by: "u", created_from: null, created_at: t }).execute();
+  await d.insertInto("screenshots").values({ id: "s1", user_id: "u", sha256: "x", status: "filed", reading: null, created_at: t }).execute();
+  const f = { person_id: "anna", category: "travel", status: "current", visibility: "shared", recorded_by: "u", conversation_id: null, created_at: t };
+  await d.insertInto("facts").values({ ...f, id: "f1", text: "Lissabon", screenshot_id: "s1" }).execute();
+  await migrateTo(d, "010_files");
+  expect(await d.selectFrom("files").select(["id", "media_type", "blob_key", "status"]).execute()).toEqual([{ id: "s1", media_type: "image/webp", blob_key: "screenshots/s1.webp", status: "filed" }]);
+  expect(await d.selectFrom("facts").select("file_id").execute()).toEqual([{ file_id: "s1" }]);
+  await d.deleteFrom("files").where("id", "=", "s1").execute();
+  expect(await d.selectFrom("facts").select("file_id").execute()).toEqual([{ file_id: null }]);
 });

@@ -8,7 +8,7 @@ const INBOX = "freundebuch-share-inbox"; // as in public/sw.js
 
 type State = "receiving" | "received" | "duplicate" | "failed" | "empty";
 
-// Sends what the service worker put into the inbox to POST /api/share, one image at a time, and empties it.
+// Sends what the service worker put into the inbox to POST /api/share, one file at a time, empties it and goes on to Prüfen.
 export function ShareInbox({ again }: { again: boolean }) {
   const [state, setState] = useState<State>(again ? "failed" : "receiving");
   useEffect(() => {
@@ -19,20 +19,25 @@ export function ShareInbox({ again }: { again: boolean }) {
       const keys = await cache.keys();
       if (!keys.length) return setState("empty");
       let result: State = "received";
+      let last: string | null = null;
       for (const req of keys) {
         const res = await cache.match(req);
         if (!res) continue;
         const blob = await res.blob();
         const form = new FormData();
-        form.set("image", blob, "screenshot");
+        form.set("file", blob, "geteilt");
         const up = await fetch("/api/share", { method: "POST", body: form }).catch(() => null);
         if (!up || up.status !== 202) {
           result = "failed";
           continue;
         }
-        if (((await up.json()) as { duplicate: boolean }).duplicate && result === "received") result = "duplicate";
+        const body = (await up.json()) as { id: string; duplicate: boolean };
+        last = body.id;
+        if (body.duplicate && result === "received") result = "duplicate";
         await cache.delete(req);
       }
+      // Arrived: on to where it waits.
+      if (result !== "failed" && last) return window.location.replace(`/pruefen#${last}`);
       setState(result);
     })().catch(() => setState("failed"));
   }, [again]);

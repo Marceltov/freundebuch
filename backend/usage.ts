@@ -1,9 +1,9 @@
-// The per-user daily limit on calls to Claude: chat messages (chat.ts) and shared screenshots (screenshots.ts) count together.
+// The per-user daily limit on calls to Claude: chat messages (chat.ts) and shared files (files.ts) count together.
 import { config } from "./config";
 import { db } from "./db";
 import type { Viewer } from "./types";
 
-/** Counts this message (or a shared screenshot, screenshots.ts) against the user's daily limit; false when it is used up. One conditional UPDATE, so messages sent at
+/** Counts this message (or a shared file, files.ts) against the user's daily limit; false when it is used up. One conditional UPDATE, so messages sent at
  * the same moment can't both slip past the last free one. */
 export async function spend(v: Viewer, day: string): Promise<boolean> {
   const d = await db();

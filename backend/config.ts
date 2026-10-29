@@ -29,7 +29,7 @@ function timeZone(): string {
 export type S3Config = { kind: "s3"; endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string; pathStyle: boolean };
 export type StorageConfig = { kind: "files" } | S3Config;
 
-// Where shared screenshots are kept (storage.ts): `files` (default, under DATA_DIR) or `s3`, which needs all of its values.
+// Where shared files are kept (storage.ts): `files` (default, under DATA_DIR) or `s3`, which needs all of its values.
 function storage(): StorageConfig {
   const kind = env("FREUNDEBUCH_STORAGE").trim().toLowerCase() || "files";
   if (kind === "files") return { kind };

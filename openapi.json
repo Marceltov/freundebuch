@@ -1828,13 +1828,13 @@
         }
       }
     },
-    "/api/v1/screenshots": {
+    "/api/v1/files": {
       "get": {
-        "operationId": "listPendingScreenshots",
-        "summary": "The caller's shared screenshots that wait for them",
+        "operationId": "listPendingFiles",
+        "summary": "The caller's shared files that wait for them",
         "description": "Being read, waiting for a decision, or failed; newest first. Only the caller's own: the other user's never show.",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -1846,11 +1846,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Waiting screenshots",
+            "description": "Waiting files",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PendingScreenshotList"
+                  "$ref": "#/components/schemas/PendingFileList"
                 }
               }
             }
@@ -1868,13 +1868,13 @@
         }
       }
     },
-    "/api/v1/screenshots/{id}/resolve": {
+    "/api/v1/files/{id}/done": {
       "post": {
-        "operationId": "resolveScreenshot",
-        "summary": "File a waiting screenshot on a person",
-        "description": "Give `personId` or the `name` of a new person. The handle Claude read becomes one of the person's other names.",
+        "operationId": "closeFile",
+        "summary": "Close a waiting file as worked through",
+        "description": "For a file with nothing worth filing: it is deleted, like a discarded one. Filing a conversation with fileIds closes it on its own.",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -1895,36 +1895,9 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Resolution"
-              }
-            }
-          }
-        },
         "responses": {
-          "200": {
-            "description": "Filed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Resolved"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+          "204": {
+            "description": "Done"
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
@@ -1949,12 +1922,12 @@
         }
       }
     },
-    "/api/v1/screenshots/{id}/retry": {
+    "/api/v1/files/{id}/retry": {
       "post": {
-        "operationId": "retryScreenshot",
-        "summary": "Read a failed screenshot again",
+        "operationId": "retryFile",
+        "summary": "Read a failed file again",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -2012,12 +1985,12 @@
         }
       }
     },
-    "/api/v1/screenshots/{id}": {
+    "/api/v1/files/{id}": {
       "delete": {
-        "operationId": "discardScreenshot",
-        "summary": "Throw a waiting screenshot away",
+        "operationId": "discardFile",
+        "summary": "Throw a waiting file away",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -2069,9 +2042,9 @@
       "post": {
         "operationId": "createShareKey",
         "summary": "A new share key for the iPhone Shortcut",
-        "description": "The key can only hand in screenshots (POST /api/share). A new one replaces the old one.",
+        "description": "The key can only hand in files (POST /api/share). A new one replaces the old one.",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -2108,7 +2081,7 @@
         "operationId": "revokeShareKey",
         "summary": "Turn the caller's share key off",
         "tags": [
-          "Screenshots"
+          "Files"
         ],
         "security": [
           {
@@ -2290,7 +2263,139 @@
   },
   "components": {
     "schemas": {
-      "PendingScreenshotList": {
+      "PendingFile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reading",
+              "pending",
+              "failed"
+            ],
+            "description": "`reading`: Claude is pre-reading it; `pending`: waits to be worked through; `failed`: couldn't be pre-read (see `error`; retry or discard)"
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "When it was shared, ms since the epoch"
+          },
+          "url": {
+            "type": "string",
+            "description": "The file itself (sign-in required)"
+          },
+          "type": {
+            "type": "string",
+            "description": "image/webp, application/pdf or text/plain"
+          },
+          "summary": {
+            "description": "What Claude suggests to file, in German; null while reading or when it failed",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transcript": {
+            "description": "What the file says, word for word (or what a photo shows): all that is kept of it once filed",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "person": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "The name of the person it is about"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "candidates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "The name of the person it is about"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "person",
+                "candidates"
+              ]
+            },
+            "description": "Who is in it: the person when certain, else candidates"
+          },
+          "error": {
+            "description": "Why the pre-read failed, when it did",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "createdAt",
+          "url",
+          "type",
+          "summary",
+          "transcript",
+          "people",
+          "error"
+        ]
+      },
+      "PendingFileList": {
         "type": "array",
         "items": {
           "type": "object",
@@ -2305,7 +2410,7 @@
                 "pending",
                 "failed"
               ],
-              "description": "`reading`: Claude is on it; `pending`: waits for the caller to decide; `failed`: couldn't be read (retry or discard)"
+              "description": "`reading`: Claude is pre-reading it; `pending`: waits to be worked through; `failed`: couldn't be pre-read (see `error`; retry or discard)"
             },
             "createdAt": {
               "type": "integer",
@@ -2313,199 +2418,117 @@
               "maximum": 9007199254740991,
               "description": "When it was shared, ms since the epoch"
             },
-            "imageUrl": {
+            "url": {
               "type": "string",
-              "description": "The screenshot (sign-in required)"
+              "description": "The file itself (sign-in required)"
             },
-            "reading": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "enum": [
-                        "post",
-                        "nothing"
-                      ]
-                    },
-                    "platform": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "text": {
-                      "type": "string"
-                    },
-                    "category": {
-                      "type": "string",
-                      "enum": [
-                        "work",
-                        "home",
-                        "family",
-                        "health",
-                        "hobby",
-                        "travel",
-                        "other"
-                      ]
-                    },
-                    "happenedOn": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "description": "A day, `YYYY-MM-DD`"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "sensitive": {
-                      "type": "boolean"
-                    },
-                    "people": {
-                      "type": "array",
-                      "items": {
+            "type": {
+              "type": "string",
+              "description": "image/webp, application/pdf or text/plain"
+            },
+            "summary": {
+              "description": "What Claude suggests to file, in German; null while reading or when it failed",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "transcript": {
+              "description": "What the file says, word for word (or what a photo shows): all that is kept of it once filed",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "people": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "person": {
+                    "anyOf": [
+                      {
                         "type": "object",
                         "properties": {
+                          "id": {
+                            "type": "string"
+                          },
                           "name": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "The name of the person it is about"
                           },
-                          "handle": {
-                            "type": "string"
-                          },
-                          "person": {
-                            "anyOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "name": {
-                                    "type": "string",
-                                    "description": "The name of the person it is about"
-                                  },
-                                  "url": {
-                                    "type": "string",
-                                    "description": "Where it opens in the web app, as an absolute URL"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "name",
-                                  "url"
-                                ]
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "candidates": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string",
-                                  "description": "The name of the person it is about"
-                                },
-                                "url": {
-                                  "type": "string",
-                                  "description": "Where it opens in the web app, as an absolute URL"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "name",
-                                "url"
-                              ]
-                            }
+                          "url": {
+                            "type": "string",
+                            "description": "Where it opens in the web app, as an absolute URL"
                           }
                         },
                         "required": [
+                          "id",
                           "name",
-                          "person",
-                          "candidates"
+                          "url"
                         ]
+                      },
+                      {
+                        "type": "null"
                       }
-                    }
+                    ]
                   },
-                  "required": [
-                    "kind",
-                    "platform",
-                    "text",
-                    "category",
-                    "happenedOn",
-                    "sensitive",
-                    "people"
-                  ]
+                  "candidates": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "The name of the person it is about"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    }
+                  }
                 },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "What Claude read; null while reading or when it failed"
+                "required": [
+                  "name",
+                  "person",
+                  "candidates"
+                ]
+              },
+              "description": "Who is in it: the person when certain, else candidates"
+            },
+            "error": {
+              "description": "Why the pre-read failed, when it did",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
             "id",
             "status",
             "createdAt",
-            "imageUrl",
-            "reading"
+            "url",
+            "type",
+            "summary",
+            "transcript",
+            "people",
+            "error"
           ]
         }
-      },
-      "Resolution": {
-        "type": "object",
-        "properties": {
-          "personId": {
-            "description": "The person it is about",
-            "type": "string"
-          },
-          "name": {
-            "description": "Or the name of a new person",
-            "type": "string"
-          },
-          "text": {
-            "description": "Replaces what Claude read",
-            "type": "string"
-          },
-          "visibility": {
-            "description": "Default shared",
-            "type": "string",
-            "enum": [
-              "shared",
-              "private"
-            ]
-          }
-        }
-      },
-      "Resolved": {
-        "type": "object",
-        "properties": {
-          "factId": {
-            "type": "string"
-          },
-          "personId": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string",
-            "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
-          }
-        },
-        "required": [
-          "factId",
-          "personId",
-          "url"
-        ]
       },
       "ShareKey": {
         "type": "object",
@@ -3209,15 +3232,15 @@
                   "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                 },
                 "source": {
-                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                   "type": "string"
                 },
                 "happenedOn": {
-                  "description": "When it happened, when the screenshot showed it",
+                  "description": "When it happened, when the file showed it",
                   "type": "string"
                 },
                 "imageUrl": {
-                  "description": "The screenshot it was read from (sign-in required)",
+                  "description": "The file it was read from (sign-in required)",
                   "type": "string"
                 },
                 "visibility": {
@@ -3290,15 +3313,15 @@
                       "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                     },
                     "source": {
-                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                       "type": "string"
                     },
                     "happenedOn": {
-                      "description": "When it happened, when the screenshot showed it",
+                      "description": "When it happened, when the file showed it",
                       "type": "string"
                     },
                     "imageUrl": {
-                      "description": "The screenshot it was read from (sign-in required)",
+                      "description": "The file it was read from (sign-in required)",
                       "type": "string"
                     },
                     "visibility": {
@@ -3353,15 +3376,15 @@
                       "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                     },
                     "source": {
-                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                      "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                       "type": "string"
                     },
                     "happenedOn": {
-                      "description": "When it happened, when the screenshot showed it",
+                      "description": "When it happened, when the file showed it",
                       "type": "string"
                     },
                     "imageUrl": {
-                      "description": "The screenshot it was read from (sign-in required)",
+                      "description": "The file it was read from (sign-in required)",
                       "type": "string"
                     },
                     "visibility": {
@@ -3423,15 +3446,15 @@
                   "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                 },
                 "source": {
-                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                  "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                   "type": "string"
                 },
                 "happenedOn": {
-                  "description": "When it happened, when the screenshot showed it",
+                  "description": "When it happened, when the file showed it",
                   "type": "string"
                 },
                 "imageUrl": {
-                  "description": "The screenshot it was read from (sign-in required)",
+                  "description": "The file it was read from (sign-in required)",
                   "type": "string"
                 },
                 "visibility": {
@@ -3904,15 +3927,15 @@
                         "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                       },
                       "source": {
-                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                         "type": "string"
                       },
                       "happenedOn": {
-                        "description": "When it happened, when the screenshot showed it",
+                        "description": "When it happened, when the file showed it",
                         "type": "string"
                       },
                       "imageUrl": {
-                        "description": "The screenshot it was read from (sign-in required)",
+                        "description": "The file it was read from (sign-in required)",
                         "type": "string"
                       },
                       "visibility": {
@@ -3967,15 +3990,15 @@
                         "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
                       },
                       "source": {
-                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared screenshot",
+                        "description": "Where it was posted (Instagram, LinkedIn, ...), for a fact read from a shared file",
                         "type": "string"
                       },
                       "happenedOn": {
-                        "description": "When it happened, when the screenshot showed it",
+                        "description": "When it happened, when the file showed it",
                         "type": "string"
                       },
                       "imageUrl": {
-                        "description": "The screenshot it was read from (sign-in required)",
+                        "description": "The file it was read from (sign-in required)",
                         "type": "string"
                       },
                       "visibility": {
@@ -4217,6 +4240,14 @@
       "NewConversation": {
         "type": "object",
         "properties": {
+          "fileIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A shared file's id, as inbox lists it. Only the caller's own waiting file"
+            },
+            "description": "The shared files this conversation was told from: their transcripts (text word for word, or what a photo shows) join this one, and the files are deleted"
+          },
           "date": {
             "type": "string",
             "description": "A day, `YYYY-MM-DD`"

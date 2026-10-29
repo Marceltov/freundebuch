@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SITUATION_DAYS } from "./conversations";
+import { fileContent, shareFile } from "./files";
 import { addDays, today } from "./dates";
 import { db } from "./db/testing";
 import { seed, type Seed } from "./testing/fixtures";
@@ -12,7 +16,7 @@ beforeEach(async () => {
 });
 
 test("one table holds every tool the MCP endpoint offers", () => {
-  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "people", "record_conversation", "relate", "remember", "set_interval", "traits", "whats_due"]);
+  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "inbox", "people", "record_conversation", "relate", "remember", "set_interval", "traits", "whats_due"]);
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
@@ -300,4 +304,40 @@ describe("next never shows the other user's private items", () => {
     expect(merge.moved).toEqual({ facts: 0, promises: 0, dates: 0, exchanges: 0, relationships: 0, conversations: 0, groups: 0 });
     expect(merge.next).toEqual(['Merged Tom into Anna: nothing else moved, and "Tom" now finds Anna. Look over Anna\'s briefing for anything doubled and fix it with correct.']);
   });
+});
+
+describe("inbox", () => {
+  const text = (t: string) => new TextEncoder().encode(t);
+  beforeEach(() => vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-inbox-"))));
+  afterEach(() => vi.unstubAllEnvs());
+
+  test("list shows the caller's waiting files only and says how to work them through", async () => {
+    const mine = await shareFile(s.a, text("Patrick: Freitag Spieleabend"), "text/plain");
+    await shareFile(s.b, text("Bobs Datei"), "text/plain");
+    const r = await run(s.a, "inbox", { action: "list" });
+    expect(r.files.map((f: Json) => f.id)).toEqual([mine.id]);
+    expect(r.next).toEqual([
+      "Work through each file with the user: file what it shows with record_conversation, passing its id in fileIds (its transcript is kept, the file goes); if nothing in it is worth filing, inbox done.",
+    ]);
+    expect((await run(s.b, "inbox", { action: "list" })).files).toHaveLength(1);
+    expect(await run(s.a, "inbox", { action: "list" })).toMatchObject({ files: [expect.objectContaining({ id: mine.id })] });
+  });
+
+  test("with more than five waiting, five are shown and next says how many more", async () => {
+    for (let i = 0; i < 7; i++) await shareFile(s.a, text(`Datei ${i}`), "text/plain");
+    const r = await run(s.a, "inbox", { action: "list" });
+    expect(r.files).toHaveLength(5);
+    expect(r.next[1]).toBe("2 more wait; list again after these.");
+  });
+
+  test("done deletes a file with nothing to file; not the partner's; upload is gone", async () => {
+    const one = await shareFile(s.a, text("eins"), "text/plain");
+    await expect(run(s.b, "inbox", { action: "done", id: one.id })).rejects.toThrow(/No such file/);
+    expect(await run(s.a, "inbox", { action: "done", id: one.id })).toMatchObject({ done: true, next: [] });
+    expect((await run(s.a, "inbox", { action: "list" })).files).toEqual([]);
+    expect(await fileContent(s.a, one.id)).toBeNull();
+    await expect(run(s.a, "inbox", { action: "done" })).rejects.toThrow(/id/);
+    await expect(run(s.a, "inbox", { action: "upload" })).rejects.toThrow();
+  });
+
 });

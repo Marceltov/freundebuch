@@ -378,42 +378,42 @@ test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await expectNoSideScroll(page);
 });
 
-test("a screenshot added in Erzählen waits under Zu prüfen, is filed on a new person and shows on their page", async ({ page }) => {
+test("a file added in Erzählen waits under Prüfen with a suggestion; opened from there, Erzählen works it through and closes it", async ({ page }) => {
   const sharp = (await import("sharp")).default;
   const png = await sharp({ create: { width: 300, height: 600, channels: 3, background: { r: 1, g: 120, b: 200 } } }).png().toBuffer();
   await page.goto("/");
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
   const sheet = page.getByRole("dialog", { name: "Erzählen" });
-  await expect(sheet.getByRole("button", { name: "Screenshot hinzufügen" })).toBeVisible();
   await sheet.locator('input[type="file"]').setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png });
-  await expect(sheet.getByRole("status")).toContainText("Danke! freundebuch liest den Screenshot.");
+  // One file goes along with the chat at once.
+  await expect(sheet.getByText("Zu dieser Datei")).toBeVisible();
   await sheet.getByRole("button", { name: "Schließen" }).click();
 
-  // The stand-in model is never sure: the badge appears once it has read the screenshot.
+  // The stand-in pre-reads every file; the badge appears once it has.
   await expect(async () => {
     await page.goto("/");
     await expect(page.getByRole("link", { name: "1 zu prüfen" })).toBeVisible({ timeout: 1000 });
   }).toPass();
   await page.getByRole("link", { name: "1 zu prüfen" }).click();
   await expect(page).toHaveURL("/pruefen");
-  await expect(page.getByRole("textbox").first()).toHaveValue("Urlaub in Lissabon");
+  await expect(page.getByText("Anna Reise war in Lissabon im Urlaub")).toBeVisible();
+  await expect(page.getByRole("img", { name: "Geteiltes Bild" })).toBeVisible();
   await expectNoSideScroll(page);
-  await page.getByRole("button", { name: "Neu anlegen: Anna Reise" }).click();
-  await page.getByRole("button", { name: "Bei Anna Reise ablegen" }).click();
-  await expect(page.getByText("Nichts zu prüfen.")).toBeVisible();
 
-  const people = await (await page.request.get("/api/v1/people?q=Anna Reise")).json();
-  await page.goto(new URL(people[0].url).pathname);
-  await expect(page.getByText("Urlaub in Lissabon")).toBeVisible();
-  await expect(page.getByText(/· Instagram/)).toBeVisible();
-  await expect(page.getByRole("img", { name: "Screenshot" })).toBeVisible();
-  // the handle is one of her other names now
-  expect(people[0].aliases).toContain("anna.reist");
+  await page.getByRole("button", { name: "In Erzählen öffnen" }).click();
+  const chat = page.getByRole("dialog", { name: "Erzählen" });
+  await expect(chat.getByText("Zu dieser Datei")).toBeVisible();
+  await chat.getByRole("textbox").fill("Erledigt");
+  await chat.getByRole("button", { name: "Senden" }).click();
+  await expect(chat.getByText("Erfasst.")).toBeVisible();
+  await chat.getByRole("button", { name: "Schließen" }).click();
+  await page.reload();
+  await expect(page.getByText("Nichts zu prüfen.")).toBeVisible();
 });
 
 test("settings make a share key, and the key hands in a screenshot", async ({ page, baseURL }) => {
   await page.goto("/einstellungen");
-  await expect(page.getByRole("heading", { name: "Screenshots teilen" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();
   await expect(page.getByText(/\/api\/share$/)).toBeVisible();
   await page.getByRole("button", { name: /Schlüssel erzeugen/ }).click();
   const key = (await page.getByText(/^fbs_/).textContent())!;
@@ -423,7 +423,7 @@ test("settings make a share key, and the key hands in a screenshot", async ({ pa
   const img = await sharp({ create: { width: 200, height: 400, channels: 3, background: { r: 9, g: 9, b: 9 } } }).png().toBuffer();
   const res = await fetch(`${baseURL}/api/share`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "image/png" }, body: img });
   expect(res.status).toBe(202);
-  expect((await res.json()).message).toBe("Danke! freundebuch liest den Screenshot.");
+  expect((await res.json()).message).toBe("Danke! freundebuch liest die Datei, sie wartet unter „Prüfen“.");
 });
 
 test("settings make a calendar feed that a calendar app can read, and end it", async ({ page, baseURL }) => {

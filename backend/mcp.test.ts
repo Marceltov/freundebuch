@@ -1,7 +1,11 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { sql } from "kysely";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { sign } from "./auth/tokens";
 import { calendarRoute } from "./calendar";
+import { shareFile } from "./files";
 import { db } from "./db/testing";
 import { logTo } from "./log";
 import { mcpRoute } from "./mcp";
@@ -72,7 +76,7 @@ const ramble = (over: object = {}) => ({
 });
 
 describe("protocol", () => {
-  test("tools/list names the thirteen tools with their annotations", async () => {
+  test("tools/list names the fourteen tools with their annotations", async () => {
     const tools = (await (await rpc(s.a, "tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "briefing",
@@ -81,6 +85,7 @@ describe("protocol", () => {
       "find_person",
       "get_transcript",
       "groups",
+      "inbox",
       "people",
       "record_conversation",
       "relate",
@@ -94,7 +99,7 @@ describe("protocol", () => {
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
       // calendar_feed, which can end a calendar's subscription.
       const writes = ["record_conversation", "relate", "remember", "set_interval"].includes(t.name);
-      expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed"].includes(t.name) ? true : writes ? false : undefined);
+      expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed", "inbox"].includes(t.name) ? true : writes ? false : undefined);
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");
       // The Anthropic API refuses a tool whose input schema combines schemas at its root.
@@ -402,4 +407,24 @@ describe("calendar feed over MCP", () => {
     // Each user has their own.
     expect((await call(s.b, "calendar_feed", { action: "show" })).structuredContent.created).toBe(true);
   });
+});
+
+test("inbox list hands an outside Claude the files themselves: images as images, PDFs and text as resources", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-mcp-inbox-")));
+  const sharp = (await import("sharp")).default;
+  const png = new Uint8Array(await sharp({ create: { width: 20, height: 20, channels: 3, background: { r: 9, g: 9, b: 9 } } }).png().toBuffer());
+  const img = await shareFile(s.a, png, "image/png");
+  const txt = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend"), "text/plain");
+  const r = await call(s.a, "inbox", { action: "list" });
+  const blocks = r.content as Array<Record<string, unknown>>;
+  expect(blocks[0].type).toBe("text");
+  expect(blocks).toContainEqual({ type: "image", data: expect.any(String), mimeType: "image/webp" });
+  expect(blocks).toContainEqual({ type: "resource", resource: { uri: `freundebuch:file/${txt.id}`, mimeType: "text/plain", text: "Patrick: Freitag Spieleabend" } });
+  expect(r.structuredContent.files.map((f: Json) => f.id).sort()).toEqual([img.id, txt.id].sort());
+});
+
+test("the instructions say what to do with a file pasted into the conversation", async () => {
+  const { INSTRUCTIONS } = await import("./mcp");
+  expect(INSTRUCTIONS).toContain("write out what it shows");
+  expect(INSTRUCTIONS).toContain("only their transcripts are kept");
 });

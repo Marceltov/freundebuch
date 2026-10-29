@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ImagePlus, SendHorizontal, SquarePen, X } from "lucide-react";
+import { Paperclip, SendHorizontal, SquarePen, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ChatContext, ChatLink } from "@/backend";
 import { copy } from "@/components/copy";
@@ -44,15 +44,18 @@ const linkLabel = (l: ChatLink) => (l.kind === "conversation" ? copy.conversatio
 // The chat with Claude ("Erzählen"), as a sheet over the current page. It knows the page it was opened on (a friend or a
 // conversation) and says so in a chip the user can remove. The conversation is kept on this device; the server gets it whole
 // with every message (backend/chat-route.ts). A failed message stays in the field to send again.
-// With `sharing`, the image button hands screenshots to POST /api/share, as sharing from the phone does; they don't go into the chat.
-export function ChatSheet({ userId, sharing = false, onClose }: { userId: string; sharing?: boolean; onClose: () => void }) {
+// With `sharing`, the paperclip hands files to POST /api/share, as sharing from the phone does: one goes along with this chat
+// (context `fileId`), several wait under Prüfen. `file`: opened from Prüfen on that file, as a new conversation about it.
+export function ChatSheet({ userId, sharing = false, file = null, onClose }: { userId: string; sharing?: boolean; file?: string | null; onClose: () => void }) {
   const router = useRouter();
   const path = usePathname();
-  const [turns, setTurns] = useState<Turn[]>(() => load(userId));
+  // Opened on a file from Prüfen, it is a conversation of its own about that file.
+  const [turns, setTurns] = useState<Turn[]>(() => (file ? [] : load(userId)));
+  const [fileId, setFileId] = useState<string | null>(file);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shot, setShot] = useState<"sending" | "received" | "duplicate" | "failed" | null>(null);
+  const [shot, setShot] = useState<"sending" | "received" | "duplicate" | "failed" | "attached" | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   // The name belongs to the person it was loaded for, so moving to another page never shows the one before.
   const [loaded, setLoaded] = useState<{ id: string; name: string } | null>(null);
@@ -66,7 +69,9 @@ export function ChatSheet({ userId, sharing = false, onClose }: { userId: string
   // The page goes along at once; the chip shows the person's name once it has loaded.
   const about: { context: ChatContext; label: string } | null = dismissed
     ? null
-    : person
+    : fileId
+      ? { context: { fileId }, label: copy.aboutFile }
+      : person
       ? { context: { personId: person }, label: personName ? copy.aboutPerson.replace("{name}", personName) : copy.aboutThisPerson }
       : conversation
         ? { context: { conversationId: conversation }, label: copy.aboutConversation }
@@ -159,18 +164,29 @@ export function ChatSheet({ userId, sharing = false, onClose }: { userId: string
     if (body.filed) router.refresh();
   }
 
+  // One file goes along with this chat at once; several wait under Prüfen, to be opened one by one.
   async function upload(files: File[]) {
     if (!files.length) return;
     setShot("sending");
     let result: "received" | "duplicate" | "failed" = "duplicate";
-    for (const file of files) {
+    const ids: string[] = [];
+    for (const f of files) {
       const form = new FormData();
-      form.set("image", file, file.name);
+      form.set("file", f, f.name);
       const res = await fetch("/api/share", { method: "POST", body: form }).catch(() => null);
-      if (!res || res.status !== 202) result = "failed";
-      else if (!((await res.json()) as { duplicate: boolean }).duplicate && result !== "failed") result = "received";
+      if (!res || res.status !== 202) {
+        result = "failed";
+        continue;
+      }
+      const body = (await res.json()) as { id: string; duplicate: boolean };
+      ids.push(body.id);
+      if (!body.duplicate && result !== "failed") result = "received";
     }
-    setShot(result);
+    if (files.length === 1 && ids.length === 1) {
+      setFileId(ids[0]);
+      setDismissed(false);
+      setShot("attached");
+    } else setShot(result);
     router.refresh();
   }
 
@@ -252,7 +268,7 @@ export function ChatSheet({ userId, sharing = false, onClose }: { userId: string
         )}
         {shot && (
           <p role="status" className={`mx-4 flex flex-wrap items-center gap-x-2 rounded-xl bg-surface px-3 py-2 text-sm ${shot === "failed" ? "text-error" : ""}`}>
-            {{ sending: copy.shareReceiving, received: copy.shareReceived, duplicate: copy.shareDuplicate, failed: copy.shareFailed }[shot]}
+            {{ sending: copy.shareReceiving, received: copy.shareReceived, duplicate: copy.shareDuplicate, failed: copy.shareFailed, attached: copy.fileAttached }[shot]}
             {shot === "received" && (
               <Link href="/pruefen" onClick={onClose} className="font-bold text-carbon">
                 {copy.pending} ›
@@ -273,7 +289,7 @@ export function ChatSheet({ userId, sharing = false, onClose }: { userId: string
               <input
                 ref={picker}
                 type="file"
-                accept="image/*"
+                accept="image/*,application/pdf,text/plain"
                 multiple
                 hidden
                 onChange={(e) => {
@@ -289,7 +305,7 @@ export function ChatSheet({ userId, sharing = false, onClose }: { userId: string
                 onClick={() => picker.current?.click()}
                 className="-ml-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink disabled:opacity-40"
               >
-                <ImagePlus aria-hidden className="h-5 w-5" />
+                <Paperclip aria-hidden className="h-5 w-5" />
               </button>
             </>
           )}

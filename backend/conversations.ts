@@ -20,10 +20,14 @@ import {
   type Viewer,
   type Visibility,
 } from "./types";
+import { dropBlobs, takeFiles } from "./files";
 import { resolveOrCreateGroup } from "./groups";
 import { isHouseholdWord, resolvePairs, type Target } from "./household";
 import { conversationPath, groupPath, itemPath, personPath, type AnchoredTable } from "./urls";
 import { visible } from "./visibility";
+
+/** What heads a shared file's transcript inside a conversation's. */
+export const FROM_FILE = "--- Aus einer geteilten Datei ---";
 
 /** An index into `NewConversation.people`. */
 export type PersonRef = number;
@@ -31,6 +35,9 @@ type DateKind = "birthday" | "anniversary" | "custom";
 type Direction = "to_them" | "from_them";
 
 export type NewConversation = {
+  /** Shared files this conversation was told from (files.ts): the user's own waiting files. Their transcripts join this one,
+   * and the files go. */
+  fileIds?: string[];
   date: string;
   kind: ConversationKind;
   place?: string;
@@ -437,7 +444,12 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
   const t = now();
   const base: ItemBase = { recorded_by: v.userId, conversation_id: conversationId, created_at: t };
 
-  return (await db()).transaction().execute(async (tx) => {
+  // The shared files it was told from: their transcripts join the conversation's, and the files go once it has committed.
+  let blobs: string[] = [];
+  const recorded = await (await db()).transaction().execute(async (tx) => {
+    const taken = await takeFiles(tx, v, c.fileIds ?? []);
+    blobs = taken.blobs;
+    const transcript = [c.transcript, ...taken.transcripts.map((t) => `${FROM_FILE}\n${t}`)].join("\n\n");
     await tx
       .insertInto("conversations")
       .values({
@@ -446,7 +458,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
         kind: c.kind,
         place: c.place?.trim() || null,
         summary: c.summary,
-        transcript: c.transcript,
+        transcript,
         transcript_private: transcriptPrivate,
         visibility: c.visibility,
         recorded_by: v.userId,
@@ -491,6 +503,8 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     };
     return { conversationId, url: conversationPath(conversationId), people: people.map((p) => ({ ...p, url: personPath(p.id) })), counts, filed: { ...filed, relationships, groups } };
   });
+  await dropBlobs(blobs);
+  return recorded;
 }
 
 /** Why a private fact can't replace a shared one; corrections.ts refuses making such a replacement private later with the same words. */
