@@ -1,14 +1,14 @@
 // Experiences: what the user lived through on a day (a concert, a trip, a dog-school lesson), as parts of a ramble, and series
 // of them (a course, a weekly training). Claude files them with record (conversations.ts); nothing here interprets. A series
 // stays a memory: nothing removes it on its own. Every read goes through visible().
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { assertDay, notFuture } from "./dates";
-import { newId, type Schema } from "./db";
+import { db, newId, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
 import { resolvePlace, type PlaceRef } from "./places";
 import type { Viewer, Visibility } from "./types";
-import { seriesPath } from "./urls";
+import { personPath, placePath, ramblePath, seriesPath } from "./urls";
 import { visible } from "./visibility";
 
 export const MAX_TITLE = 200;
@@ -112,4 +112,94 @@ export async function insertExperiences(
     out.push({ id, url: series ? `${seriesPath(series.id)}#experience-${id}` : `/r/${r.rambleId}#experience-${id}`, seriesId: series?.id ?? null, visibility });
   }
   return out;
+}
+
+export type ExperienceView = {
+  id: string;
+  date: string;
+  kind: string;
+  title: string;
+  summary: string | null;
+  place: { id: string; name: string; url: string } | null;
+  series: { id: string; name: string; url: string } | null;
+  people: Array<{ id: string; name: string; url: string }>;
+  rambleId: string;
+  visibility: Visibility;
+  /** The viewer recorded it: they may change or delete it. */
+  mine: boolean;
+  url: string;
+};
+export type SeriesSummary = { id: string; name: string; kind: string; rhythmDays: number | null; startsOn: string | null; endsOn: string | null; url: string };
+export type ExperienceQuery = { from?: string; to?: string; kind?: string; placeId?: string; seriesId?: string; personId?: string; limit?: number };
+
+/** The experiences the viewer may see, newest first, narrowed by period, kind (any case), place, series or a person who was there. */
+export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promise<ExperienceView[]> {
+  const d = await db();
+  let query = d
+    .selectFrom("experiences")
+    .selectAll()
+    .$call((qb) => visible(qb, v, "experiences"))
+    .orderBy("date", "desc")
+    .orderBy("created_at", "desc");
+  if (q.from) query = query.where("date", ">=", q.from);
+  if (q.to) query = query.where("date", "<=", q.to);
+  if (q.kind) query = query.where(sql<string>`lower(kind)`, "=", q.kind.trim().toLowerCase());
+  if (q.placeId) query = query.where("place_id", "=", q.placeId);
+  if (q.seriesId) query = query.where("series_id", "=", q.seriesId);
+  if (q.personId) query = query.where("id", "in", (eb) => eb.selectFrom("experience_people").select("experience_id").where("person_id", "=", q.personId!));
+  if (q.limit) query = query.limit(q.limit);
+  const rows = await query.execute();
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const [people, places, series] = await Promise.all([
+    d
+      .selectFrom("experience_people")
+      .innerJoin("persons", "persons.id", "experience_people.person_id")
+      .select(["experience_people.experience_id", "persons.id", "persons.name"])
+      .where("experience_id", "in", ids)
+      .where("persons.id", "!=", v.personId)
+      .orderBy("persons.name")
+      .execute(),
+    d.selectFrom("places").select(["id", "name"]).where("id", "in", [...new Set(rows.flatMap((r) => (r.place_id ? [r.place_id] : [])))].concat([""])).execute(),
+    d.selectFrom("series").select(["id", "name"]).where("id", "in", [...new Set(rows.flatMap((r) => (r.series_id ? [r.series_id] : [])))].concat([""])).$call((qb) => visible(qb, v, "series")).execute(),
+  ]);
+  const placeById = new Map(places.map((p) => [p.id, p]));
+  const seriesById = new Map(series.map((s) => [s.id, s]));
+  return rows.map((r) => {
+    const p = r.place_id ? placeById.get(r.place_id) : undefined;
+    const s = r.series_id ? seriesById.get(r.series_id) : undefined;
+    return {
+      id: r.id,
+      date: r.date,
+      kind: r.kind,
+      title: r.title,
+      summary: r.summary,
+      place: p ? { id: p.id, name: p.name, url: placePath(p.id) } : null,
+      series: s ? { id: s.id, name: s.name, url: seriesPath(s.id) } : null,
+      people: people.filter((x) => x.experience_id === r.id).map((x) => ({ id: x.id, name: x.name, url: personPath(x.id) })),
+      rambleId: r.ramble_id,
+      visibility: r.visibility as Visibility,
+      mine: r.recorded_by === v.userId,
+      url: s ? `${seriesPath(s.id)}#experience-${r.id}` : `${ramblePath(r.ramble_id)}#experience-${r.id}`,
+    };
+  });
+}
+
+/** The kinds the viewer's visible experiences use, most used first, so Claude keeps "Konzert" "Konzert". */
+export async function experienceKinds(v: Viewer): Promise<string[]> {
+  const rows = await (await db())
+    .selectFrom("experiences")
+    .select(["kind", (eb) => eb.fn.countAll<number>().as("n")])
+    .$call((qb) => visible(qb, v, "experiences"))
+    .groupBy("kind")
+    .orderBy("n", "desc")
+    .orderBy("kind")
+    .execute();
+  return rows.map((r) => r.kind);
+}
+
+/** The series the viewer may see, by name. */
+export async function listSeries(v: Viewer): Promise<SeriesSummary[]> {
+  const rows = await (await db()).selectFrom("series").selectAll().$call((qb) => visible(qb, v, "series")).orderBy("name").execute();
+  return rows.map((s) => ({ id: s.id, name: s.name, kind: s.kind, rhythmDays: s.rhythm_days, startsOn: s.starts_on, endsOn: s.ends_on, url: seriesPath(s.id) }));
 }

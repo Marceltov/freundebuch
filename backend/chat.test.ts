@@ -251,3 +251,9 @@ test("opened on a shared file, Claude learns the day it was shared and dates wha
   expect(system).toContain("2026-10-20");
   expect(system).toContain("not the day it is reviewed");
 });
+
+test("what record filed as an experience shows as a link chip with its title", () => {
+  const input = { date: "2026-10-28", experiences: [{ kind: "Kurs", title: "Erste Stunde Hundeschule" }] };
+  const out = { conversations: [], people: [], experiences: [{ id: "e1", seriesId: "s1", visibility: "shared", url: "/s/s1#experience-e1" }] };
+  expect(linksOf("record", input, out)).toEqual([{ kind: "experience", id: "e1", name: "Erste Stunde Hundeschule", url: "/s/s1#experience-e1" }]);
+});

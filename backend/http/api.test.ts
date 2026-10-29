@@ -444,3 +444,13 @@ describe("rambles", () => {
     expect((await call(s.a, "DELETE", `/rambles/${r.rambleId}`)).status).toBe(404);
   });
 });
+
+describe("experiences", () => {
+  test("GET /experiences lists the caller's and shared ones; the partner never sees a private one", async () => {
+    const ramble = (v: typeof s.a, title: string, extra: object = {}) => call(v, "POST", "/rambles", { date: "2026-10-28", transcript: title, visibility: "shared", people: [], experiences: [{ kind: "Konzert", title, ...extra }] });
+    expect((await ramble(s.a, "Wanda")).status).toBe(201);
+    expect((await ramble(s.a, "Geheim", { private: true })).status).toBe(201);
+    expect((await call(s.a, "GET", "/experiences?kind=Konzert")).json.experiences.map((e: { title: string }) => e.title).sort()).toEqual(["Geheim", "Wanda"]);
+    expect((await call(s.b, "GET", "/experiences")).json.experiences.map((e: { title: string }) => e.title)).toEqual(["Wanda"]);
+  });
+});

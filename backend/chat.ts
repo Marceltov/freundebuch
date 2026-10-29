@@ -27,7 +27,7 @@ export type ChatTurn = { role: "user" | "assistant"; content: string; filed?: bo
 /** Where the chat was opened: on a person, a conversation, or a shared file (`fileId`) to work through. */
 export type ChatContext = { personId?: string; conversationId?: string; fileId?: string };
 /** Something a tool call filed or looked up, for the link chips under the reply. */
-export type ChatLink = { kind: "person" | "conversation" | "group"; id: string; name?: string; date?: string; url: string };
+export type ChatLink = { kind: "person" | "conversation" | "group" | "experience"; id: string; name?: string; date?: string; url: string };
 export type ChatCode = "chat_refused" | "chat_too_long" | "chat_limit" | "chat_unavailable";
 /** A code is a failure the app words in German; when something was filed before it, `links` and `filed` say what, so the
  * user doesn't send it again. */
@@ -102,12 +102,16 @@ async function situation(v: Viewer, context: ChatContext, day: string, gone = fa
 export function linksOf(name: string, input: unknown, out: Record<string, unknown>): ChatLink[] {
   const str = (x: unknown): x is string => typeof x === "string";
   if (name === "record" && Array.isArray(out.conversations)) {
-    const r = input as { date?: unknown; conversations?: { date?: unknown }[] };
+    const r = input as { date?: unknown; conversations?: { date?: unknown }[]; experiences?: { title?: unknown }[] };
     const people = Array.isArray(out.people) ? (out.people as { id: unknown; name: unknown; url: unknown }[]) : [];
     return [
       ...(out.conversations as { id: unknown; url: unknown }[]).flatMap((c, i) => {
         const date = r.conversations?.[i]?.date ?? r.date;
         return str(c.id) && str(c.url) ? [{ kind: "conversation" as const, id: c.id, date: str(date) ? date : undefined, url: c.url }] : [];
+      }),
+      ...(Array.isArray(out.experiences) ? (out.experiences as { id: unknown; url: unknown }[]) : []).flatMap((e, i) => {
+        const title = r.experiences?.[i]?.title;
+        return str(e.id) && str(e.url) && str(title) ? [{ kind: "experience" as const, id: e.id, name: title, url: e.url }] : [];
       }),
       ...people.filter((p) => str(p.id) && str(p.name) && str(p.url)).map((p) => ({ kind: "person" as const, id: p.id as string, name: p.name as string, url: p.url as string })),
     ];

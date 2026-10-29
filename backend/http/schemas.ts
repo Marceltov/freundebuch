@@ -368,10 +368,38 @@ export const NewRambleJson = z
           place: C.place,
           summary: C.summary,
           present: z.array(Ref).describe("Who took part, by index into people"),
+          at: z.number().int().optional().describe("The experience it happened at, by index into experiences (the talk with Anna at the festival)"),
         }),
       )
       .optional()
       .describe("The meetings, calls and messages it tells of, each its own conversation"),
+    experiences: z
+      .array(
+        z.object({
+          date: Day.optional().describe("The day it happened, when not the ramble's day"),
+          kind: z.string().describe('A German word for what it was ("Konzert", "Festival", "Kurs", "Reise"); reuse a kind already in use'),
+          title: z.string().describe('A short title ("Wanda in der Olympiahalle", "Hundeschule, 2. Stunde")'),
+          summary: z.string().optional().describe("A few lines of what happened; how it felt to the user goes in a journal entry"),
+          place: PlaceRefJson.optional(),
+          present: z.array(Ref).optional().describe("Who else was there, by index into people; the user always is"),
+          series: z
+            .union([
+              z.string().describe("An existing series' id"),
+              z.object({
+                name: z.string().describe("The series' name; an existing one of that exact name is reused"),
+                kind: z.string().optional(),
+                rhythmDays: z.number().int().optional().describe('How often it happens, in days (7 for "every Wednesday"); leave out when it has no rhythm'),
+                startsOn: Day.optional().describe("Its first day, when not this session's"),
+                endsOn: Day.optional().describe("Its last day, when known"),
+              }),
+            ])
+            .optional()
+            .describe("The series this is a session of (a course, a weekly training). Start a new one only when the user speaks of it as recurring, and ask first"),
+          private: z.boolean().optional().describe("Only for this experience; a private ramble or series makes it private anyway"),
+        }),
+      )
+      .optional()
+      .describe("What the user lived through that isn't a meeting: a concert, a festival, a trip, a lesson"),
     journal: z
       .array(
         z.object({
@@ -460,8 +488,47 @@ export const RecordedRambleJson = RecordedJson.omit({ conversationId: true, url:
     rambleId: z.string(),
     conversations: z.array(z.object({ id: z.string(), url: Url.describe("The conversation's page, as an absolute URL") })),
     journal: z.array(z.object({ id: z.string(), visibility: Visibility, url: Url.describe("The entry on the Tagebuch page, as an absolute URL") })),
+    experiences: z.array(z.object({ id: z.string(), seriesId: z.string().nullable(), visibility: Visibility, url: Url.describe("The experience on its series' or ramble's page") })),
   })
   .meta({ id: "RecordedRamble" });
+
+const Linked = z.object({ id: z.string(), name: z.string(), url: Url });
+export const ExperienceJson = z
+  .object({
+    id: z.string(),
+    date: Day,
+    kind: z.string(),
+    title: z.string(),
+    summary: z.string().nullable(),
+    place: Linked.nullable(),
+    series: Linked.nullable(),
+    people: z.array(Linked).describe("Who else was there"),
+    rambleId: z.string(),
+    visibility: Visibility,
+    mine: z.boolean().describe("The caller recorded it: they may change or delete it"),
+    url: Url,
+  })
+  .meta({ id: "Experience" });
+export const SeriesSummaryJson = z
+  .object({ id: z.string(), name: z.string(), kind: z.string(), rhythmDays: z.number().int().nullable(), startsOn: Day.nullable(), endsOn: Day.nullable(), url: Url })
+  .meta({ id: "SeriesSummary" });
+export const ExperiencesJson = z
+  .object({
+    experiences: z.array(ExperienceJson.extend({})).describe("Newest first"),
+    kinds: z.array(z.string()).describe("The kinds in use, most used first"),
+    series: z.array(SeriesSummaryJson.extend({})).describe("The series in use, by name"),
+  })
+  .meta({ id: "Experiences" });
+export const ExperienceQuery = z.object({
+  from: Day.optional(),
+  to: Day.optional(),
+  kind: z.string().optional().describe("Only this kind, in any case"),
+  placeId: z.string().optional(),
+  seriesId: z.string().optional(),
+  personId: PersonId.optional().describe("Only those this person was at"),
+});
+export const PlaceJson = z.object({ id: z.string(), name: z.string(), aliases: z.array(z.string()), url: Url }).meta({ id: "Place" });
+export const PlaceListJson = z.array(PlaceJson.extend({})).meta({ id: "PlaceList" });
 
 const Name = z.string().describe("The name of the person it is about");
 const Item = { id: z.string(), visibility: Visibility, recordedBy: z.string().describe("The id of the user who recorded it"), url: ItemUrl.describe("Its highlighted row on the conversation's page, as an absolute URL") };
@@ -592,7 +659,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

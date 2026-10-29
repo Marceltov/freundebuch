@@ -14,6 +14,8 @@ import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
 import { journalEntries } from "../journal";
+import { experienceKinds, listExperiences, listSeries } from "../experiences";
+import { findPlaces } from "../places";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { getReflection, putReflection } from "../reflection";
@@ -57,6 +59,9 @@ import {
   TraitsQuery,
   JournalJson,
   JournalQuery,
+  ExperiencesJson,
+  ExperienceQuery,
+  PlaceListJson,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -153,6 +158,35 @@ const OPS: AnyOp[] = [
     query: JournalQuery,
     responses: { 200: { description: "The entries", schema: JournalJson }, 400: E400, 401: E401 },
   }).handle(async ({ viewer, query }) => ({ status: 200, body: { entries: await journalEntries(viewer, query) } })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/experiences`,
+    operationId: "listExperiences",
+    summary: "What the caller lived through",
+    description: "Experiences the caller may see, newest first, optionally of a kind, in a period, at a place, in a series or with a person; with the kinds and series in use.",
+    tags: ["Experiences"],
+    auth: true,
+    params: {},
+    query: ExperienceQuery,
+    responses: { 200: { description: "The experiences", schema: ExperiencesJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, query }) => {
+    const [experiences, kinds, series] = await Promise.all([listExperiences(viewer, query), experienceKinds(viewer), listSeries(viewer)]);
+    return { status: 200, body: { experiences, kinds, series } };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/places`,
+    operationId: "findPlaces",
+    summary: "Find places by name",
+    description: "Places the caller may see whose name or other name matches `q`, tolerant of spelling, best first.",
+    tags: ["Experiences"],
+    auth: true,
+    params: {},
+    query: z.object({ q: z.string().describe("A place's name, or part of it") }),
+    responses: { 200: { description: "The places", schema: PlaceListJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, query }) => ({ status: 200, body: await findPlaces(viewer, query.q) })),
 
   op({
     method: "PUT",
