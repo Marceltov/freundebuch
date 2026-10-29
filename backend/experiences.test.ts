@@ -2,6 +2,10 @@ import { beforeEach, expect, test } from "vitest";
 import { getConversation, record, type NewRamble } from "./conversations";
 import { db } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
+import { briefing } from "./briefing";
+import { deleteItem, editItem, setVisibility, skipSession } from "./corrections";
+import { getPlace, getSeries, listExperiences } from "./experiences";
+import { ForbiddenError } from "./errors";
 import { findPlaces } from "./places";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -75,4 +79,55 @@ test("the partner sees a shared session, never a private one, and no place throu
   const course = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "private", people: [], experiences: [{ kind: "Kurs", title: "Erste Stunde", series: { name: "Gesprächsgruppe", rhythmDays: 7 } }] });
   await expect(record(s.b, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "x", series: course.experiences[0].seriesId! }] })).rejects.toThrow(NotFoundError);
   void priv;
+});
+
+test("memories stay: deleting a series' last session keeps the series; deleting the series keeps its sessions", async () => {
+  const r = await dogSchool();
+  const seriesId = r.experiences[0].seriesId!;
+  const second = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Zweite Stunde", series: seriesId }] });
+  await deleteItem(s.a, "experiences", r.experiences[0].id);
+  await deleteItem(s.a, "experiences", second.experiences[0].id);
+  expect((await getSeries(s.a, seriesId)).sessions).toEqual([]);
+  const third = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Dritte Stunde", series: seriesId }] });
+  await deleteItem(s.a, "series", seriesId);
+  const [kept] = await listExperiences(s.a, { kind: "Kurs" });
+  expect(kept).toMatchObject({ id: third.experiences[0].id, series: null });
+});
+
+test("a series page lists its sessions by date and the days skipped; a place page what happened there", async () => {
+  const r = await dogSchool();
+  const seriesId = r.experiences[0].seriesId!;
+  await skipSession(s.a, seriesId, "2026-11-04");
+  const series = await getSeries(s.a, seriesId);
+  expect(series).toMatchObject({ name: "Hundeschule mit Toffee", rhythmDays: 7, startsOn: "2026-10-28", skipped: ["2026-11-04"], place: expect.objectContaining({ name: "Hundeschule Pfotenglück" }) });
+  expect(series.sessions.map((x) => x.title)).toEqual(["Erste Stunde Hundeschule"]);
+  const place = await getPlace(s.a, series.place!.id);
+  expect(place.experiences.map((x) => x.id)).toEqual([r.experiences[0].id]);
+  expect(place.conversations.map((c) => c.id)).toEqual([]);
+  expect(place.series.map((x) => x.id)).toEqual([seriesId]);
+});
+
+test("a briefing lists the experiences the viewer had with the person", async () => {
+  await dogSchool();
+  expect((await briefing(s.a, s.anna)).experiences.map((e) => e.title)).toEqual(["Erste Stunde Hundeschule"]);
+});
+
+test("edit an experience's date, kind and place; only the recorder changes who sees it; the partner can't touch a private one", async () => {
+  const r = await dogSchool();
+  const id = r.experiences[0].id;
+  await editItem(s.a, "experiences", id, { date: "2026-10-27", kind: "Hundeschule", place: { name: "Hundeschule am See", confirmedNew: true }, title: "Probestunde" });
+  const [e] = await listExperiences(s.a, { kind: "Hundeschule" });
+  expect(e).toMatchObject({ date: "2026-10-27", title: "Probestunde", place: expect.objectContaining({ name: "Hundeschule am See" }) });
+  await expect(setVisibility(s.b, "experiences", id, "private")).rejects.toThrow(ForbiddenError);
+  await setVisibility(s.a, "experiences", id, "private");
+  await expect(editItem(s.b, "experiences", id, { title: "x" })).rejects.toThrow(NotFoundError);
+  await expect(getSeries(s.b, "no-such")).rejects.toThrow(NotFoundError);
+});
+
+test("a series made private takes its sessions with it, and a session of a private series can't be shared", async () => {
+  const r = await dogSchool();
+  const seriesId = r.experiences[0].seriesId!;
+  await setVisibility(s.a, "series", seriesId, "private");
+  expect((await listExperiences(s.b, {})).map((e) => e.id)).not.toContain(r.experiences[0].id);
+  await expect(setVisibility(s.a, "experiences", r.experiences[0].id, "shared")).rejects.toThrow(InvalidInputError);
 });

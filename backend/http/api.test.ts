@@ -454,3 +454,17 @@ describe("experiences", () => {
     expect((await call(s.b, "GET", "/experiences")).json.experiences.map((e: { title: string }) => e.title)).toEqual(["Wanda"]);
   });
 });
+
+describe("series and places", () => {
+  test("GET /series/{id} and /places/{id}: the caller's, 404 for one the partner can't see", async () => {
+    const r = (await call(s.a, "POST", "/rambles", { date: "2026-10-28", transcript: "t", visibility: "private", people: [], experiences: [{ kind: "Kurs", title: "Erste", place: "Praxis am Markt", series: { name: "Gruppe", rhythmDays: 7 } }] })).json;
+    const seriesId = r.experiences[0].seriesId;
+    const series = await call(s.a, "GET", `/series/${seriesId}`);
+    expect(series.status).toBe(200);
+    expect(series.json.sessions).toHaveLength(1);
+    const placeId = series.json.place.id;
+    expect((await call(s.a, "GET", `/places/${placeId}`)).json.experiences).toHaveLength(1);
+    expect((await call(s.b, "GET", `/series/${seriesId}`)).status).toBe(404);
+    expect((await call(s.b, "GET", `/places/${placeId}`)).status).toBe(404);
+  });
+});

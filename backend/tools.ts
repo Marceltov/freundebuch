@@ -7,7 +7,7 @@ import * as z from "zod";
 import { briefing, type Briefing } from "./briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "./calendar";
 import { getConversation, record, remember, type FiledFact, type FiledRelationship } from "./conversations";
-import { deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type Moved } from "./corrections";
+import { deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, skipSession, type Moved } from "./corrections";
 import { whatsDue } from "./due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "./groups";
 import { InvalidInputError } from "./errors";
@@ -341,6 +341,7 @@ const CORRECT_ACTIONS = [
   "place_rename",
   "place_alias",
   "place_merge",
+  "series_skip",
   "ungroup",
   "group_rename",
   "group_alias",
@@ -354,7 +355,7 @@ const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). place_rename: rename a place; its old name keeps finding it (id = the place's, name). place_alias: add another name a place goes by (id, alias). place_merge: merge the duplicate place drop into the place id (id, drop). delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). place_rename: rename a place; its old name keeps finding it (id = the place's, name). place_alias: add another name a place goes by (id, alias). place_merge: merge the duplicate place drop into the place id (id, drop). series_skip: mark a session day of a series as skipped, so it is not asked about (id = the series', date). A series ends with edit, table series, patch { endsOn }; it is deleted (delete, table series) only when the user explicitly asks, and its sessions stay as single experiences. An experience or series only its recorder changes. delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
   id: z
@@ -374,6 +375,7 @@ const CorrectInput = z.object({
   label: z.string().optional().describe(`to_relationship: what \`from\` is to \`to\`. ${WORDS_DOC}`),
   inverse: z.string().optional().describe("to_relationship: what `to` is to `from`"),
   note: z.string().optional().describe("to_relationship: anything more about it"),
+  date: Day.optional().describe("series_skip: the session day that was skipped"),
 });
 
 const CorrectArgs = z.discriminatedUnion("action", [
@@ -421,6 +423,7 @@ const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("share_transcript"), id: z.string().describe("A ramble's id, or one of its conversations'") }).describe("Let the partner read a ramble's transcript"),
   z.object({ action: z.literal("delete_ramble"), id: RambleId }).describe("Delete a ramble with everything told in it"),
   z.object({ action: z.literal("place_rename"), id: PlaceId, name: z.string() }).describe("Rename a place"),
+  z.object({ action: z.literal("series_skip"), id: z.string().describe("The series' id"), date: Day }).describe("Mark a session day skipped"),
   z.object({ action: z.literal("place_alias"), id: PlaceId, alias: z.string() }).describe("Add another name a place goes by"),
   z.object({ action: z.literal("place_merge"), id: PlaceId.describe("The place to keep"), drop: PlaceId.describe("The duplicate; it is deleted") }).describe("Merge a duplicate place"),
   z.object({ action: z.literal("ungroup"), id: GroupId, person: PersonId }).describe("Take a person out of a group"),
@@ -848,6 +851,9 @@ export const TOOLS: readonly Tool[] = [
           break;
         case "delete_ramble":
           await deleteRamble(v, a.id);
+          break;
+        case "series_skip":
+          await skipSession(v, a.id, a.date);
           break;
         case "place_rename":
           await renamePlace(v, a.id, a.name);

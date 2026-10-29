@@ -14,7 +14,7 @@ import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
 import { journalEntries } from "../journal";
-import { experienceKinds, listExperiences, listSeries } from "../experiences";
+import { experienceKinds, getPlace, getSeries, listExperiences, listSeries } from "../experiences";
 import { findPlaces } from "../places";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
@@ -62,6 +62,8 @@ import {
   ExperiencesJson,
   ExperienceQuery,
   PlaceListJson,
+  SeriesJson,
+  PlaceViewJson,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -174,6 +176,28 @@ const OPS: AnyOp[] = [
     const [experiences, kinds, series] = await Promise.all([listExperiences(viewer, query), experienceKinds(viewer), listSeries(viewer)]);
     return { status: 200, body: { experiences, kinds, series } };
   }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/series/{id}`,
+    operationId: "getSeries",
+    summary: "A series and its sessions",
+    tags: ["Experiences"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 200: { description: "The series", schema: SeriesJson }, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => ({ status: 200, body: await getSeries(viewer, params.id) })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/places/{id}`,
+    operationId: "getPlace",
+    summary: "A place and everything at it the caller may see",
+    tags: ["Experiences"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 200: { description: "The place", schema: PlaceViewJson }, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => ({ status: 200, body: await getPlace(viewer, params.id) })),
 
   op({
     method: "GET",

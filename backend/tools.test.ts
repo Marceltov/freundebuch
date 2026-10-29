@@ -425,3 +425,18 @@ describe("experiences over MCP", () => {
     void other;
   });
 });
+
+describe("series over MCP", () => {
+  let s: Seed;
+  beforeEach(async () => {
+    s = await seed();
+  });
+  test("correct series_skip marks a day skipped, edit ends a series, and a briefing carries the experiences", async () => {
+    const r = await run(s.a, "record", { date: today(), transcript: "t", visibility: "shared", people: [{ id: s.anna }], experiences: [{ date: "2026-10-28", kind: "Kurs", title: "Erste Stunde", present: [0], series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
+    const id = r.experiences[0].seriesId;
+    await run(s.a, "correct", { action: "series_skip", id, date: "2026-11-04" });
+    await run(s.a, "correct", { action: "edit", table: "series", id, patch: { endsOn: "2026-12-16" } });
+    const b = await run(s.a, "briefing", { personId: s.anna });
+    expect(b.experiences.map((e: Json) => e.title)).toEqual(["Erste Stunde"]);
+  });
+});

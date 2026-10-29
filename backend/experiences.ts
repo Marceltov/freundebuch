@@ -6,9 +6,9 @@ import { assertDay, notFuture } from "./dates";
 import { db, newId, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import { resolvePlace, type PlaceRef } from "./places";
+import { resolvePlace, visiblePlaceIds, type PlaceRef } from "./places";
 import type { Viewer, Visibility } from "./types";
-import { personPath, placePath, ramblePath, seriesPath } from "./urls";
+import { conversationPath, personPath, placePath, ramblePath, seriesPath } from "./urls";
 import { visible } from "./visibility";
 
 export const MAX_TITLE = 200;
@@ -202,4 +202,71 @@ export async function experienceKinds(v: Viewer): Promise<string[]> {
 export async function listSeries(v: Viewer): Promise<SeriesSummary[]> {
   const rows = await (await db()).selectFrom("series").selectAll().$call((qb) => visible(qb, v, "series")).orderBy("name").execute();
   return rows.map((s) => ({ id: s.id, name: s.name, kind: s.kind, rhythmDays: s.rhythm_days, startsOn: s.starts_on, endsOn: s.ends_on, url: seriesPath(s.id) }));
+}
+
+export type SeriesView = SeriesSummary & {
+  place: { id: string; name: string; url: string } | null;
+  /** Its sessions the viewer may see, oldest first. */
+  sessions: ExperienceView[];
+  skipped: string[];
+  visibility: Visibility;
+  mine: boolean;
+};
+
+/** One series the viewer may see, with its sessions by date and the days skipped. */
+export async function getSeries(v: Viewer, id: string): Promise<SeriesView> {
+  const d = await db();
+  const s = await d.selectFrom("series").selectAll().where("id", "=", id).$call((qb) => visible(qb, v, "series")).executeTakeFirst();
+  if (!s) throw new NotFoundError("No such series");
+  const [sessions, skips, place] = await Promise.all([
+    listExperiences(v, { seriesId: id }),
+    d.selectFrom("series_skips").select("date").where("series_id", "=", id).orderBy("date").execute(),
+    s.place_id ? d.selectFrom("places").select(["id", "name"]).where("id", "=", s.place_id).executeTakeFirst() : undefined,
+  ]);
+  return {
+    id: s.id,
+    name: s.name,
+    kind: s.kind,
+    rhythmDays: s.rhythm_days,
+    startsOn: s.starts_on,
+    endsOn: s.ends_on,
+    url: seriesPath(s.id),
+    place: place ? { id: place.id, name: place.name, url: placePath(place.id) } : null,
+    sessions: sessions.reverse(),
+    skipped: skips.map((x) => x.date),
+    visibility: s.visibility as Visibility,
+    mine: s.recorded_by === v.userId,
+  };
+}
+
+export type PlaceView = {
+  id: string;
+  name: string;
+  aliases: string[];
+  url: string;
+  experiences: ExperienceView[];
+  conversations: Array<{ id: string; date: string; summary: string; url: string }>;
+  series: SeriesSummary[];
+};
+
+/** One place the viewer may see, with everything at it they may see, newest first. */
+export async function getPlace(v: Viewer, id: string): Promise<PlaceView> {
+  const d = await db();
+  const p = await d.selectFrom("places").select(["id", "name"]).where("id", "=", id).where("id", "in", visiblePlaceIds(d, v)).executeTakeFirst();
+  if (!p) throw new NotFoundError("No such place");
+  const [aliases, experiences, conversations, series] = await Promise.all([
+    d.selectFrom("place_aliases").select("alias").where("place_id", "=", id).orderBy("alias").execute(),
+    listExperiences(v, { placeId: id }),
+    d.selectFrom("conversations").select(["id", "date", "summary"]).where("place_id", "=", id).$call((qb) => visible(qb, v, "conversations")).orderBy("date", "desc").execute(),
+    d.selectFrom("series").selectAll().where("place_id", "=", id).$call((qb) => visible(qb, v, "series")).orderBy("name").execute(),
+  ]);
+  return {
+    id: p.id,
+    name: p.name,
+    aliases: aliases.map((a) => a.alias),
+    url: placePath(p.id),
+    experiences,
+    conversations: conversations.map((c) => ({ ...c, url: conversationPath(c.id) })),
+    series: series.map((s) => ({ id: s.id, name: s.name, kind: s.kind, rhythmDays: s.rhythm_days, startsOn: s.starts_on, endsOn: s.ends_on, url: seriesPath(s.id) })),
+  };
 }

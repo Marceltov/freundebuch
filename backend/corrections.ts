@@ -13,12 +13,15 @@ import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
 import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBILITIES, type FactKind, type Viewer, type Visibility } from "./types";
 import { visible } from "./visibility";
+import { MAX_EXPERIENCE, MAX_KIND, MAX_TITLE } from "./experiences";
 import { pruneFiles } from "./files";
 import { resolvePlace, type PlaceRef } from "./places";
 
-export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations" | "journal_entries";
+export type ItemTable = "facts" | "promises" | "dates" | "exchanges" | "relationships" | "conversations" | "journal_entries" | "experiences" | "series";
 
-export const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "conversations", "journal_entries"] as const;
+export const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "conversations", "journal_entries", "experiences", "series"] as const;
+/** A record only whoever recorded it changes or deletes, even when it is shared. */
+const RECORDER_ONLY: readonly ItemTable[] = ["conversations", "journal_entries", "experiences", "series"];
 /** The tables whose items belong to a conversation and weigh on its transcript privacy. */
 const CONVERSATION_ITEMS = ["facts", "promises", "dates", "exchanges", "relationships"] as const;
 
@@ -54,8 +57,8 @@ async function load(d: Kysely<Schema>, v: Viewer, table: ItemTable, id: string, 
   if (!row) throw new NotFoundError("Not found");
   const recorder = row.recorded_by === v.userId;
   if (who === "recorder" && !recorder) throw new ForbiddenError("Only the person who recorded this may change who can see it");
-  if (who === "editor" && !recorder && (table === "conversations" || table === "journal_entries"))
-    throw new ForbiddenError(table === "conversations" ? "Only the person who recorded a conversation may change or delete it" : "Only the person who wrote a journal entry may change or delete it");
+  if (who === "editor" && !recorder && RECORDER_ONLY.includes(table))
+    throw new ForbiddenError(table === "journal_entries" ? "Only the person who wrote a journal entry may change or delete it" : `Only the person who recorded this ${table === "series" ? "series" : table.replace(/s$/, "")} may change or delete it`);
   return row;
 }
 
@@ -190,6 +193,28 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     text: { column: "text", check: (v, w) => upTo(MAX_JOURNAL)(text(v, w), w) },
     date: { column: "date", check: conversationDay },
   },
+  experiences: {
+    title: { column: "title", check: (v, w) => upTo(MAX_TITLE)(text(v, w), w).trim() },
+    summary: { column: "summary", check: (v, w) => (v === null ? null : upTo(MAX_EXPERIENCE)(text(v, w), w).trim()) },
+    date: { column: "date", check: conversationDay },
+    kind: { column: "kind", check: (v, w) => upTo(MAX_KIND)(text(v, w), w).trim() },
+    // A place by name or id, resolved below; null clears it.
+    place: { column: "place", check: (x) => x },
+  },
+  series: {
+    name: { column: "name", check: (v, w) => upTo(MAX_TITLE)(text(v, w), w).trim() },
+    kind: { column: "kind", check: (v, w) => upTo(MAX_KIND)(text(v, w), w).trim() },
+    rhythmDays: {
+      column: "rhythm_days",
+      check: (v, w) => {
+        if (v !== null && (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 366)) throw new InvalidInputError(`${w} is a whole number of days from 1 to 366, or null`);
+        return v;
+      },
+    },
+    startsOn: { column: "starts_on", check: (v, w) => (v === null ? null : day(v, w)) },
+    endsOn: { column: "ends_on", check: (v, w) => (v === null ? null : day(v, w)) },
+    place: { column: "place", check: (x) => x },
+  },
 };
 
 /**
@@ -229,7 +254,7 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
       defaultCheckAfter = true;
     }
   }
-  if (table === "conversations" && "place" in set) {
+  if ((table === "conversations" || table === "experiences" || table === "series") && "place" in set) {
     set.place_id = set.place === null || set.place === "" ? null : await resolvePlace(d, v, set.place as PlaceRef);
     delete set.place;
   }
@@ -321,6 +346,10 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
     const row = await load(tx, v, table, id, "recorder");
     if (visibility === "private") await assertReplacesNothingShared(tx, table, id);
     // A private conversation forces private on all its items; share the conversation first.
+    if (table === "experiences" && visibility === "shared") {
+      const series = await tx.selectFrom("experiences").innerJoin("series", "series.id", "experiences.series_id").select("series.visibility").where("experiences.id", "=", id).executeTakeFirst();
+      if (series?.visibility === "private") throw new InvalidInputError("This experience belongs to a private series: share the series first");
+    }
     if (table !== "conversations" && visibility === "shared" && row.conversation_id) {
       const parent = await tx.selectFrom("conversations").select("visibility").where("id", "=", row.conversation_id).executeTakeFirst();
       if (parent?.visibility === "private") throw new InvalidInputError("This item belongs to a private conversation: share the conversation first");
@@ -340,11 +369,17 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
             .execute();
       }
     }
+    // A series made private takes the viewer's sessions with it, and makes their transcripts private.
+    if (table === "series" && visibility === "private") {
+      const sessions = await tx.selectFrom("experiences").select("ramble_id").where("series_id", "=", id).where("recorded_by", "=", v.userId).execute();
+      await tx.updateTable("experiences").set({ visibility }).where("series_id", "=", id).where("recorded_by", "=", v.userId).execute();
+      for (const s of sessions) await raiseTranscriptPrivacy(tx, s.ramble_id);
+    }
     const rambleId = await rambleOfRow(tx, table, row);
     if (!rambleId) return;
     // A part shared makes its ramble exist for the partner (the transcript stays as it was); a part made private makes the
     // transcript private.
-    if (visibility === "shared" && (table === "conversations" || table === "journal_entries")) await tx.updateTable("rambles").set({ visibility }).where("id", "=", rambleId).execute();
+    if (visibility === "shared" && (table === "conversations" || table === "journal_entries" || table === "experiences")) await tx.updateTable("rambles").set({ visibility }).where("id", "=", rambleId).execute();
     await raiseTranscriptPrivacy(tx, rambleId);
   });
 }
@@ -367,6 +402,17 @@ async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, 
   if (replaced) throw new InvalidInputError(PRIVATE_REPLACES_SHARED);
 }
 
+/** Marks a session day of a series the viewer may see as skipped, so it isn't asked about as missing. */
+export async function skipSession(v: Viewer, seriesId: string, date: string): Promise<void> {
+  const d = await db();
+  await load(d, v, "series", seriesId, "viewer");
+  await d
+    .insertInto("series_skips")
+    .values({ series_id: seriesId, date: day(date, "The skipped day") })
+    .onConflict((oc) => oc.doNothing())
+    .execute();
+}
+
 /** Whether anything is left that was told in the ramble. */
 async function holdsAnything(d: Kysely<Schema>, rambleId: string): Promise<boolean> {
   for (const t of ["conversations", "journal_entries", "experiences", ...CONVERSATION_ITEMS] as const)
@@ -382,7 +428,7 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
   assertTable(table);
   const d = await db();
   const row = await load(d, v, table, id, "editor");
-  const ramble = table === "conversations" || table === "journal_entries" ? await rambleOfRow(d, table, row) : null;
+  const ramble = table === "conversations" || table === "journal_entries" || table === "experiences" ? await rambleOfRow(d, table, row) : null;
   await d
     .deleteFrom(table as "facts")
     .where("id", "=", id)

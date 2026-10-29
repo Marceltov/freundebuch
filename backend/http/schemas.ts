@@ -116,6 +116,56 @@ export const JournalQuery = z.object({
   personId: PersonId.optional().describe("Only the entries that name this person"),
 });
 
+const Linked = z.object({ id: z.string(), name: z.string(), url: Url });
+export const ExperienceJson = z
+  .object({
+    id: z.string(),
+    date: Day,
+    kind: z.string(),
+    title: z.string(),
+    summary: z.string().nullable(),
+    place: Linked.nullable(),
+    series: Linked.nullable(),
+    people: z.array(Linked).describe("Who else was there"),
+    rambleId: z.string(),
+    visibility: Visibility,
+    mine: z.boolean().describe("The caller recorded it: they may change or delete it"),
+    url: Url,
+  })
+  .meta({ id: "Experience" });
+export const SeriesSummaryJson = z
+  .object({ id: z.string(), name: z.string(), kind: z.string(), rhythmDays: z.number().int().nullable(), startsOn: Day.nullable(), endsOn: Day.nullable(), url: Url })
+  .meta({ id: "SeriesSummary" });
+export const ExperiencesJson = z
+  .object({
+    experiences: z.array(ExperienceJson.extend({})).describe("Newest first"),
+    kinds: z.array(z.string()).describe("The kinds in use, most used first"),
+    series: z.array(SeriesSummaryJson.extend({})).describe("The series in use, by name"),
+  })
+  .meta({ id: "Experiences" });
+export const ExperienceQuery = z.object({
+  from: Day.optional(),
+  to: Day.optional(),
+  kind: z.string().optional().describe("Only this kind, in any case"),
+  placeId: z.string().optional(),
+  seriesId: z.string().optional(),
+  personId: PersonId.optional().describe("Only those this person was at"),
+});
+export const PlaceJson = z.object({ id: z.string(), name: z.string(), aliases: z.array(z.string()), url: Url }).meta({ id: "Place" });
+export const PlaceListJson = z.array(PlaceJson.extend({})).meta({ id: "PlaceList" });
+export const SeriesJson = SeriesSummaryJson.extend({
+  place: Linked.nullable(),
+  sessions: z.array(ExperienceJson.extend({})).describe("Its sessions the caller may see, oldest first"),
+  skipped: z.array(Day).describe("Session days marked as skipped"),
+  visibility: Visibility,
+  mine: z.boolean(),
+}).meta({ id: "Series" });
+export const PlaceViewJson = PlaceJson.extend({
+  experiences: z.array(ExperienceJson.extend({})),
+  conversations: z.array(z.object({ id: z.string(), date: Day, summary: z.string(), url: Url })),
+  series: z.array(SeriesSummaryJson.extend({})),
+}).meta({ id: "PlaceView" });
+
 export const BriefingJson = z
   .object({
     person: z.object({
@@ -160,6 +210,7 @@ export const BriefingJson = z
     traits: Traits,
     known: z.array(z.object(FactJson)).describe("What else stays true about the person, by category"),
     journal: z.array(JournalEntryJson.extend({})).describe("The caller's own journal entries that name the person, the last few, newest first"),
+    experiences: z.array(ExperienceJson.extend({})).describe("The experiences the caller may see that the person was at, the last few, newest first"),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
@@ -492,43 +543,6 @@ export const RecordedRambleJson = RecordedJson.omit({ conversationId: true, url:
   })
   .meta({ id: "RecordedRamble" });
 
-const Linked = z.object({ id: z.string(), name: z.string(), url: Url });
-export const ExperienceJson = z
-  .object({
-    id: z.string(),
-    date: Day,
-    kind: z.string(),
-    title: z.string(),
-    summary: z.string().nullable(),
-    place: Linked.nullable(),
-    series: Linked.nullable(),
-    people: z.array(Linked).describe("Who else was there"),
-    rambleId: z.string(),
-    visibility: Visibility,
-    mine: z.boolean().describe("The caller recorded it: they may change or delete it"),
-    url: Url,
-  })
-  .meta({ id: "Experience" });
-export const SeriesSummaryJson = z
-  .object({ id: z.string(), name: z.string(), kind: z.string(), rhythmDays: z.number().int().nullable(), startsOn: Day.nullable(), endsOn: Day.nullable(), url: Url })
-  .meta({ id: "SeriesSummary" });
-export const ExperiencesJson = z
-  .object({
-    experiences: z.array(ExperienceJson.extend({})).describe("Newest first"),
-    kinds: z.array(z.string()).describe("The kinds in use, most used first"),
-    series: z.array(SeriesSummaryJson.extend({})).describe("The series in use, by name"),
-  })
-  .meta({ id: "Experiences" });
-export const ExperienceQuery = z.object({
-  from: Day.optional(),
-  to: Day.optional(),
-  kind: z.string().optional().describe("Only this kind, in any case"),
-  placeId: z.string().optional(),
-  seriesId: z.string().optional(),
-  personId: PersonId.optional().describe("Only those this person was at"),
-});
-export const PlaceJson = z.object({ id: z.string(), name: z.string(), aliases: z.array(z.string()), url: Url }).meta({ id: "Place" });
-export const PlaceListJson = z.array(PlaceJson.extend({})).meta({ id: "PlaceList" });
 
 const Name = z.string().describe("The name of the person it is about");
 const Item = { id: z.string(), visibility: Visibility, recordedBy: z.string().describe("The id of the user who recorded it"), url: ItemUrl.describe("Its highlighted row on the conversation's page, as an absolute URL") };
@@ -659,7 +673,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");
