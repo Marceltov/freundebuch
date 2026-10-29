@@ -5,6 +5,7 @@ import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
+import { insertExperiences, validateExperiences, type NewExperience, type RecordedExperience } from "./experiences";
 import { resolvePlace, type PlaceRef } from "./places";
 import { checkGender, insertPerson, namedLike, relabelFor, type Relabel } from "./people";
 import {
@@ -101,6 +102,8 @@ export type ConversationView = {
   /** Where it happened: the place's name, and its id (null when none was told). */
   place: string | null;
   placeId: string | null;
+  /** The experience it happened at, if the viewer may see it. */
+  experienceId: string | null;
   summary: string;
   /** The ramble it was told in. */
   rambleId: string;
@@ -455,7 +458,8 @@ export type NewRamble = {
   transcript: string;
   visibility: Visibility;
   people: Array<{ id?: string; name?: string; aliases?: string[]; confirmedNew?: boolean; gender?: Gender }>;
-  conversations?: Array<{ date?: string; kind: ConversationKind; place?: PlaceRef; summary: string; present: PersonRef[] }>;
+  conversations?: Array<{ date?: string; kind: ConversationKind; place?: PlaceRef; summary: string; present: PersonRef[]; /** The experience (index) it happened at. */ at?: number }>;
+  experiences?: NewExperience[];
   journal?: Array<{ date?: string; text: string; mentions?: PersonRef[]; shared?: boolean }>;
   facts?: Array<NonNullable<NewConversation["facts"]>[number] & In>;
   promises?: Array<NonNullable<NewConversation["promises"]>[number] & In>;
@@ -469,6 +473,7 @@ export type RecordedRamble = Omit<Recorded, "conversationId" | "url"> & {
   rambleId: string;
   conversations: Array<{ id: string; url: string }>;
   journal: Array<{ id: string; visibility: Visibility; url: string }>;
+  experiences: RecordedExperience[];
 };
 
 function validateRamble(r: NewRamble): void {
@@ -492,7 +497,9 @@ function validateRamble(r: NewRamble): void {
     oneOf(c.kind, CONVERSATION_KINDS, "conversation kind");
     if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
     c.present.forEach(ref);
+    if (c.at !== undefined && (!Number.isInteger(c.at) || c.at < 0 || c.at >= (r.experiences ?? []).length)) throw new InvalidInputError(`Experience ${c.at} is not in experiences`);
   }
+  validateExperiences(r.experiences ?? [], r.people.length);
   for (const j of r.journal ?? []) {
     if (j.date !== undefined) {
       assertDay(j.date, "The journal entry's date");
@@ -509,7 +516,8 @@ function validateRamble(r: NewRamble): void {
   for (const i of items)
     if (i.in !== undefined && (!Number.isInteger(i.in) || i.in < 0 || i.in >= conversations.length))
       throw new InvalidInputError(`Conversation ${i.in} is not in conversations`);
-  if (!conversations.length && !(r.journal ?? []).length && !items.length) throw new InvalidInputError("Nothing to file: give at least one conversation, journal entry or item");
+  if (!conversations.length && !(r.journal ?? []).length && !(r.experiences ?? []).length && !items.length)
+    throw new InvalidInputError("Nothing to file: give at least one conversation, experience, journal entry or item");
 }
 
 /** Files one ramble and all its parts in one transaction: the transcript once, everything else pointing to it. */
@@ -555,6 +563,11 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     for (const [i, c] of (r.conversations ?? []).entries())
       for (const personId of new Set([v.personId, ...c.present.map(id)])) await tx.insertInto("participants").values({ conversation_id: conversationIds[i], person_id: personId }).execute();
 
+    const experiences = await insertExperiences(tx, v, { rambleId, date: r.date, visibility: r.visibility }, r.experiences ?? [], people.map((p) => p.id), t);
+    if (experiences.some((e) => e.visibility === "private")) await tx.updateTable("rambles").set({ transcript_private: 1 }).where("id", "=", rambleId).execute();
+    for (const [i, c] of (r.conversations ?? []).entries())
+      if (c.at !== undefined) await tx.updateTable("conversations").set({ experience_id: experiences[c.at].id }).where("id", "=", conversationIds[i]).execute();
+
     const journal: RecordedRamble["journal"] = [];
     for (const j of r.journal ?? []) {
       const entryId = newId();
@@ -597,6 +610,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
       rambleId,
       conversations: conversationIds.map((c) => ({ id: c, url: conversationPath(c) })),
       journal,
+      experiences,
       people: people.map((p) => ({ ...p, url: personPath(p.id) })),
       counts,
       filed: { ...filed, relationships, groups },
@@ -728,6 +742,7 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     kind: c.kind as ConversationKind,
     place: c.place_id ? ((await d.selectFrom("places").select("name").where("id", "=", c.place_id).executeTakeFirst())?.name ?? null) : null,
     placeId: c.place_id,
+    experienceId: c.experience_id && (await d.selectFrom("experiences").select("id").where("id", "=", c.experience_id).$call((qb) => visible(qb, v, "experiences")).executeTakeFirst()) ? c.experience_id : null,
     summary: c.summary,
     rambleId: c.ramble_id,
     transcript: c.recorded_by === v.userId || !ramble.transcript_private ? ramble.transcript : null,

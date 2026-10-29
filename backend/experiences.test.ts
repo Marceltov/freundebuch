@@ -1,0 +1,78 @@
+import { beforeEach, expect, test } from "vitest";
+import { getConversation, record, type NewRamble } from "./conversations";
+import { db } from "./db/testing";
+import { InvalidInputError, NotFoundError } from "./errors";
+import { findPlaces } from "./places";
+import { seed, type Seed } from "./testing/fixtures";
+
+let s: Seed;
+beforeEach(async () => {
+  s = await seed();
+});
+
+// The dog school: a new weekly series, a place, the first lesson with Bob's person (the partner) and Anna, a private journal
+// entry, and a conversation at the lesson.
+const dogSchool = (over: Partial<NewRamble> = {}) =>
+  record(s.a, {
+    date: "2026-10-28",
+    transcript: "Heute erste Stunde Hundeschule bei Pfotenglück mit Anna. Ich war nervös.",
+    visibility: "shared",
+    people: [{ id: s.b.personId }, { id: s.anna }],
+    experiences: [{ kind: "Kurs", title: "Erste Stunde Hundeschule", summary: "Sitz und Platz geübt", place: "Hundeschule Pfotenglück", present: [0, 1], series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
+    conversations: [{ kind: "in_person", summary: "Mit Anna nach der Stunde geredet", present: [1], at: 0 }],
+    journal: [{ text: "Ich war nervös." }],
+    ...over,
+  });
+const row = async (table: "experiences" | "series", id: string) => (await db()).selectFrom(table).selectAll().where("id", "=", id).executeTakeFirstOrThrow();
+
+test("the dog-school ramble files a session in a new series at a place, a conversation at it, and a journal entry", async () => {
+  const r = await dogSchool();
+  expect(r.experiences).toEqual([expect.objectContaining({ visibility: "shared", seriesId: expect.any(String) })]);
+  const e = await row("experiences", r.experiences[0].id);
+  expect(e).toMatchObject({ ramble_id: r.rambleId, date: "2026-10-28", kind: "Kurs", title: "Erste Stunde Hundeschule", summary: "Sitz und Platz geübt", visibility: "shared" });
+  const series = await row("series", r.experiences[0].seriesId!);
+  expect(series).toMatchObject({ name: "Hundeschule mit Toffee", rhythm_days: 7, starts_on: "2026-10-28", ends_on: null, visibility: "shared", place_id: e.place_id });
+  const people = await (await db()).selectFrom("experience_people").select("person_id").where("experience_id", "=", e.id).execute();
+  expect(people.map((p) => p.person_id).sort()).toEqual([s.a.personId, s.b.personId, s.anna].sort());
+  expect((await getConversation(s.a, r.conversations[0].id)).experienceId).toBe(e.id);
+  expect((await findPlaces(s.a, "Pfotenglück")).map((p) => p.id)).toEqual([e.place_id]);
+});
+
+test("a second session joins the series by its id or its name", async () => {
+  const first = await dogSchool();
+  const seriesId = first.experiences[0].seriesId!;
+  const byId = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Zweite Stunde", series: seriesId }] });
+  const byName = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Dritte Stunde", series: { name: "hundeschule mit toffee" } }] });
+  expect([byId.experiences[0].seriesId, byName.experiences[0].seriesId]).toEqual([seriesId, seriesId]);
+});
+
+test("a private ramble or a private series makes its experiences private, and a private experience the transcript", async () => {
+  const p = await dogSchool({ visibility: "private" });
+  expect(p.experiences[0].visibility).toBe("private");
+  expect((await row("series", p.experiences[0].seriesId!)).visibility).toBe("private");
+  const later = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Zweite", series: p.experiences[0].seriesId! }] });
+  expect(later.experiences[0].visibility).toBe("private");
+  const own = await record(s.a, { date: "2026-10-28", transcript: "Arzttermin", visibility: "shared", people: [], experiences: [{ kind: "Termin", title: "Arzt", private: true }] });
+  expect(own.experiences[0].visibility).toBe("private");
+  expect((await (await db()).selectFrom("rambles").select("transcript_private").where("id", "=", own.rambleId).executeTakeFirstOrThrow()).transcript_private).toBe(1);
+});
+
+test("at or series naming something that isn't there is refused, and nothing is filed", async () => {
+  const before = (await (await db()).selectFrom("rambles").select("id").execute()).length;
+  await expect(dogSchool({ conversations: [{ kind: "in_person", summary: "x", present: [], at: 3 }] })).rejects.toThrow(InvalidInputError);
+  await expect(record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "x", series: "no-such-series" }] })).rejects.toThrow(NotFoundError);
+  await expect(record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: " ", title: "x" }] })).rejects.toThrow(InvalidInputError);
+  expect((await (await db()).selectFrom("rambles").select("id").execute()).length).toBe(before);
+});
+
+test("the partner sees a shared session, never a private one, and no place through it", async () => {
+  const shared = await dogSchool();
+  const priv = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Termin", title: "Therapie", place: "Praxis am Markt", private: true }] });
+  expect(await findPlaces(s.b, "Pfotenglück")).toHaveLength(1);
+  expect(await findPlaces(s.b, "Praxis am Markt")).toEqual([]);
+  void shared;
+  // B can't attach a session to A's private series by its id.
+  const course = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "private", people: [], experiences: [{ kind: "Kurs", title: "Erste Stunde", series: { name: "Gesprächsgruppe", rhythmDays: 7 } }] });
+  await expect(record(s.b, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "x", series: course.experiences[0].seriesId! }] })).rejects.toThrow(NotFoundError);
+  void priv;
+});

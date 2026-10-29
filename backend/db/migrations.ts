@@ -561,6 +561,59 @@ const migrations: Record<string, Migration> = {
       await db.schema.alterTable("conversations").dropColumn("place").execute();
     },
   },
+
+  // What the user lived through: experiences, parts of a ramble, optionally sessions of a series (a course, a weekly
+  // training) with a rhythm in days. A series has no ramble: it stays a memory until the user deletes it, and its sessions
+  // then stay as single experiences. A conversation may say which experience it happened at.
+  "016_experiences": {
+    async up(db) {
+      await db.schema
+        .createTable("series")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("name", "text", (c) => c.notNull())
+        .addColumn("kind", "text", (c) => c.notNull())
+        .addColumn("rhythm_days", "integer", (c) => c.check(sql`rhythm_days is null or rhythm_days between 1 and 366`))
+        .addColumn("starts_on", "text")
+        .addColumn("ends_on", "text")
+        .addColumn("place_id", "text", (c) => c.references("places.id").onDelete("set null"))
+        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+        .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      await db.schema
+        .createTable("series_skips")
+        .addColumn("series_id", "text", (c) => c.notNull().references("series.id").onDelete("cascade"))
+        .addColumn("date", "text", (c) => c.notNull())
+        .addPrimaryKeyConstraint("series_skips_pk", ["series_id", "date"])
+        .execute();
+      await db.schema
+        .createTable("experiences")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("ramble_id", "text", (c) => c.notNull().references("rambles.id").onDelete("cascade"))
+        .addColumn("series_id", "text", (c) => c.references("series.id").onDelete("set null"))
+        .addColumn("place_id", "text", (c) => c.references("places.id").onDelete("set null"))
+        .addColumn("date", "text", (c) => c.notNull())
+        .addColumn("kind", "text", (c) => c.notNull())
+        .addColumn("title", "text", (c) => c.notNull())
+        .addColumn("summary", "text")
+        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+        .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      await db.schema.createIndex("experiences_by_date").on("experiences").columns(["recorded_by", "date"]).execute();
+      await db.schema.createIndex("experiences_by_series").on("experiences").column("series_id").execute();
+      await db.schema
+        .createTable("experience_people")
+        .addColumn("experience_id", "text", (c) => c.notNull().references("experiences.id").onDelete("cascade"))
+        .addColumn("person_id", "text", (c) => c.notNull().references("persons.id").onDelete("cascade"))
+        .addPrimaryKeyConstraint("experience_people_pk", ["experience_id", "person_id"])
+        .execute();
+      await db.schema
+        .alterTable("conversations")
+        .addColumn("experience_id", "text", (c) => c.references("experiences.id").onDelete("set null"))
+        .execute();
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

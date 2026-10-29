@@ -1,6 +1,6 @@
 // Places: where something happened, a record of its own with other names, as people have. A place exists for a viewer only
-// through a part they may see (a conversation at it, for now), or because they made it; so a place the other user holds only
-// through private parts is neither found nor reused, and a new one is made. Names match as people's do (names.ts).
+// through a part they may see, or because they made it; so a place the other user holds only
+// through private parts is neither found nor reused, and a new one is made. Parts are conversations, experiences and series. Names match as people's do (names.ts).
 import type { Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
@@ -23,14 +23,16 @@ export function visiblePlaceIds(d: Kysely<Schema>, v: Viewer) {
     .where((eb) =>
       eb.or([
         eb("places.created_by", "=", v.userId),
-        eb(
-          "places.id",
-          "in",
-          d
-            .selectFrom("conversations")
-            .select("place_id")
-            .where("place_id", "is not", null)
-            .$call((qb) => visible(qb, v, "conversations")) as never,
+        ...(["conversations", "experiences", "series"] as const).map((t) =>
+          eb(
+            "places.id",
+            "in",
+            d
+              .selectFrom(t as "conversations")
+              .select("place_id")
+              .where("place_id", "is not", null)
+              .$call((qb) => visible(qb, v, t)) as never,
+          ),
         ),
       ]),
     );
@@ -122,7 +124,7 @@ export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Pr
   await d.transaction().execute(async (tx) => {
     const keep = await loadPlace(tx, v, keepId);
     const drop = await loadPlace(tx, v, dropId);
-    await tx.updateTable("conversations").set({ place_id: keepId }).where("place_id", "=", dropId).execute();
+    for (const t of ["conversations", "experiences", "series"] as const) await tx.updateTable(t as "conversations").set({ place_id: keepId }).where("place_id", "=", dropId).execute();
     const aliases = await tx.selectFrom("place_aliases").select("alias").where("place_id", "=", dropId).execute();
     for (const a of [drop.name, ...aliases.map((x) => x.alias)]) if (norm(a) !== norm(keep.name)) await insertAlias(tx, keepId, a);
     await tx.deleteFrom("places").where("id", "=", dropId).execute();

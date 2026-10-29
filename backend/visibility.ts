@@ -4,7 +4,7 @@ import { sql, type Expression, type SqlBool } from "kysely";
 import type { Viewer } from "./types";
 
 /** The tables whose rows carry a visibility and their recording user. */
-export type VisibleTable = "conversations" | "facts" | "promises" | "dates" | "exchanges" | "relationships" | "group_members" | "journal_entries" | "rambles";
+export type VisibleTable = "conversations" | "facts" | "promises" | "dates" | "exchanges" | "relationships" | "group_members" | "journal_entries" | "rambles" | "experiences" | "series";
 
 /** Narrows a query to the rows of `table` the viewer may see: `table.visibility = 'shared' or table.recorded_by = viewer`. */
 export function visible<T extends { where(e: Expression<SqlBool>): T }>(qb: T, v: Viewer, table: VisibleTable): T {

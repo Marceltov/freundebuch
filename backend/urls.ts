@@ -24,6 +24,8 @@ export const conversationPath = (id: string) => `/c/${id}`;
 export const ramblePath = (id: string) => `/r/${id}`;
 /** A place: everything the viewer may see that happened there. */
 export const placePath = (id: string) => `/o/${id}`;
+/** A series: its sessions by date. */
+export const seriesPath = (id: string) => `/s/${id}`;
 export const groupPath = (id: string) => `/g/${id}`;
 /** A journal entry, highlighted on the Tagebuch page. */
 export const journalPath = (id: string) => `/tagebuch#journal-${id}`;

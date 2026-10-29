@@ -255,7 +255,7 @@ async function holdsPrivate(d: Kysely<Schema>, rambleId: string): Promise<boolea
   const r = await d.selectFrom("rambles").select("visibility").where("id", "=", rambleId).executeTakeFirst();
   if (r?.visibility === "private") return true;
   const conversations = d.selectFrom("conversations").select("id").where("ramble_id", "=", rambleId);
-  for (const t of ["conversations", "journal_entries"] as const)
+  for (const t of ["conversations", "journal_entries", "experiences"] as const)
     if (await d.selectFrom(t).select("id").where("ramble_id", "=", rambleId).where("visibility", "=", "private").executeTakeFirst()) return true;
   for (const t of [...CONVERSATION_ITEMS, "group_members"] as const)
     if (
@@ -369,7 +369,7 @@ async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, 
 
 /** Whether anything is left that was told in the ramble. */
 async function holdsAnything(d: Kysely<Schema>, rambleId: string): Promise<boolean> {
-  for (const t of ["conversations", "journal_entries", ...CONVERSATION_ITEMS] as const)
+  for (const t of ["conversations", "journal_entries", "experiences", ...CONVERSATION_ITEMS] as const)
     if (await d.selectFrom(t as "facts").select("id").where("ramble_id", "=", rambleId).executeTakeFirst()) return true;
   return !!(await d.selectFrom("group_members").select("group_id").where("ramble_id", "=", rambleId).executeTakeFirst());
 }
