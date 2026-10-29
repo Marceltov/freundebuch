@@ -448,6 +448,33 @@ const migrations: Record<string, Migration> = {
     },
   },
 
+
+  // A ramble (what the user told, word for word) is its own record, so one can be split into journal entries, conversations
+  // and items that all point to it. Each conversation's transcript moves into a ramble of its own, under the conversation's
+  // id. No rebuild of conversations: other tables cascade from it, so its columns are added and dropped in place.
+  "011_rambles": {
+    async up(db) {
+      await db.transaction().execute(async (tx) => {
+        await tx.schema
+          .createTable("rambles")
+          .addColumn("id", "text", (c) => c.primaryKey())
+          .addColumn("date", "text", (c) => c.notNull())
+          .addColumn("transcript", "text", (c) => c.notNull())
+          .addColumn("transcript_private", "integer", (c) => c.notNull().defaultTo(0))
+          .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+          .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+          .addColumn("created_at", "bigint", (c) => c.notNull())
+          .execute();
+        await sql`insert into rambles (id, date, transcript, transcript_private, visibility, recorded_by, created_at)
+          select id, date, transcript, transcript_private, visibility, recorded_by, created_at from conversations`.execute(tx);
+        await tx.schema.alterTable("conversations").addColumn("ramble_id", "text", (c) => c.references("rambles.id").onDelete("cascade")).execute();
+        await sql`update conversations set ramble_id = id`.execute(tx);
+        await tx.schema.alterTable("conversations").dropColumn("transcript").execute();
+        await tx.schema.alterTable("conversations").dropColumn("transcript_private").execute();
+        await tx.schema.createIndex("conversations_by_ramble").on("conversations").column("ramble_id").execute();
+      });
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

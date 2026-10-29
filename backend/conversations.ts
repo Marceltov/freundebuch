@@ -100,6 +100,8 @@ export type ConversationView = {
   place: string | null;
   summary: string;
   /** null when the viewer may not read it: it is private to the recorder whenever anything recorded with it is private. */
+  /** The ramble it was told in. */
+  rambleId: string;
   transcript: string | null;
   visibility: Visibility;
   recordedBy: string;
@@ -450,6 +452,11 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
     const taken = await takeFiles(tx, v, c.fileIds ?? []);
     blobs = taken.blobs;
     const transcript = [c.transcript, ...taken.transcripts.map((t) => `${FROM_FILE}\n${t}`)].join("\n\n");
+    // The ramble holds the transcript; a conversation is told in it.
+    await tx
+      .insertInto("rambles")
+      .values({ id: conversationId, date: c.date, transcript, transcript_private: transcriptPrivate, visibility: c.visibility, recorded_by: v.userId, created_at: t })
+      .execute();
     await tx
       .insertInto("conversations")
       .values({
@@ -458,8 +465,7 @@ export async function recordConversation(v: Viewer, c: NewConversation): Promise
         kind: c.kind,
         place: c.place?.trim() || null,
         summary: c.summary,
-        transcript,
-        transcript_private: transcriptPrivate,
+        ramble_id: conversationId,
         visibility: c.visibility,
         recorded_by: v.userId,
         created_at: t,
@@ -573,6 +579,7 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
   const d = await db();
   const c = await d.selectFrom("conversations").selectAll().where("id", "=", id).$call((qb) => visible(qb, v, "conversations")).executeTakeFirst();
   if (!c) throw new NotFoundError("No such conversation");
+  const ramble = await d.selectFrom("rambles").select(["transcript", "transcript_private"]).where("id", "=", c.ramble_id).executeTakeFirstOrThrow();
   const participants = await d
     .selectFrom("participants")
     .innerJoin("persons", "persons.id", "participants.person_id")
@@ -606,7 +613,8 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     kind: c.kind as ConversationKind,
     place: c.place,
     summary: c.summary,
-    transcript: c.recorded_by === v.userId || !c.transcript_private ? c.transcript : null,
+    rambleId: c.ramble_id,
+    transcript: c.recorded_by === v.userId || !ramble.transcript_private ? ramble.transcript : null,
     visibility: c.visibility as Visibility,
     recordedBy: c.recorded_by,
     url: page,

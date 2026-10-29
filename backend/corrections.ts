@@ -221,11 +221,17 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
       defaultCheckAfter = true;
     }
   }
-  await d
-    .updateTable(table as "facts")
-    .set(set)
-    .where("id", "=", id)
-    .execute();
+  // A conversation's transcript is its ramble's.
+  if (table === "conversations" && "transcript" in set) {
+    await d.updateTable("rambles").set({ transcript: set.transcript as string }).where("id", "=", rambleOf(d, id)).execute();
+    delete set.transcript;
+  }
+  if (Object.keys(set).length)
+    await d
+      .updateTable(table as "facts")
+      .set(set)
+      .where("id", "=", id)
+      .execute();
   return table === "facts" ? { fact: { ...(await factState(d, id)), defaultCheckAfter } } : {};
 }
 
@@ -250,8 +256,11 @@ async function holdsPrivate(d: Kysely<Schema>, conversationId: string): Promise<
  * `shareTranscript` may lower it.
  */
 async function raiseTranscriptPrivacy(d: Kysely<Schema>, conversationId: string): Promise<void> {
-  if (await holdsPrivate(d, conversationId)) await d.updateTable("conversations").set({ transcript_private: 1 }).where("id", "=", conversationId).execute();
+  if (await holdsPrivate(d, conversationId)) await d.updateTable("rambles").set({ transcript_private: 1 }).where("id", "=", rambleOf(d, conversationId)).execute();
 }
+
+/** The ramble a conversation was told in, as a subquery. */
+const rambleOf = (d: Kysely<Schema>, conversationId: string) => d.selectFrom("conversations").select("ramble_id").where("id", "=", conversationId);
 
 /**
  * Lets the partner read the transcript of a conversation the viewer recorded: the recorder's word that it holds nothing private any
@@ -263,7 +272,7 @@ export async function shareTranscript(v: Viewer, conversationId: string): Promis
     await load(tx, v, "conversations", conversationId, "recorder");
     if (await holdsPrivate(tx, conversationId))
       throw new InvalidInputError("The conversation or something recorded with it is private: share those first, or keep the transcript private");
-    await tx.updateTable("conversations").set({ transcript_private: 0 }).where("id", "=", conversationId).execute();
+    await tx.updateTable("rambles").set({ transcript_private: 0 }).where("id", "=", rambleOf(tx, conversationId)).execute();
   });
 }
 
@@ -321,17 +330,20 @@ async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, 
 }
 
 /**
- * Deletes an item the viewer recorded; a conversation takes its items and participants with it. The conversation's transcript_private
- * is deliberately not recomputed: the transcript still holds the text of what was deleted.
+ * Deletes an item the viewer recorded; a conversation takes its items and participants with it, and its ramble once nothing else
+ * was told in it. The ramble's transcript_private is deliberately not recomputed: the transcript still holds what was deleted.
  */
 export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promise<void> {
   assertTable(table);
   const d = await db();
   await load(d, v, table, id, "editor");
+  const ramble = table === "conversations" ? (await rambleOf(d, id).executeTakeFirst())?.ramble_id : undefined;
   await d
     .deleteFrom(table as "facts")
     .where("id", "=", id)
     .execute();
+  // A ramble goes with the last part told in it.
+  if (ramble && !(await d.selectFrom("conversations").select("id").where("ramble_id", "=", ramble).executeTakeFirst())) await d.deleteFrom("rambles").where("id", "=", ramble).execute();
   // A fact filed from a shared file takes the file with it once nothing else names it.
   if (table === "facts") await pruneFiles();
 }

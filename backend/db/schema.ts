@@ -30,12 +30,15 @@ export interface Schema {
     kind: string;
     place: string | null;
     summary: string;
-    transcript: string;
-    transcript_private: Flag;
+    /** The ramble it was told in, which holds the transcript. */
+    ramble_id: string;
     visibility: string;
     recorded_by: string;
     created_at: number;
   };
+  /** What the user told, word for word: one ramble, split into conversations, journal entries and items that point to it. The
+   * transcript is the recorder's whenever anything filed from it is private (`transcript_private`). */
+  rambles: { id: string; date: string; transcript: string; transcript_private: Flag; visibility: string; recorded_by: string; created_at: number };
   participants: { conversation_id: string; person_id: string };
   facts: Item & {
     id: string;
