@@ -10,11 +10,10 @@ You only talk; Claude sorts, links and keeps it up. A personal CRM fails when it
 
 ## Now
 
-- **A journal about yourself** ([#66](https://github.com/Marceltov/freundebuch/issues/66)). A ramble becomes its own record; Claude splits it into journal entries, conversations and what is filed from them, all linked to the transcript. Journal entries are yours alone unless you share one ([V2](values.md#v2-private-stays-private-through-every-door)). Claude interprets them, on request and in an opt-in weekly reflection; it reflects patterns and never diagnoses ([V5](values.md#v5-you-decide-what-is-filed)).
+- **Experiences and places** ([#67](https://github.com/Marceltov/freundebuch/issues/67)): a concert, a festival, dog school, as parts of a ramble with a kind, a date and a place, so "which concerts did I go to last year?" has an answer.
 
 ## Next
 
-- **Experiences and places** ([#67](https://github.com/Marceltov/freundebuch/issues/67)): a concert, a festival, dog school, as parts of a ramble with a kind, a date and a place, so "which concerts did I go to last year?" has an answer.
 - **A ready-made iPhone Shortcut, and iPhone photos read on the server** ([#68](https://github.com/Marceltov/freundebuch/issues/68)): one tap to install, one tap to share.
 - **Voice notes** ([#58](https://github.com/Marceltov/freundebuch/issues/58)): transcribed on your own server, so a WhatsApp voice note can be worked through like any shared file ([V4](values.md#v4-only-words-are-kept)).
 - **Avatars** ([#49](https://github.com/Marceltov/freundebuch/issues/49)): a stylized avatar per person, put together from a description.
