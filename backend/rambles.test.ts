@@ -193,3 +193,11 @@ test("review I5: a conversation shared after it was filed privately shows in the
   expect((await listRambles(s.b)).map((x) => x.id)).toContain(r.rambleId);
   expect((await getRamble(s.b, r.rambleId)).transcript).toBeNull();
 });
+
+test("a ramble that tells only an experience is in Verlauf with it; a private one not for the partner", async () => {
+  const r = await record(s.a, { date: "2026-10-28", transcript: "Konzert", visibility: "shared", people: [], experiences: [{ kind: "Konzert", title: "Wanda" }] });
+  const p = await record(s.a, { date: "2026-10-28", transcript: "Arzt", visibility: "shared", people: [], experiences: [{ kind: "Termin", title: "Arzt", private: true }] });
+  expect((await listRambles(s.a)).find((x) => x.id === r.rambleId)?.experiences.map((e) => e.title)).toEqual(["Wanda"]);
+  expect((await listRambles(s.b)).find((x) => x.id === r.rambleId)?.experiences.map((e) => e.title)).toEqual(["Wanda"]);
+  expect((await listRambles(s.b)).map((x) => x.id)).not.toContain(p.rambleId);
+});

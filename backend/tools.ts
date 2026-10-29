@@ -7,7 +7,7 @@ import * as z from "zod";
 import { briefing, type Briefing } from "./briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "./calendar";
 import { getConversation, record, remember, type FiledFact, type FiledRelationship } from "./conversations";
-import { deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type Moved } from "./corrections";
+import { deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, skipSession, type Moved } from "./corrections";
 import { whatsDue } from "./due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "./groups";
 import { InvalidInputError } from "./errors";
@@ -25,6 +25,9 @@ import {
   IntervalJson,
   NewRambleJson,
   JournalJson,
+  ExperiencesJson,
+  ExperienceQuery,
+  PlaceJson,
   PersonId,
   PersonJson,
   RecordedRambleJson,
@@ -38,6 +41,8 @@ import { setCheckInInterval } from "./intervals";
 import { traitsFor, type PersonTraits } from "./traits";
 import { journalEntries } from "./journal";
 import { deleteRamble, rambleTranscript } from "./rambles";
+import { experienceKinds, listExperiences, listSeries } from "./experiences";
+import { addPlaceAlias, findPlaces, mergePlaces, renamePlace } from "./places";
 import { discardFile, fileContent, listPending } from "./files";
 import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
@@ -171,6 +176,12 @@ function foundNext(name: string, people: Candidate[]): Next {
 
 // A named API schema (.meta({ id })) converts to a bare $ref, and a tool's schema must be an object at its root; a copy
 // made by extend() carries no id, so it converts inline.
+/** What record's read-back says of each experience: its title, day, and the series it is a session of. */
+async function experienceReadBack(v: Viewer, ids: string[]): Promise<string[]> {
+  if (!ids.length) return [];
+  return (await listExperiences(v, { ids })).map((e) => `Experience "${e.title}" on ${e.date}${e.series ? `, a session of the series "${e.series.name}"` : ""}${e.place ? ` at ${e.place.name}` : ""}: read it back with its link.`);
+}
+
 const NewRamble = NewRambleJson.extend({});
 const RecordedRamble = RecordedRambleJson.extend({});
 const Filed = FiledItemsJson.extend({});
@@ -180,6 +191,7 @@ const CalendarFeed = CalendarFeedJson.extend({});
 const GroupId = z.string().describe("A group's id, as groups or relate return it");
 const ConversationId = z.string().describe("A conversation's id, as a briefing's recent conversations or record return it");
 const RambleId = z.string().describe("A ramble's id, as record and journal return it");
+const PlaceId = z.string().describe("A place's id, as places returns it");
 const Table = z.enum(ITEM_TABLES).describe("The kind of item");
 const ItemId = z.string().describe("The item's id, as a briefing shows it");
 
@@ -323,6 +335,10 @@ const CORRECT_ACTIONS = [
   "merge",
   "share_transcript",
   "delete_ramble",
+  "place_rename",
+  "place_alias",
+  "place_merge",
+  "series_skip",
   "ungroup",
   "group_rename",
   "group_alias",
@@ -336,7 +352,7 @@ const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). place_rename: rename a place; its old name keeps finding it (id = the place's, name). place_alias: add another name a place goes by (id, alias). place_merge: merge the duplicate place drop into the place id (id, drop). series_skip: mark a session day of a series as skipped, so it is not asked about (id = the series', date). A series ends with edit, table series, patch { endsOn }; it is deleted (delete, table series) only when the user explicitly asks, and its sessions stay as single experiences. An experience or series only its recorder changes. delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
   id: z
@@ -347,15 +363,16 @@ const CorrectInput = z.object({
   person: PersonId.optional().describe("ungroup: the person to take out"),
   patch: z.record(z.string(), z.unknown()).optional().describe("edit: new values for the item's own fields"),
   visibility: Visibility.optional().describe("visibility: who may see the item from now on"),
-  name: z.string().optional().describe("rename: the person's new name"),
-  alias: z.string().optional().describe("alias: another name the person goes by, e.g. a nickname"),
-  drop: z.string().optional().describe("merge: the duplicate person; group_merge: the group to merge in. It is deleted"),
+  name: z.string().optional().describe("rename: the person's new name; group_rename and place_rename: the new name"),
+  alias: z.string().optional().describe("alias: another name the person goes by, e.g. a nickname; group_alias, place_alias: another name of it"),
+  drop: z.string().optional().describe("merge: the duplicate person; group_merge: the group to merge in; place_merge: the duplicate place. It is deleted"),
   gender: Gender.nullable().optional().describe("gender: the person's gender; null when it isn't known"),
   from: Target.optional().describe('to_relationship: a person id, "me" or "us"'),
   to: Target.optional().describe('to_relationship: the other end; a person id, "me" or "us"'),
   label: z.string().optional().describe(`to_relationship: what \`from\` is to \`to\`. ${WORDS_DOC}`),
   inverse: z.string().optional().describe("to_relationship: what `to` is to `from`"),
   note: z.string().optional().describe("to_relationship: anything more about it"),
+  date: Day.optional().describe("series_skip: the session day that was skipped"),
 });
 
 const CorrectArgs = z.discriminatedUnion("action", [
@@ -402,6 +419,10 @@ const CorrectArgs = z.discriminatedUnion("action", [
     .describe("Merge a duplicate person"),
   z.object({ action: z.literal("share_transcript"), id: z.string().describe("A ramble's id, or one of its conversations'") }).describe("Let the partner read a ramble's transcript"),
   z.object({ action: z.literal("delete_ramble"), id: RambleId }).describe("Delete a ramble with everything told in it"),
+  z.object({ action: z.literal("place_rename"), id: PlaceId, name: z.string() }).describe("Rename a place"),
+  z.object({ action: z.literal("series_skip"), id: z.string().describe("The series' id"), date: Day }).describe("Mark a session day skipped"),
+  z.object({ action: z.literal("place_alias"), id: PlaceId, alias: z.string() }).describe("Add another name a place goes by"),
+  z.object({ action: z.literal("place_merge"), id: PlaceId.describe("The place to keep"), drop: PlaceId.describe("The duplicate; it is deleted") }).describe("Merge a duplicate place"),
   z.object({ action: z.literal("ungroup"), id: GroupId, person: PersonId }).describe("Take a person out of a group"),
   z
     .object({
@@ -496,7 +517,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "record",
     description:
-      'File a ramble: what the user told you, with the verbatim ramble as transcript, split into its parts. conversations: each meeting, call or message it tells of, with a short summary and who took part (present). journal: what the user thinks, feels or plans about their own life ("I keep wondering whether to change jobs"), in their own words, with the people it names; private unless the user says to share an entry. Facts, promises, dates, exchanges, relationships and groups: what was learned, each with in = the index of the conversation it came from, or without in when it came from none. People are named once in people and referred to by index. Use it after every ramble; split one that tells several things (dog school, a call from Anna, a thought about work) into those parts. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise; a conversation on another day gets its own date. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary. Who someone is to the household ("she\'s our landlady", "our neighbour", "my doctor") is a relationship to "us" (everyone in the household, one relationship each) or "me", never a fact: "we rent from her" is from her to "us", label Vermieterin, inverse Mieter:in. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. Set a person\'s gender only when the user states it or uses a pronoun for them ("she is our landlady"), never from the name.',
+      'File a ramble: what the user told you, with the verbatim ramble as transcript, split into its parts. conversations: each meeting, call or message it tells of, with a short summary and who took part (present), the place, and at = the experience it happened at. experiences: what the user lived through that is not a meeting (a concert, a festival, a trip, a dog-school lesson), with a German kind, a title, a few lines, the place and who was there; a session of something recurring names its series. journal: what the user thinks, feels or plans about their own life ("I keep wondering whether to change jobs"), in their own words, with the people it names; private unless the user says to share an entry. Facts, promises, dates, exchanges, relationships and groups: what was learned, each with in = the index of the conversation it came from, or without in when it came from none. People are named once in people and referred to by index. Use it after every ramble; split one that tells several things (dog school, a call from Anna, a thought about work) into those parts. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise; a conversation on another day gets its own date. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary. Who someone is to the household ("she\'s our landlady", "our neighbour", "my doctor") is a relationship to "us" (everyone in the household, one relationship each) or "me", never a fact: "we rent from her" is from her to "us", label Vermieterin, inverse Mieter:in. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. Set a person\'s gender only when the user states it or uses a pronoun for them ("she is our landlady"), never from the name.',
     input: NewRamble,
     output: RecordedRamble,
     annotations: { destructiveHint: false },
@@ -505,9 +526,11 @@ export const TOOLS: readonly Tool[] = [
       const journal = out.journal.length
         ? [`${out.journal.length === 1 ? "The journal entry is" : `The ${out.journal.length} journal entries are`} ${out.journal.every((j) => j.visibility === "private") ? "private to the user" : "partly shared, as the user said"}: say so in the read-back.`]
         : [];
+      const sessions = await experienceReadBack(v, out.experiences.map((e) => e.id));
       return ok(RecordedRamble, out, [
         `Read back in one or two sentences what you filed, part by part, with the day (${r.date}) and the links.`,
         ...journal,
+        ...sessions,
         ...out.people.filter((p) => p.created).map((p) => `${p.name} is new in the book: say so in the read-back.`),
         ...out.filed.facts.flatMap(situationDay),
         ...out.filed.relationships.flatMap(keptRelationship),
@@ -653,6 +676,36 @@ export const TOOLS: readonly Tool[] = [
     },
   }),
   tool({
+    name: "experiences",
+    description:
+      'What the user lived through that isn\'t a meeting (concerts, festivals, trips, courses and their sessions), newest first: in a period, of a kind ("Konzert"), at a place, in a series, or with a person; with the kinds and series in use. Use it for "which concerts did I go to last year?", "how was dog school so far?", and before filing an experience, to reuse its kind and series.',
+    input: ExperienceQuery,
+    output: ExperiencesJson,
+    annotations: { readOnlyHint: true },
+    handler: async (v, q) => {
+      const [experiences, kinds, series] = await Promise.all([listExperiences(v, q), experienceKinds(v), listSeries(v)]);
+      return ok(
+        ExperiencesJson,
+        { experiences, kinds, series },
+        experiences.length
+          ? ["Answer from these experiences with their dates and links; for a series, say how it went over its sessions."]
+          : ["No experiences match: say so, and offer to look at another period or kind."],
+      );
+    },
+  }),
+  tool({
+    name: "places",
+    description:
+      "Find a place by its name or another name it goes by, tolerant of spelling (\"die Hundeschule\", \"Olympiahalle\"). Use it before filing something at a place, to reuse it by id; ask the user when two places fit.",
+    input: z.object({ name: z.string().describe("A place's name, or part of it") }),
+    output: z.object({ places: z.array(PlaceJson.extend({})).describe("Best match first") }),
+    annotations: { readOnlyHint: true },
+    handler: async (v, { name }) => {
+      const places = await findPlaces(v, name);
+      return ok(z.object({ places: z.array(PlaceJson.extend({})) }), { places }, places.length > 1 ? ["Several places fit: ask the user which one, unless the context makes it clear."] : []);
+    },
+  }),
+  tool({
     name: "whats_due",
     description:
       'What needs attention soon: upcoming birthdays and other dates, promises with a due date, people the user is overdue to see, and situations to ask about (kind `situation`: "ask Jonas whether he found a car"). Use it for questions like "who should I call this weekend?".',
@@ -667,7 +720,10 @@ export const TOOLS: readonly Tool[] = [
       return ok(
         DueJson,
         { items },
-        items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
+        [
+          ...items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
+          ...items.filter((i) => i.kind === "session").map((i) => `Ask how "${i.name}" on ${i.date} went, and file it with record (series ${i.itemId}); if it was skipped, correct series_skip.`),
+        ],
       );
     },
   }),
@@ -795,6 +851,18 @@ export const TOOLS: readonly Tool[] = [
           break;
         case "delete_ramble":
           await deleteRamble(v, a.id);
+          break;
+        case "series_skip":
+          await skipSession(v, a.id, a.date);
+          break;
+        case "place_rename":
+          await renamePlace(v, a.id, a.name);
+          break;
+        case "place_alias":
+          await addPlaceAlias(v, a.id, a.alias);
+          break;
+        case "place_merge":
+          await mergePlaces(v, a.id, a.drop);
           break;
         case "ungroup":
           await removeFromGroup(v, a.id, a.person);

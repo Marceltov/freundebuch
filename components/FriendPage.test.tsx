@@ -19,6 +19,7 @@ const b: Briefing = {
   traits: { needs: [], personality: [] },
   known: [],
   journal: [],
+  experiences: [],
   open: {
     promises: [
       { id: "1", text: "send photos", byMe: true, due: null, url: "/p/p1#promises-1", ...own, mine: true },

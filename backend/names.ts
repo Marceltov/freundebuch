@@ -23,3 +23,22 @@ export function within(a: string, b: string, max: number): boolean {
   }
   return prev[b.length] <= max;
 }
+
+/** A typo is forgiven only in words this long. */
+const FUZZY_MIN = 5;
+
+/**
+ * How well the normalised query `q` matches any of `strings`: 0 the same, 1 a word or the whole starts with it, 2 one typo off
+ * in a word of FUZZY_MIN letters or more; null no match. Shared by people and places.
+ */
+export function rank(q: string, strings: string[]): number | null {
+  let best: number | null = null;
+  const consider = (r: number) => (best = best === null ? r : Math.min(best, r));
+  for (const s of strings.map(norm)) {
+    if (s === q) return 0;
+    const words = s.split(" ");
+    if (words.some((w) => w.startsWith(q)) || s.startsWith(q)) consider(1);
+    else if (q.length >= FUZZY_MIN && [s, ...words].some((w) => w.length >= FUZZY_MIN && within(q, w, 1))) consider(2);
+  }
+  return best;
+}

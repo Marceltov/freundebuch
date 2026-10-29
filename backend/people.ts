@@ -4,7 +4,7 @@ import { sql, type Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { lastSeen } from "./intervals";
-import { norm, within } from "./names";
+import { norm, rank } from "./names";
 import { GENDERS, type Gender, type Viewer } from "./types";
 import { personPath } from "./urls";
 import { visible } from "./visibility";
@@ -14,7 +14,6 @@ export type Candidate = { id: string; name: string; aliases: string[]; url: stri
 export type PersonView = { id: string; name: string; aliases: string[]; url: string; createdFrom: string | null; gender: Gender | null };
 
 const MAX_CONTEXT = 3;
-const FUZZY_MIN = 5;
 
 type NewPerson = { name: string; aliases?: string[]; createdFrom?: string; gender?: Gender };
 
@@ -103,18 +102,6 @@ async function aliasesByPerson(): Promise<Map<string, string[]>> {
 }
 
 /** 0 exact, 1 prefix of the name or one of its words, 2 one edit away; null when it doesn't match. */
-function rank(q: string, strings: string[]): number | null {
-  let best: number | null = null;
-  const consider = (r: number) => (best = best === null ? r : Math.min(best, r));
-  for (const s of strings.map(norm)) {
-    if (s === q) return 0;
-    const words = s.split(" ");
-    if (words.some((w) => w.startsWith(q)) || s.startsWith(q)) consider(1);
-    else if (q.length >= FUZZY_MIN && [s, ...words].some((w) => w.length >= FUZZY_MIN && within(q, w, 1))) consider(2);
-  }
-  return best;
-}
-
 export async function findPeople(v: Viewer, q: string, limit = 5): Promise<Candidate[]> {
   const nq = norm(q);
   if (!nq) return [];

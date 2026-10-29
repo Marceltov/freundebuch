@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { record } from "../conversations";
 import { db } from "../db";
 import { seed, type Seed } from "../testing/fixtures";
 import { getSettings, putSettings, testWebhook } from "../settings";
@@ -190,5 +191,18 @@ describe("settings", () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     expect(await testWebhook(s.a, fetchFn)).toBe(true);
     expect(sent).toMatchObject([{ title: "🔔 freundebuch-Test", body: "So sehen Benachrichtigungen aus." }]);
+  });
+});
+
+describe("missed sessions", () => {
+  test("the morning after a session day, once, a line says it wasn't told yet", async () => {
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+    const r = await record(s.a, { date: "2026-09-02", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
+    await (await db()).updateTable("series").set({ created_at: Date.parse("2026-09-02T20:00:00Z") }).where("id", "=", r.experiences[0].seriesId!).execute();
+    await runDaily(Date.parse("2026-09-10T08:00:00Z"), fetchFn);
+    expect(sent.map((m) => m.title)).toContain("🐾 Hundeschule mit Toffee am 09.09.: noch nicht erzählt");
+    sent = [];
+    await runDaily(Date.parse("2026-09-11T08:00:00Z"), fetchFn);
+    expect(sent.map((m) => m.title).join()).not.toContain("Hundeschule");
   });
 });

@@ -4,6 +4,7 @@
 import { listConversations, type ConversationSummary } from "./conversations";
 import { db } from "./db";
 import { ForbiddenError, NotFoundError } from "./errors";
+import { listExperiences, type ExperienceView } from "./experiences";
 import { pruneFiles } from "./files";
 import { journalEntries, type JournalEntry } from "./journal";
 import type { Viewer } from "./types";
@@ -12,7 +13,7 @@ import { visible } from "./visibility";
 
 /** An item filed with the ramble alone, not with one of its conversations. */
 export type RambleItem = { table: "facts" | "promises" | "dates" | "exchanges"; id: string; text: string; person: { id: string; name: string; url: string } };
-export type RambleSummary = { id: string; date: string; url: string; conversations: ConversationSummary[]; journal: JournalEntry[]; items: RambleItem[] };
+export type RambleSummary = { id: string; date: string; url: string; conversations: ConversationSummary[]; experiences: ExperienceView[]; journal: JournalEntry[]; items: RambleItem[] };
 export type RambleView = RambleSummary & { transcript: string | null; recordedBy: string };
 
 const EVER = "0000-01-01";
@@ -41,8 +42,8 @@ async function rambleItems(v: Viewer): Promise<Array<RambleItem & { rambleId: st
 
 /** Every ramble the viewer may see a part of, newest first, with those parts. */
 export async function listRambles(v: Viewer): Promise<RambleSummary[]> {
-  const [conversations, journal, items] = await Promise.all([listConversations(v), journalEntries(v, { from: EVER, to: "9999-12-31" }), rambleItems(v)]);
-  const ids = [...new Set([...conversations.map((c) => c.rambleId), ...journal.map((j) => j.rambleId), ...items.map((i) => i.rambleId)])];
+  const [conversations, journal, items, experiences] = await Promise.all([listConversations(v), journalEntries(v, { from: EVER, to: "9999-12-31" }), rambleItems(v), listExperiences(v)]);
+  const ids = [...new Set([...conversations.map((c) => c.rambleId), ...journal.map((j) => j.rambleId), ...items.map((i) => i.rambleId), ...experiences.map((e) => e.rambleId)])];
   if (!ids.length) return [];
   const d = await db();
   const rows = await d
@@ -58,6 +59,7 @@ export async function listRambles(v: Viewer): Promise<RambleSummary[]> {
     date: r.date,
     url: ramblePath(r.id),
     conversations: conversations.filter((c) => c.rambleId === r.id),
+    experiences: experiences.filter((e) => e.rambleId === r.id),
     journal: journal.filter((j) => j.rambleId === r.id),
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     items: items.filter((i) => i.rambleId === r.id).map(({ rambleId, ...i }) => i),

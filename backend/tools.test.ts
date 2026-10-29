@@ -17,7 +17,7 @@ beforeEach(async () => {
 });
 
 test("one table holds every tool the MCP endpoint offers", () => {
-  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "find_person", "get_transcript", "groups", "inbox", "journal", "people", "record", "relate", "remember", "set_interval", "traits", "whats_due"]);
+  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "experiences", "find_person", "get_transcript", "groups", "inbox", "journal", "people", "places", "record", "relate", "remember", "set_interval", "traits", "whats_due"]);
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
@@ -382,5 +382,80 @@ describe("rambles over MCP (review I3, I4)", () => {
     const r = await journalOnly(s.a);
     await run(s.a, "correct", { action: "delete_ramble", id: r.rambleId });
     expect((await run(s.a, "journal", {})).entries.map((e: Json) => e.id)).not.toContain(r.journal[0].id);
+  });
+});
+
+describe("experiences over MCP", () => {
+  let s: Seed;
+  beforeEach(async () => {
+    s = await seed();
+  });
+  const lived = (v: Seed["a"], date: string, kind: string, title: string, extra: object = {}) =>
+    run(v, "record", { date: today(), transcript: title, visibility: "shared", people: [], experiences: [{ date, kind, title, ...extra }] });
+
+  test("record reads back an experience with its day and series", async () => {
+    const r = await lived(s.a, "2026-10-28", "Kurs", "Erste Stunde Hundeschule", { place: "Hundeschule Pfotenglück", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } });
+    expect(r.experiences).toHaveLength(1);
+    expect(r.next.join(" ")).toContain("Hundeschule mit Toffee");
+  });
+
+  test("experiences filters by kind and period and returns the kinds and series in use", async () => {
+    await lived(s.a, "2025-03-01", "Konzert", "Beatsteaks");
+    await lived(s.a, "2025-11-20", "Konzert", "Wanda");
+    await lived(s.a, "2026-02-02", "Konzert", "Seeed");
+    await lived(s.a, "2026-10-28", "Kurs", "Hundeschule", { series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } });
+    const r = await run(s.a, "experiences", { kind: "konzert", from: "2025-01-01", to: "2025-12-31" });
+    expect(r.experiences.map((e: Json) => e.title)).toEqual(["Wanda", "Beatsteaks"]);
+    expect(r.kinds).toEqual(expect.arrayContaining(["Konzert", "Kurs"]));
+    expect(r.series.map((x: Json) => x.name)).toEqual(["Hundeschule mit Toffee"]);
+    expect(r.next.join(" ")).toContain("dates");
+  });
+
+  test("places finds a place by another name; correct renames, adds other names and merges", async () => {
+    const r = await lived(s.a, "2026-10-28", "Kurs", "Hundeschule", { place: "Pfotenglück" });
+    const [p] = (await run(s.a, "places", { name: "Pfotenglück" })).places;
+    await run(s.a, "correct", { action: "place_alias", id: p.id, alias: "die Hundeschule" });
+    expect((await run(s.a, "places", { name: "die Hundeschule" })).places.map((x: Json) => x.id)).toEqual([p.id]);
+    await run(s.a, "correct", { action: "place_rename", id: p.id, name: "Hundeschule Pfotenglück" });
+    const other = await lived(s.a, "2026-10-28", "Kurs", "Probestunde", { place: { name: "Hundeschule am See", confirmedNew: true } });
+    const [drop] = (await run(s.a, "places", { name: "Hundeschule am See" })).places;
+    await run(s.a, "correct", { action: "place_merge", id: p.id, drop: drop.id });
+    expect((await run(s.a, "experiences", {})).experiences.every((e: Json) => e.place?.id === p.id)).toBe(true);
+    void r;
+    void other;
+  });
+});
+
+describe("series over MCP", () => {
+  let s: Seed;
+  beforeEach(async () => {
+    s = await seed();
+  });
+  test("correct series_skip marks a day skipped, edit ends a series, and a briefing carries the experiences", async () => {
+    const r = await run(s.a, "record", { date: today(), transcript: "t", visibility: "shared", people: [{ id: s.anna }], experiences: [{ date: "2026-10-28", kind: "Kurs", title: "Erste Stunde", present: [0], series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
+    const id = r.experiences[0].seriesId;
+    await run(s.a, "correct", { action: "series_skip", id, date: "2026-11-04" });
+    await run(s.a, "correct", { action: "edit", table: "series", id, patch: { endsOn: "2026-12-16" } });
+    const b = await run(s.a, "briefing", { personId: s.anna });
+    expect(b.experiences.map((e: Json) => e.title)).toEqual(["Erste Stunde"]);
+  });
+});
+
+describe("missed sessions over MCP", () => {
+  let s: Seed;
+  beforeEach(async () => {
+    s = await seed();
+  });
+  test("whats_due's next asks how a missed session went, or whether it was skipped", async () => {
+    const r = await run(s.a, "record", { date: "2026-09-02", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
+    await (await db()).updateTable("series").set({ created_at: Date.parse("2026-09-02T20:00:00Z") }).where("id", "=", r.experiences[0].seriesId).execute();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-10T09:00:00Z"));
+    try {
+      const due = await run(s.a, "whats_due", {});
+      expect(due.next.join(" ")).toContain('Ask how "Hundeschule mit Toffee" on 2026-09-09 went');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

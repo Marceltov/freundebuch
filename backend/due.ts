@@ -1,5 +1,6 @@
 // What needs attention for a viewer: dates coming up, promises with a due date, and people not seen for longer than their
 // interval. Everything is read through `visible` and the viewer's own interval, so the partner's private items never show up.
+import { missedSessions } from "./sessions";
 import { db } from "./db";
 import { ageOn, daysBetween, nextOccurrence, today } from "./dates";
 import { freshness } from "./intervals";
@@ -13,7 +14,8 @@ import { visible } from "./visibility";
  * `lastSeen` and `intervalDays`: for someone overdue.
  */
 export type DueItem = {
-  kind: "date" | "promise" | "overdue" | "situation";
+  /** `session`: a missed session of a series (name: the series, itemId: its id, date: the day; personId: the viewer's own). */
+  kind: "date" | "promise" | "overdue" | "situation" | "session";
   personId: string;
   name: string;
   date?: string;
@@ -112,5 +114,7 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
       .execute()
   ).map((f) => ({ kind: "situation", personId: f.person_id, name: name(f.person_id), date: f.check_after!, text: f.text, itemId: f.id, url: itemPath(personPath(f.person_id), "facts", f.id) }));
 
-  return [...dates, ...overdue, ...situations, ...promises];
+  const sessions: DueItem[] = (await missedSessions(v, from)).map((m) => ({ kind: "session", personId: v.personId, name: m.name, date: m.date, itemId: m.seriesId, url: m.url }));
+
+  return [...dates, ...overdue, ...situations, ...sessions, ...promises];
 }

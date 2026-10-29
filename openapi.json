@@ -454,6 +454,291 @@
         }
       }
     },
+    "/api/v1/experiences": {
+      "get": {
+        "operationId": "listExperiences",
+        "summary": "What the caller lived through",
+        "description": "Experiences the caller may see, newest first, optionally of a kind, in a period, at a place, in a series or with a person; with the kinds and series in use.",
+        "tags": [
+          "Experiences"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "A day, `YYYY-MM-DD`",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "A day, `YYYY-MM-DD`",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "description": "Only this kind, in any case",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "placeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seriesId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "personId",
+            "in": "query",
+            "required": false,
+            "description": "Only those this person was at",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The experiences",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Experiences"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series/{id}": {
+      "get": {
+        "operationId": "getSeries",
+        "summary": "A series and its sessions",
+        "tags": [
+          "Experiences"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The series",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Series"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/places/{id}": {
+      "get": {
+        "operationId": "getPlace",
+        "summary": "A place and everything at it the caller may see",
+        "tags": [
+          "Experiences"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The place",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/places": {
+      "get": {
+        "operationId": "findPlaces",
+        "summary": "Find places by name",
+        "description": "Places the caller may see whose name or other name matches `q`, tolerant of spelling, best first.",
+        "tags": [
+          "Experiences"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "A place's name, or part of it",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The places",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/people/{id}/interval": {
       "put": {
         "operationId": "setCheckInInterval",
@@ -3833,6 +4118,145 @@
             },
             "description": "The caller's own journal entries that name the person, the last few, newest first"
           },
+          "experiences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "place": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "series": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "people": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "Who else was there"
+                },
+                "rambleId": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "The caller recorded it: they may change or delete it"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "kind",
+                "title",
+                "summary",
+                "place",
+                "series",
+                "people",
+                "rambleId",
+                "visibility",
+                "mine",
+                "url"
+              ]
+            },
+            "description": "The experiences the caller may see that the person was at, the last few, newest first"
+          },
           "open": {
             "type": "object",
             "properties": {
@@ -4228,6 +4652,7 @@
           "traits",
           "known",
           "journal",
+          "experiences",
           "open",
           "recent",
           "relationships",
@@ -4544,6 +4969,1000 @@
           "entries"
         ]
       },
+      "Experience": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "description": "A day, `YYYY-MM-DD`"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Where it opens in the web app, as an absolute URL"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "url"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "series": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Where it opens in the web app, as an absolute URL"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "url"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url"
+              ]
+            },
+            "description": "Who else was there"
+          },
+          "rambleId": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ],
+            "description": "`private` items are visible only to whoever recorded them"
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "The caller recorded it: they may change or delete it"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "kind",
+          "title",
+          "summary",
+          "place",
+          "series",
+          "people",
+          "rambleId",
+          "visibility",
+          "mine",
+          "url"
+        ]
+      },
+      "SeriesSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "rhythmDays": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startsOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A day, `YYYY-MM-DD`"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endsOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A day, `YYYY-MM-DD`"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "rhythmDays",
+          "startsOn",
+          "endsOn",
+          "url"
+        ]
+      },
+      "Experiences": {
+        "type": "object",
+        "properties": {
+          "experiences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "place": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "series": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "people": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "Who else was there"
+                },
+                "rambleId": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "The caller recorded it: they may change or delete it"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "kind",
+                "title",
+                "summary",
+                "place",
+                "series",
+                "people",
+                "rambleId",
+                "visibility",
+                "mine",
+                "url"
+              ]
+            },
+            "description": "Newest first"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The kinds in use, most used first"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "rhythmDays": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "startsOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "A day, `YYYY-MM-DD`"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "endsOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "A day, `YYYY-MM-DD`"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "kind",
+                "rhythmDays",
+                "startsOn",
+                "endsOn",
+                "url"
+              ]
+            },
+            "description": "The series in use, by name"
+          }
+        },
+        "required": [
+          "experiences",
+          "kinds",
+          "series"
+        ]
+      },
+      "Place": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "aliases",
+          "url"
+        ]
+      },
+      "PlaceList": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "aliases": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "url": {
+              "type": "string",
+              "description": "Where it opens in the web app, as an absolute URL"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "aliases",
+            "url"
+          ]
+        }
+      },
+      "Series": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "rhythmDays": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startsOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A day, `YYYY-MM-DD`"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endsOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A day, `YYYY-MM-DD`"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Where it opens in the web app, as an absolute URL"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "url"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "place": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "series": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "people": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "Who else was there"
+                },
+                "rambleId": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "The caller recorded it: they may change or delete it"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "kind",
+                "title",
+                "summary",
+                "place",
+                "series",
+                "people",
+                "rambleId",
+                "visibility",
+                "mine",
+                "url"
+              ]
+            },
+            "description": "Its sessions the caller may see, oldest first"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A day, `YYYY-MM-DD`"
+            },
+            "description": "Session days marked as skipped"
+          },
+          "missed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "A day, `YYYY-MM-DD`"
+            },
+            "description": "The latest session day that passed untold, if any"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "shared",
+              "private"
+            ],
+            "description": "`private` items are visible only to whoever recorded them"
+          },
+          "mine": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "rhythmDays",
+          "startsOn",
+          "endsOn",
+          "url",
+          "place",
+          "sessions",
+          "skipped",
+          "missed",
+          "visibility",
+          "mine"
+        ]
+      },
+      "PlaceView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
+          },
+          "experiences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "place": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "series": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "description": "Where it opens in the web app, as an absolute URL"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "url"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "people": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "Who else was there"
+                },
+                "rambleId": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "mine": {
+                  "type": "boolean",
+                  "description": "The caller recorded it: they may change or delete it"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "kind",
+                "title",
+                "summary",
+                "place",
+                "series",
+                "people",
+                "rambleId",
+                "visibility",
+                "mine",
+                "url"
+              ]
+            }
+          },
+          "conversations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "description": "A day, `YYYY-MM-DD`"
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "date",
+                "summary",
+                "url"
+              ]
+            }
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "rhythmDays": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "startsOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "A day, `YYYY-MM-DD`"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "endsOn": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "A day, `YYYY-MM-DD`"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "kind",
+                "rhythmDays",
+                "startsOn",
+                "endsOn",
+                "url"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "aliases",
+          "url",
+          "experiences",
+          "conversations",
+          "series"
+        ]
+      },
       "NewRamble": {
         "type": "object",
         "properties": {
@@ -4628,7 +6047,40 @@
                   ]
                 },
                 "place": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "An existing place's id"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "confirmedNew": {
+                          "description": "The user confirmed it is a new place, not the close one",
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ]
+                    }
+                  ],
+                  "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }"
                 },
                 "summary": {
                   "type": "string"
@@ -4642,12 +6094,135 @@
                     "description": "An index into `people`"
                   },
                   "description": "Who took part, by index into people"
+                },
+                "at": {
+                  "description": "The experience it happened at, by index into experiences (the talk with Anna at the festival)",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
                 }
               },
               "required": [
                 "kind",
                 "summary",
                 "present"
+              ]
+            }
+          },
+          "experiences": {
+            "description": "What the user lived through that isn't a meeting: a concert, a festival, a trip, a lesson",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "description": "The day it happened, when not the ramble's day",
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "A German word for what it was (\"Konzert\", \"Festival\", \"Kurs\", \"Reise\"); reuse a kind already in use"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "A short title (\"Wanda in der Olympiahalle\", \"Hundeschule, 2. Stunde\")"
+                },
+                "summary": {
+                  "description": "A few lines of what happened; how it felt to the user goes in a journal entry",
+                  "type": "string"
+                },
+                "place": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "An existing place's id"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "confirmedNew": {
+                          "description": "The user confirmed it is a new place, not the close one",
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ]
+                    }
+                  ],
+                  "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }"
+                },
+                "present": {
+                  "description": "Who else was there, by index into people; the user always is",
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "An index into `people`"
+                  }
+                },
+                "series": {
+                  "description": "The series this is a session of (a course, a weekly training). Start a new one only when the user speaks of it as recurring, and ask first",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "An existing series' id"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "The series' name; an existing one of that exact name is reused"
+                        },
+                        "kind": {
+                          "type": "string"
+                        },
+                        "rhythmDays": {
+                          "description": "How often it happens, in days (7 for \"every Wednesday\"); leave out when it has no rhythm",
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "startsOn": {
+                          "description": "Its first day, when not this session's",
+                          "type": "string"
+                        },
+                        "endsOn": {
+                          "description": "Its last day, when known",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ]
+                    }
+                  ]
+                },
+                "private": {
+                  "description": "Only for this experience; a private ramble or series makes it private anyway",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "title"
               ]
             }
           },
@@ -5498,6 +7073,41 @@
                 "url"
               ]
             }
+          },
+          "experiences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "seriesId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "shared",
+                    "private"
+                  ],
+                  "description": "`private` items are visible only to whoever recorded them"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The experience on its series' or ramble's page"
+                }
+              },
+              "required": [
+                "id",
+                "seriesId",
+                "visibility",
+                "url"
+              ]
+            }
           }
         },
         "required": [
@@ -5506,7 +7116,8 @@
           "filed",
           "rambleId",
           "conversations",
-          "journal"
+          "journal",
+          "experiences"
         ]
       },
       "DueItem": {
@@ -5518,9 +7129,10 @@
               "date",
               "promise",
               "overdue",
-              "situation"
+              "situation",
+              "session"
             ],
-            "description": "`situation`: something going on whose checkAfter has come; ask how it went"
+            "description": "`situation`: something going on whose checkAfter has come; ask how it went. `session`: a session day of a series that passed untold (name: the series, itemId: its id); ask how it went or whether it was skipped"
           },
           "personId": {
             "type": "string",
@@ -5731,7 +7343,40 @@
             ]
           },
           "place": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "An existing place's id"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "confirmedNew": {
+                    "description": "The user confirmed it is a new place, not the close one",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            ],
+            "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }"
           },
           "summary": {
             "type": "string"
@@ -6558,6 +8203,13 @@
             ]
           },
           "place": {
+            "description": "The place's name",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "placeId": {
             "type": [
               "string",
               "null"
@@ -6975,6 +8627,7 @@
           "date",
           "kind",
           "place",
+          "placeId",
           "summary",
           "transcript",
           "visibility",

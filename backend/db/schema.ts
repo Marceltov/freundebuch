@@ -30,7 +30,9 @@ export interface Schema {
     id: string;
     date: string;
     kind: string;
-    place: string | null;
+    place_id: string | null;
+    /** The experience it happened at, if any. */
+    experience_id: ColumnType<string | null, string | null | undefined, string | null>;
     summary: string;
     /** The ramble it was told in, which holds the transcript. */
     ramble_id: string;
@@ -42,6 +44,35 @@ export interface Schema {
    * transcript is the recorder's whenever anything filed from it is private (`transcript_private`). */
   rambles: { id: string; date: string; transcript: string; transcript_private: Flag; visibility: string; recorded_by: string; created_at: number };
   participants: { conversation_id: string; person_id: string };
+  places: { id: string; name: string; created_by: string; created_at: number };
+  place_aliases: { place_id: string; alias: string; norm: string };
+  series: {
+    id: string;
+    name: string;
+    kind: string;
+    rhythm_days: number | null;
+    starts_on: string | null;
+    ends_on: string | null;
+    place_id: string | null;
+    visibility: string;
+    recorded_by: string;
+    created_at: number;
+  };
+  series_skips: { series_id: string; date: string };
+  experiences: {
+    id: string;
+    ramble_id: string;
+    series_id: string | null;
+    place_id: string | null;
+    date: string;
+    kind: string;
+    title: string;
+    summary: string | null;
+    visibility: string;
+    recorded_by: string;
+    created_at: number;
+  };
+  experience_people: { experience_id: string; person_id: string };
   /** What the user thinks and feels about their own life, cut from a ramble; private unless they share it. */
   journal_entries: { id: string; ramble_id: string; date: string; text: string; visibility: string; recorded_by: string; created_at: number };
   /** The people a journal entry names. */

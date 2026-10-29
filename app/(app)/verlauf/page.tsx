@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, Coffee, Lock, NotebookPen } from "lucide-react";
+import { BookOpen, Coffee, Lock, NotebookPen, Ticket } from "lucide-react";
 import { listRambles, today, type RambleSummary } from "@/backend";
 import { copy, kindName } from "@/components/copy";
 import { shortDay } from "@/components/format";
@@ -52,7 +52,23 @@ export default async function HistoryPage() {
           <ul className="space-y-2">
             {rs.map((r) => (
               <li key={r.id} data-ramble={r.id}>
-                <ul className={r.conversations.length + r.journal.length + (r.items.length ? 1 : 0) > 1 ? "space-y-1 rounded-3xl border border-rule p-1" : ""}>
+                <ul className={r.conversations.length + r.experiences.length + r.journal.length + (r.items.length ? 1 : 0) > 1 ? "space-y-1 rounded-3xl border border-rule p-1" : ""}>
+                  {r.experiences.map((e) => (
+                    <li key={e.id}>
+                      <Link href={e.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
+                        <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
+                          <Ticket aria-label={e.kind} className="h-[18px] w-[18px]" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1 font-semibold">
+                            {shortDay(e.date)} · {e.title}
+                            {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="h-3.5 w-3.5 text-muted" />}
+                          </span>
+                          <span className="line-clamp-2 block text-sm text-muted">{[e.kind, e.series?.name, e.place?.name].filter(Boolean).join(" · ")}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
                   {r.conversations.map((c) => (
                     <ConversationRow key={c.id} c={c} />
                   ))}

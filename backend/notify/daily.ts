@@ -3,7 +3,7 @@
 import { copy } from "./copy";
 import { config } from "../config";
 import { db } from "../db";
-import { today } from "../dates";
+import { addDays, today } from "../dates";
 import { lastSeen } from "../intervals";
 import { errorFields, logger } from "../log";
 import { processState } from "../state";
@@ -24,6 +24,11 @@ async function message(v: Viewer, item: DueItem, from: string, click: (id: strin
     return { ...base, title: fill(copy.overdue, { name: item.name }), body: seen ? fill(copy.overdueBody, { date: seen }) : "", tags: ["hourglass_flowing_sand"] };
   }
   if (item.kind === "situation") return { ...base, title: fill(copy.situation, { name: item.name, text: item.text! }), body: "", tags: ["speech_balloon"] };
+  if (item.kind === "session") {
+    const [, m, d] = item.date!.split("-");
+    const base = config.publicUrl();
+    return { title: fill(copy.sessionMissed, { name: item.name, day: `${d}.${m}.` }), body: "", tags: ["paw_prints"], click: base ? `${base}${item.url}` : undefined };
+  }
   if (item.kind === "promise")
     return item.byMe
       ? { ...base, title: fill(copy.promise, { text: item.text! }), body: fill(copy.promiseBody, { name: item.name }), tags: ["pushpin"] }
@@ -61,7 +66,8 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
       }
       const v = await viewerById(row.user_id);
       if (!v) continue;
-      const items = await whatsDue(v, from, 1);
+      // A missed session goes out once, the morning after its day.
+      const items = (await whatsDue(v, from, 1)).filter((i) => i.kind !== "session" || i.date === addDays(from, -1));
       const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
       const messages = await Promise.all(shown.map((i) => message(v, i, from, click)));
       if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });

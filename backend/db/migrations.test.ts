@@ -62,7 +62,7 @@ test("items may have no conversation, and deleting a conversation cascades to it
   const conv = newId();
   await d.insertInto("users").values({ id: user, oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: t }).execute();
   await d.insertInto("persons").values({ id: person, name: "Anna", created_by: user, created_from: null, created_at: t }).execute();
-  await d.insertInto("conversations").values({ id: conv, date: "2026-01-01", kind: "in_person", place: null, summary: "", ramble_id: await ramble(d, conv, user), visibility: "private", recorded_by: user, created_at: t }).execute();
+  await d.insertInto("conversations").values({ id: conv, date: "2026-01-01", kind: "in_person", summary: "", ramble_id: await ramble(d, conv, user), visibility: "private", recorded_by: user, created_at: t }).execute();
   const base = { person_id: person, visibility: "private", recorded_by: user, created_at: t };
   await d.insertInto("facts").values([{ ...base, id: newId(), text: "a", category: "c", status: "current", conversation_id: conv }, { ...base, id: newId(), text: "b", category: "c", status: "current", conversation_id: null }]).execute();
   await d.deleteFrom("conversations").where("id", "=", conv).execute();
@@ -78,7 +78,7 @@ test("CHECK constraints refuse values outside the vocabularies", async () => {
   const conv = newId();
   await d.insertInto("users").values({ id: user, oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: t }).execute();
   await d.insertInto("persons").values({ id: person, name: "Anna", created_by: user, created_from: null, created_at: t }).execute();
-  const conversation = { id: conv, date: "2026-01-01", kind: "call", place: null, summary: "", ramble_id: await ramble(d, conv, user), visibility: "shared", recorded_by: user, created_at: t };
+  const conversation = { id: conv, date: "2026-01-01", kind: "call", summary: "", ramble_id: await ramble(d, conv, user), visibility: "shared", recorded_by: user, created_at: t };
   const base = { person_id: person, visibility: "shared", recorded_by: user, conversation_id: null, created_at: t };
   const fact = { ...base, text: "a", category: "work", status: "current" as const };
   const promise = { ...base, text: "a", by_me: 1 };
@@ -402,4 +402,31 @@ test("014 links every item of a conversation to the conversation's ramble", asyn
     { id: "f1", ramble_id: "r1" },
     { id: "f2", ramble_id: null },
   ]);
+});
+
+test("015 turns each recorder's free-text places into place records and links the conversations", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  const d = new Kysely<any>({ dialect: new SqliteDialect({ database }) }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await migrateTo(d, "014_ramble_items");
+  const t = Date.now();
+  for (const u of ["u", "w"]) await d.insertInto("users").values({ id: u, oidc_sub: u, name: u, email: null, person_id: null, created_at: t }).execute();
+  await d.insertInto("rambles").values({ id: "r", date: "2026-10-20", transcript: "t", transcript_private: 0, visibility: "shared", recorded_by: "u", created_at: t }).execute();
+  const c = { ramble_id: "r", kind: "in_person", summary: "s", visibility: "shared", date: "2026-10-20", created_at: t };
+  await d.insertInto("conversations").values({ ...c, id: "c1", recorded_by: "u", place: "Olympiahalle" }).execute();
+  await d.insertInto("conversations").values({ ...c, id: "c2", recorded_by: "u", place: "Olympiahalle" }).execute();
+  await d.insertInto("conversations").values({ ...c, id: "c3", recorded_by: "w", place: "Olympiahalle" }).execute();
+  await d.insertInto("conversations").values({ ...c, id: "c4", recorded_by: "u", place: null }).execute();
+  await d.insertInto("conversations").values({ ...c, id: "c5", recorded_by: "u", place: "Café Lisa" }).execute();
+  await d.insertInto("conversations").values({ ...c, id: "c6", recorded_by: "u", place: "Cafe Lisa" }).execute();
+  await migrateTo(d, "015_places");
+  const rows = await d.selectFrom("conversations").leftJoin("places", "places.id", "conversations.place_id").select(["conversations.id", "places.id as placeId", "places.name", "places.created_by"]).orderBy("conversations.id").execute();
+  expect(rows.map((r) => r.name)).toEqual(["Olympiahalle", "Olympiahalle", "Olympiahalle", null, "Café Lisa", "Café Lisa"]);
+  // Names match as at runtime (norm): "Cafe Lisa" is the same place as "Café Lisa".
+  expect(rows[4].placeId).toBe(rows[5].placeId);
+  expect(rows[0].placeId).toBe(rows[1].placeId);
+  expect(rows[2].placeId).not.toBe(rows[0].placeId);
+  expect(rows[2].created_by).toBe("w");
+  const cols = (await sql<{ name: string }>`pragma table_info(conversations)`.execute(d)).rows.map((r) => r.name);
+  expect(cols).not.toContain("place");
 });
