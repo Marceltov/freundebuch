@@ -101,7 +101,8 @@ export async function insertExperiences(
   for (const x of xs) {
     const day = x.date ?? r.date;
     const placeId = x.place === undefined || x.place === "" ? null : await resolvePlace(tx, v, x.place);
-    const series = x.series === undefined ? null : await resolveSeries(tx, v, x.series, x, day, r.visibility, t, placeId);
+    // A new series started by a private experience is private too, or its name and place would reach the other user.
+    const series = x.series === undefined ? null : await resolveSeries(tx, v, x.series, x, day, x.private ? "private" : r.visibility, t, placeId);
     const visibility: Visibility = r.visibility === "private" || x.private || series?.visibility === "private" ? "private" : "shared";
     const id = newId();
     await tx

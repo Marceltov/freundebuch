@@ -534,6 +534,14 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
         .onConflict((oc) => oc.doNothing())
         .execute();
     await tx.deleteFrom("journal_mentions").where("person_id", "=", dropId).execute();
+    // So do the experiences they were at.
+    for (const m of await tx.selectFrom("experience_people").select("experience_id").where("person_id", "=", dropId).execute())
+      await tx
+        .insertInto("experience_people")
+        .values({ experience_id: m.experience_id, person_id: keepId })
+        .onConflict((oc) => oc.doNothing())
+        .execute();
+    await tx.deleteFrom("experience_people").where("person_id", "=", dropId).execute();
 
     for (const m of await tx.selectFrom("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute())
       await moveMembership(tx, m.recorded_by, { group_id: m.group_id, person_id: dropId }, { group_id: m.group_id, person_id: keepId });

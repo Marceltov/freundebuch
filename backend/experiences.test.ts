@@ -131,3 +131,17 @@ test("a series made private takes its sessions with it, and a session of a priva
   expect((await listExperiences(s.b, {})).map((e) => e.id)).not.toContain(r.experiences[0].id);
   await expect(setVisibility(s.a, "experiences", r.experiences[0].id, "shared")).rejects.toThrow(InvalidInputError);
 });
+
+test("review C1: a private experience that starts a new series makes the series private, and its place stays hidden", async () => {
+  await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Gruppe", title: "Erste Sitzung", private: true, place: "Tagesklinik Nord", series: { name: "Gruppentherapie", rhythmDays: 7 } }] });
+  const { listSeries } = await import("./experiences");
+  expect((await listSeries(s.b)).map((x) => x.name)).not.toContain("Gruppentherapie");
+  expect(await findPlaces(s.b, "Tagesklinik Nord")).toEqual([]);
+});
+
+test("review I2: merging two people keeps the experiences of the one merged away", async () => {
+  const { mergePeople } = await import("./corrections");
+  const r = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [{ name: "Anni" }], experiences: [{ kind: "Konzert", title: "Wanda", present: [0] }] });
+  await mergePeople(s.a, s.anna, r.people[0].id);
+  expect((await listExperiences(s.a, { personId: s.anna })).map((e) => e.title)).toEqual(["Wanda"]);
+});
