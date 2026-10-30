@@ -33,7 +33,10 @@ export function LanguageSettings() {
         {(Object.keys(copy.languageName) as Language[]).map((l) => (
           <label key={l} className="cursor-pointer">
             <input type="radio" name="language" className="peer sr-only" checked={language === l} onChange={() => choose(l)} />
-            <span lang={l} className="block rounded-xl py-2 text-center text-sm peer-checked:bg-carbon peer-checked:font-bold peer-checked:text-on-carbon peer-focus-visible:outline-2 peer-focus-visible:outline-carbon">
+            <span
+              lang={l}
+              className="block rounded-xl py-2 text-center text-sm peer-checked:bg-carbon peer-checked:font-bold peer-checked:text-on-carbon peer-focus-visible:outline-2 peer-focus-visible:outline-carbon"
+            >
               {copy.languageName[l]}
             </span>
           </label>
@@ -103,11 +106,20 @@ export function WebhookSettings({ webhookUrl }: { webhookUrl: string | null }) {
         className="w-full rounded-xl border border-rule bg-surface-2 px-3 py-2 text-sm focus:border-carbon focus:outline-none"
       />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button type="submit" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 text-sm font-bold text-on-carbon disabled:opacity-50">
+        <button
+          type="submit"
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 text-sm font-bold text-on-carbon disabled:opacity-50"
+        >
           <Check aria-hidden className="h-4 w-4" />
           {copy.save}
         </button>
-        <button type="button" disabled={busy || !url.trim()} onClick={run(test)} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-1.5 text-sm font-bold disabled:opacity-50">
+        <button
+          type="button"
+          disabled={busy || !url.trim()}
+          onClick={run(test)}
+          className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-1.5 text-sm font-bold disabled:opacity-50"
+        >
           <Send aria-hidden className="h-4 w-4" />
           {copy.testWebhook}
         </button>
@@ -179,7 +191,11 @@ export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl:
         <li className="space-y-2">
           <p>{copy.shareStepShortcut}</p>
           {/* The signed Shortcut (shortcut/source.ts): Safari on the iPhone hands it to the Kurzbefehle app. */}
-          <a href="/shortcuts/An%20freundebuch.shortcut" download className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+          <a
+            href="/shortcuts/An%20freundebuch.shortcut"
+            download
+            className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon"
+          >
             <Download aria-hidden className="h-4 w-4" />
             {copy.shareShortcut}
           </a>

@@ -115,7 +115,9 @@ body::after {
 .md-typeset h2,
 .md-typeset h3 {
   font-family: "Fraunces", Georgia, "Times New Roman", serif;
-  font-variation-settings: "SOFT" 100, "WONK" 1;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1;
 }
 
 /* Header: a hairline instead of a coloured bar. */

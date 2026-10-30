@@ -27,7 +27,10 @@ async function call(viewer: Viewer | null, method: string, path: string, body?: 
   const headers: Record<string, string> = { host: "localhost:3000", origin: BASE };
   if (viewer) headers.cookie = `${IDENTITY_COOKIE}=${sign("identity", { uid: viewer.userId })}`;
   if (body !== undefined) headers["content-type"] = "application/json";
-  const res = await dispatch(new Request(`${BASE}/api/v1${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }), path.slice(1).split("?")[0].split("/"));
+  const res = await dispatch(
+    new Request(`${BASE}/api/v1${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }),
+    path.slice(1).split("?")[0].split("/"),
+  );
   const text = await res.text();
   return { status: res.status, json: text ? JSON.parse(text) : undefined };
 }
@@ -115,7 +118,19 @@ describe("people", () => {
   });
 
   test("merge moves a duplicate into the person and deletes it", async () => {
-    const rec = await call(s.a, "POST", "/rambles", asRamble(lunch({ people: [{ name: "Maxi", present: true }, { name: "Max", present: false }] })));
+    const rec = await call(
+      s.a,
+      "POST",
+      "/rambles",
+      asRamble(
+        lunch({
+          people: [
+            { name: "Maxi", present: true },
+            { name: "Max", present: false },
+          ],
+        }),
+      ),
+    );
     const [maxi, max] = rec.json.people.map((p: { id: string }) => p.id);
     expect((await call(s.a, "POST", `/people/${max}/merge`, { drop: maxi })).status).toBe(204);
     expect((await call(s.a, "GET", `/people/${maxi}`)).status).toBe(404);
@@ -127,7 +142,11 @@ describe("people", () => {
     await call(s.a, "POST", "/rambles", asRamble(lunch({ visibility: "private" }))); // the open promise keeps Max in the orbit
     const res = await call(s.a, "GET", "/orbit");
     expect(res.status).toBe(200);
-    expect(res.json.find((f: { name: string }) => f.name === "Max")).toMatchObject({ ring: expect.any(Number), angle: expect.any(Number), badges: ["promise"] });
+    expect(res.json.find((f: { name: string }) => f.name === "Max")).toMatchObject({
+      ring: expect.any(Number),
+      angle: expect.any(Number),
+      badges: ["promise"],
+    });
     // For B, Max is only someone B never met: no promise badge.
     expect((await call(s.b, "GET", "/orbit")).json.find((f: { name: string }) => f.name === "Max")).toMatchObject({ unseen: true, badges: [] });
     expect((await call(null, "GET", "/orbit")).status).toBe(401);
@@ -144,7 +163,10 @@ describe("conversations and items", () => {
   test("record answers 201 with the Recorded shape, and the conversation reads back", async () => {
     const rec = await call(s.a, "POST", "/rambles", asRamble(lunch()));
     expect(rec.status).toBe(201);
-    expect(rec.json).toMatchObject({ people: [{ ref: 0, name: "Max", created: true }], counts: { facts: 1, promises: 1, dates: 0, exchanges: 0, relationships: 0, groups: 0 } });
+    expect(rec.json).toMatchObject({
+      people: [{ ref: 0, name: "Max", created: true }],
+      counts: { facts: 1, promises: 1, dates: 0, exchanges: 0, relationships: 0, groups: 0 },
+    });
     const got = await call(s.a, "GET", `/conversations/${rec.json.conversations[0].id}`);
     expect(got.status).toBe(200);
     expect(got.json).toMatchObject({ summary: "Lunch with Max.", transcript: "Lunch with Max. He likes chess.", facts: [{ text: "likes chess" }] });
@@ -246,7 +268,12 @@ test("every route needs a sign-in", async () => {
   const doc = (await call(s.a, "GET", "/openapi.json")).json as { paths: Record<string, Record<string, unknown>> };
   for (const [path, item] of Object.entries(doc.paths))
     for (const method of Object.keys(item)) {
-      const res = await call(null, method.toUpperCase(), path.replace("/api/v1", "").replace(/\{\w+\}/g, "x"), method === "get" || method === "delete" ? undefined : {});
+      const res = await call(
+        null,
+        method.toUpperCase(),
+        path.replace("/api/v1", "").replace(/\{\w+\}/g, "x"),
+        method === "get" || method === "delete" ? undefined : {},
+      );
       expect([res.status, method, path]).toEqual([401, method, path]);
     }
 });
@@ -363,8 +390,15 @@ describe("files", () => {
     const sharp = (await import("sharp")).default;
     const { readFile, shareFile } = await import("../files");
     vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-api-")));
-    const img = async (r: number) => new Uint8Array(await sharp({ create: { width: 20, height: 20, channels: 3, background: { r, g: 0, b: 0 } } }).png().toBuffer());
-    const unsure = { read: async () => ({ summary: "Anna hat einen neuen Job", transcript: "Anna: Neuer Job!", people: [{ name: "Anna", candidates: [s.anna] }] }) };
+    const img = async (r: number) =>
+      new Uint8Array(
+        await sharp({ create: { width: 20, height: 20, channels: 3, background: { r, g: 0, b: 0 } } })
+          .png()
+          .toBuffer(),
+      );
+    const unsure = {
+      read: async () => ({ summary: "Anna hat einen neuen Job", transcript: "Anna: Neuer Job!", people: [{ name: "Anna", candidates: [s.anna] }] }),
+    };
     const one = await shareFile(s.a, await img(1));
     const two = await shareFile(s.a, await img(2));
     await readFile(one.id, unsure);
@@ -425,21 +459,43 @@ describe("roles and situations", () => {
     expect(moved.status).toBe(201);
     expect(moved.json.ids).toHaveLength(2);
     expect((await call(s.b, "GET", `/people/${max}/briefing`)).json.roles).toMatchObject([{ label: "Vermieter:in", with: "us" }]);
-    expect((await call(s.b, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", label: "Vermieter:in", inverse: "Mieter:in" })).status).toBe(404);
+    expect((await call(s.b, "POST", `/items/facts/${fact}/relationship`, { from: max, to: "us", label: "Vermieter:in", inverse: "Mieter:in" })).status).toBe(
+      404,
+    );
 
-    const again = await call(s.a, "POST", "/rambles", asRamble(lunch({ people: [{ id: max, present: true }], facts: [{ person: 0, text: "sucht ein Auto", category: "other" }], relationships: [{ from: 0, to: "me", label: "Nachbar:in", inverse: "Nachbar:in" }] })));
+    const again = await call(
+      s.a,
+      "POST",
+      "/rambles",
+      asRamble(
+        lunch({
+          people: [{ id: max, present: true }],
+          facts: [{ person: 0, text: "sucht ein Auto", category: "other" }],
+          relationships: [{ from: 0, to: "me", label: "Nachbar:in", inverse: "Nachbar:in" }],
+        }),
+      ),
+    );
     expect(again.json.counts.relationships).toBe(1);
     const car = (await call(s.a, "GET", `/people/${max}/briefing`)).json.known.find((f: { text: string }) => f.text === "sucht ein Auto").id;
     expect((await call(s.a, "PATCH", `/items/facts/${car}`, { patch: { kind: "situation", checkAfter: "2026-10-01" } })).status).toBe(204);
     const b = (await call(s.a, "GET", `/people/${max}/briefing`)).json;
     expect(b.situations).toMatchObject([{ text: "sucht ein Auto", checkAfter: "2026-10-01", nudge: true }]);
-    expect((await call(s.a, "GET", "/due")).json.find((i: { kind: string }) => i.kind === "situation")).toMatchObject({ text: "sucht ein Auto", url: `${BASE}/p/${max}#facts-${car}` });
+    expect((await call(s.a, "GET", "/due")).json.find((i: { kind: string }) => i.kind === "situation")).toMatchObject({
+      text: "sucht ein Auto",
+      url: `${BASE}/p/${max}#facts-${car}`,
+    });
   });
 });
 
 describe("journal", () => {
   test("GET /journal lists the caller's entries; the partner's private ones never", async () => {
-    await call(s.a, "POST", "/rambles", { date: "2026-10-20", transcript: "t", visibility: "shared", people: [], journal: [{ text: "Privat" }, { text: "Geteilt", shared: true }] });
+    await call(s.a, "POST", "/rambles", {
+      date: "2026-10-20",
+      transcript: "t",
+      visibility: "shared",
+      people: [],
+      journal: [{ text: "Privat" }, { text: "Geteilt", shared: true }],
+    });
     const a = await call(s.a, "GET", "/journal?from=2026-10-01&to=2026-10-31");
     expect(a.status).toBe(200);
     expect(a.json.entries.map((e: { text: string }) => e.text).sort()).toEqual(["Geteilt", "Privat"]);
@@ -462,7 +518,15 @@ describe("reflection", () => {
 
 describe("rambles", () => {
   test("DELETE /rambles/{id}: the recorder deletes a ramble with every part; the partner can't, an unknown one is 404", async () => {
-    const r = (await call(s.a, "POST", "/rambles", { date: "2026-10-29", transcript: "t", visibility: "shared", people: [{ id: s.anna }], conversations: [{ kind: "call", summary: "Anruf", present: [0] }] })).json;
+    const r = (
+      await call(s.a, "POST", "/rambles", {
+        date: "2026-10-29",
+        transcript: "t",
+        visibility: "shared",
+        people: [{ id: s.anna }],
+        conversations: [{ kind: "call", summary: "Anruf", present: [0] }],
+      })
+    ).json;
     expect((await call(s.b, "DELETE", `/rambles/${r.rambleId}`)).status).toBe(403);
     expect((await call(s.a, "DELETE", `/rambles/${r.rambleId}`)).status).toBe(204);
     expect((await call(s.a, "GET", `/conversations/${r.conversations[0].id}`)).status).toBe(404);
@@ -472,7 +536,14 @@ describe("rambles", () => {
 
 describe("experiences", () => {
   test("GET /experiences lists the caller's and shared ones; the partner never sees a private one", async () => {
-    const ramble = (v: typeof s.a, title: string, extra: object = {}) => call(v, "POST", "/rambles", { date: "2026-10-28", transcript: title, visibility: "shared", people: [], experiences: [{ kind: "Konzert", title, ...extra }] });
+    const ramble = (v: typeof s.a, title: string, extra: object = {}) =>
+      call(v, "POST", "/rambles", {
+        date: "2026-10-28",
+        transcript: title,
+        visibility: "shared",
+        people: [],
+        experiences: [{ kind: "Konzert", title, ...extra }],
+      });
     expect((await ramble(s.a, "Wanda")).status).toBe(201);
     expect((await ramble(s.a, "Geheim", { private: true })).status).toBe(201);
     expect((await call(s.a, "GET", "/experiences?kind=Konzert")).json.experiences.map((e: { title: string }) => e.title).sort()).toEqual(["Geheim", "Wanda"]);
@@ -482,7 +553,15 @@ describe("experiences", () => {
 
 describe("series and places", () => {
   test("GET /series/{id} and /places/{id}: the caller's, 404 for one the partner can't see", async () => {
-    const r = (await call(s.a, "POST", "/rambles", { date: "2026-10-28", transcript: "t", visibility: "private", people: [], experiences: [{ kind: "Kurs", title: "Erste", place: "Praxis am Markt", series: { name: "Gruppe", rhythmDays: 7 } }] })).json;
+    const r = (
+      await call(s.a, "POST", "/rambles", {
+        date: "2026-10-28",
+        transcript: "t",
+        visibility: "private",
+        people: [],
+        experiences: [{ kind: "Kurs", title: "Erste", place: "Praxis am Markt", series: { name: "Gruppe", rhythmDays: 7 } }],
+      })
+    ).json;
     const seriesId = r.experiences[0].seriesId;
     const series = await call(s.a, "GET", `/series/${seriesId}`);
     expect(series.status).toBe(200);
@@ -494,7 +573,13 @@ describe("series and places", () => {
   });
 
   test("GET /places by person and inside a place, and exactly one of q, person, inside", async () => {
-    await call(s.a, "POST", "/rambles", { date: "2026-10-28", transcript: "t", visibility: "shared", people: [{ id: s.anna }], conversations: [{ kind: "in_person", summary: "Konzert", present: [0], place: { name: "Olympiahalle", in: "München" } }] });
+    await call(s.a, "POST", "/rambles", {
+      date: "2026-10-28",
+      transcript: "t",
+      visibility: "shared",
+      people: [{ id: s.anna }],
+      conversations: [{ kind: "in_person", summary: "Konzert", present: [0], place: { name: "Olympiahalle", in: "München" } }],
+    });
     const byPerson = await call(s.a, "GET", `/places?person=${s.anna}`);
     const oly = byPerson.json.find((p: { name: string }) => p.name === "Olympiahalle");
     expect(oly).toMatchObject({ times: 1, last: "2026-10-28", parents: [{ name: "München" }] });

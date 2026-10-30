@@ -86,7 +86,12 @@ const migrations: Record<string, Migration> = {
           .addColumn("person_id", "text", person)
           .addColumn("text", "text", (c) => c.notNull())
           .addColumn("category", "text", (c) => c.notNull())
-          .addColumn("status", "text", (c) => c.notNull().defaultTo("current").check(oneOf("status", ["current", "outdated"])))
+          .addColumn("status", "text", (c) =>
+            c
+              .notNull()
+              .defaultTo("current")
+              .check(oneOf("status", ["current", "outdated"])),
+          )
           // On an outdated fact: the fact that replaced it, so that one can't turn private later and leave the old one without a successor.
           .addColumn("superseded_by", "text", (c) => c.references("facts.id").onDelete("set null")),
       ).execute();
@@ -170,9 +175,18 @@ const migrations: Record<string, Migration> = {
   // with it, and other names that resolve to it, like a person's aliases.
   "002_groups": {
     async up(db: Kysely<any>) {
-      await db.schema.alterTable("groups").addColumn("created_by", "text", (c) => c.references("users.id").onDelete("set null")).execute();
-      await db.schema.alterTable("groups").addColumn("created_at", "integer", (c) => c.notNull().defaultTo(0)).execute();
-      await db.schema.alterTable("groups").addColumn("seeded", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema
+        .alterTable("groups")
+        .addColumn("created_by", "text", (c) => c.references("users.id").onDelete("set null"))
+        .execute();
+      await db.schema
+        .alterTable("groups")
+        .addColumn("created_at", "integer", (c) => c.notNull().defaultTo(0))
+        .execute();
+      await db.schema
+        .alterTable("groups")
+        .addColumn("seeded", "integer", (c) => c.notNull().defaultTo(0))
+        .execute();
       const t = Date.now();
       await db.updateTable("groups").set({ created_at: t }).execute();
       await db.schema
@@ -184,7 +198,11 @@ const migrations: Record<string, Migration> = {
         .execute();
       // Names are compared normalised from now on, so groups whose names differ only in case or spacing ("Uni", " uni") become
       // one, the oldest row: memberships move over, one row per person and recorder, and shared beats private.
-      const all = await db.selectFrom("groups").select(["id", "name"]).orderBy(sql`rowid`).execute();
+      const all = await db
+        .selectFrom("groups")
+        .select(["id", "name"])
+        .orderBy(sql`rowid`)
+        .execute();
       const kept = new Map<string, string>();
       for (const g of all) {
         const keep = kept.get(norm(g.name));
@@ -200,7 +218,11 @@ const migrations: Record<string, Migration> = {
             .where("person_id", "=", m.person_id)
             .where("recorded_by", "=", m.recorded_by)
             .executeTakeFirst();
-          if (!there) await db.insertInto("group_members").values({ ...m, group_id: keep }).execute();
+          if (!there)
+            await db
+              .insertInto("group_members")
+              .values({ ...m, group_id: keep })
+              .execute();
           else if (there.visibility === "private" && m.visibility === "shared")
             await db
               .updateTable("group_members")
@@ -222,7 +244,11 @@ const migrations: Record<string, Migration> = {
           await db.insertInto("groups").values({ id, name: g.name, created_by: null, created_at: t, seeded: 1 }).execute();
         } else await db.updateTable("groups").set({ seeded: 1 }).where("id", "=", id).execute();
         for (const alias of g.aliases)
-          await db.insertInto("group_aliases").values({ group_id: id, alias, norm: norm(alias) }).onConflict((oc) => oc.doNothing()).execute();
+          await db
+            .insertInto("group_aliases")
+            .values({ group_id: id, alias, norm: norm(alias) })
+            .onConflict((oc) => oc.doNothing())
+            .execute();
       }
     },
   },
@@ -272,7 +298,11 @@ const migrations: Record<string, Migration> = {
     async up(db) {
       const symmetric = new Set(["partner", "spouse", "sibling", "friend", "colleague", "other"]);
       const key = (r: { from_id: string; to_id: string; type: string }) =>
-        r.type === "child" ? `parent:${r.to_id}:${r.from_id}` : symmetric.has(r.type) ? `${r.type}:${[r.from_id, r.to_id].sort().join(":")}` : `${r.type}:${r.from_id}:${r.to_id}`;
+        r.type === "child"
+          ? `parent:${r.to_id}:${r.from_id}`
+          : symmetric.has(r.type)
+            ? `${r.type}:${[r.from_id, r.to_id].sort().join(":")}`
+            : `${r.type}:${r.from_id}:${r.to_id}`;
       const norm = (n: string | null) => (n ?? "").trim().toLowerCase();
       const rows: { id: string; from_id: string; to_id: string; type: string; note: string | null; recorded_by: string; visibility: string }[] = await db
         .selectFrom("relationships")
@@ -283,7 +313,11 @@ const migrations: Record<string, Migration> = {
       const kept: typeof rows = [];
       for (const r of rows) {
         const same = kept.find(
-          (k) => k.recorded_by === r.recorded_by && k.visibility === r.visibility && key(k) === key(r) && (r.type !== "other" || !norm(k.note) || !norm(r.note) || norm(k.note) === norm(r.note)),
+          (k) =>
+            k.recorded_by === r.recorded_by &&
+            k.visibility === r.visibility &&
+            key(k) === key(r) &&
+            (r.type !== "other" || !norm(k.note) || !norm(r.note) || norm(k.note) === norm(r.note)),
         );
         if (!same) {
           kept.push(r);
@@ -365,7 +399,12 @@ const migrations: Record<string, Migration> = {
 
       await db.schema
         .alterTable("facts")
-        .addColumn("kind", "text", (c) => c.notNull().defaultTo("lasting").check(oneOf("kind", ["lasting", "situation"])))
+        .addColumn("kind", "text", (c) =>
+          c
+            .notNull()
+            .defaultTo("lasting")
+            .check(oneOf("kind", ["lasting", "situation"])),
+        )
         .execute();
       await db.schema.alterTable("facts").addColumn("check_after", "text").execute();
       await db.schema
@@ -387,7 +426,12 @@ const migrations: Record<string, Migration> = {
           .addColumn("person_id", "text", (c) => c.notNull().references("persons.id").onDelete("cascade"))
           .addColumn("text", "text", (c) => c.notNull())
           .addColumn("category", "text", (c) => c.notNull())
-          .addColumn("status", "text", (c) => c.notNull().defaultTo("current").check(oneOf("status", ["current", "outdated"])))
+          .addColumn("status", "text", (c) =>
+            c
+              .notNull()
+              .defaultTo("current")
+              .check(oneOf("status", ["current", "outdated"])),
+          )
           .addColumn("superseded_by", "text", (c) => c.references("facts.id").onDelete("set null"))
           .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
           .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
@@ -396,12 +440,19 @@ const migrations: Record<string, Migration> = {
           .addColumn("source", "text")
           .addColumn("happened_on", "text")
           .addColumn("screenshot_id", "text", (c) => c.references("screenshots.id").onDelete("set null"))
-          .addColumn("kind", "text", (c) => c.notNull().defaultTo("lasting").check(oneOf("kind", ["lasting", "situation", "need", "personality"])))
+          .addColumn("kind", "text", (c) =>
+            c
+              .notNull()
+              .defaultTo("lasting")
+              .check(oneOf("kind", ["lasting", "situation", "need", "personality"])),
+          )
           .addColumn("check_after", "text")
           .execute();
         const links = await tx.selectFrom("facts").select(["id", "superseded_by"]).where("superseded_by", "is not", null).execute();
         await sql`insert into facts_008 (id, person_id, text, category, status, superseded_by, visibility, recorded_by, conversation_id, created_at, source, happened_on, screenshot_id, kind, check_after)
-          select id, person_id, text, category, status, null, visibility, recorded_by, conversation_id, created_at, source, happened_on, screenshot_id, kind, check_after from facts`.execute(tx);
+          select id, person_id, text, category, status, null, visibility, recorded_by, conversation_id, created_at, source, happened_on, screenshot_id, kind, check_after from facts`.execute(
+          tx,
+        );
         await tx.schema.dropTable("facts").execute();
         await tx.schema.alterTable("facts_008").renameTo("facts").execute();
         for (const l of links) await tx.updateTable("facts").set({ superseded_by: l.superseded_by }).where("id", "=", l.id).execute();
@@ -415,7 +466,10 @@ const migrations: Record<string, Migration> = {
   "009_household_group": {
     async up(db) {
       await db.transaction().execute(async (tx) => {
-        await tx.schema.alterTable("groups").addColumn("household", "integer", (c) => c.notNull().defaultTo(0)).execute();
+        await tx.schema
+          .alterTable("groups")
+          .addColumn("household", "integer", (c) => c.notNull().defaultTo(0))
+          .execute();
         const t = Date.now();
         const existing = await tx.selectFrom("groups").select(["id", "name"]).orderBy("created_at").execute();
         let id = existing.find((g) => norm(g.name) === norm(HOUSEHOLD_GROUP))?.id;
@@ -441,13 +495,15 @@ const migrations: Record<string, Migration> = {
       await db.transaction().execute(async (tx) => {
         await tx.schema.alterTable("screenshots").renameTo("files").execute();
         await tx.schema.alterTable("facts").renameColumn("screenshot_id", "file_id").execute();
-        await tx.schema.alterTable("files").addColumn("media_type", "text", (c) => c.notNull().defaultTo("image/webp")).execute();
+        await tx.schema
+          .alterTable("files")
+          .addColumn("media_type", "text", (c) => c.notNull().defaultTo("image/webp"))
+          .execute();
         await tx.schema.alterTable("files").addColumn("blob_key", "text").execute();
         await sql`update files set blob_key = 'screenshots/' || id || '.webp'`.execute(tx);
       });
     },
   },
-
 
   // A ramble (what the user told, word for word) is its own record, so one can be split into journal entries, conversations
   // and items that all point to it. Each conversation's transcript moves into a ramble of its own, under the conversation's
@@ -467,7 +523,10 @@ const migrations: Record<string, Migration> = {
           .execute();
         await sql`insert into rambles (id, date, transcript, transcript_private, visibility, recorded_by, created_at)
           select id, date, transcript, transcript_private, visibility, recorded_by, created_at from conversations`.execute(tx);
-        await tx.schema.alterTable("conversations").addColumn("ramble_id", "text", (c) => c.references("rambles.id").onDelete("cascade")).execute();
+        await tx.schema
+          .alterTable("conversations")
+          .addColumn("ramble_id", "text", (c) => c.references("rambles.id").onDelete("cascade"))
+          .execute();
         await sql`update conversations set ramble_id = id`.execute(tx);
         await tx.schema.alterTable("conversations").dropColumn("transcript").execute();
         await tx.schema.alterTable("conversations").dropColumn("transcript_private").execute();
@@ -516,7 +575,9 @@ const migrations: Record<string, Migration> = {
           .alterTable(t)
           .addColumn("ramble_id", "text", (c) => c.references("rambles.id").onDelete("cascade"))
           .execute();
-        await sql`update ${sql.table(t)} set ramble_id = (select ramble_id from conversations where conversations.id = ${sql.ref(`${t}.conversation_id`)}) where conversation_id is not null`.execute(db);
+        await sql`update ${sql.table(t)} set ramble_id = (select ramble_id from conversations where conversations.id = ${sql.ref(`${t}.conversation_id`)}) where conversation_id is not null`.execute(
+          db,
+        );
         await db.schema.createIndex(`${t}_by_ramble`).on(t).column("ramble_id").execute();
       }
     },
@@ -544,7 +605,12 @@ const migrations: Record<string, Migration> = {
         .alterTable("conversations")
         .addColumn("place_id", "text", (c) => c.references("places.id").onDelete("set null"))
         .execute();
-      const rows = await db.selectFrom("conversations").select(["id", "recorded_by", "place", "created_at"]).where("place", "is not", null).orderBy("created_at").execute();
+      const rows = await db
+        .selectFrom("conversations")
+        .select(["id", "recorded_by", "place", "created_at"])
+        .where("place", "is not", null)
+        .orderBy("created_at")
+        .execute();
       const made = new Map<string, string>();
       for (const r of rows as Array<{ id: string; recorded_by: string; place: string; created_at: number }>) {
         const name = r.place.trim();
@@ -660,7 +726,12 @@ const migrations: Record<string, Migration> = {
     async up(db) {
       await db.schema
         .alterTable("users")
-        .addColumn("language", "text", (c) => c.notNull().defaultTo("de").check(oneOf("language", ["de", "en"])))
+        .addColumn("language", "text", (c) =>
+          c
+            .notNull()
+            .defaultTo("de")
+            .check(oneOf("language", ["de", "en"])),
+        )
         .execute();
     },
   },

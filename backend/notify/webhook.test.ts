@@ -15,7 +15,11 @@ const fake = (status = 200) => {
 describe("sendWebhook", () => {
   test("POSTs the body as text/plain with Title, Tags and Click", async () => {
     const { calls, fetchFn } = fake();
-    const ok = await sendWebhook("https://ntfy.example/topic", { title: "Hallo", body: "Zuletzt am 2026-01-01", tags: ["a", "b"], click: "https://f.example/p/1" }, fetchFn);
+    const ok = await sendWebhook(
+      "https://ntfy.example/topic",
+      { title: "Hallo", body: "Zuletzt am 2026-01-01", tags: ["a", "b"], click: "https://f.example/p/1" },
+      fetchFn,
+    );
     expect(ok).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe("https://ntfy.example/topic");

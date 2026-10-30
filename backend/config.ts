@@ -61,7 +61,10 @@ export const config = {
   // Who signs in: authentik (or any OIDC provider), see oidc/config.ts. `allow` is a comma-separated list of addresses,
   // @domain entries or *, trimmed and lowercased; unset or empty means * (authentik alone decides who gets in).
   oidc: () => {
-    const allow = env("FREUNDEBUCH_OIDC_ALLOW").split(",").map((n) => n.trim().toLowerCase()).filter(Boolean);
+    const allow = env("FREUNDEBUCH_OIDC_ALLOW")
+      .split(",")
+      .map((n) => n.trim().toLowerCase())
+      .filter(Boolean);
     return {
       issuer: env("FREUNDEBUCH_OIDC_ISSUER"),
       clientId: env("FREUNDEBUCH_OIDC_CLIENT_ID"),
@@ -84,5 +87,6 @@ export const config = {
   // The Playwright tests' sign-in without authentik (auth/e2e.ts). Never in a production build: Next inlines NODE_ENV when it
   // builds, so in the image this is false whatever FREUNDEBUCH_E2E says.
   e2e: (): boolean => env("FREUNDEBUCH_E2E") === "1" && process.env.NODE_ENV !== "production",
-  logLevel: (): LogLevel => ((l) => ((LOG_LEVELS as readonly string[]).includes(l) ? (l as LogLevel) : "info"))(env("FREUNDEBUCH_LOG_LEVEL").trim().toLowerCase()),
+  logLevel: (): LogLevel =>
+    ((l) => ((LOG_LEVELS as readonly string[]).includes(l) ? (l as LogLevel) : "info"))(env("FREUNDEBUCH_LOG_LEVEL").trim().toLowerCase()),
 };

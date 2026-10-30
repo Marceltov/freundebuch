@@ -19,7 +19,8 @@ export type Seed = {
   call: string;
 };
 
-export const DINNER_TRANSCRIPT = "Dinner with Anna at Luigi's. She starts a new job at the museum next month. In confidence: she and Tom are getting divorced. Tom's birthday is on 24 October.";
+export const DINNER_TRANSCRIPT =
+  "Dinner with Anna at Luigi's. She starts a new job at the museum next month. In confidence: she and Tom are getting divorced. Tom's birthday is on 24 October.";
 
 /** Resets the database and records the fixture. */
 export async function seed(): Promise<Seed> {

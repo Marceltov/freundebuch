@@ -60,7 +60,8 @@ async function rpc(as: Viewer | null, method: string, params: Record<string, unk
     }),
   );
 }
-const call = async (as: Viewer, tool: string, args: Record<string, unknown>): Promise<Json> => (await (await rpc(as, "tools/call", { name: tool, arguments: args })).json()).result;
+const call = async (as: Viewer, tool: string, args: Record<string, unknown>): Promise<Json> =>
+  (await (await rpc(as, "tools/call", { name: tool, arguments: args })).json()).result;
 
 const ramble = (over: object = {}) => ({
   date: "2026-10-22",
@@ -100,7 +101,9 @@ describe("protocol", () => {
       "whats_due",
     ]);
     for (const t of tools) {
-      expect(t.annotations?.readOnlyHint === true, t.name).toBe(["find_person", "people", "briefing", "traits", "journal", "experiences", "places", "whats_due", "get_transcript", "groups", "search"].includes(t.name));
+      expect(t.annotations?.readOnlyHint === true, t.name).toBe(
+        ["find_person", "people", "briefing", "traits", "journal", "experiences", "places", "whats_due", "get_transcript", "groups", "search"].includes(t.name),
+      );
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
       // calendar_feed, which can end a calendar's subscription.
       const writes = ["record", "relate", "remember", "set_interval"].includes(t.name);
@@ -114,14 +117,24 @@ describe("protocol", () => {
       for (const ref of JSON.stringify(t.inputSchema).match(/"\$ref":"[^"]*"/g) ?? []) {
         const path = ref.slice(8, -1);
         expect(path, t.name).toMatch(/^#\//);
-        expect(path.slice(2).split("/").reduce((o: Record<string, unknown> | undefined, k) => o?.[k] as Record<string, unknown> | undefined, t.inputSchema), `${t.name} ${path}`).toBeDefined();
+        expect(
+          path
+            .slice(2)
+            .split("/")
+            .reduce((o: Record<string, unknown> | undefined, k) => o?.[k] as Record<string, unknown> | undefined, t.inputSchema),
+          `${t.name} ${path}`,
+        ).toBeDefined();
       }
     }
     const find = tools.find((t: { name: string }) => t.name === "find_person");
     expect(find.description).toContain("always call this before referring to a person by id");
     // Not every client passes the server instructions on, so the ask-first rules are in the descriptions too.
     const description = (name: string) => tools.find((t: { name: string }) => t.name === name).description;
-    for (const phrase of ["resolve every person with find_person", "ask the user when a name fits more than one person or resembles an existing one", "keep it out of the summary"])
+    for (const phrase of [
+      "resolve every person with find_person",
+      "ask the user when a name fits more than one person or resembles an existing one",
+      "keep it out of the summary",
+    ])
       expect(description("record")).toContain(phrase);
     expect(description("correct")).toContain("the conversation was on another day");
     expect(description("record")).toContain("a conversation on another day gets its own date");
@@ -154,7 +167,10 @@ describe("protocol", () => {
     const garbage = await rpc(null, "tools/list", {}, { authorization: "Bearer nope" });
     expect(garbage.status).toBe(401);
     // One we signed for the API, or one that has expired: the client should refresh.
-    for (const token of [sign("access", { aud: "http://localhost:3000/api/v1", uid: s.a.userId }), sign("access", { aud: RESOURCE, uid: s.a.userId }, Date.now() - 7200_000)]) {
+    for (const token of [
+      sign("access", { aud: "http://localhost:3000/api/v1", uid: s.a.userId }),
+      sign("access", { aud: RESOURCE, uid: s.a.userId }, Date.now() - 7200_000),
+    ]) {
       const res = await rpc(null, "tools/list", {}, { authorization: `Bearer ${token}` });
       expect(res.status).toBe(401);
       expect(res.headers.get("www-authenticate")).toBe(`Bearer error="invalid_token", ${metadata}`);
@@ -247,7 +263,18 @@ describe("tools", () => {
     const rel = await call(s.a, "relate", { kind: "relationship", from: s.lena, to: s.anna, label: "Kolleg:in", inverse: "Kolleg:in", visibility: "shared" });
     expect(rel.isError).toBeUndefined();
     expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.relationships).toEqual([
-      { id: expect.any(String), personId: s.lena, name: "Lena", label: "Kolleg:in", inverse: "Kolleg:in", note: null, direction: "in", url: `http://localhost:3000/p/${s.lena}`, visibility: "shared", mine: false },
+      {
+        id: expect.any(String),
+        personId: s.lena,
+        name: "Lena",
+        label: "Kolleg:in",
+        inverse: "Kolleg:in",
+        note: null,
+        direction: "in",
+        url: `http://localhost:3000/p/${s.lena}`,
+        visibility: "shared",
+        mine: false,
+      },
     ]);
     expect(rel.structuredContent.url).toBe(`http://localhost:3000/p/${s.lena}`);
     const group = await call(s.a, "relate", { kind: "group", name: "Uni", members: [s.anna, s.lena], visibility: "shared" });
@@ -257,10 +284,18 @@ describe("tools", () => {
     expect((await call(s.b, "briefing", { personId: s.anna })).structuredContent.groups.map((g: { name: string }) => g.name)).toEqual(["Uni"]);
     expect((await call(s.a, "briefing", { personId: s.tom })).structuredContent.person.birthday).toMatchObject({ date: "--10-24", age: null });
     expect((await call(s.b, "briefing", { personId: s.tom })).structuredContent.person.birthday).toBeNull();
-    expect((await call(s.a, "relate", { kind: "relationship", from: s.anna, to: s.anna, label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).isError).toBe(true);
+    expect(
+      (await call(s.a, "relate", { kind: "relationship", from: s.anna, to: s.anna, label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).isError,
+    ).toBe(true);
     // The flat schema lets any field through; the handler checks the shape of the kind.
-    expect(await call(s.a, "relate", { kind: "relationship", from: s.anna, label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^to: /) }] });
-    expect(await call(s.a, "relate", { kind: "group", name: "Uni", visibility: "shared" })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^members: /) }] });
+    expect(await call(s.a, "relate", { kind: "relationship", from: s.anna, label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringMatching(/^to: /) }],
+    });
+    expect(await call(s.a, "relate", { kind: "group", name: "Uni", visibility: "shared" })).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringMatching(/^members: /) }],
+    });
   });
 
   test("correct maps each action to its correction", async () => {
@@ -277,11 +312,17 @@ describe("tools", () => {
     expect(await call(s.a, "correct", { action: "rename", id: s.lena, name: "Lena M." })).toMatchObject(ok);
     expect(await call(s.b, "correct", { action: "alias", id: s.lena, alias: "Leni" })).toMatchObject(ok);
     expect((await call(s.a, "find_person", { name: "Leni" })).structuredContent.people[0]).toMatchObject({ id: s.lena, aliases: ["Leni"] });
-    expect(await call(s.a, "correct", { action: "alias", id: s.lena })).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/^alias: /) }] });
+    expect(await call(s.a, "correct", { action: "alias", id: s.lena })).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringMatching(/^alias: /) }],
+    });
     expect(await call(s.a, "correct", { action: "merge", id: s.anna, drop: s.tom })).toMatchObject(ok);
     expect(await d.selectFrom("persons").select("id").where("id", "=", s.tom).execute()).toEqual([]);
     // The dinner still holds private items, so its transcript stays private; the coffee is B's to never see.
-    expect(await call(s.a, "correct", { action: "share_transcript", id: s.dinner })).toMatchObject({ isError: true, content: [{ text: expect.stringContaining("private") }] });
+    expect(await call(s.a, "correct", { action: "share_transcript", id: s.dinner })).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringContaining("private") }],
+    });
     expect(await call(s.b, "correct", { action: "share_transcript", id: s.coffee })).toMatchObject({ isError: true });
     expect(await call(s.a, "correct", { action: "share_transcript", id: s.call })).toMatchObject({ isError: true }); // B recorded it
     expect((await call(s.a, "correct", { action: "done", table: "facts", id: marathon })).isError).toBe(true);
@@ -297,18 +338,32 @@ describe("tools", () => {
     expect(b.roles).toMatchObject([{ label: "Vermieter:in", with: "us" }]);
     expect(b.network.nodes).toHaveLength(3);
     for (const n of b.network.nodes) expect(n.url).toMatch(/^http:\/\/localhost:3000\/p\//);
-    expect(await call(s.a, "relate", { kind: "relationship", from: "me", to: "us", label: "Freund:in", inverse: "Freund:in", visibility: "shared" })).toMatchObject({ isError: true });
+    expect(
+      await call(s.a, "relate", { kind: "relationship", from: "me", to: "us", label: "Freund:in", inverse: "Freund:in", visibility: "shared" }),
+    ).toMatchObject({ isError: true });
   });
 
   test("correct to_relationship and gender over MCP; facts take a kind", async () => {
-    await call(s.a, "remember", { visibility: "shared", facts: [{ person: s.lena, text: "unsere Nachbarin", category: "home" }, { person: s.lena, text: "sucht einen Hund", category: "hobby", kind: "situation", checkAfter: "2026-12-01" }] });
+    await call(s.a, "remember", {
+      visibility: "shared",
+      facts: [
+        { person: s.lena, text: "unsere Nachbarin", category: "home" },
+        { person: s.lena, text: "sucht einen Hund", category: "hobby", kind: "situation", checkAfter: "2026-12-01" },
+      ],
+    });
     const d = await db();
     const id = (await d.selectFrom("facts").select("id").where("text", "=", "unsere Nachbarin").executeTakeFirstOrThrow()).id;
     const ok = { structuredContent: { corrected: true } };
     expect(await call(s.a, "correct", { action: "to_relationship", id, from: s.lena, to: "us", label: "Nachbar:in", inverse: "Nachbar:in" })).toMatchObject(ok);
     // The gender comes back with the relationships whose words Claude puts in it.
     const gender = (await call(s.a, "correct", { action: "gender", id: s.lena, gender: "female" })).structuredContent;
-    expect(gender).toMatchObject({ corrected: true, relabel: [{ fromName: "Lena", label: "Nachbar:in" }, { fromName: "Lena", label: "Nachbar:in" }] });
+    expect(gender).toMatchObject({
+      corrected: true,
+      relabel: [
+        { fromName: "Lena", label: "Nachbar:in" },
+        { fromName: "Lena", label: "Nachbar:in" },
+      ],
+    });
     await call(s.a, "correct", { action: "edit", table: "relationships", id: gender.relabel[0].id, patch: { label: "Nachbarin" } });
     const b = (await call(s.b, "briefing", { personId: s.lena })).structuredContent;
     expect(b.person.gender).toBe("female");
@@ -318,7 +373,17 @@ describe("tools", () => {
     expect(await call(s.a, "correct", { action: "gender", id: s.lena, gender: null })).toMatchObject(ok);
     expect((await call(s.a, "briefing", { personId: s.lena })).structuredContent.person.gender).toBeNull();
     expect(await call(s.a, "correct", { action: "to_relationship", id })).toMatchObject({ isError: true });
-    const rec = await call(s.a, "record", asRamble(ramble({ people: [{ name: "Marina", present: true, gender: "female", confirmedNew: true }], facts: [], relationships: [{ from: 0, to: "us", label: "Vermieter:in", inverse: "Mieter:in" }] })));
+    const rec = await call(
+      s.a,
+      "record",
+      asRamble(
+        ramble({
+          people: [{ name: "Marina", present: true, gender: "female", confirmedNew: true }],
+          facts: [],
+          relationships: [{ from: 0, to: "us", label: "Vermieter:in", inverse: "Mieter:in" }],
+        }),
+      ),
+    );
     expect(rec.structuredContent.counts.relationships).toBe(2);
   });
 
@@ -326,7 +391,9 @@ describe("tools", () => {
     await sql`drop table person_settings`.execute(await db());
     const r = await call(s.a, "whats_due", {});
     expect(r).toMatchObject({ isError: true, content: [{ text: "internal error" }] });
-    expect(logs.map((l) => JSON.parse(l))).toEqual([expect.objectContaining({ level: "error", component: "mcp", msg: "tool failed", err: expect.objectContaining({ type: "SqliteError" }) })]);
+    expect(logs.map((l) => JSON.parse(l))).toEqual([
+      expect.objectContaining({ level: "error", component: "mcp", msg: "tool failed", err: expect.objectContaining({ type: "SqliteError" }) }),
+    ]);
   });
 });
 
@@ -352,7 +419,11 @@ describe("groups over MCP", () => {
       expect((await call(s.a, "correct", { action, id, ...extra })).isError, action).toBeUndefined();
     const freunde = (await call(s.a, "groups", {})).structuredContent.groups.find((g: { name: string }) => g.name === "Freunde");
     expect((await call(s.a, "correct", { action: "group_merge", id: freunde.id, drop: id })).isError).toBeUndefined();
-    expect((await call(s.a, "groups", {})).structuredContent.groups.find((g: { name: string }) => g.name === "Freunde").aliases).toEqual(["Chor", "Freundeskreis", "Singen"]);
+    expect((await call(s.a, "groups", {})).structuredContent.groups.find((g: { name: string }) => g.name === "Freunde").aliases).toEqual([
+      "Chor",
+      "Freundeskreis",
+      "Singen",
+    ]);
     expect((await call(s.a, "correct", { action: "group_delete", id: freunde.id })).isError).toBeUndefined();
   });
 
@@ -368,7 +439,9 @@ describe("privacy over MCP", () => {
     const id = r.structuredContent.conversations[0].id;
     const d = await db();
     const money = (await d.selectFrom("facts").select("id").where("text", "=", "worried about money").executeTakeFirstOrThrow()).id;
-    expect(await call(s.a, "correct", { action: "visibility", table: "facts", id: money, visibility: "shared" })).toMatchObject({ structuredContent: { corrected: true } });
+    expect(await call(s.a, "correct", { action: "visibility", table: "facts", id: money, visibility: "shared" })).toMatchObject({
+      structuredContent: { corrected: true },
+    });
     expect((await call(s.b, "get_transcript", { conversationId: id })).structuredContent.transcript).toBeNull();
     expect(await call(s.a, "correct", { action: "share_transcript", id })).toMatchObject({ structuredContent: { corrected: true } });
     expect((await call(s.b, "get_transcript", { conversationId: id })).structuredContent.transcript).toContain("worried about money");
@@ -388,7 +461,12 @@ describe("privacy over MCP", () => {
     await call(s.a, "relate", { kind: "relationship", from: s.lena, to: s.anna, label: "Geschwister", inverse: "Geschwister", visibility: "private" });
     await call(s.a, "relate", { kind: "group", name: "Therapy group", members: [s.anna, s.lena], visibility: "private" });
     expect((await call(s.a, "find_person", { name: "Lena" })).structuredContent.people[0].context).toContain("Geschwister of Anna");
-    const seen = JSON.stringify([await call(s.b, "find_person", { name: "Lena" }), await call(s.b, "find_person", { name: "Anna" }), await call(s.b, "briefing", { personId: s.anna }), await call(s.b, "briefing", { personId: s.lena })]);
+    const seen = JSON.stringify([
+      await call(s.b, "find_person", { name: "Lena" }),
+      await call(s.b, "find_person", { name: "Anna" }),
+      await call(s.b, "briefing", { personId: s.anna }),
+      await call(s.b, "briefing", { personId: s.lena }),
+    ]);
     for (const secret of ["sibling", "Therapy"]) expect(seen).not.toContain(secret);
   });
 
@@ -414,7 +492,12 @@ describe("calendar feed over MCP", () => {
     expect(next.url).not.toBe(first.url);
     expect((await calendarRoute(new Request(first.url), first.url.split("/").pop())).status).toBe(404);
 
-    expect((await call(s.a, "calendar_feed", { action: "revoke" })).structuredContent).toEqual({ active: false, created: false, url: null, next: ["The feed is off: calendars subscribed to it go empty."] });
+    expect((await call(s.a, "calendar_feed", { action: "revoke" })).structuredContent).toEqual({
+      active: false,
+      created: false,
+      url: null,
+      next: ["The feed is off: calendars subscribed to it go empty."],
+    });
     expect((await calendarRoute(new Request(next.url), next.url.split("/").pop())).status).toBe(404);
     // Each user has their own.
     expect((await call(s.b, "calendar_feed", { action: "show" })).structuredContent.created).toBe(true);
@@ -424,14 +507,21 @@ describe("calendar feed over MCP", () => {
 test("inbox list hands an outside Claude the files themselves: images as images, PDFs and text as resources", async () => {
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-mcp-inbox-")));
   const sharp = (await import("sharp")).default;
-  const png = new Uint8Array(await sharp({ create: { width: 20, height: 20, channels: 3, background: { r: 9, g: 9, b: 9 } } }).png().toBuffer());
+  const png = new Uint8Array(
+    await sharp({ create: { width: 20, height: 20, channels: 3, background: { r: 9, g: 9, b: 9 } } })
+      .png()
+      .toBuffer(),
+  );
   const img = await shareFile(s.a, png, "image/png");
   const txt = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend"), "text/plain");
   const r = await call(s.a, "inbox", { action: "list" });
   const blocks = r.content as Array<Record<string, unknown>>;
   expect(blocks[0].type).toBe("text");
   expect(blocks).toContainEqual({ type: "image", data: expect.any(String), mimeType: "image/webp" });
-  expect(blocks).toContainEqual({ type: "resource", resource: { uri: `freundebuch:file/${txt.id}`, mimeType: "text/plain", text: "Patrick: Freitag Spieleabend" } });
+  expect(blocks).toContainEqual({
+    type: "resource",
+    resource: { uri: `freundebuch:file/${txt.id}`, mimeType: "text/plain", text: "Patrick: Freitag Spieleabend" },
+  });
   expect(r.structuredContent.files.map((f: Json) => f.id).sort()).toEqual([img.id, txt.id].sort());
 });
 

@@ -11,7 +11,8 @@ const MAX_DESCRIPTION = 500;
 export function checkLook(look: unknown): Look {
   if (!look || typeof look !== "object") throw new InvalidInputError("A look needs its parts");
   const l = look as Record<string, unknown>;
-  for (const key of Object.keys(l)) if (key !== "description" && !(key in LOOK_PARTS)) throw new InvalidInputError(`A look has no part "${key}"; the parts are ${LOOK_PART_NAMES.join(", ")}`);
+  for (const key of Object.keys(l))
+    if (key !== "description" && !(key in LOOK_PARTS)) throw new InvalidInputError(`A look has no part "${key}"; the parts are ${LOOK_PART_NAMES.join(", ")}`);
   for (const part of LOOK_PART_NAMES) {
     const values: readonly string[] = LOOK_PARTS[part];
     if (!values.includes(l[part] as string)) throw new InvalidInputError(`A look's ${part} must be one of ${values.join(", ")}`);
@@ -38,7 +39,11 @@ export async function setLook(v: Viewer, personId: string, look: unknown): Promi
   void v;
   const checked = look === null ? null : checkLook(look);
   const d = await db();
-  const res = await d.updateTable("persons").set({ look: lookJson(checked) }).where("id", "=", personId).executeTakeFirst();
+  const res = await d
+    .updateTable("persons")
+    .set({ look: lookJson(checked) })
+    .where("id", "=", personId)
+    .executeTakeFirst();
   if (!res.numUpdatedRows) throw new NotFoundError("No such person");
   return checked;
 }

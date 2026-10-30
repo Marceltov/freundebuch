@@ -12,7 +12,6 @@ import type { SearchKind, Viewer } from "./types";
 import { itemPath, personPath, ramblePath } from "./urls";
 import { visible } from "./visibility";
 
-
 /**
  * One match. `text` is the matching text, cut around the first match when it is long; `date` the day it was told or happened
  * (null for a place); `rambleId` the ramble it was told in, when there is one.
@@ -61,23 +60,51 @@ export async function search(v: Viewer, query: string, limit = 20): Promise<Sear
     ? await d
         .selectFrom("rambles")
         .select(["id", "transcript"])
-        .where("id", "in", rambles.map((r) => r.id))
+        .where(
+          "id",
+          "in",
+          rambles.map((r) => r.id),
+        )
         .where((eb) => eb.or([eb("recorded_by", "=", v.userId), eb("transcript_private", "=", 0)]))
         .execute()
     : [];
   const transcripts = new Map(readable.map((r) => [r.id, r.transcript]));
   for (const r of rambles) {
-    const people = [...new Set([...r.conversations.flatMap((c) => c.people.map((p) => p.name)), ...r.experiences.flatMap((e) => e.people.map((p) => p.name)), ...r.journal.flatMap((j) => j.people.map((p) => p.name))])];
+    const people = [
+      ...new Set([
+        ...r.conversations.flatMap((c) => c.people.map((p) => p.name)),
+        ...r.experiences.flatMap((e) => e.people.map((p) => p.name)),
+        ...r.journal.flatMap((j) => j.people.map((p) => p.name)),
+      ]),
+    ];
     const transcript = transcripts.get(r.id);
-    if (transcript && matches(words, transcript)) hits.push({ kind: "transcript", id: r.id, date: r.date, text: snippet(transcript, words), people, url: ramblePath(r.id), rambleId: r.id });
+    if (transcript && matches(words, transcript))
+      hits.push({ kind: "transcript", id: r.id, date: r.date, text: snippet(transcript, words), people, url: ramblePath(r.id), rambleId: r.id });
     for (const c of r.conversations)
       if (matches(words, c.summary, ...c.people.map((p) => p.name)))
-        hits.push({ kind: "conversation", id: c.id, date: c.date, text: snippet(c.summary, words), people: c.people.map((p) => p.name), url: c.url, rambleId: r.id });
+        hits.push({
+          kind: "conversation",
+          id: c.id,
+          date: c.date,
+          text: snippet(c.summary, words),
+          people: c.people.map((p) => p.name),
+          url: c.url,
+          rambleId: r.id,
+        });
     for (const e of r.experiences)
       if (matches(words, e.title, e.kind, e.summary, e.place?.name, e.series?.name, ...e.people.map((p) => p.name)))
-        hits.push({ kind: "experience", id: e.id, date: e.date, text: snippet([e.title, e.summary].filter(Boolean).join(": "), words), people: e.people.map((p) => p.name), url: e.url, rambleId: r.id });
+        hits.push({
+          kind: "experience",
+          id: e.id,
+          date: e.date,
+          text: snippet([e.title, e.summary].filter(Boolean).join(": "), words),
+          people: e.people.map((p) => p.name),
+          url: e.url,
+          rambleId: r.id,
+        });
     for (const j of r.journal)
-      if (matches(words, j.text, ...j.people.map((p) => p.name))) hits.push({ kind: "journal", id: j.id, date: j.date, text: snippet(j.text, words), people: j.people.map((p) => p.name), url: j.url, rambleId: r.id });
+      if (matches(words, j.text, ...j.people.map((p) => p.name)))
+        hits.push({ kind: "journal", id: j.id, date: j.date, text: snippet(j.text, words), people: j.people.map((p) => p.name), url: j.url, rambleId: r.id });
   }
 
   // Items about a person, filed in a conversation, with a ramble alone, or remembered without one.
@@ -85,7 +112,13 @@ export async function search(v: Viewer, query: string, limit = 20): Promise<Sear
     (await d
       .selectFrom(table as "facts")
       .innerJoin("persons", "persons.id", `${table as "facts"}.person_id`)
-      .select([`${table as "facts"}.id as id`, `${table as "facts"}.ramble_id as rambleId`, `${table as "facts"}.created_at as createdAt`, "persons.id as personId", "persons.name as name"])
+      .select([
+        `${table as "facts"}.id as id`,
+        `${table as "facts"}.ramble_id as rambleId`,
+        `${table as "facts"}.created_at as createdAt`,
+        "persons.id as personId",
+        "persons.name as name",
+      ])
       .$if(table === "dates", (qb) => qb.select((eb) => eb.fn.coalesce(eb.ref("dates.label" as "facts.text"), eb.val("")).as("text")))
       .$if(table !== "dates", (qb) => qb.select(`${table as "facts"}.text as text`))
       .$call((qb) => visible(qb, v, table as "facts"))
@@ -107,7 +140,15 @@ export async function search(v: Viewer, query: string, limit = 20): Promise<Sear
 
   for (const p of await listPlaces(v))
     if (matches(words, p.name, p.address, ...p.aliases))
-      hits.push({ kind: "place", id: p.id, date: null, text: [p.name, p.address].filter(Boolean).join(", "), people: p.owners.map((o) => o.name), url: p.url, rambleId: null });
+      hits.push({
+        kind: "place",
+        id: p.id,
+        date: null,
+        text: [p.name, p.address].filter(Boolean).join(", "),
+        people: p.owners.map((o) => o.name),
+        url: p.url,
+        rambleId: null,
+      });
 
   return hits.sort((x, y) => (y.date ?? "").localeCompare(x.date ?? "")).slice(0, Math.min(limit, MAX_LIMIT));
 }

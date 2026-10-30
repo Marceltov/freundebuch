@@ -62,9 +62,7 @@ export function FriendPage({
   const otherDates = b.nextDates.filter((d) => d.kind !== "birthday");
   const { promises, exchanges, giftIdeas } = b.open;
   const roles = roleLine(copy, b.roles, b.person.gender);
-  const drawn =
-    b.network.edges.length > 0 &&
-    layoutNetwork(b.network, viewerPersonId) !== null;
+  const drawn = b.network.edges.length > 0 && layoutNetwork(b.network, viewerPersonId) !== null;
   const list = (
     <ul className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-2">
       {b.relationships.map((r) => {
@@ -72,41 +70,18 @@ export function FriendPage({
         const theirs = r.direction === "out" ? "inverse" : "label";
         const what = [r[theirs], r.note].filter(Boolean).join(" · ");
         return (
-          <li
-            key={r.id}
-            id={anchorId("relationships", r.id)}
-            className="flex items-center rounded-2xl bg-surface pr-1 shadow-card"
-          >
-            <Link
-              href={r.url}
-              className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2 hover:bg-surface-2/60"
-            >
+          <li key={r.id} id={anchorId("relationships", r.id)} className="flex items-center rounded-2xl bg-surface pr-1 shadow-card">
+            <Link href={r.url} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2 hover:bg-surface-2/60">
               <Face id={r.personId} name={r.name} size={38} />
               <span className="min-w-0">
                 <span className="block truncate font-display text-lg leading-tight font-semibold">
                   {r.name}
-                  {r.visibility === "private" && (
-                    <Lock
-                      aria-label={copy.privateItem}
-                      className="ml-1.5 inline h-3.5 w-3.5 text-muted"
-                    />
-                  )}
+                  {r.visibility === "private" && <Lock aria-label={copy.privateItem} className="ml-1.5 inline h-3.5 w-3.5 text-muted" />}
                 </span>
-                {what && (
-                  <span className="block truncate text-sm text-muted">
-                    {what}
-                  </span>
-                )}
+                {what && <span className="block truncate text-sm text-muted">{what}</span>}
               </span>
             </Link>
-            <ItemActions
-              table="relationships"
-              field={theirs}
-              id={r.id}
-              mine={r.mine}
-              visibility={r.visibility}
-              text={r[theirs]}
-            />
+            <ItemActions table="relationships" field={theirs} id={r.id} mine={r.mine} visibility={r.visibility} text={r[theirs]} />
           </li>
         );
       })}
@@ -116,21 +91,11 @@ export function FriendPage({
     <article>
       <header>
         <div className="flex items-center gap-4">
-          <Face
-            id={b.person.id}
-            name={b.person.name}
-            size={80}
-            ratio={b.freshness.ratio}
-          />
+          <Face id={b.person.id} name={b.person.name} size={80} ratio={b.freshness.ratio} />
           <div className="min-w-0">
-            <h1 className="font-display text-3xl leading-tight font-bold">
-              {b.person.name}
-            </h1>
+            <h1 className="font-display text-3xl leading-tight font-bold">{b.person.name}</h1>
             {roles && (
-              <p
-                data-role-line
-                className="mt-0.5 font-display text-lg leading-snug text-carbon italic"
-              >
+              <p data-role-line className="mt-0.5 font-display text-lg leading-snug text-carbon italic">
                 {roles}
               </p>
             )}
@@ -160,16 +125,10 @@ export function FriendPage({
               {daysSince === null ? copy.neverSeen : ago(copy, daysSince)}
             </Chip>
             {birthday && (
-              <Chip
-                id={anchorId("dates", birthday.id)}
-                icon={Cake}
-                tone="bg-sun font-bold text-on-sun"
-              >
+              <Chip id={anchorId("dates", birthday.id)} icon={Cake} tone="bg-sun font-bold text-on-sun">
                 {dayMonth(copy, birthday.next)}
-                {/^\d{4}-/.test(birthday.date) &&
-                  ` ${birthday.date.slice(0, 4)}`}
-                {birthday.age !== null &&
-                  ` · ${copy.ageYears.replace("{n}", String(birthday.next === today ? birthday.age : birthday.age - 1))}`}
+                {/^\d{4}-/.test(birthday.date) && ` ${birthday.date.slice(0, 4)}`}
+                {birthday.age !== null && ` · ${copy.ageYears.replace("{n}", String(birthday.next === today ? birthday.age : birthday.age - 1))}`}
               </Chip>
             )}
             {b.homes.map((h) => (
@@ -190,13 +149,7 @@ export function FriendPage({
               </Chip>
             ))}
             {b.groups.map((g) => (
-              <Chip
-                key={g.id}
-                href={g.url}
-                icon={Users}
-                label={copy.group}
-                tone={groupTint(g.id)}
-              >
+              <Chip key={g.id} href={g.url} icon={Users} label={copy.group} tone={groupTint(g.id)}>
                 {g.name}
                 {g.private && (
                   <span title={copy.privateItem} className="inline-flex">
@@ -205,12 +158,7 @@ export function FriendPage({
                 )}
               </Chip>
             ))}
-            <GroupPicker
-              personId={b.person.id}
-              personName={b.person.name}
-              groups={allGroups}
-              member={b.groups.map((g) => g.id)}
-            />
+            <GroupPicker personId={b.person.id} personName={b.person.name} groups={allGroups} member={b.groups.map((g) => g.id)} />
           </div>
         </div>
       </header>
@@ -224,29 +172,16 @@ export function FriendPage({
               icon={CATEGORY_ICON[f.category]}
               private={f.visibility === "private"}
               tone={f.nudge ? "bg-sun/25 ring-1 ring-sun" : "bg-surface"}
-              actions={
-                <ItemActions
-                  table="facts"
-                  kind="situation"
-                  checkAfter={f.checkAfter}
-                  {...item(f)}
-                />
-              }
+              actions={<ItemActions table="facts" kind="situation" checkAfter={f.checkAfter} {...item(f)} />}
             >
               <FactText f={f} />
               {f.nudge ? (
                 <span className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
-                  <MessageCircleQuestionMark
-                    aria-hidden
-                    className="h-4 w-4 shrink-0 text-carbon"
-                  />
+                  <MessageCircleQuestionMark aria-hidden className="h-4 w-4 shrink-0 text-carbon" />
                   {nudge(f.since, today)}
                 </span>
               ) : (
-                <span className="text-muted">
-                  {" "}
-                  · {copy.askFrom.replace("{date}", dayMonth(copy, f.checkAfter))}
-                </span>
+                <span className="text-muted"> · {copy.askFrom.replace("{date}", dayMonth(copy, f.checkAfter))}</span>
               )}
             </Tile>
           ))}
@@ -290,9 +225,7 @@ export function FriendPage({
               id={anchorId("facts", f.id)}
               icon={CATEGORY_ICON[f.category]}
               private={f.visibility === "private"}
-              actions={
-                <ItemActions table="facts" kind="lasting" {...item(f)} />
-              }
+              actions={<ItemActions table="facts" kind="lasting" {...item(f)} />}
             >
               <FactText f={f} />
             </Tile>
@@ -312,9 +245,7 @@ export function FriendPage({
             >
               {(p.byMe || p.by) && <b>{p.byMe ? copy.byMe : p.by}: </b>}
               {p.text}
-              {p.due && (
-                <span className="text-muted"> · {shortDay(copy, p.due)}</span>
-              )}
+              {p.due && <span className="text-muted"> · {shortDay(copy, p.due)}</span>}
             </Tile>
           ))}
         </Section>
@@ -349,8 +280,7 @@ export function FriendPage({
               {e.by && <b>{e.by} </b>}
               <span aria-hidden>{e.direction === "to_them" ? "→ " : "← "}</span>
               {e.text}
-              {e.amount !== null &&
-                ` · ${e.amount}${e.currency ? ` ${e.currency}` : ""}`}
+              {e.amount !== null && ` · ${e.amount}${e.currency ? ` ${e.currency}` : ""}`}
             </Tile>
           ))}
         </Section>
@@ -382,24 +312,12 @@ export function FriendPage({
             const Icon = KIND_ICON[c.kind] ?? Coffee;
             return (
               <li key={c.id} className="flex items-start gap-3 py-1.5">
-                <span
-                  title={copy.kindName[c.kind]}
-                  className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2"
-                >
+                <span title={copy.kindName[c.kind]} className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2">
                   <Icon aria-label={copy.kindName[c.kind]} className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 text-sm">
                   <b>{shortDay(copy, c.date)}</b> {c.summary}
-                  {c.withOthers.length > 0 && (
-                    <span className="text-muted">
-                      {" "}
-                      ·{" "}
-                      {copy.withOthers.replace(
-                        "{names}",
-                        c.withOthers.join(", "),
-                      )}
-                    </span>
-                  )}{" "}
+                  {c.withOthers.length > 0 && <span className="text-muted"> · {copy.withOthers.replace("{names}", c.withOthers.join(", "))}</span>}{" "}
                   <Link
                     href={`/c/${c.id}`}
                     className="ml-1 inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs whitespace-nowrap hover:bg-rule/60"
@@ -444,13 +362,7 @@ function FactText({ f }: { f: Briefing["known"][number] }) {
     <>
       {f.text}
       {(f.source || f.happenedOn) && (
-        <span className="text-muted">
-          {" "}
-          ·{" "}
-          {[f.source, f.happenedOn && dayMonth(copy, f.happenedOn)]
-            .filter(Boolean)
-            .join(", ")}
-        </span>
+        <span className="text-muted"> · {[f.source, f.happenedOn && dayMonth(copy, f.happenedOn)].filter(Boolean).join(", ")}</span>
       )}
       {f.imageUrl && (
         <a
@@ -461,12 +373,7 @@ function FactText({ f }: { f: Briefing["known"][number] }) {
           title={copy.fileOf.replace("{source}", f.source ?? "")}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- a private image behind the sign-in, not for next/image */}
-          <img
-            src={f.imageUrl}
-            alt={copy.fileImage}
-            loading="lazy"
-            className="h-9 w-9 rounded-md bg-surface-2 object-cover object-top"
-          />
+          <img src={f.imageUrl} alt={copy.fileImage} loading="lazy" className="h-9 w-9 rounded-md bg-surface-2 object-cover object-top" />
         </a>
       )}
     </>
@@ -476,20 +383,14 @@ function FactText({ f }: { f: Briefing["known"][number] }) {
 // How long nothing was heard of a situation that nudges: from the day its latest news was filed.
 function nudge(since: string, today?: string): string {
   const copy = getCopy();
-  const weeks = today
-    ? Math.floor((Date.parse(today) - Date.parse(since)) / (7 * 86_400_000))
-    : 0;
-  return weeks >= 2
-    ? copy.nudge.replace("{weeks}", String(weeks))
-    : weeks === 1
-      ? copy.nudgeWeek
-      : copy.nudgeSoon;
+  const weeks = today ? Math.floor((Date.parse(today) - Date.parse(since)) / (7 * 86_400_000)) : 0;
+  return weeks >= 2 ? copy.nudge.replace("{weeks}", String(weeks)) : weeks === 1 ? copy.nudgeWeek : copy.nudgeSoon;
 }
 
 // What ItemActions needs of an item, and no more: it is a client component, so its props travel to the browser.
-const item = (x: {
-  id: string;
-  mine: boolean;
-  visibility: "shared" | "private";
-  text: string;
-}) => ({ id: x.id, mine: x.mine, visibility: x.visibility, text: x.text });
+const item = (x: { id: string; mine: boolean; visibility: "shared" | "private"; text: string }) => ({
+  id: x.id,
+  mine: x.mine,
+  visibility: x.visibility,
+  text: x.text,
+});

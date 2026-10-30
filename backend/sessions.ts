@@ -19,14 +19,17 @@ export async function missedSessions(v: Viewer, today: string): Promise<MissedSe
     .selectAll()
     .where("rhythm_days", "is not", null)
     .$call((qb) => visible(qb, v, "series"))
-    .where("id", "in", (eb) =>
-      eb
-        .selectFrom("experiences")
-        .innerJoin("experience_people", "experience_people.experience_id", "experiences.id")
-        .select("experiences.series_id")
-        .where("experience_people.person_id", "=", v.personId)
-        .where("experiences.series_id", "is not", null)
-        .$call((qb) => visible(qb, v, "experiences")) as never,
+    .where(
+      "id",
+      "in",
+      (eb) =>
+        eb
+          .selectFrom("experiences")
+          .innerJoin("experience_people", "experience_people.experience_id", "experiences.id")
+          .select("experiences.series_id")
+          .where("experience_people.person_id", "=", v.personId)
+          .where("experiences.series_id", "is not", null)
+          .$call((qb) => visible(qb, v, "experiences")) as never,
     )
     .orderBy("name")
     .execute();

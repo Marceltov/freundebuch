@@ -6,7 +6,17 @@
 import type { Kysely } from "kysely";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates";
 import { moveMembership } from "./groups";
-import { checkLabel, checkRelationship, insertRelationships, MAX_JOURNAL, MAX_SUMMARY, MAX_TRANSCRIPT, PRIVATE_REPLACES_SHARED, SITUATION_DAYS, type FiledRelationship } from "./conversations";
+import {
+  checkLabel,
+  checkRelationship,
+  insertRelationships,
+  MAX_JOURNAL,
+  MAX_SUMMARY,
+  MAX_TRANSCRIPT,
+  PRIVATE_REPLACES_SHARED,
+  SITUATION_DAYS,
+  type FiledRelationship,
+} from "./conversations";
 import { resolveTarget, type Target } from "./household";
 import { db, now, type Schema } from "./db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
@@ -58,7 +68,11 @@ async function load(d: Kysely<Schema>, v: Viewer, table: ItemTable, id: string, 
   const recorder = row.recorded_by === v.userId;
   if (who === "recorder" && !recorder) throw new ForbiddenError("Only the person who recorded this may change who can see it");
   if (who === "editor" && !recorder && RECORDER_ONLY.includes(table))
-    throw new ForbiddenError(table === "journal_entries" ? "Only the person who wrote a journal entry may change or delete it" : `Only the person who recorded this ${table === "series" ? "series" : table.replace(/s$/, "")} may change or delete it`);
+    throw new ForbiddenError(
+      table === "journal_entries"
+        ? "Only the person who wrote a journal entry may change or delete it"
+        : `Only the person who recorded this ${table === "series" ? "series" : table.replace(/s$/, "")} may change or delete it`,
+    );
   return row;
 }
 
@@ -86,7 +100,15 @@ async function factState(d: Kysely<Schema>, id: string): Promise<FactState> {
     .select(["facts.id", "facts.person_id", "persons.name", "facts.text", "facts.kind", "facts.check_after", "facts.status"])
     .where("facts.id", "=", id)
     .executeTakeFirstOrThrow();
-  return { id: f.id, personId: f.person_id, name: f.name, text: f.text, kind: f.kind as FactKind, checkAfter: f.check_after, status: f.status as FactState["status"] };
+  return {
+    id: f.id,
+    personId: f.person_id,
+    name: f.name,
+    text: f.text,
+    kind: f.kind as FactKind,
+    checkAfter: f.check_after,
+    status: f.status as FactState["status"],
+  };
 }
 
 /** Marks a fact outdated. A shared fact may be marked by either user. */
@@ -137,15 +159,18 @@ const upTo =
     return s;
   };
 // What one end of a relationship is, in words; trimmed.
-const words = (which: string) => (value: unknown): string => {
-  checkLabel(value, which);
-  return (value as string).trim();
-};
+const words =
+  (which: string) =>
+  (value: unknown): string => {
+    checkLabel(value, which);
+    return (value as string).trim();
+  };
 
 // A place as edit takes it: a name, { id }, { name, confirmedNew? }, or null to clear it.
 const placeRef = (value: unknown, what: string): unknown => {
   if (value === null || typeof value === "string") return value;
-  if (value && typeof value === "object" && (typeof (value as { id?: unknown }).id === "string" || typeof (value as { name?: unknown }).name === "string")) return value;
+  if (value && typeof value === "object" && (typeof (value as { id?: unknown }).id === "string" || typeof (value as { name?: unknown }).name === "string"))
+    return value;
   throw new InvalidInputError(`${what} is a place's name, { id }, { name, confirmedNew: true }, or null`);
 };
 
@@ -214,7 +239,8 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
     rhythmDays: {
       column: "rhythm_days",
       check: (v, w) => {
-        if (v !== null && (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 366)) throw new InvalidInputError(`${w} is a whole number of days from 1 to 366, or null`);
+        if (v !== null && (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 366))
+          throw new InvalidInputError(`${w} is a whole number of days from 1 to 366, or null`);
         return v;
       },
     },
@@ -228,7 +254,12 @@ const FIELDS: Record<ItemTable, Record<string, Field>> = {
  * Changes the given fields of an item the viewer recorded. A fact comes back as it now stands; `defaultCheckAfter` when it just
  * became a situation without a checkAfter, so the server chose the day (SITUATION_DAYS from now).
  */
-export async function editItem(v: Viewer, table: ItemTable, id: string, patch: Record<string, unknown>): Promise<{ fact?: FactState & { defaultCheckAfter: boolean } }> {
+export async function editItem(
+  v: Viewer,
+  table: ItemTable,
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<{ fact?: FactState & { defaultCheckAfter: boolean } }> {
   assertTable(table);
   const d = await db();
   const row = await load(d, v, table, id, "editor");
@@ -237,8 +268,7 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
   const set: Record<string, unknown> = {};
   for (const k of keys) {
     const field = Object.hasOwn(FIELDS[table], k) ? FIELDS[table][k] : undefined;
-    if (!field)
-      throw new InvalidInputError(`A ${table.replace(/s$/, "")} has no editable field "${k}"; editable: ${Object.keys(FIELDS[table]).join(", ")}`);
+    if (!field) throw new InvalidInputError(`A ${table.replace(/s$/, "")} has no editable field "${k}"; editable: ${Object.keys(FIELDS[table]).join(", ")}`);
     set[field.column] = field.check(patch[k], k);
   }
   if (table === "dates") {
@@ -264,12 +294,19 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
   // One transaction: a new place is made only when the edit lands.
   await d.transaction().execute(async (tx) => {
     if ((table === "conversations" || table === "experiences" || table === "series") && "place" in set) {
-      set.place_id = set.place === null || set.place === "" ? null : await resolvePlace(tx, v, set.place as PlaceRef, (row as unknown as { visibility: Visibility }).visibility);
+      set.place_id =
+        set.place === null || set.place === ""
+          ? null
+          : await resolvePlace(tx, v, set.place as PlaceRef, (row as unknown as { visibility: Visibility }).visibility);
       delete set.place;
     }
     // A conversation's transcript is its ramble's.
     if (table === "conversations" && "transcript" in set) {
-      await tx.updateTable("rambles").set({ transcript: set.transcript as string }).where("id", "=", rambleOf(tx, id)).execute();
+      await tx
+        .updateTable("rambles")
+        .set({ transcript: set.transcript as string })
+        .where("id", "=", rambleOf(tx, id))
+        .execute();
       delete set.transcript;
     }
     if (Object.keys(set).length)
@@ -332,7 +369,12 @@ async function rambleOfRow(d: Kysely<Schema>, table: ItemTable, row: Row): Promi
 export async function shareTranscript(v: Viewer, id: string): Promise<void> {
   const d = await db();
   await d.transaction().execute(async (tx) => {
-    const own = await tx.selectFrom("rambles").select(["id", "recorded_by"]).where("id", "=", id).$call((qb) => visible(qb, v, "rambles")).executeTakeFirst();
+    const own = await tx
+      .selectFrom("rambles")
+      .select(["id", "recorded_by"])
+      .where("id", "=", id)
+      .$call((qb) => visible(qb, v, "rambles"))
+      .executeTakeFirst();
     let rambleId: string;
     if (own) {
       if (own.recorded_by !== v.userId) throw new ForbiddenError("Only the person who recorded this may change who can see it");
@@ -357,7 +399,12 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
     if (visibility === "private") await assertReplacesNothingShared(tx, table, id);
     // A private conversation forces private on all its items; share the conversation first.
     if (table === "experiences" && visibility === "shared") {
-      const series = await tx.selectFrom("experiences").innerJoin("series", "series.id", "experiences.series_id").select("series.visibility").where("experiences.id", "=", id).executeTakeFirst();
+      const series = await tx
+        .selectFrom("experiences")
+        .innerJoin("series", "series.id", "experiences.series_id")
+        .select("series.visibility")
+        .where("experiences.id", "=", id)
+        .executeTakeFirst();
       if (series?.visibility === "private") throw new InvalidInputError("This experience belongs to a private series: share the series first");
     }
     if (table !== "conversations" && visibility === "shared" && row.conversation_id) {
@@ -389,7 +436,8 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
     if (!rambleId) return;
     // A part shared makes its ramble exist for the partner (the transcript stays as it was); a part made private makes the
     // transcript private.
-    if (visibility === "shared" && (table === "conversations" || table === "journal_entries" || table === "experiences")) await tx.updateTable("rambles").set({ visibility }).where("id", "=", rambleId).execute();
+    if (visibility === "shared" && (table === "conversations" || table === "journal_entries" || table === "experiences"))
+      await tx.updateTable("rambles").set({ visibility }).where("id", "=", rambleId).execute();
     await raiseTranscriptPrivacy(tx, rambleId);
   });
 }
@@ -426,7 +474,14 @@ export async function skipSession(v: Viewer, seriesId: string, date: string): Pr
 /** Whether anything is left that was told in the ramble. */
 async function holdsAnything(d: Kysely<Schema>, rambleId: string): Promise<boolean> {
   for (const t of ["conversations", "journal_entries", "experiences", ...CONVERSATION_ITEMS] as const)
-    if (await d.selectFrom(t as "facts").select("id").where("ramble_id", "=", rambleId).executeTakeFirst()) return true;
+    if (
+      await d
+        .selectFrom(t as "facts")
+        .select("id")
+        .where("ramble_id", "=", rambleId)
+        .executeTakeFirst()
+    )
+      return true;
   return !!(await d.selectFrom("group_members").select("group_id").where("ramble_id", "=", rambleId).executeTakeFirst());
 }
 
@@ -463,8 +518,14 @@ export async function factToRelationship(
   const relationships = await d.transaction().execute(async (tx) => {
     const fact = (await load(tx, v, "facts", factId, "editor")) as Row & { person_id: string };
     const [froms, tos] = await Promise.all([resolveTarget(tx, v, r.from), resolveTarget(tx, v, r.to)]);
-    if (!froms.includes(fact.person_id) && !tos.includes(fact.person_id)) throw new InvalidInputError("The relationship must have the fact's person on one end");
-    const filed = await insertRelationships(tx, v, { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, ramble_id: fact.ramble_id ?? null, created_at: now() }, { ...r, visibility: fact.visibility as Visibility });
+    if (!froms.includes(fact.person_id) && !tos.includes(fact.person_id))
+      throw new InvalidInputError("The relationship must have the fact's person on one end");
+    const filed = await insertRelationships(
+      tx,
+      v,
+      { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, ramble_id: fact.ramble_id ?? null, created_at: now() },
+      { ...r, visibility: fact.visibility as Visibility },
+    );
     await tx.deleteFrom("facts").where("id", "=", factId).execute();
     return filed;
   });
@@ -481,7 +542,11 @@ export async function addParticipant(v: Viewer, conversationId: string, personId
   await d.transaction().execute(async (tx) => {
     await load(tx, v, "conversations", conversationId, "recorder");
     if (!(await tx.selectFrom("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
-    await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).onConflict((oc) => oc.doNothing()).execute();
+    await tx
+      .insertInto("participants")
+      .values({ conversation_id: conversationId, person_id: personId })
+      .onConflict((oc) => oc.doNothing())
+      .execute();
   });
 }
 
@@ -490,7 +555,12 @@ export async function removeParticipant(v: Viewer, conversationId: string, perso
   const d = await db();
   await d.transaction().execute(async (tx) => {
     await load(tx, v, "conversations", conversationId, "recorder");
-    const others = await tx.selectFrom("participants").select("person_id").where("conversation_id", "=", conversationId).where("person_id", "!=", personId).execute();
+    const others = await tx
+      .selectFrom("participants")
+      .select("person_id")
+      .where("conversation_id", "=", conversationId)
+      .where("person_id", "!=", personId)
+      .execute();
     if (!others.length) throw new InvalidInputError("A conversation needs at least one person: delete it instead, or add who was there first");
     await tx.deleteFrom("participants").where("conversation_id", "=", conversationId).where("person_id", "=", personId).execute();
   });
@@ -534,9 +604,7 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
     // A relationship between the two would become one with itself.
     await tx
       .deleteFrom("relationships")
-      .where((eb) =>
-        eb.or([eb.and([eb("from_id", "=", keepId), eb("to_id", "=", dropId)]), eb.and([eb("from_id", "=", dropId), eb("to_id", "=", keepId)])]),
-      )
+      .where((eb) => eb.or([eb.and([eb("from_id", "=", keepId), eb("to_id", "=", dropId)]), eb.and([eb("from_id", "=", dropId), eb("to_id", "=", keepId)])]))
       .execute();
     await tx.updateTable("relationships").set({ from_id: keepId }).where("from_id", "=", dropId).execute();
     await tx.updateTable("relationships").set({ to_id: keepId }).where("to_id", "=", dropId).execute();
@@ -578,7 +646,11 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
     await tx.deleteFrom("experience_people").where("person_id", "=", dropId).execute();
     // And their homes, each recorder's ownership once.
     for (const o of await tx.selectFrom("place_owners").selectAll().where("person_id", "=", dropId).execute())
-      await tx.insertInto("place_owners").values({ ...o, person_id: keepId }).onConflict((oc) => oc.doNothing()).execute();
+      await tx
+        .insertInto("place_owners")
+        .values({ ...o, person_id: keepId })
+        .onConflict((oc) => oc.doNothing())
+        .execute();
     await tx.deleteFrom("place_owners").where("person_id", "=", dropId).execute();
 
     for (const m of await tx.selectFrom("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute())
@@ -586,19 +658,9 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
 
     // Settings are per user. The confirmed interval wins; with both or neither confirmed, the smaller one does.
     for (const dropped of await tx.selectFrom("person_settings").selectAll().where("person_id", "=", dropId).execute()) {
-      const kept = await tx
-        .selectFrom("person_settings")
-        .selectAll()
-        .where("person_id", "=", keepId)
-        .where("user_id", "=", dropped.user_id)
-        .executeTakeFirst();
+      const kept = await tx.selectFrom("person_settings").selectAll().where("person_id", "=", keepId).where("user_id", "=", dropped.user_id).executeTakeFirst();
       if (!kept) {
-        await tx
-          .updateTable("person_settings")
-          .set({ person_id: keepId })
-          .where("person_id", "=", dropId)
-          .where("user_id", "=", dropped.user_id)
-          .execute();
+        await tx.updateTable("person_settings").set({ person_id: keepId }).where("person_id", "=", dropId).where("user_id", "=", dropped.user_id).execute();
         continue;
       }
       let winner = kept;

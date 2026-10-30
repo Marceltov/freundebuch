@@ -7,7 +7,22 @@ import * as z from "zod";
 import { briefing, type Briefing } from "./briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "./calendar";
 import { getConversation, record, remember, type FiledFact, type FiledRelationship } from "./conversations";
-import { addParticipant, deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, removeParticipant, renamePerson, setVisibility, shareTranscript, skipSession, type Moved } from "./corrections";
+import {
+  addParticipant,
+  deleteItem,
+  editItem,
+  factToRelationship,
+  ITEM_TABLES,
+  markDone,
+  markOutdated,
+  mergePeople,
+  removeParticipant,
+  renamePerson,
+  setVisibility,
+  shareTranscript,
+  skipSession,
+  type Moved,
+} from "./corrections";
 import { whatsDue } from "./due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "./groups";
 import { InvalidInputError } from "./errors";
@@ -46,7 +61,18 @@ import { traitsFor, type PersonTraits } from "./traits";
 import { journalEntries } from "./journal";
 import { deleteRamble, rambleTranscript } from "./rambles";
 import { experienceKinds, listExperiences, listSeries } from "./experiences";
-import { addPlaceAlias, addPlaceOwner, findPlaces, mergePlaces, placesInside, placesOf, removePlaceOwner, renamePlace, setPlaceAddress, setPlaceParent } from "./places";
+import {
+  addPlaceAlias,
+  addPlaceOwner,
+  findPlaces,
+  mergePlaces,
+  placesInside,
+  placesOf,
+  removePlaceOwner,
+  renamePlace,
+  setPlaceAddress,
+  setPlaceParent,
+} from "./places";
 import { discardFiles, fileContent, isAudio, listPending } from "./files";
 import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
@@ -136,7 +162,9 @@ const MOVED_WORDS: Record<keyof Moved, [string, string]> = {
 function merged(m: { kept: string; dropped: string; moved: Moved }): Next {
   const parts = (Object.keys(MOVED_WORDS) as (keyof Moved)[]).filter((k) => m.moved[k]).map((k) => `${m.moved[k]} ${MOVED_WORDS[k][m.moved[k] === 1 ? 0 : 1]}`);
   const what = parts.length ? `${parts.join(", ")} moved` : "nothing else moved";
-  return [`Merged ${m.dropped} into ${m.kept}: ${what}, and "${m.dropped}" now finds ${m.kept}. Look over ${m.kept}'s briefing for anything doubled and fix it with correct.`];
+  return [
+    `Merged ${m.dropped} into ${m.kept}: ${what}, and "${m.dropped}" now finds ${m.kept}. Look over ${m.kept}'s briefing for anything doubled and fix it with correct.`,
+  ];
 }
 
 const PRONOUN: Record<string, string> = { female: "her", male: "his", nonbinary: "their" };
@@ -159,20 +187,23 @@ function needsNext(people: PersonTraits[]): Next {
 
 function briefingNext(b: Briefing): Next {
   const next: Next = [];
-  if (b.roles.length) next.push(`Lead with who ${b.person.name} is to the household: ${b.roles.map((r) => `${r.label} of ${WITH[r.with](r.partnerName)}`).join("; ")}.`);
+  if (b.roles.length)
+    next.push(`Lead with who ${b.person.name} is to the household: ${b.roles.map((r) => `${r.label} of ${WITH[r.with](r.partnerName)}`).join("; ")}.`);
   if (b.traits.needs.length) next.push(`Keep in mind what ${b.person.name} needs: ${b.traits.needs.map((f) => f.text).join("; ")}.`);
   for (const f of b.situations.filter((x) => x.nudge))
     next.push(
       `Ask about "${f.text}" first: its day to ask, ${f.checkAfter}, has come. When the user tells how it went, mark it outdated with correct; news instead supersedes it, with a new checkAfter agreed with the user.`,
     );
-  if ([...b.situations, ...b.known].some((f) => f.source)) next.push("Some facts came from files the user shared: say where (source) and when (happenedOn) you know them from.");
+  if ([...b.situations, ...b.known].some((f) => f.source))
+    next.push("Some facts came from files the user shared: say where (source) and when (happenedOn) you know them from.");
   if (b.suggestedInterval !== undefined)
     next.push(`Offer to check in with ${b.person.name} every ${b.suggestedInterval} days; save it with set_interval once the user agrees.`);
   return next;
 }
 
 function foundNext(name: string, people: Candidate[]): Next {
-  if (!people.length) return [`No one in the book is called "${name}". Ask the user whether this is someone new; if so, file them as a new person with record.`];
+  if (!people.length)
+    return [`No one in the book is called "${name}". Ask the user whether this is someone new; if so, file them as a new person with record.`];
   if (people.length === 1) return [];
   const list = people.map((p) => `${p.name} (id ${p.id}${p.context.length ? `; ${p.context.join(", ")}` : ""})`).join(", ");
   return [`${people.length} people match "${name}": ${list}. Ask the user which one they mean; never guess.`];
@@ -183,7 +214,10 @@ function foundNext(name: string, people: Candidate[]): Next {
 /** What record's read-back says of each experience: its title, day, and the series it is a session of. */
 async function experienceReadBack(v: Viewer, ids: string[]): Promise<string[]> {
   if (!ids.length) return [];
-  return (await listExperiences(v, { ids })).map((e) => `Experience "${e.title}" on ${e.date}${e.series ? `, a session of the series "${e.series.name}"` : ""}${e.place ? ` at ${e.place.name}` : ""}: read it back with its link.`);
+  return (await listExperiences(v, { ids })).map(
+    (e) =>
+      `Experience "${e.title}" on ${e.date}${e.series ? `, a session of the series "${e.series.name}"` : ""}${e.place ? ` at ${e.place.name}` : ""}: read it back with its link.`,
+  );
 }
 
 const NewRamble = NewRambleJson.extend({});
@@ -225,11 +259,17 @@ const DueJson = z.object({
 });
 const RelatedJson = z.object({
   id: z.string().optional().describe("The relationship's id (the first, for \"us\"), or the group's"),
-  ids: z.array(z.string()).optional().describe("relationship: one per pair it stands for; \"us\" is one per household person. An existing one's id when it was already there"),
+  ids: z
+    .array(z.string())
+    .optional()
+    .describe('relationship: one per pair it stands for; "us" is one per household person. An existing one\'s id when it was already there'),
   relationships: z.array(FiledRelationshipJson).optional().describe("relationship: each pair, and whether it was new"),
   added: z.number().int().optional().describe("How many group memberships were new; one the user already recorded is kept as it was"),
   already: z.number().int().optional().describe("group: how many of the members the user had put in it before"),
-  url: z.string().optional().describe("For a relationship: the page of `from` (of `to` when from is \"me\" or \"us\"), which shows it; for a group: the group's page. An absolute URL"),
+  url: z
+    .string()
+    .optional()
+    .describe('For a relationship: the page of `from` (of `to` when from is "me" or "us"), which shows it; for a group: the group\'s page. An absolute URL'),
   name: z.string().optional().describe("group: the group's own name; the name given may have been another name of it"),
 });
 /** How many waiting files inbox list shows (and hands over) at once. */
@@ -279,11 +319,21 @@ const CorrectedJson = z.object({
     .optional()
     .describe("outdated, and edit of a fact: the fact as it now stands"),
   moved: z
-    .object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), relationships: z.number().int(), conversations: z.number().int(), groups: z.number().int() })
+    .object({
+      facts: z.number().int(),
+      promises: z.number().int(),
+      dates: z.number().int(),
+      exchanges: z.number().int(),
+      relationships: z.number().int(),
+      conversations: z.number().int(),
+      groups: z.number().int(),
+    })
     .optional()
     .describe("merge: what moved over to the person kept, as the user may see it"),
   relationships: z.array(FiledRelationshipJson).optional().describe("to_relationship: each pair, and whether it was new"),
-  relabel: Relabels.optional().describe("gender: the person's relationships the user may edit (their own and the partner's shared ones), whose words are written in each end's gender"),
+  relabel: Relabels.optional().describe(
+    "gender: the person's relationships the user may edit (their own and the partner's shared ones), whose words are written in each end's gender",
+  ),
 });
 const TranscriptJson = z.object({
   rambleId: z.string(),
@@ -312,7 +362,7 @@ const RelateInput = z.object({
   to: Target.optional().describe('relationship: the other person, or "me" / "us" for a role to the household'),
   label: z.string().optional().describe(`relationship: what \`from\` is to \`to\`. ${WORDS_DOC}`),
   inverse: z.string().optional().describe("relationship: what `to` is to `from`"),
-  note: z.string().optional().describe("relationship: anything more about it (\"seit der Schulzeit\")"),
+  note: z.string().optional().describe('relationship: anything more about it ("seit der Schulzeit")'),
   name: z.string().optional().describe("group: the group's name, e.g. Uni or Climbing"),
   members: z.array(PersonId).optional().describe("group: the ids of the people to add, at least one"),
   visibility: Visibility,
@@ -378,7 +428,9 @@ const CorrectInput = z.object({
     .describe(
       "The item's id as a briefing shows it; for rename, alias and merge, a person's id (merge: the person to keep); for share_transcript, a ramble's or conversation's id; for delete_ramble, a ramble's id; for the group actions, the group's id (group_merge: the group to keep)",
     ),
-  person: PersonId.optional().describe('ungroup: the person to take out; place_owner, place_unowner: whose home it is (place_owner also "me" or "us"); participant_add, participant_remove: who was or wasn\'t there'),
+  person: PersonId.optional().describe(
+    'ungroup: the person to take out; place_owner, place_unowner: whose home it is (place_owner also "me" or "us"); participant_add, participant_remove: who was or wasn\'t there',
+  ),
   parent: z.string().nullable().optional().describe("place_parent: the place it sits inside, null for none"),
   address: z.string().nullable().optional().describe("place_address: the address in words, null to clear it"),
   private: z.boolean().optional().describe("place_owner: whose home it is was told in confidence"),
@@ -438,12 +490,16 @@ const CorrectArgs = z.discriminatedUnion("action", [
       drop: PersonId.describe("The duplicate; it is deleted"),
     })
     .describe("Merge a duplicate person"),
-  z.object({ action: z.literal("share_transcript"), id: z.string().describe("A ramble's id, or one of its conversations'") }).describe("Let the partner read a ramble's transcript"),
+  z
+    .object({ action: z.literal("share_transcript"), id: z.string().describe("A ramble's id, or one of its conversations'") })
+    .describe("Let the partner read a ramble's transcript"),
   z.object({ action: z.literal("delete_ramble"), id: RambleId }).describe("Delete a ramble with everything told in it"),
   z.object({ action: z.literal("place_rename"), id: PlaceId, name: z.string() }).describe("Rename a place"),
   z.object({ action: z.literal("series_skip"), id: z.string().describe("The series' id"), date: Day }).describe("Mark a session day skipped"),
   z.object({ action: z.literal("place_alias"), id: PlaceId, alias: z.string() }).describe("Add another name a place goes by"),
-  z.object({ action: z.literal("place_merge"), id: PlaceId.describe("The place to keep"), drop: PlaceId.describe("The duplicate; it is deleted") }).describe("Merge a duplicate place"),
+  z
+    .object({ action: z.literal("place_merge"), id: PlaceId.describe("The place to keep"), drop: PlaceId.describe("The duplicate; it is deleted") })
+    .describe("Merge a duplicate place"),
   z.object({ action: z.literal("place_parent"), id: PlaceId, parent: PlaceId.nullable() }).describe("Set or clear the place a place sits inside"),
   z.object({ action: z.literal("place_address"), id: PlaceId, address: z.string().nullable() }).describe("Set or clear a place's address"),
   z.object({ action: z.literal("place_owner"), id: PlaceId, person: Target, private: z.boolean().optional() }).describe("File whose home a place is"),
@@ -482,7 +538,15 @@ const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("group_delete"), id: GroupId }).describe("Delete a group for the user"),
   z.object({ action: z.literal("gender"), id: PersonId, gender: Gender.nullable() }).describe("Set or clear a person's gender"),
   z
-    .object({ action: z.literal("to_relationship"), id: ItemId.describe("The fact's id"), from: Target, to: Target, label: z.string(), inverse: z.string(), note: z.string().optional() })
+    .object({
+      action: z.literal("to_relationship"),
+      id: ItemId.describe("The fact's id"),
+      from: Target,
+      to: Target,
+      label: z.string(),
+      inverse: z.string(),
+      note: z.string().optional(),
+    })
     .describe("Turn a fact into a relationship"),
 ]);
 
@@ -490,9 +554,15 @@ const PrivateItem = z.boolean().optional().describe("Makes just this item privat
 const RememberInput = z.object({
   visibility: Visibility,
   homes: z
-    .array(z.object({ person: PersonId, place: PlaceRefJson.describe("The place that is their home, as record names one, without owners: the person is its owner"), private: PrivateItem }))
+    .array(
+      z.object({
+        person: PersonId,
+        place: PlaceRefJson.describe("The place that is their home, as record names one, without owners: the person is its owner"),
+        private: PrivateItem,
+      }),
+    )
     .optional()
-    .describe("Where someone lives (\"Anna wohnt jetzt in der Hauptstraße 5 in Nürnberg\"): a place that is their home"),
+    .describe('Where someone lives ("Anna wohnt jetzt in der Hauptstraße 5 in Nürnberg"): a place that is their home'),
   genders: z
     .array(z.object({ person: PersonId, gender: Gender.nullable().describe("null when it isn't known") }))
     .optional()
@@ -500,7 +570,9 @@ const RememberInput = z.object({
   looks: z
     .array(z.object({ person: PersonId, look: LookJson.nullable().describe("Every part, with the user's words as description; null clears it") }))
     .optional()
-    .describe("How someone looks (\"kurze lockige braune Haare, Brille, Vollbart\"): the parts of their avatar. To change one part, send the look from the briefing with that part changed"),
+    .describe(
+      'How someone looks ("kurze lockige braune Haare, Brille, Vollbart"): the parts of their avatar. To change one part, send the look from the briefing with that part changed',
+    ),
   facts: z
     .array(
       z.object({
@@ -514,7 +586,17 @@ const RememberInput = z.object({
       }),
     )
     .optional(),
-  promises: z.array(z.object({ person: PersonId, text: z.string(), byMe: z.boolean().describe("Whether the user made the promise"), due: Day.optional(), private: PrivateItem })).optional(),
+  promises: z
+    .array(
+      z.object({
+        person: PersonId,
+        text: z.string(),
+        byMe: z.boolean().describe("Whether the user made the promise"),
+        due: Day.optional(),
+        private: PrivateItem,
+      }),
+    )
+    .optional(),
   dates: z
     .array(
       z.object({
@@ -542,7 +624,15 @@ const RememberInput = z.object({
     .optional(),
 });
 const RememberedJson = z.object({
-  counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), genders: z.number().int(), looks: z.number().int(), homes: z.number().int() }),
+  counts: z.object({
+    facts: z.number().int(),
+    promises: z.number().int(),
+    dates: z.number().int(),
+    exchanges: z.number().int(),
+    genders: z.number().int(),
+    looks: z.number().int(),
+    homes: z.number().int(),
+  }),
   people: z.array(z.object({ id: PersonId, name: z.string(), url: z.string() })).describe("The people it is about, with a link to each"),
   filed: Filed.describe("Everything filed, with ids and links"),
   relabel: Relabels.describe("genders: the relationships the user may edit of each person given a gender, whose words are written in each end's gender"),
@@ -559,11 +649,18 @@ export const TOOLS: readonly Tool[] = [
     handler: async (v, r) => {
       const out = await record(v, r);
       const journal = out.journal.length
-        ? [`${out.journal.length === 1 ? "The journal entry is" : `The ${out.journal.length} journal entries are`} ${out.journal.every((j) => j.visibility === "private") ? "private to the user" : "partly shared, as the user said"}: say so in the read-back.`]
+        ? [
+            `${out.journal.length === 1 ? "The journal entry is" : `The ${out.journal.length} journal entries are`} ${out.journal.every((j) => j.visibility === "private") ? "private to the user" : "partly shared, as the user said"}: say so in the read-back.`,
+          ]
         : [];
-      const sessions = await experienceReadBack(v, out.experiences.map((e) => e.id));
+      const sessions = await experienceReadBack(
+        v,
+        out.experiences.map((e) => e.id),
+      );
       const placed = [...(r.conversations ?? []).map((c) => c.place), ...(r.experiences ?? []).map((e) => e.place)].flatMap((p) =>
-        p && typeof p === "object" && "name" in p && (p.in !== undefined || p.address !== undefined || p.owners?.length) ? [`Read back where "${p.name}" sits, its address and whose home it is, with its link.`] : [],
+        p && typeof p === "object" && "name" in p && (p.in !== undefined || p.address !== undefined || p.owners?.length)
+          ? [`Read back where "${p.name}" sits, its address and whose home it is, with its link.`]
+          : [],
       );
       return ok(RecordedRamble, out, [
         `Read back in one or two sentences what you filed, part by part, with the day (${r.date}) and the links.`,
@@ -580,7 +677,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "remember",
     description:
-      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. A role (\"our landlady\") is not a fact: file it with relate. homes files where someone lives as a place that is their home; when they moved, file the new one and drop them as owner of the old with correct (place_unowner). genders sets a person's gender, only when the user states it or uses a pronoun for them, never from the name; it returns the relationships to relabel. looks sets how someone looks, as the parts of a stylized avatar (not a portrait), when the user describes them.",
+      'File what the user tells you about people the book already has when it isn\'t a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange ("Malou\'s birthday is 7 February 2024", "Anna\'s new job is at the museum"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. A role ("our landlady") is not a fact: file it with relate. homes files where someone lives as a place that is their home; when they moved, file the new one and drop them as owner of the old with correct (place_unowner). genders sets a person\'s gender, only when the user states it or uses a pronoun for them, never from the name; it returns the relationships to relabel. looks sets how someone looks, as the parts of a stylized avatar (not a portrait), when the user describes them.',
     input: RememberInput,
     output: RememberedJson,
     annotations: { destructiveHint: false },
@@ -630,7 +727,9 @@ export const TOOLS: readonly Tool[] = [
         .filter((p) => !withoutGroup || !p.groups.length)
         .map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, url: p.url, lastSeen: p.lastSeen, groups: p.groups.map((id) => named.get(id)!) }));
       const next =
-        withoutGroup && people.length ? [`Offer to put ${people.map((p) => p.name).join(", ")} in a group with relate (kind group); reuse one that fits (groups).`] : [];
+        withoutGroup && people.length
+          ? [`Offer to put ${people.map((p) => p.name).join(", ")} in a group with relate (kind group); reuse one that fits (groups).`]
+          : [];
       return ok(PeopleJson, { people }, next);
     },
   }),
@@ -690,15 +789,22 @@ export const TOOLS: readonly Tool[] = [
           .map((batchId) => ({ batchId, ids: shown.filter((f) => f.batchId === batchId).map((f) => f.id) }))
           .filter((b) => b.ids.length > 1);
         for (const b of batches)
-          next.push(`${b.ids.slice(0, -1).join(", ")} and ${b.ids.at(-1)} were shared together: offer to work them through as one thing, and pass all their ids to record in fileIds.`);
+          next.push(
+            `${b.ids.slice(0, -1).join(", ")} and ${b.ids.at(-1)} were shared together: offer to work them through as one thing, and pass all their ids to record in fileIds.`,
+          );
         // Shared apart can still be one thing (a chat screenshotted on two evenings): Claude looks across them and asks.
         const units = batches.length + shown.filter((f) => !batches.some((b) => b.batchId === f.batchId)).length;
         if (units > 1)
           next.push(
             `${files.length} files wait. Tell the user so, and look across them: files that look like one thing although they were shared apart (the same chat or post, the same people, the same day) may be worked through together. Name them and ask whether to merge them before filing any.`,
           );
-        const large = (await Promise.all(shown.filter((f) => !isAudio(f.type)).map(async (f) => ((await fileContent(v, f.id))?.bytes.byteLength ?? 0) > MAX_ATTACH && f.id))).filter(Boolean);
-        if (large.length) next.push(`Too large to hand over here: ${large.join(", ")}. Work from its transcript, or tell the user to open it under Prüfen in the freundebuch app.`);
+        const large = (
+          await Promise.all(shown.filter((f) => !isAudio(f.type)).map(async (f) => ((await fileContent(v, f.id))?.bytes.byteLength ?? 0) > MAX_ATTACH && f.id))
+        ).filter(Boolean);
+        if (large.length)
+          next.push(
+            `Too large to hand over here: ${large.join(", ")}. Work from its transcript, or tell the user to open it under Prüfen in the freundebuch app.`,
+          );
         return ok(InboxJson, batches.length ? { files: shown, batches } : { files: shown }, next);
       }
       const closing = [...(id ? [id] : []), ...(ids ?? [])];
@@ -716,7 +822,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "journal",
     description:
-      "The user's journal: what they think, feel and plan about their own life, in a period (the last 30 days unless from/to say otherwise), optionally only the entries that name a person. Use it when the user asks how they have been, what has been on their mind, or how something developed (\"wie ging es mir im Frühling?\"); then interpret the entries, never just list them.",
+      'The user\'s journal: what they think, feel and plan about their own life, in a period (the last 30 days unless from/to say otherwise), optionally only the entries that name a person. Use it when the user asks how they have been, what has been on their mind, or how something developed ("wie ging es mir im Frühling?"); then interpret the entries, never just list them.',
     input: z.object({
       from: Day.optional().describe("The first day"),
       to: Day.optional().describe("The last day; today when left out"),
@@ -753,7 +859,9 @@ export const TOOLS: readonly Tool[] = [
         SearchJson,
         { hits },
         hits.length
-          ? [`Answer from the hits with their days and links. When a transcript matched, call get_transcript (rambleId) for the whole of what was told if the snippet doesn't answer it.`]
+          ? [
+              `Answer from the hits with their days and links. When a transcript matched, call get_transcript (rambleId) for the whole of what was told if the snippet doesn't answer it.`,
+            ]
           : [`Nothing holds "${query}": say so, and try once with another word or a shorter one (a stem: "Spiegel" for "Spiegeln") before giving up.`],
       );
     },
@@ -790,7 +898,12 @@ export const TOOLS: readonly Tool[] = [
     handler: async (v, { name, person, inside }) => {
       if ([name, person, inside].filter((x) => x !== undefined).length !== 1) throw new InvalidInputError("Give exactly one of name, person or inside");
       const places = name !== undefined ? await findPlaces(v, name) : person !== undefined ? await placesOf(v, person) : await placesInside(v, inside!);
-      const next = name !== undefined && places.length > 1 ? ["Several places fit: ask the user which one, unless the context makes it clear."] : places.length ? [] : ["No places: say so."];
+      const next =
+        name !== undefined && places.length > 1
+          ? ["Several places fit: ask the user which one, unless the context makes it clear."]
+          : places.length
+            ? []
+            : ["No places: say so."];
       return ok(z.object({ places: z.array(PlaceHit) }), { places }, next);
     },
   }),
@@ -806,20 +919,18 @@ export const TOOLS: readonly Tool[] = [
     annotations: { readOnlyHint: true },
     handler: async (v, { from, horizonDays }) => {
       const items = await whatsDue(v, from, horizonDays);
-      return ok(
-        DueJson,
-        { items },
-        [
-          ...items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
-          ...items.filter((i) => i.kind === "session").map((i) => `Ask how "${i.name}" on ${i.date} went, and file it with record (series ${i.itemId}); if it was skipped, correct series_skip.`),
-        ],
-      );
+      return ok(DueJson, { items }, [
+        ...items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
+        ...items
+          .filter((i) => i.kind === "session")
+          .map((i) => `Ask how "${i.name}" on ${i.date} went, and file it with record (series ${i.itemId}); if it was skipped, correct series_skip.`),
+      ]);
     },
   }),
   tool({
     name: "relate",
     description:
-      "Record how two people are related, or put people in a group, when the user mentions it outside of a conversation to file; pass person ids from find_person. If it is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling. Who someone is to the household (\"she's our landlady\") is a relationship to \"us\" (everyone in the household, one relationship each) or \"me\", never a fact: from her, to \"us\", label Vermieterin, inverse Mieter:in. Filing the same relationship again, either way round or in another gender form, keeps the one there.",
+      'Record how two people are related, or put people in a group, when the user mentions it outside of a conversation to file; pass person ids from find_person. If it is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling. Who someone is to the household ("she\'s our landlady") is a relationship to "us" (everyone in the household, one relationship each) or "me", never a fact: from her, to "us", label Vermieterin, inverse Mieter:in. Filing the same relationship again, either way round or in another gender form, keeps the one there.',
     input: RelateInput,
     output: RelatedJson,
     annotations: { destructiveHint: false },
@@ -829,8 +940,19 @@ export const TOOLS: readonly Tool[] = [
         const g = await addToGroup(v, { name: a.name, members: a.members, visibility: a.visibility });
         return ok(RelatedJson, g, alreadyInGroup(g));
       }
-      const { ids, relationships } = await addRelationship(v, { from: a.from, to: a.to, label: a.label, inverse: a.inverse, note: a.note, visibility: a.visibility });
-      return ok(RelatedJson, { id: ids[0], ids, relationships, url: personPath(isHouseholdWord(a.from) ? a.to : a.from) }, relationships.flatMap(keptRelationship));
+      const { ids, relationships } = await addRelationship(v, {
+        from: a.from,
+        to: a.to,
+        label: a.label,
+        inverse: a.inverse,
+        note: a.note,
+        visibility: a.visibility,
+      });
+      return ok(
+        RelatedJson,
+        { id: ids[0], ids, relationships, url: personPath(isHouseholdWord(a.from) ? a.to : a.from) },
+        relationships.flatMap(keptRelationship),
+      );
     },
   }),
   tool({
@@ -859,7 +981,10 @@ export const TOOLS: readonly Tool[] = [
     description:
       "The user's calendar feed: a secret ICS URL with every birthday (yearly, with the age when the year is known), the other dates and their own promises with a due date, to subscribe to in Google Calendar (\"From URL\") or any calendar app. `show` makes one when the user has none; an existing one can't be shown again (only its hash is kept). `replace` makes a new URL and `revoke` turns the feed off; both stop the old URL at once, so calendars subscribed to it go empty: ask the user before either.",
     input: z.object({
-      action: z.enum(CALENDAR_ACTIONS).default("show").describe("`show` (default) makes a feed when there is none; `replace` makes a new URL; `revoke` turns it off"),
+      action: z
+        .enum(CALENDAR_ACTIONS)
+        .default("show")
+        .describe("`show` (default) makes a feed when there is none; `replace` makes a new URL; `revoke` turns it off"),
     }),
     output: CalendarFeed,
     annotations: { destructiveHint: true },
@@ -900,7 +1025,9 @@ export const TOOLS: readonly Tool[] = [
             CorrectedJson,
             { corrected, fact },
             fact.kind === "situation"
-              ? [`${fact.name}'s situation "${fact.text}" is outdated. When the user has told how it ended, file the outcome as a lasting fact with remember, if it is worth keeping.`]
+              ? [
+                  `${fact.name}'s situation "${fact.text}" is outdated. When the user has told how it ended, file the outcome as a lasting fact with remember, if it is worth keeping.`,
+                ]
               : [],
           );
         }
@@ -909,7 +1036,13 @@ export const TOOLS: readonly Tool[] = [
           return ok(
             CorrectedJson,
             { corrected, fact },
-            !fact ? [] : "kind" in a.patch && isTrait(fact.kind) ? nowTrait(fact.name, fact.text, fact.kind) : "kind" in a.patch || "checkAfter" in a.patch ? situationDay(fact) : [],
+            !fact
+              ? []
+              : "kind" in a.patch && isTrait(fact.kind)
+                ? nowTrait(fact.name, fact.text, fact.kind)
+                : "kind" in a.patch || "checkAfter" in a.patch
+                  ? situationDay(fact)
+                  : [],
           );
         }
         case "merge": {
@@ -1012,7 +1145,13 @@ export const TOOLS: readonly Tool[] = [
     handler: async (v, { conversationId, rambleId }) => {
       if (!conversationId && !rambleId) throw new InvalidInputError("Give conversationId or rambleId");
       const t = conversationId
-        ? await getConversation(v, conversationId).then((c) => ({ rambleId: c.rambleId, conversationId: c.id, url: conversationPath(c.id), date: c.date, transcript: c.transcript }))
+        ? await getConversation(v, conversationId).then((c) => ({
+            rambleId: c.rambleId,
+            conversationId: c.id,
+            url: conversationPath(c.id),
+            date: c.date,
+            transcript: c.transcript,
+          }))
         : { ...(await rambleTranscript(v, rambleId!)), conversationId: null };
       return ok(TranscriptJson, t, t.transcript === null ? ["The transcript is private to whoever recorded it: answer from the summary instead."] : []);
     },

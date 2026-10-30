@@ -5,11 +5,33 @@ import * as z from "zod";
 import { briefing } from "../briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../calendar";
 import { IDENTITY_COOKIE } from "../auth/session";
-import { deleteItem, editItem, factToRelationship, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, type ItemTable } from "../corrections";
+import {
+  deleteItem,
+  editItem,
+  factToRelationship,
+  markDone,
+  markOutdated,
+  mergePeople,
+  renamePerson,
+  setVisibility,
+  shareTranscript,
+  type ItemTable,
+} from "../corrections";
 import { getConversation, record } from "../conversations";
 import { whatsDue } from "../due";
 import { InvalidInputError, InvalidRequestError, NotFoundError } from "../errors";
-import { addGroupAlias, addToGroupById, createGroup, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../groups";
+import {
+  addGroupAlias,
+  addToGroupById,
+  createGroup,
+  deleteGroup,
+  getGroup,
+  listGroups,
+  mergeGroups,
+  removeFromGroup,
+  removeGroupAlias,
+  renameGroup,
+} from "../groups";
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
@@ -84,7 +106,11 @@ const E = {
 const { 400: E400, 401: E401, 403: E403, 404: E404 } = E;
 const NO_CONTENT = { description: "Done" } satisfies ResponseSpec;
 /** A comma-separated list of ids from the query, without empty entries. */
-const ids = (list?: string) => list?.split(",").map((x) => x.trim()).filter(Boolean);
+const ids = (list?: string) =>
+  list
+    ?.split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
 
 const OPS: AnyOp[] = [
   op({
@@ -116,7 +142,8 @@ const OPS: AnyOp[] = [
     path: `${API_PREFIX}/people/{id}`,
     operationId: "updatePerson",
     summary: "Rename a person, or set their gender or look",
-    description: "Names, gender and look are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
+    description:
+      "Names, gender and look are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
     tags: ["People"],
     auth: true,
     params: { id: IdParam },
@@ -152,7 +179,10 @@ const OPS: AnyOp[] = [
     params: {},
     query: TraitsQuery,
     responses: { 200: { description: "The traits", schema: TraitsJson }, 400: E400, 401: E401, 404: E404 },
-  }).handle(async ({ viewer, query }) => ({ status: 200, body: { people: await traitsFor(viewer, { people: ids(query.people), groups: ids(query.groups) }) } })),
+  }).handle(async ({ viewer, query }) => ({
+    status: 200,
+    body: { people: await traitsFor(viewer, { people: ids(query.people), groups: ids(query.groups) }) },
+  })),
 
   op({
     method: "GET",
@@ -187,7 +217,8 @@ const OPS: AnyOp[] = [
     path: `${API_PREFIX}/experiences`,
     operationId: "listExperiences",
     summary: "What the caller lived through",
-    description: "Experiences the caller may see, newest first, optionally of a kind, in a period, at a place, in a series or with a person; with the kinds and series in use.",
+    description:
+      "Experiences the caller may see, newest first, optionally of a kind, in a period, at a place, in a series or with a person; with the kinds and series in use.",
     tags: ["Experiences"],
     auth: true,
     params: {},
@@ -239,7 +270,10 @@ const OPS: AnyOp[] = [
   }).handle(async ({ viewer, query }) => {
     const { q, person, inside } = query;
     if ([q, person, inside].filter((x) => x !== undefined).length !== 1) throw new InvalidInputError("Give exactly one of q, person or inside");
-    return { status: 200, body: q !== undefined ? await findPlaces(viewer, q) : person !== undefined ? await placesOf(viewer, person) : await placesInside(viewer, inside!) };
+    return {
+      status: 200,
+      body: q !== undefined ? await findPlaces(viewer, q) : person !== undefined ? await placesOf(viewer, person) : await placesInside(viewer, inside!),
+    };
   }),
 
   op({
@@ -593,7 +627,8 @@ const OPS: AnyOp[] = [
     path: `${API_PREFIX}/me/language`,
     operationId: "putLanguage",
     summary: "Change the language the caller sees the app in",
-    description: "The web app and the caller's notifications (reminders, the calendar feed, the Shortcut's answers) follow it. What is filed keeps the words it was filed in.",
+    description:
+      "The web app and the caller's notifications (reminders, the calendar feed, the Shortcut's answers) follow it. What is filed keeps the words it was filed in.",
     tags: ["Settings"],
     auth: true,
     params: {},
@@ -843,7 +878,7 @@ export function openApiDocument(serverUrl: string): Json {
       version: "1",
       description:
         "A personal CRM for two: people, the conversations with them, and what to remember before the next one.\n\n" +
-        "Every error is JSON, `{\"error\": \"...\", \"code\": \"...\"}`. Besides the responses listed per operation, " +
+        'Every error is JSON, `{"error": "...", "code": "..."}`. Besides the responses listed per operation, ' +
         "an unknown path under /api/v1 answers 404 (`not_found`), a method an operation doesn't have answers 405 with `Allow`, " +
         "and a failure on the server's side answers 500 (`internal`) without details.",
       license: { name: "AGPL-3.0-only", identifier: "AGPL-3.0-only" },
@@ -862,7 +897,12 @@ export function openApiDocument(serverUrl: string): Json {
       schemas,
       securitySchemes: {
         bearer: { type: "http", scheme: "bearer", description: "An OAuth access token issued for this API's URL (`/api/v1`)" },
-        cookie: { type: "apiKey", in: "cookie", name: IDENTITY_COOKIE, description: "The browser's sign-in; on anything but a GET only from the app's own pages" },
+        cookie: {
+          type: "apiKey",
+          in: "cookie",
+          name: IDENTITY_COOKIE,
+          description: "The browser's sign-in; on anything but a GET only from the app's own pages",
+        },
       },
     },
   };

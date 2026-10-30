@@ -17,9 +17,9 @@ items:
     title: Several households per instance, and a hosted freundebuch
     summary: Each account a person, a household the people who share a book; the same on a hosted instance as on your own.
     links:
-      - {label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69"}
-      - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
-      - {label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything"}
+      - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
+      - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household" }
+      - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
 
   - id: own-cards
     status: later
@@ -28,8 +28,8 @@ items:
     title: Own cards
     summary: What a person says about themselves (number, address, birthday), shared by a link they can revoke. The only thing that crosses between people.
     links:
-      - {label: "#70", url: "https://github.com/Marceltov/freundebuch/issues/70"}
-      - {label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it"}
+      - { label: "#70", url: "https://github.com/Marceltov/freundebuch/issues/70" }
+      - { label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it" }
 
   - id: birthday-messages
     status: later
@@ -38,8 +38,8 @@ items:
     title: Birthday messages you send
     summary: Drafted by freundebuch, seen and sent by you through an integration, never on its own.
     links:
-      - {label: "#71", url: "https://github.com/Marceltov/freundebuch/issues/71"}
-      - {label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it"}
+      - { label: "#71", url: "https://github.com/Marceltov/freundebuch/issues/71" }
+      - { label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it" }
 
   - id: map
     status: later
@@ -48,8 +48,8 @@ items:
     title: A map of where things happened
     summary: Places kept in words could be put on a map. Not now. The web UI stays small, a map would need tiles and a geocoder that don't call out, and tools that track where you have been exist already.
     links:
-      - {label: "#93", url: "https://github.com/Marceltov/freundebuch/issues/93"}
-      - {label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything"}
+      - { label: "#93", url: "https://github.com/Marceltov/freundebuch/issues/93" }
+      - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
 
   # ---- done, newest first ------------------------------------------------------------------------------------------------
   - id: i18n
@@ -59,22 +59,22 @@ items:
     title: German and English
     summary: Each of you chooses the language of the app and your notifications; Claude writes the chat, the reflection and its file suggestions in it.
     links:
-      - {label: "#72", url: "https://github.com/Marceltov/freundebuch/issues/72"}
-      - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
-      - {label: "ADR 0021", url: "https://marceltov.github.io/freundebuch/adr/0021-a-language-per-user/"}
-      - {label: "PR #106", url: "https://github.com/Marceltov/freundebuch/pull/106"}
+      - { label: "#72", url: "https://github.com/Marceltov/freundebuch/issues/72" }
+      - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household" }
+      - { label: "ADR 0021", url: "https://marceltov.github.io/freundebuch/adr/0021-a-language-per-user/" }
+      - { label: "PR #106", url: "https://github.com/Marceltov/freundebuch/pull/106" }
 
   - id: search
     status: done
     date: 2026-10-30
     icon: text-search
     title: Search by a word you remember
-    summary: "\"Das mit dem Spiegel\", \"Hellengerst\": found over Claude with search, and with the field on Verlauf; only what you may see, never the partner's private items."
+    summary: '"Das mit dem Spiegel", "Hellengerst": found over Claude with search, and with the field on Verlauf; only what you may see, never the partner''s private items.'
     links:
-      - {label: "#102", url: "https://github.com/Marceltov/freundebuch/issues/102"}
-      - {label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first"}
-      - {label: "V2", url: "https://marceltov.github.io/freundebuch/values/#v2-private-stays-private-through-every-door"}
-      - {label: "PR #105", url: "https://github.com/Marceltov/freundebuch/pull/105"}
+      - { label: "#102", url: "https://github.com/Marceltov/freundebuch/issues/102" }
+      - { label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first" }
+      - { label: "V2", url: "https://marceltov.github.io/freundebuch/values/#v2-private-stays-private-through-every-door" }
+      - { label: "PR #105", url: "https://github.com/Marceltov/freundebuch/pull/105" }
 
   - id: avatars
     status: done
@@ -83,10 +83,10 @@ items:
     title: Avatars
     summary: A stylized avatar per person, put together by Claude from how you describe them, so a face comes from words and no photo is kept.
     links:
-      - {label: "#49", url: "https://github.com/Marceltov/freundebuch/issues/49"}
-      - {label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept"}
-      - {label: "ADR 0020", url: "https://marceltov.github.io/freundebuch/adr/0020-avatars-built-from-parts/"}
-      - {label: "PR #104", url: "https://github.com/Marceltov/freundebuch/pull/104"}
+      - { label: "#49", url: "https://github.com/Marceltov/freundebuch/issues/49" }
+      - { label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept" }
+      - { label: "ADR 0020", url: "https://marceltov.github.io/freundebuch/adr/0020-avatars-built-from-parts/" }
+      - { label: "PR #104", url: "https://github.com/Marceltov/freundebuch/pull/104" }
 
   - id: voice-notes
     status: done
@@ -95,10 +95,10 @@ items:
     title: Voice notes
     summary: A WhatsApp voice note shared in, or a message spoken into Erzählen, transcribed by a Whisper on your own server; only the words are kept.
     links:
-      - {label: "#58", url: "https://github.com/Marceltov/freundebuch/issues/58"}
-      - {label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept"}
-      - {label: "ADR 0019", url: "https://marceltov.github.io/freundebuch/adr/0019-voice-notes-transcribed-by-a-self-hosted-whisper/"}
-      - {label: "PR #97", url: "https://github.com/Marceltov/freundebuch/pull/97"}
+      - { label: "#58", url: "https://github.com/Marceltov/freundebuch/issues/58" }
+      - { label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept" }
+      - { label: "ADR 0019", url: "https://marceltov.github.io/freundebuch/adr/0019-voice-notes-transcribed-by-a-self-hosted-whisper/" }
+      - { label: "PR #97", url: "https://github.com/Marceltov/freundebuch/pull/97" }
 
   - id: nested-places
     status: done
@@ -107,9 +107,9 @@ items:
     title: Places that nest, and homes
     summary: The Olympiahalle in München, Anna's flat with its address, filled in from what you tell; "where were we with Anna?" over Claude, a private place never showing inside a shared one.
     links:
-      - {label: "#78", url: "https://github.com/Marceltov/freundebuch/issues/78"}
-      - {label: "ADR 0018", url: "https://marceltov.github.io/freundebuch/adr/0018-nested-places-and-homes/"}
-      - {label: "PR #92", url: "https://github.com/Marceltov/freundebuch/pull/92"}
+      - { label: "#78", url: "https://github.com/Marceltov/freundebuch/issues/78" }
+      - { label: "ADR 0018", url: "https://marceltov.github.io/freundebuch/adr/0018-nested-places-and-homes/" }
+      - { label: "PR #92", url: "https://github.com/Marceltov/freundebuch/pull/92" }
 
   - id: iphone-shortcut
     status: done
@@ -118,8 +118,8 @@ items:
     title: A ready-made iPhone Shortcut
     summary: Share screenshots, photos and files from the iPhone straight into freundebuch; HEIC is read on the server, and files shared together are worked through as one.
     links:
-      - {label: "#68", url: "https://github.com/Marceltov/freundebuch/issues/68"}
-      - {label: "PR #88", url: "https://github.com/Marceltov/freundebuch/pull/88"}
+      - { label: "#68", url: "https://github.com/Marceltov/freundebuch/issues/68" }
+      - { label: "PR #88", url: "https://github.com/Marceltov/freundebuch/pull/88" }
 
   - id: experiences
     status: done
@@ -128,9 +128,9 @@ items:
     title: Experiences, series and places
     summary: Concerts, trips and courses, not only meetings; a course reminds you of a session you didn't tell about.
     links:
-      - {label: "#67", url: "https://github.com/Marceltov/freundebuch/issues/67"}
-      - {label: "ADR 0016", url: "https://marceltov.github.io/freundebuch/adr/0016-experiences-series-and-places/"}
-      - {label: "PR #79", url: "https://github.com/Marceltov/freundebuch/pull/79"}
+      - { label: "#67", url: "https://github.com/Marceltov/freundebuch/issues/67" }
+      - { label: "ADR 0016", url: "https://marceltov.github.io/freundebuch/adr/0016-experiences-series-and-places/" }
+      - { label: "PR #79", url: "https://github.com/Marceltov/freundebuch/pull/79" }
 
   - id: journal
     status: done
@@ -139,9 +139,9 @@ items:
     title: A journal, and the ramble as its own record
     summary: What you think and feel about your own life, kept in your words and private unless you share it; a ramble is stored once and split into its parts.
     links:
-      - {label: "#66", url: "https://github.com/Marceltov/freundebuch/issues/66"}
-      - {label: "ADR 0015", url: "https://marceltov.github.io/freundebuch/adr/0015-the-ramble-is-its-own-record/"}
-      - {label: "PR #75", url: "https://github.com/Marceltov/freundebuch/pull/75"}
+      - { label: "#66", url: "https://github.com/Marceltov/freundebuch/issues/66" }
+      - { label: "ADR 0015", url: "https://marceltov.github.io/freundebuch/adr/0015-the-ramble-is-its-own-record/" }
+      - { label: "PR #75", url: "https://github.com/Marceltov/freundebuch/pull/75" }
 
   - id: pruefen
     status: done
@@ -150,9 +150,9 @@ items:
     title: Prüfen, files worked through with Claude
     summary: Share any file, work it through with Claude, and keep only its transcript.
     links:
-      - {label: "#59", url: "https://github.com/Marceltov/freundebuch/issues/59"}
-      - {label: "ADR 0014", url: "https://marceltov.github.io/freundebuch/adr/0014-shared-files-are-worked-through-with-claude/"}
-      - {label: "PR #60", url: "https://github.com/Marceltov/freundebuch/pull/60"}
+      - { label: "#59", url: "https://github.com/Marceltov/freundebuch/issues/59" }
+      - { label: "ADR 0014", url: "https://marceltov.github.io/freundebuch/adr/0014-shared-files-are-worked-through-with-claude/" }
+      - { label: "PR #60", url: "https://github.com/Marceltov/freundebuch/pull/60" }
 
   - id: traits
     status: done
@@ -161,8 +161,8 @@ items:
     title: Needs and personality
     summary: What someone needs (plan around it) and how they are, kept as traits the briefing leads with.
     links:
-      - {label: "#46", url: "https://github.com/Marceltov/freundebuch/issues/46"}
-      - {label: "PR #48", url: "https://github.com/Marceltov/freundebuch/pull/48"}
+      - { label: "#46", url: "https://github.com/Marceltov/freundebuch/issues/46" }
+      - { label: "PR #48", url: "https://github.com/Marceltov/freundebuch/pull/48" }
 
   - id: share-links
     status: done
@@ -171,8 +171,8 @@ items:
     title: Share any page or entry as a link
     summary: Every person, conversation and item has a link into the web app, for Claude to hand you and for you to pass on in the household.
     links:
-      - {label: "#52", url: "https://github.com/Marceltov/freundebuch/issues/52"}
-      - {label: "PR #53", url: "https://github.com/Marceltov/freundebuch/pull/53"}
+      - { label: "#52", url: "https://github.com/Marceltov/freundebuch/issues/52" }
+      - { label: "PR #53", url: "https://github.com/Marceltov/freundebuch/pull/53" }
 
   - id: first-release
     status: done
@@ -181,6 +181,6 @@ items:
     title: The first freundebuch
     summary: A personal CRM for one household with its MCP built in. Tell Claude about a meeting, over MCP or in Erzählen, the chat in the web app, and get a briefing before the next one.
     links:
-      - {label: "ADR 0001", url: "https://marceltov.github.io/freundebuch/adr/0001-ai-first-app-with-built-in-mcp/"}
-      - {label: "ADR 0006", url: "https://marceltov.github.io/freundebuch/adr/0006-in-app-chat-calls-claude/"}
-      - {label: "0.1.0", url: "https://github.com/Marceltov/freundebuch/releases/tag/v0.1.0"}
+      - { label: "ADR 0001", url: "https://marceltov.github.io/freundebuch/adr/0001-ai-first-app-with-built-in-mcp/" }
+      - { label: "ADR 0006", url: "https://marceltov.github.io/freundebuch/adr/0006-in-app-chat-calls-claude/" }
+      - { label: "0.1.0", url: "https://github.com/Marceltov/freundebuch/releases/tag/v0.1.0" }

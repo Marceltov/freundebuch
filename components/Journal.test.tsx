@@ -19,7 +19,9 @@ const entry = (over: Partial<JournalEntry> = {}): JournalEntry => ({
 });
 
 test("the journal lists entries by month, newest first, with people links, the ramble and a lock while private", () => {
-  const html = renderToStaticMarkup(<Journal entries={[entry(), entry({ id: "e2", date: "2026-09-03", text: "Urlaub war gut.", people: [], visibility: "shared" })]} />);
+  const html = renderToStaticMarkup(
+    <Journal entries={[entry(), entry({ id: "e2", date: "2026-09-03", text: "Urlaub war gut.", people: [], visibility: "shared" })]} />,
+  );
   expect(html.indexOf("Oktober 2026")).toBeLessThan(html.indexOf("September 2026"));
   expect(html).toContain('id="journal-e1"');
   expect(html).toContain('href="/p/p1"');

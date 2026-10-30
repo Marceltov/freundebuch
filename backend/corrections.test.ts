@@ -1,5 +1,17 @@
 import { beforeEach, expect, test } from "vitest";
-import { addParticipant, deleteItem, removeParticipant, editItem, factToRelationship, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
+import {
+  addParticipant,
+  deleteItem,
+  removeParticipant,
+  editItem,
+  factToRelationship,
+  markDone,
+  markOutdated,
+  mergePeople,
+  renamePerson,
+  setVisibility,
+  shareTranscript,
+} from "./corrections";
 import { briefing } from "./briefing";
 import { getConversation, recordConversation, remember } from "./conversations";
 import { db } from "./db/testing";
@@ -116,7 +128,15 @@ test("the recorder edits an item and bad values are invalid_input", async () => 
 test("sharing every item keeps the transcript private until the recorder shares it; a private item hides it again", async () => {
   const l = await lunch();
   const transcriptPrivate = async (id: string) =>
-    (await (await db()).selectFrom("rambles").select("transcript_private").where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", id)).executeTakeFirstOrThrow()).transcript_private;
+    (
+      await (
+        await db()
+      )
+        .selectFrom("rambles")
+        .select("transcript_private")
+        .where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", id))
+        .executeTakeFirstOrThrow()
+    ).transcript_private;
   expect(await transcriptPrivate(l.conversation)).toBe(1);
   await setVisibility(s.a, "promises", l.privatePromise, "shared");
   await expect(shareTranscript(s.a, l.conversation)).rejects.toBeInstanceOf(InvalidInputError); // the private fact remains
@@ -254,23 +274,14 @@ test("mergePeople handles colliding aliases, participants, memberships and the r
   });
   await mergePeople(s.a, s.anna, dup);
   expect(
-    (await d.selectFrom("participants").select("person_id").where("conversation_id", "=", both.conversationId).execute())
-      .map((r) => r.person_id)
-      .sort(),
+    (await d.selectFrom("participants").select("person_id").where("conversation_id", "=", both.conversationId).execute()).map((r) => r.person_id).sort(),
   ).toEqual([s.a.personId, s.anna].sort());
   expect(await d.selectFrom("relationships").select("id").where("conversation_id", "=", both.conversationId).execute()).toEqual([]);
-  const members = await d
-    .selectFrom("group_members")
-    .select(["group_id", "person_id", "recorded_by", "visibility"])
-    .where("group_id", "=", "g2")
-    .execute();
+  const members = await d.selectFrom("group_members").select(["group_id", "person_id", "recorded_by", "visibility"]).where("group_id", "=", "g2").execute();
   expect(members).toHaveLength(2);
   expect(members.every((m) => m.person_id === s.anna)).toBe(true);
   expect(await d.selectFrom("group_members").select("person_id").where("person_id", "=", dup).execute()).toEqual([]);
-  expect((await d.selectFrom("aliases").select("norm").where("person_id", "=", s.anna).execute()).map((r) => r.norm).sort()).toEqual([
-    "anna schmidt",
-    "annie",
-  ]);
+  expect((await d.selectFrom("aliases").select("norm").where("person_id", "=", s.anna).execute()).map((r) => r.norm).sort()).toEqual(["anna schmidt", "annie"]);
 });
 
 test("mergePeople keeps the confirmed interval, otherwise the smaller one, per user", async () => {
@@ -350,7 +361,13 @@ test("a private membership keeps the transcript private when another item is sha
   const c = await choir({ private: true });
   const d = await db();
   const tp = async () =>
-    (await d.selectFrom("rambles").select("transcript_private").where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", c)).executeTakeFirstOrThrow()).transcript_private;
+    (
+      await d
+        .selectFrom("rambles")
+        .select("transcript_private")
+        .where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", c))
+        .executeTakeFirstOrThrow()
+    ).transcript_private;
   expect(await tp()).toBe(1);
   await setVisibility(s.a, "facts", await factId("sings alto"), "private");
   await setVisibility(s.a, "facts", await factId("sings alto"), "shared");

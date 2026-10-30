@@ -17,13 +17,34 @@ beforeEach(async () => {
 });
 
 const record = (v: Viewer, over: Partial<Parameters<typeof recordConversation>[1]>) =>
-  recordConversation(v, { date: "2026-10-21", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ id: s.anna, present: true }], ...over });
+  recordConversation(v, {
+    date: "2026-10-21",
+    kind: "call",
+    summary: "s",
+    transcript: "t",
+    visibility: "shared",
+    people: [{ id: s.anna, present: true }],
+    ...over,
+  });
 
 test("A's briefing on Anna holds everything, B's only the shared part", async () => {
   const a = await briefing(s.a, s.anna, "2026-10-23");
   expect(a.person).toEqual({ id: s.anna, name: "Anna", gender: null, aliases: [], url: `/p/${s.anna}`, birthday: null, look: null });
   expect(a.known.map((f) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
-  expect(a.relationships).toEqual([{ id: expect.any(String), personId: s.tom, name: "Tom", label: "Partner:in", inverse: "Partner:in", note: null, direction: "out", url: `/p/${s.tom}`, visibility: "private", mine: true }]);
+  expect(a.relationships).toEqual([
+    {
+      id: expect.any(String),
+      personId: s.tom,
+      name: "Tom",
+      label: "Partner:in",
+      inverse: "Partner:in",
+      note: null,
+      direction: "out",
+      url: `/p/${s.tom}`,
+      visibility: "private",
+      mine: true,
+    },
+  ]);
   expect(a.freshness).toEqual({ lastSeen: "2026-10-20", intervalDays: null, ratio: null });
   const b = await briefing(s.b, s.anna, "2026-10-23");
   expect(b.known.map((f) => f.text).sort()).toEqual(["likes hiking", "new job"]);
@@ -37,7 +58,18 @@ test("B's briefing on Anna and Tom never contains A's private items", async () =
     for (const secret of ["divorce", "partner", "--10-24", "2026-10-24", "Luigi"]) expect(text, `${id} ${secret}`).not.toContain(secret);
   }
   expect((await briefing(s.b, s.tom, "2026-10-23")).nextDates).toEqual([]);
-  expect((await briefing(s.a, s.tom, "2026-10-23")).nextDates).toEqual([{ id: expect.any(String), personId: s.tom, kind: "birthday", label: null, date: "2026-10-24", inDays: 1, age: null, url: expect.stringMatching(`^/p/${s.tom}#dates-`) }]);
+  expect((await briefing(s.a, s.tom, "2026-10-23")).nextDates).toEqual([
+    {
+      id: expect.any(String),
+      personId: s.tom,
+      kind: "birthday",
+      label: null,
+      date: "2026-10-24",
+      inDays: 1,
+      age: null,
+      url: expect.stringMatching(`^/p/${s.tom}#dates-`),
+    },
+  ]);
 });
 
 test("the birthday shows however far away it is, with the age when the year is known", async () => {
@@ -52,8 +84,18 @@ test("the birthday shows however far away it is, with the age when the year is k
 });
 
 test("groups: the names of the groups the viewer may see the person in, each once", async () => {
-  await record(s.a, { groups: [{ name: "Uni", members: [0] }, { name: "Climbing", members: [0], private: true }] });
-  await record(s.b, { groups: [{ name: "Uni", members: [0] }, { name: "Choir", members: [0] }] });
+  await record(s.a, {
+    groups: [
+      { name: "Uni", members: [0] },
+      { name: "Climbing", members: [0], private: true },
+    ],
+  });
+  await record(s.b, {
+    groups: [
+      { name: "Uni", members: [0] },
+      { name: "Choir", members: [0] },
+    ],
+  });
   const names = async (v: Viewer) => (await briefing(v, s.anna, "2026-10-23")).groups.map((g) => g.name);
   expect(await names(s.a)).toEqual(["Choir", "Climbing", "Uni"]);
   expect(await names(s.b)).toEqual(["Choir", "Uni"]);
@@ -89,7 +131,14 @@ test("recent: the last 5 visible conversations, newest first, with the other par
 });
 
 test("recent lists others who were there, and hides a private conversation from the partner", async () => {
-  await record(s.a, { date: "2026-10-22", people: [{ id: s.anna, present: true }, { id: s.tom, present: true }, { id: s.lena, present: true }] });
+  await record(s.a, {
+    date: "2026-10-22",
+    people: [
+      { id: s.anna, present: true },
+      { id: s.tom, present: true },
+      { id: s.lena, present: true },
+    ],
+  });
   await record(s.a, { date: "2026-10-22", summary: "private chat", visibility: "private" });
   const b = await briefing(s.b, s.anna, "2026-10-23");
   expect(b.recent[0].withOthers).toEqual(["Alice", "Lena", "Tom"]);
@@ -147,7 +196,12 @@ test("promises and exchanges read from the viewer's side: the partner's are thei
 });
 
 test("nextDates look 60 days ahead; a birthday with a year carries the age", async () => {
-  await record(s.a, { dates: [{ person: 0, kind: "birthday", date: "1990-12-20", yearly: true }, { person: 0, kind: "custom", date: "--12-23", label: "far", yearly: true }] });
+  await record(s.a, {
+    dates: [
+      { person: 0, kind: "birthday", date: "1990-12-20", yearly: true },
+      { person: 0, kind: "custom", date: "--12-23", label: "far", yearly: true },
+    ],
+  });
   const dates = (await briefing(s.a, s.anna, "2026-10-23")).nextDates;
   expect(dates.map((x) => [x.date, x.age])).toEqual([["2026-12-20", 36]]);
   expect((await briefing(s.a, s.anna, "2026-10-21")).nextDates.map((x) => x.date)).toEqual(["2026-12-20"]);
@@ -177,7 +231,10 @@ test("an unknown person is not found", async () => {
 });
 
 test("each item says whether it is the viewer's own and how visible it is, so only the recorder is offered edit, visibility and delete", async () => {
-  await record(s.a, { promises: [{ person: 0, text: "return the tent", byMe: true, private: true }], exchanges: [{ person: 0, kind: "gift_idea", direction: "to_them", text: "a map" }] });
+  await record(s.a, {
+    promises: [{ person: 0, text: "return the tent", byMe: true, private: true }],
+    exchanges: [{ person: 0, kind: "gift_idea", direction: "to_them", text: "a map" }],
+  });
   const facts = (v: Viewer) => briefing(v, s.anna, "2026-10-23").then((b) => Object.fromEntries(b.known.map((f) => [f.text, [f.mine, f.visibility]])));
   expect(await facts(s.a)).toEqual({ "new job": [true, "shared"], divorce: [true, "private"], "likes hiking": [false, "shared"] });
   expect(await facts(s.b)).toEqual({ "new job": [false, "shared"], "likes hiking": [true, "shared"] });
@@ -242,7 +299,17 @@ test("the network is one hop with us on top", async () => {
 
 test("buildNetwork leaves out household persons without an edge and keeps each person once", () => {
   const rel = (id: string, from_id: string, to_id: string, label = "Freundin") => ({ id, from_id, to_id, label, inverse: label });
-  const n = buildNetwork("p", [rel("1", "p", "x"), rel("2", "x", "p", "Kollegin"), rel("3", "h2", "p")], ["h1", "h2"], new Map([["p", "P"], ["x", "X"], ["h2", "H"]]), new Map());
+  const n = buildNetwork(
+    "p",
+    [rel("1", "p", "x"), rel("2", "x", "p", "Kollegin"), rel("3", "h2", "p")],
+    ["h1", "h2"],
+    new Map([
+      ["p", "P"],
+      ["x", "X"],
+      ["h2", "H"],
+    ]),
+    new Map(),
+  );
   expect(n.nodes.map((x) => x.id)).toEqual(["p", "h2", "x"]);
   expect(n.edges.map((e) => e.id)).toEqual(["1", "2", "3"]);
 });

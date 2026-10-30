@@ -8,7 +8,10 @@ const setAll = () => {
   process.env.FREUNDEBUCH_OIDC_CLIENT_ID = "id";
   process.env.FREUNDEBUCH_OIDC_CLIENT_SECRET = "secret";
 };
-const clear = () => Object.keys(process.env).filter((k) => k.startsWith("FREUNDEBUCH_OIDC_")).forEach((k) => delete process.env[k]);
+const clear = () =>
+  Object.keys(process.env)
+    .filter((k) => k.startsWith("FREUNDEBUCH_OIDC_"))
+    .forEach((k) => delete process.env[k]);
 beforeEach(clear);
 afterEach(clear);
 

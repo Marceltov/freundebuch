@@ -67,13 +67,26 @@ export type Briefing = {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
     promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null; url: string }>;
     /** `by`: the other user's name, when they recorded it; `direction` then reads from their side (`to_them`: they gave). */
-    exchanges: Array<Own & { id: string; kind: ExchangeKind; direction: "to_them" | "from_them"; by?: string; text: string; amount: number | null; currency: string | null; url: string }>;
+    exchanges: Array<
+      Own & {
+        id: string;
+        kind: ExchangeKind;
+        direction: "to_them" | "from_them";
+        by?: string;
+        text: string;
+        amount: number | null;
+        currency: string | null;
+        url: string;
+      }
+    >;
     giftIdeas: Array<Own & { id: string; text: string; url: string }>;
   };
   recent: Array<{ id: string; date: string; kind: string; summary: string; withOthers: string[]; url: string }>;
   /** Every visible relationship of the person, roles included, as stored: `label` is what `from` is to `to`, `inverse` what `to` is
    * to `from`. `direction` is `out` when the person is `from`, `in` when they are `to`; `personId` and `name` are the other end's. */
-  relationships: Array<Own & { id: string; personId: string; name: string; label: string; inverse: string; note: string | null; direction: "out" | "in"; url: string }>;
+  relationships: Array<
+    Own & { id: string; personId: string; name: string; label: string; inverse: string; note: string | null; direction: "out" | "in"; url: string }
+  >;
   /** One hop: the person, the household persons with a visible relationship to them, then their other people. */
   network: Network;
   /** Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for a household person. */
@@ -86,9 +99,30 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   const [fresh, nextDates, facts, promises, exchanges, rels, convs, setting, birthdays, groups] = await Promise.all([
     freshness(v, personId, from),
     upcomingDates(v, from, NEXT_DATES_DAYS, personId),
-    d.selectFrom("facts").selectAll().where("person_id", "=", personId).where("status", "=", "current").$call((qb) => visible(qb, v, "facts")).orderBy("created_at").execute(),
-    d.selectFrom("promises").selectAll().where("person_id", "=", personId).where("done", "=", 0).$call((qb) => visible(qb, v, "promises")).orderBy("created_at").execute(),
-    d.selectFrom("exchanges").selectAll().where("person_id", "=", personId).where("settled", "=", 0).$call((qb) => visible(qb, v, "exchanges")).orderBy("created_at").execute(),
+    d
+      .selectFrom("facts")
+      .selectAll()
+      .where("person_id", "=", personId)
+      .where("status", "=", "current")
+      .$call((qb) => visible(qb, v, "facts"))
+      .orderBy("created_at")
+      .execute(),
+    d
+      .selectFrom("promises")
+      .selectAll()
+      .where("person_id", "=", personId)
+      .where("done", "=", 0)
+      .$call((qb) => visible(qb, v, "promises"))
+      .orderBy("created_at")
+      .execute(),
+    d
+      .selectFrom("exchanges")
+      .selectAll()
+      .where("person_id", "=", personId)
+      .where("settled", "=", 0)
+      .$call((qb) => visible(qb, v, "exchanges"))
+      .orderBy("created_at")
+      .execute(),
     d
       .selectFrom("relationships")
       .selectAll()
@@ -108,7 +142,14 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .limit(RECENT)
       .execute(),
     d.selectFrom("person_settings").select("interval_confirmed").where("user_id", "=", v.userId).where("person_id", "=", personId).executeTakeFirst(),
-    d.selectFrom("dates").select(["id", "date", "yearly", "recorded_by"]).where("person_id", "=", personId).where("kind", "=", "birthday").$call((qb) => visible(qb, v, "dates")).orderBy("created_at").execute(),
+    d
+      .selectFrom("dates")
+      .select(["id", "date", "yearly", "recorded_by"])
+      .where("person_id", "=", personId)
+      .where("kind", "=", "birthday")
+      .$call((qb) => visible(qb, v, "dates"))
+      .orderBy("created_at")
+      .execute(),
     d
       .selectFrom("group_members")
       .innerJoin("groups", "groups.id", "group_members.group_id")
@@ -129,7 +170,11 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     ? await d
         .selectFrom("participants")
         .select(["conversation_id", "person_id"])
-        .where("conversation_id", "in", convs.map((c) => c.id))
+        .where(
+          "conversation_id",
+          "in",
+          convs.map((c) => c.id),
+        )
         .where("person_id", "not in", [personId, v.personId])
         .execute()
     : [];
@@ -145,7 +190,10 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   const suggested = setting?.interval_confirmed || household.includes(personId) ? null : await suggestInterval(v, personId);
   const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
-  const hidden = await hiddenFiles(v, facts.flatMap((f) => (f.file_id ? [f.file_id] : [])));
+  const hidden = await hiddenFiles(
+    v,
+    facts.flatMap((f) => (f.file_id ? [f.file_id] : [])),
+  );
   const fact = (f: (typeof facts)[number]): Fact => toFact(f, v, page, hidden);
   const situations = facts
     .filter((f) => f.kind === "situation")
@@ -166,7 +214,12 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       look: person.look,
     },
     roles: roles(v, personId, rels, household, names),
-    groups: [...new Map(groups.map((g) => [g.id, g])).values()].map((g) => ({ id: g.id, name: g.name, url: groupPath(g.id), private: groups.every((x) => x.id !== g.id || x.visibility === "private") })),
+    groups: [...new Map(groups.map((g) => [g.id, g])).values()].map((g) => ({
+      id: g.id,
+      name: g.name,
+      url: groupPath(g.id),
+      private: groups.every((x) => x.id !== g.id || x.visibility === "private"),
+    })),
     freshness: fresh,
     nextDates,
     situations,
@@ -176,17 +229,45 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     homes: await homesOf(v, personId),
     known,
     open: {
-      promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),
+      promises: promises.map((p) => ({
+        id: p.id,
+        text: p.text,
+        byMe: !!p.by_me && p.recorded_by === v.userId,
+        ...(p.by_me ? by(p) : {}),
+        due: p.due,
+        url: itemPath(page, "promises", p.id),
+        ...own(p),
+      })),
       exchanges: exchanges
         .filter((e) => e.kind !== "gift_idea")
-        .map((e) => ({ id: e.id, kind: e.kind as ExchangeKind, direction: e.direction, ...by(e), text: e.text, amount: e.amount, currency: e.currency, url: itemPath(page, "exchanges", e.id), ...own(e) })),
+        .map((e) => ({
+          id: e.id,
+          kind: e.kind as ExchangeKind,
+          direction: e.direction,
+          ...by(e),
+          text: e.text,
+          amount: e.amount,
+          currency: e.currency,
+          url: itemPath(page, "exchanges", e.id),
+          ...own(e),
+        })),
       giftIdeas: exchanges.filter((e) => e.kind === "gift_idea").map((e) => ({ id: e.id, text: e.text, url: itemPath(page, "exchanges", e.id), ...own(e) })),
     },
     recent: convs.map((c) => ({ id: c.id, date: c.date, kind: c.kind, summary: c.summary, withOthers: withOthers(c.id), url: conversationPath(c.id) })),
     relationships: rels.map((r) => {
       const out = r.from_id === personId;
       const other = out ? r.to_id : r.from_id;
-      return { id: r.id, personId: other, name: names.get(other) ?? "", label: r.label, inverse: r.inverse, note: r.note, direction: out ? "out" : "in", url: personPath(other), ...own(r) };
+      return {
+        id: r.id,
+        personId: other,
+        name: names.get(other) ?? "",
+        label: r.label,
+        inverse: r.inverse,
+        note: r.note,
+        direction: out ? "out" : "in",
+        url: personPath(other),
+        ...own(r),
+      };
     }),
     network: buildNetwork(personId, rels, household, names, new Map(persons.map((p) => [p.id, p.gender]))),
     ...(suggested !== null ? { suggestedInterval: suggested } : {}),
@@ -197,7 +278,13 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
  * The person's visible relationships to household persons, one role per relationship however many of us it runs to: "Vermieterin
  * of Alice" and "Vermieter:in of Bob" are one role, keyed by both ends' words without their gender endings.
  */
-function roles(v: Viewer, personId: string, rels: { id: string; from_id: string; to_id: string; label: string; inverse: string }[], household: string[], names: Map<string, string>): Role[] {
+function roles(
+  v: Viewer,
+  personId: string,
+  rels: { id: string; from_id: string; to_id: string; label: string; inverse: string }[],
+  household: string[],
+  names: Map<string, string>,
+): Role[] {
   const ours = household.filter((h) => h !== personId);
   const groups = new Map<string, { label: string; ids: string[]; with: Set<string> }>();
   for (const r of rels) {
@@ -213,7 +300,14 @@ function roles(v: Viewer, personId: string, rels: { id: string; from_id: string;
   }
   return [...groups.values()].map((g) => {
     const partner = [...g.with].find((h) => h !== v.personId);
-    const w = ours.every((h) => g.with.has(h)) && (ours.length > 1 || g.with.has(v.personId)) ? (ours.length > 1 ? "us" : "me") : g.with.has(v.personId) ? "me" : "partner";
+    const w =
+      ours.every((h) => g.with.has(h)) && (ours.length > 1 || g.with.has(v.personId))
+        ? ours.length > 1
+          ? "us"
+          : "me"
+        : g.with.has(v.personId)
+          ? "me"
+          : "partner";
     return { label: g.label, with: w, ...(w === "partner" ? { partnerName: names.get(partner!) ?? "" } : {}), ids: g.ids };
   });
 }

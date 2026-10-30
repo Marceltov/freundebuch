@@ -28,7 +28,10 @@ export async function addRelationship(v: Viewer, r: NewRelationship): Promise<{ 
   checkRelationship(r, () => {});
   checkVisibility(r.visibility);
   return (await db()).transaction().execute(async (tx) => {
-    await assertPeople(tx, [r.from, r.to].filter((t) => !isHouseholdWord(t)));
+    await assertPeople(
+      tx,
+      [r.from, r.to].filter((t) => !isHouseholdWord(t)),
+    );
     const relationships = await insertRelationships(tx, v, baseOf(v), r);
     return { ids: relationships.map((x) => x.id), relationships };
   });

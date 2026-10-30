@@ -55,9 +55,18 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 const decode = (v: string) => (v.startsWith("=?UTF-8?B?") ? Buffer.from(v.slice(10, -2), "base64").toString("utf8") : v);
 let colour = 0;
 /** A different small PNG each call, so no two count as the same screenshot. */
-const image = async (width = 2000) => new Uint8Array(await sharp({ create: { width, height: 40, channels: 3, background: { r: colour++ % 256, g: 10, b: 20 } } }).png().toBuffer());
+const image = async (width = 2000) =>
+  new Uint8Array(
+    await sharp({ create: { width, height: 40, channels: 3, background: { r: colour++ % 256, g: 10, b: 20 } } })
+      .png()
+      .toBuffer(),
+  );
 
-const suggestion = (people: Suggestion["people"], summary = "Anna war in Lissabon im Urlaub"): Suggestion => ({ summary, transcript: "Anna: Urlaub in Lissabon!", people });
+const suggestion = (people: Suggestion["people"], summary = "Anna war in Lissabon im Urlaub"): Suggestion => ({
+  summary,
+  transcript: "Anna: Urlaub in Lissabon!",
+  people,
+});
 const answering = (r: Suggestion | { error: string }): FileModel & { seen: FileInput[] } => {
   const seen: FileInput[] = [];
   return { seen, read: async (i) => (seen.push(i), r) };
@@ -66,9 +75,24 @@ const status = async (id: string) => (await (await db()).selectFrom("files").sel
 // A fact filed from a file, as remember with fileId files it.
 async function factFrom(fileId: string, visibility: "shared" | "private" = "shared") {
   const id = `f-${fileId}`;
-  await (await db())
+  await (
+    await db()
+  )
     .insertInto("facts")
-    .values({ id, person_id: s.anna, text: "Urlaub in Lissabon", category: "travel", status: "current", visibility, recorded_by: s.a.userId, conversation_id: null, created_at: Date.now(), source: "Instagram", happened_on: "2026-10-12", file_id: fileId })
+    .values({
+      id,
+      person_id: s.anna,
+      text: "Urlaub in Lissabon",
+      category: "travel",
+      status: "current",
+      visibility,
+      recorded_by: s.a.userId,
+      conversation_id: null,
+      created_at: Date.now(),
+      source: "Instagram",
+      happened_on: "2026-10-12",
+      file_id: fileId,
+    })
     .execute();
   await (await db()).updateTable("files").set({ status: "filed" }).where("id", "=", fileId).execute();
   return id;
@@ -99,7 +123,9 @@ test("an image is shrunk to 1080 px WebP and pre-read into a suggestion that wai
       batchId: null,
     },
   ]);
-  expect(sent).toEqual([expect.objectContaining({ title: "📎 Neu unter „Prüfen“", body: "Anna war in Lissabon im Urlaub", click: `https://f.example/pruefen#${shot.id}` })]);
+  expect(sent).toEqual([
+    expect.objectContaining({ title: "📎 Neu unter „Prüfen“", body: "Anna war in Lissabon im Urlaub", click: `https://f.example/pruefen#${shot.id}` }),
+  ]);
 });
 
 test("a person id that doesn't exist becomes candidates of those that do", async () => {
@@ -133,8 +159,22 @@ test("a failed pre-read keeps its reason and pushes; retry reads it again", asyn
 
 test("a pre-read from before files lists its text as the summary", async () => {
   const shot = await shareFile(s.a, await image());
-  const old = { kind: "post", platform: "Instagram", text: "Urlaub in Lissabon", category: "travel", happenedOn: null, sensitive: false, people: [{ name: "Anna", candidates: [s.anna] }] };
-  await (await db()).updateTable("files").set({ status: "pending", reading: JSON.stringify(old) }).where("id", "=", shot.id).execute();
+  const old = {
+    kind: "post",
+    platform: "Instagram",
+    text: "Urlaub in Lissabon",
+    category: "travel",
+    happenedOn: null,
+    sensitive: false,
+    people: [{ name: "Anna", candidates: [s.anna] }],
+  };
+  await (
+    await db()
+  )
+    .updateTable("files")
+    .set({ status: "pending", reading: JSON.stringify(old) })
+    .where("id", "=", shot.id)
+    .execute();
   expect((await listPending(s.a))[0]).toMatchObject({ summary: "Urlaub in Lissabon", people: [{ name: "Anna", person: null, candidates: [{ id: s.anna }] }] });
 });
 
@@ -201,7 +241,9 @@ test("a share key names its user until it is replaced or revoked", async () => {
   // the webhook survives a new key
   await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
   await createShareKey(s.b);
-  expect((await (await db()).selectFrom("user_settings").select("webhook_url").where("user_id", "=", s.b.userId).executeTakeFirstOrThrow()).webhook_url).toBe("https://ntfy.example/b");
+  expect((await (await db()).selectFrom("user_settings").select("webhook_url").where("user_id", "=", s.b.userId).executeTakeFirstOrThrow()).webhook_url).toBe(
+    "https://ntfy.example/b",
+  );
 });
 
 test("a PDF and a text file are stored as they are, with their type; anything else is refused", async () => {
@@ -214,7 +256,9 @@ test("a PDF and a text file are stored as they are, with their type; anything el
   // Without a type, the bytes tell.
   const c = await shareFile(s.a, new TextEncoder().encode("%PDF-1.7 other"), "");
   expect((await fileContent(s.a, c.id))!.type).toBe("application/pdf");
-  await expect(shareFile(s.a, new Uint8Array([0x50, 0x4b, 3, 4, 0, 0, 9]), "application/zip")).rejects.toThrow("freundebuch takes images, PDFs, text files and voice notes");
+  await expect(shareFile(s.a, new Uint8Array([0x50, 0x4b, 3, 4, 0, 0, 9]), "application/zip")).rejects.toThrow(
+    "freundebuch takes images, PDFs, text files and voice notes",
+  );
   await expect(shareFile(s.a, new Uint8Array([0, 1, 2, 0xff, 0xfe]), "")).rejects.toThrow("freundebuch takes images, PDFs, text files and voice notes");
   const keys = await (await db()).selectFrom("files").select(["id", "blob_key"]).execute();
   expect(keys.find((k) => k.id === a.id)!.blob_key).toBe(`files/${a.id}.pdf`);
@@ -224,9 +268,22 @@ test("a PDF and a text file are stored as they are, with their type; anything el
 test("a file a private fact was filed from too stays its recorder's: the shared fact neither opens nor shows it (from before files)", async () => {
   const shot = await shareFile(s.a, await image());
   await factFrom(shot.id);
-  await (await db())
+  await (
+    await db()
+  )
     .insertInto("facts")
-    .values({ id: "f-private", person_id: s.anna, text: "Trennung", category: "family", status: "current", visibility: "private", recorded_by: s.a.userId, conversation_id: null, created_at: Date.now(), file_id: shot.id })
+    .values({
+      id: "f-private",
+      person_id: s.anna,
+      text: "Trennung",
+      category: "family",
+      status: "current",
+      visibility: "private",
+      recorded_by: s.a.userId,
+      conversation_id: null,
+      created_at: Date.now(),
+      file_id: shot.id,
+    })
     .execute();
   expect(await fileContent(s.b, shot.id)).toBeNull();
   expect((await briefing(s.b, s.anna, "2026-10-25")).known.find((f) => f.text === "Urlaub in Lissabon")?.imageUrl).toBeUndefined();
@@ -240,7 +297,9 @@ test("a pre-read keeps the file's transcript, which the listing shows", async ()
 });
 
 test("a text file over 1 MB is refused: too long to hand to Claude whole", async () => {
-  await expect(shareFile(s.a, new TextEncoder().encode("a".repeat(1024 * 1024 + 1)), "text/plain")).rejects.toThrow("The text file is too long (at most 1 MB): share a shorter part");
+  await expect(shareFile(s.a, new TextEncoder().encode("a".repeat(1024 * 1024 + 1)), "text/plain")).rejects.toThrow(
+    "The text file is too long (at most 1 MB): share a shorter part",
+  );
   expect(await (await db()).selectFrom("files").selectAll().execute()).toEqual([]);
 });
 
@@ -292,7 +351,7 @@ test("a file filed by the screenshot reading before files can be shared again: i
   expect(again).toMatchObject({ status: "reading", duplicate: false });
   expect(again.id).not.toBe(first.id);
   // The old row stays for the fact that may still show it.
-  expect((await (await db()).selectFrom("files").select("id").where("id", "=", first.id).execute())).toHaveLength(1);
+  expect(await (await db()).selectFrom("files").select("id").where("id", "=", first.id).execute()).toHaveLength(1);
 });
 
 // A voice note as WhatsApp shares it: Ogg (Opus). Only its first bytes matter here; Whisper is a stand-in.
@@ -314,7 +373,11 @@ test("a voice note is stored as it came, transcribed, and Claude pre-reads the t
     expect(whisper.heard).toEqual(["audio/ogg"]);
     expect(model.seen[0].type).toBe("text/plain");
     expect(new TextDecoder().decode(model.seen[0].bytes)).toContain("Wir sind gut in Lissabon angekommen!");
-    expect((await listPending(s.a))[0]).toMatchObject({ type: "audio/ogg", summary: "Anna war in Lissabon im Urlaub", transcript: "Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!" });
+    expect((await listPending(s.a))[0]).toMatchObject({
+      type: "audio/ogg",
+      summary: "Anna war in Lissabon im Urlaub",
+      transcript: "Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!",
+    });
     // Erzählen gets the words, not the audio.
     const [chat] = await chatFiles(s.a, [shot.id]);
     expect(chat.type).toBe("text/plain");

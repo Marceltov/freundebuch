@@ -51,7 +51,9 @@ export function PersonMenu({
   // `stay`: keep the sheet open, to change several parts of a look one after another.
   async function send(method: string, path: string, body: object, stay = false) {
     setFailed(false);
-    const res = await fetch(`/api/v1/people/${id}${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+    const res = await fetch(`/api/v1/people/${id}${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(
+      () => null,
+    );
     if (!res?.ok) return setFailed(true);
     if (!stay) setOpen(false);
     setAlias("");
@@ -116,7 +118,12 @@ export function PersonMenu({
                   if (newName.trim() && newName.trim() !== name) send("PATCH", "", { name: newName.trim() });
                 }}
               >
-                <input value={newName} onChange={(e) => setNewName(e.target.value)} aria-label={copy.groupName} className="w-full rounded-xl border border-rule bg-paper px-3 py-2" />
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  aria-label={copy.groupName}
+                  className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
+                />
               </form>
             </Part>
 
@@ -124,7 +131,13 @@ export function PersonMenu({
               <div role="radiogroup" aria-label={copy.gender} className="grid grid-cols-4 gap-1 rounded-2xl bg-surface-2 p-1">
                 {genders(copy).map((g) => (
                   <label key={g.label} className="cursor-pointer">
-                    <input type="radio" name="gender" className="peer sr-only" checked={gender === g.value} onChange={() => send("PATCH", "", { gender: g.value })} />
+                    <input
+                      type="radio"
+                      name="gender"
+                      className="peer sr-only"
+                      checked={gender === g.value}
+                      onChange={() => send("PATCH", "", { gender: g.value })}
+                    />
                     <span className="block rounded-xl py-2 text-center text-sm peer-checked:bg-carbon peer-checked:font-bold peer-checked:text-on-carbon peer-focus-visible:outline-2 peer-focus-visible:outline-carbon">
                       {g.label}
                     </span>
@@ -144,13 +157,23 @@ export function PersonMenu({
                   if (alias.trim()) send("POST", "/aliases", { alias: alias.trim() });
                 }}
               >
-                <input value={alias} onChange={(e) => setAlias(e.target.value)} aria-label={copy.nickname} className="w-full rounded-xl border border-rule bg-paper px-3 py-2" />
+                <input
+                  value={alias}
+                  onChange={(e) => setAlias(e.target.value)}
+                  aria-label={copy.nickname}
+                  className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
+                />
               </form>
             </Part>
 
             {others.length > 0 && (
               <Part title={copy.mergeDuplicate} hint={copy.mergeDuplicateHint}>
-                <select value={drop} onChange={(e) => setDrop(e.target.value)} aria-label={copy.samePerson} className="w-full rounded-xl border border-rule bg-paper px-3 py-2">
+                <select
+                  value={drop}
+                  onChange={(e) => setDrop(e.target.value)}
+                  aria-label={copy.samePerson}
+                  className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
+                >
                   <option value="">{copy.samePerson}</option>
                   {others.map((o) => (
                     <option key={o.id} value={o.id}>
@@ -159,7 +182,11 @@ export function PersonMenu({
                   ))}
                 </select>
                 {drop && (
-                  <button type="button" onClick={() => send("POST", "/merge", { drop })} className="mt-2 w-full rounded-xl bg-carbon px-3 py-2 font-bold text-on-carbon">
+                  <button
+                    type="button"
+                    onClick={() => send("POST", "/merge", { drop })}
+                    className="mt-2 w-full rounded-xl bg-carbon px-3 py-2 font-bold text-on-carbon"
+                  >
                     {copy.confirmMergePerson.replace("{drop}", dropName).replace("{keep}", name)}
                   </button>
                 )}
@@ -202,7 +229,11 @@ function LookEditor({ look: saved, onChange }: { look: Look | null; onChange: (l
   };
   if (!look) {
     return (
-      <button type="button" onClick={() => change({ ...START, description: null })} className="w-full rounded-xl bg-surface-2 px-3 py-2 font-semibold hover:bg-rule">
+      <button
+        type="button"
+        onClick={() => change({ ...START, description: null })}
+        className="w-full rounded-xl bg-surface-2 px-3 py-2 font-semibold hover:bg-rule"
+      >
         {copy.lookStart}
       </button>
     );

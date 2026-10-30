@@ -28,13 +28,17 @@ export async function insertPerson(d: Kysely<Schema>, v: Viewer, p: NewPerson): 
   if (!name) throw new InvalidInputError("A person needs a name");
   if (p.gender !== undefined) checkGender(p.gender);
   const id = newId();
-  await d.insertInto("persons").values({ id, name, created_by: v.userId, created_from: p.createdFrom ?? null, created_at: now(), gender: p.gender ?? null }).execute();
+  await d
+    .insertInto("persons")
+    .values({ id, name, created_by: v.userId, created_from: p.createdFrom ?? null, created_at: now(), gender: p.gender ?? null })
+    .execute();
   for (const alias of p.aliases ?? []) await insertAlias(d, id, name, alias);
   return id;
 }
 
 export function checkGender(gender: unknown): asserts gender is Gender | null {
-  if (gender !== null && !GENDERS.includes(gender as Gender)) throw new InvalidInputError(`Gender must be one of ${GENDERS.join(", ")}, or null when it isn't known`);
+  if (gender !== null && !GENDERS.includes(gender as Gender))
+    throw new InvalidInputError(`Gender must be one of ${GENDERS.join(", ")}, or null when it isn't known`);
 }
 
 /** A relationship whose words may need the person's new gender: `label` what `from` is to `to`, `inverse` what `to` is to `from`. */
@@ -77,14 +81,26 @@ export async function relabelFor(d: Kysely<Schema>, v: Viewer, personId: string,
   const names = new Map(ids.length ? (await d.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute()).map((p) => [p.id, p.name]) : []);
   return rels
     .filter((x) => before !== null || isNeutral(x.from_id === personId ? x.label : x.inverse))
-    .map((x) => ({ id: x.id, fromId: x.from_id, fromName: names.get(x.from_id) ?? "", toId: x.to_id, toName: names.get(x.to_id) ?? "", label: x.label, inverse: x.inverse }));
+    .map((x) => ({
+      id: x.id,
+      fromId: x.from_id,
+      fromName: names.get(x.from_id) ?? "",
+      toId: x.to_id,
+      toName: names.get(x.to_id) ?? "",
+      label: x.label,
+      inverse: x.inverse,
+    }));
 }
 
 export async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {
   const a = alias.trim();
   if (!a) throw new InvalidInputError("An alias can't be empty");
   if (norm(a) === norm(name)) return; // the name already matches
-  await d.insertInto("aliases").values({ person_id: personId, alias: a, norm: norm(a) }).onConflict((oc) => oc.doNothing()).execute();
+  await d
+    .insertInto("aliases")
+    .values({ person_id: personId, alias: a, norm: norm(a) })
+    .onConflict((oc) => oc.doNothing())
+    .execute();
 }
 
 export async function addAlias(v: Viewer, id: string, alias: string): Promise<void> {
@@ -112,7 +128,9 @@ export async function findPeople(v: Viewer, q: string, limit = 5): Promise<Candi
     .filter((h): h is { p: (typeof people)[number]; r: number } => h.r !== null)
     .sort((x, y) => x.r - y.r || x.p.name.localeCompare(y.p.name))
     .slice(0, limit);
-  return Promise.all(hits.map(async ({ p }) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], url: personPath(p.id), context: await contextFor(v, p.id) })));
+  return Promise.all(
+    hits.map(async ({ p }) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], url: personPath(p.id), context: await contextFor(v, p.id) })),
+  );
 }
 
 /** The people whose name or one of whose aliases is `name` once normalised; names and aliases are shared, the context is the viewer's. */
@@ -120,7 +138,9 @@ export async function namedLike(v: Viewer, name: string): Promise<Candidate[]> {
   const n = norm(name);
   const [people, aliases] = await Promise.all([(await db()).selectFrom("persons").select(["id", "name"]).orderBy("name").execute(), aliasesByPerson()]);
   const hits = people.filter((p) => norm(p.name) === n || (aliases.get(p.id) ?? []).some((a) => norm(a) === n));
-  return Promise.all(hits.map(async (p) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], url: personPath(p.id), context: await contextFor(v, p.id) })));
+  return Promise.all(
+    hits.map(async (p) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], url: personPath(p.id), context: await contextFor(v, p.id) })),
+  );
 }
 
 /** Hints that help tell two people with the same name apart, built only from what the viewer can see. */
@@ -138,7 +158,11 @@ async function contextFor(v: Viewer, personId: string): Promise<string[]> {
     const outgoing = r.from_id === personId;
     // What the person is to the other, in the words filed ("Vermieterin of Tom").
     const label = outgoing ? r.label : r.inverse;
-    const other = await d.selectFrom("persons").select("name").where("id", "=", outgoing ? r.to_id : r.from_id).executeTakeFirst();
+    const other = await d
+      .selectFrom("persons")
+      .select("name")
+      .where("id", "=", outgoing ? r.to_id : r.from_id)
+      .executeTakeFirst();
     if (other) hints.push(`${label} of ${other.name}`);
   }
   const last = await lastSeen(v, personId);
@@ -164,7 +188,12 @@ async function createdFromFor(v: Viewer, personId: string, conversationId: strin
   const shows = [
     d.selectFrom("participants").select("person_id").where("conversation_id", "=", conversationId).where("person_id", "=", personId),
     ...(["facts", "promises", "dates", "exchanges"] as const).map((t) =>
-      d.selectFrom(t).select("id").where("conversation_id", "=", conversationId).where("person_id", "=", personId).$call((qb) => visible(qb, v, t)),
+      d
+        .selectFrom(t)
+        .select("id")
+        .where("conversation_id", "=", conversationId)
+        .where("person_id", "=", personId)
+        .$call((qb) => visible(qb, v, t)),
     ),
     d
       .selectFrom("relationships")
@@ -177,7 +206,10 @@ async function createdFromFor(v: Viewer, personId: string, conversationId: strin
   return null;
 }
 
-async function toViews(v: Viewer, rows: { id: string; name: string; created_from: string | null; gender: Gender | null; look: string | null }[]): Promise<PersonView[]> {
+async function toViews(
+  v: Viewer,
+  rows: { id: string; name: string; created_from: string | null; gender: Gender | null; look: string | null }[],
+): Promise<PersonView[]> {
   const aliases = await aliasesByPerson();
   return Promise.all(
     rows.map(async (r) => ({
@@ -211,7 +243,12 @@ export async function peopleOverview(v: Viewer): Promise<PersonOverview[]> {
   const [people, aliases, memberships] = await Promise.all([
     d.selectFrom("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),
     aliasesByPerson(),
-    d.selectFrom("group_members").select(["person_id", "group_id"]).distinct().$call((qb) => visible(qb, v, "group_members")).execute(),
+    d
+      .selectFrom("group_members")
+      .select(["person_id", "group_id"])
+      .distinct()
+      .$call((qb) => visible(qb, v, "group_members"))
+      .execute(),
   ]);
   const rows = await Promise.all(
     people.map(async (p) => ({

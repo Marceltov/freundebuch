@@ -104,7 +104,10 @@ test("the partner's private dates never show up, not even as a busy slot; the re
 });
 
 test("the feed is valid iCalendar: CRLF, escaped text, lines folded at 75 octets", async () => {
-  await remember(s.a, { visibility: "shared", dates: [{ person: s.anna, kind: "custom", date: "--05-01", label: "Party; with friends, and a very long label that goes on and on and on", yearly: true }] });
+  await remember(s.a, {
+    visibility: "shared",
+    dates: [{ person: s.anna, kind: "custom", date: "--05-01", label: "Party; with friends, and a very long label that goes on and on and on", yearly: true }],
+  });
   const ics = await calendarFeed(s.a, BASE, NOW);
   expect(ics.startsWith("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n")).toBe(true);
   expect(ics.endsWith("END:VCALENDAR\r\n")).toBe(true);

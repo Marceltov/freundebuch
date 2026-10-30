@@ -63,7 +63,13 @@ export function AvatarParts({ look }: { look: LookParts }) {
       {look.beard === "full" && <path d={jaw(-2, 6)} fill={hair} />}
       {(look.beard === "moustache" || look.beard === "short" || look.beard === "full") && <path d={moustache} fill={hair} />}
 
-      <path d={`M${CX - 12} ${CY - 6}L${CX - 4.5} ${CY - 7}M${CX + 4.5} ${CY - 7}L${CX + 12} ${CY - 6}`} stroke={look.hair === "none" && look.hairColor === "white" ? LINE : hair} strokeOpacity={0.9} strokeWidth={2.2} strokeLinecap="round" />
+      <path
+        d={`M${CX - 12} ${CY - 6}L${CX - 4.5} ${CY - 7}M${CX + 4.5} ${CY - 7}L${CX + 12} ${CY - 6}`}
+        stroke={look.hair === "none" && look.hairColor === "white" ? LINE : hair}
+        strokeOpacity={0.9}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+      />
       <circle cx={CX - 8} cy={CY + 1} r={2.4} fill={LINE} />
       <circle cx={CX + 8} cy={CY + 1} r={2.4} fill={LINE} />
       <path d={`M${CX} ${CY + 3}q-2 4 1 5`} fill="none" stroke="#000" strokeOpacity={0.18} strokeWidth={1.6} strokeLinecap="round" />
@@ -71,11 +77,16 @@ export function AvatarParts({ look }: { look: LookParts }) {
 
       {/* in front */}
       {look.hair === "buzz" && <path d={cap(0.62)} fill={hair} fillOpacity={0.6} />}
-      {(look.hair === "short" || look.hair === "wavy" || look.hair === "long" || look.hair === "bun" || look.hair === "ponytail" || look.hair === "afro") && <path d={cap(0.5)} fill={hair} />}
+      {(look.hair === "short" || look.hair === "wavy" || look.hair === "long" || look.hair === "bun" || look.hair === "ponytail" || look.hair === "afro") && (
+        <path d={cap(0.5)} fill={hair} />
+      )}
       {look.hair === "side-part" && (
         <>
           <path d={cap(0.5)} fill={hair} />
-          <path d={`M${CX - rx + 1} ${CY - ry * 0.35}Q${CX - 6} ${CY - ry * 0.95} ${CX + rx - 2} ${CY - ry * 0.55}L${CX + rx + 1} ${CY - ry * 0.75}Q${CX} ${CY - ry * 1.15} ${CX - rx} ${CY - ry * 0.7}Z`} fill={hair} />
+          <path
+            d={`M${CX - rx + 1} ${CY - ry * 0.35}Q${CX - 6} ${CY - ry * 0.95} ${CX + rx - 2} ${CY - ry * 0.55}L${CX + rx + 1} ${CY - ry * 0.75}Q${CX} ${CY - ry * 1.15} ${CX - rx} ${CY - ry * 0.7}Z`}
+            fill={hair}
+          />
         </>
       )}
       {look.hair === "curly" && (

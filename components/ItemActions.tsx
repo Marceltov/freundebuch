@@ -1,6 +1,23 @@
 "use client";
 
-import { Accessibility, Archive, BookOpen, CalendarClock, CalendarDays, Check, Ellipsis, Lock, LockOpen, Pencil, Share2, Smile, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import {
+  Accessibility,
+  Archive,
+  BookOpen,
+  CalendarClock,
+  CalendarDays,
+  Check,
+  Ellipsis,
+  Lock,
+  LockOpen,
+  Pencil,
+  Share2,
+  Smile,
+  Sparkles,
+  Trash2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FactKind } from "@/backend";
@@ -23,7 +40,8 @@ const OWN: Table[] = ["conversations", "journal_entries", "experiences", "series
 // lets whoever may edit it move it to another kind (Gerade los, Gut zu wissen, Braucht, Wesen), and set the day to ask about a situation (`checkAfter`).
 
 /** The link to an item's highlighted row on the page it is shared from. */
-export const rowPath = (page: string, table: Exclude<Table, "conversations" | "journal_entries" | "experiences" | "series">, id: string) => `${page}#${table}-${id}`;
+export const rowPath = (page: string, table: Exclude<Table, "conversations" | "journal_entries" | "experiences" | "series">, id: string) =>
+  `${page}#${table}-${id}`;
 
 /** Whether the viewer may edit or delete the item: their own, or a shared one of the partner's that isn't a conversation. */
 export function canEdit(table: Table, mine: boolean, visibility: "shared" | "private"): boolean {
@@ -192,7 +210,8 @@ export function ItemActions({
             aria-label={title}
             onSubmit={(e) => {
               e.preventDefault();
-              if (editing === "text" ? draft.trim() : day) send("PATCH", { patch: editing === "date" ? { date: day } : editing === "ask" ? { checkAfter: day } : { [field]: draft.trim() } });
+              if (editing === "text" ? draft.trim() : day)
+                send("PATCH", { patch: editing === "date" ? { date: day } : editing === "ask" ? { checkAfter: day } : { [field]: draft.trim() } });
             }}
             className="absolute inset-x-0 bottom-0 mx-auto max-w-2xl space-y-3 rounded-t-3xl bg-surface px-5 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-float"
           >
@@ -223,11 +242,19 @@ export function ItemActions({
               </p>
             )}
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setEditing(false)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 font-semibold hover:bg-surface-2">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 font-semibold hover:bg-surface-2"
+              >
                 <X aria-hidden className="h-4 w-4" />
                 {copy.cancel}
               </button>
-              <button type="submit" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-2 font-bold text-on-carbon disabled:opacity-50">
+              <button
+                type="submit"
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-2 font-bold text-on-carbon disabled:opacity-50"
+              >
                 <Check aria-hidden className="h-4 w-4" />
                 {copy.save}
               </button>
@@ -239,7 +266,19 @@ export function ItemActions({
   );
 }
 
-function Item({ icon: Icon, label, onClick, disabled, danger }: { icon: LucideIcon; label: string; onClick: () => void; disabled?: boolean; danger?: boolean }) {
+function Item({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+  danger,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
   return (
     <button
       type="button"

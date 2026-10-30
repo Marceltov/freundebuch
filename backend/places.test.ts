@@ -14,7 +14,13 @@ beforeEach(async () => {
 });
 
 const at = (v: Seed["a"], place: unknown, visibility: "shared" | "private" = "shared") =>
-  record(v, { date: "2026-10-28", transcript: "t", visibility, people: [{ id: s.anna }], conversations: [{ kind: "in_person", summary: "Treffen", present: [0], place } as never] });
+  record(v, {
+    date: "2026-10-28",
+    transcript: "t",
+    visibility,
+    people: [{ id: s.anna }],
+    conversations: [{ kind: "in_person", summary: "Treffen", present: [0], place } as never],
+  });
 const placeOf = async (v: Seed["a"], conversationId: string) => (await getConversation(v, conversationId)).placeId;
 
 test("a conversation's place is a record; the same name, another name of it, or its id finds it again", async () => {
@@ -84,16 +90,28 @@ test("minor: a place whose last part was deleted is found no more, not even by w
 test("a new database has places with a parent, an address, and owners", async () => {
   const d = await db();
   await d.insertInto("places").values({ id: "muc", name: "München", created_by: s.a.userId, created_at: 1 }).execute();
-  await d.insertInto("places").values({ id: "oly", name: "Olympiahalle", created_by: s.a.userId, created_at: 1, parent_id: "muc", address: "Spiridon-Louis-Ring 21" }).execute();
+  await d
+    .insertInto("places")
+    .values({ id: "oly", name: "Olympiahalle", created_by: s.a.userId, created_at: 1, parent_id: "muc", address: "Spiridon-Louis-Ring 21" })
+    .execute();
   await d.insertInto("place_owners").values({ place_id: "oly", person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 }).execute();
-  expect(await d.selectFrom("places").select(["parent_id", "address"]).where("id", "=", "oly").executeTakeFirst()).toEqual({ parent_id: "muc", address: "Spiridon-Louis-Ring 21" });
+  expect(await d.selectFrom("places").select(["parent_id", "address"]).where("id", "=", "oly").executeTakeFirst()).toEqual({
+    parent_id: "muc",
+    address: "Spiridon-Louis-Ring 21",
+  });
   expect(await d.selectFrom("place_owners").select(["person_id", "visibility"]).execute()).toEqual([{ person_id: s.anna, visibility: "private" }]);
 });
 
 // Nesting set by hand until record files it: `inside(child, parent)`.
 const inside = async (child: string, parent: string) => (await db()).updateTable("places").set({ parent_id: parent }).where("id", "=", child).execute();
 const experienceAt = (v: Seed["a"], place: unknown, visibility: "shared" | "private" = "shared") =>
-  record(v, { date: "2026-10-28", transcript: "t", visibility, people: [{ id: s.anna }], experiences: [{ kind: "Konzert", title: "Konzert", place, present: [0] } as never] });
+  record(v, {
+    date: "2026-10-28",
+    transcript: "t",
+    visibility,
+    people: [{ id: s.anna }],
+    experiences: [{ kind: "Konzert", title: "Konzert", place, present: [0] } as never],
+  });
 
 test("a place inside another shows its parents, and the parent's page shows what happened inside", async () => {
   const muc = (await placeOf(s.a, (await at(s.a, "München")).conversations[0].id))!;
@@ -141,7 +159,12 @@ test("a private place inside a shared one stays invisible downward, and a privat
   expect(alice.inside.map((p) => p.id)).toEqual([oly]);
   expect(alice.experiences.map((e) => e.id)).toEqual([privateConcert.experiences[0].id]);
 
-  await (await db()).insertInto("place_owners").values({ place_id: muc, person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 }).execute();
+  await (
+    await db()
+  )
+    .insertInto("place_owners")
+    .values({ place_id: muc, person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 })
+    .execute();
   expect((await getPlace(s.b, muc)).owners).toEqual([]);
   expect((await getPlace(s.a, muc)).owners.map((o) => o.id)).toEqual([s.anna]);
 });
@@ -164,7 +187,13 @@ test("a home is a place with owners and an address, private when told in confide
 });
 
 test("an experience's place takes owners by index, and 'us' is the household", async () => {
-  const r = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [{ id: s.anna }], experiences: [{ kind: "Feier", title: "Einweihung", place: { name: "Unser Haus", owners: ["us"] }, present: [0] } as never] });
+  const r = await record(s.a, {
+    date: "2026-10-28",
+    transcript: "t",
+    visibility: "shared",
+    people: [{ id: s.anna }],
+    experiences: [{ kind: "Feier", title: "Einweihung", place: { name: "Unser Haus", owners: ["us"] }, present: [0] } as never],
+  });
   expect(r.experiences).toHaveLength(1);
   expect((await find(s.b, "Unser Haus"))!.owners.map((o) => o.id).sort()).toEqual([s.a.personId, s.b.personId].sort());
 });
@@ -237,7 +266,9 @@ describe("a private context never writes onto a place the partner sees", () => {
 
   test("a home remembered in private can't put an address on a place the partner sees", async () => {
     await at(s.b, "Annas Wohnung");
-    await expect(remember(s.a, { visibility: "private", homes: [{ person: s.anna, place: { name: "Annas Wohnung", address: "Frauenhaus, Neue Str. 3" } }] })).rejects.toThrow(InvalidInputError);
+    await expect(
+      remember(s.a, { visibility: "private", homes: [{ person: s.anna, place: { name: "Annas Wohnung", address: "Frauenhaus, Neue Str. 3" } }] }),
+    ).rejects.toThrow(InvalidInputError);
     expect((await find(s.b, "Annas Wohnung"))!.address).toBeNull();
   });
 
@@ -258,14 +289,28 @@ describe("a private context never writes onto a place the partner sees", () => {
 });
 
 test("merging two people keeps the dropped one's homes", async () => {
-  const r = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [{ name: "Anni", confirmedNew: true }], conversations: [{ kind: "in_person", summary: "x", present: [0], place: { name: "Annis Wohnung", owners: [0] } } as never] });
+  const r = await record(s.a, {
+    date: "2026-10-28",
+    transcript: "t",
+    visibility: "shared",
+    people: [{ name: "Anni", confirmedNew: true }],
+    conversations: [{ kind: "in_person", summary: "x", present: [0], place: { name: "Annis Wohnung", owners: [0] } } as never],
+  });
   await mergePeople(s.a, s.anna, r.people[0].id);
   expect((await find(s.a, "Annis Wohnung"))!.owners.map((o) => o.id)).toEqual([s.anna]);
 });
 
 test("an owner who isn't in people is refused, not a crash", async () => {
   await expect(at(s.a, { name: "X", owners: [5] })).rejects.toThrow(/Person 5 is not in people/);
-  await expect(record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Feier", title: "Y", place: { name: "Y", owners: [3] } } as never] })).rejects.toThrow(/Person 3 is not in people/);
+  await expect(
+    record(s.a, {
+      date: "2026-10-28",
+      transcript: "t",
+      visibility: "shared",
+      people: [],
+      experiences: [{ kind: "Feier", title: "Y", place: { name: "Y", owners: [3] } } as never],
+    }),
+  ).rejects.toThrow(/Person 3 is not in people/);
 });
 
 test("owners on a place it sits in are filed too: Anna's room in Anna's flat", async () => {
@@ -282,5 +327,7 @@ test("deleting a ramble takes the homes it filed with it", async () => {
 });
 
 test("a home given to remember names its person, not owners", async () => {
-  await expect(remember(s.a, { visibility: "shared", homes: [{ person: s.anna, place: { name: "Annas Wohnung", owners: [s.tom] } }] })).rejects.toThrow(InvalidInputError);
+  await expect(remember(s.a, { visibility: "shared", homes: [{ person: s.anna, place: { name: "Annas Wohnung", owners: [s.tom] } }] })).rejects.toThrow(
+    InvalidInputError,
+  );
 });

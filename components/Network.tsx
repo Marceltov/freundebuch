@@ -12,7 +12,13 @@ import { faceColor, initials } from "@/components/faceStyle";
 type Net = Briefing["network"];
 type Box = { x: number; y: number; w: number; h: number };
 type Placed = { id: string; x: number; y: number; r: number; name: string; fullName: string; url: string; color: string; initials: string };
-export type Layout = { height: number; nodes: Placed[]; lines: { x1: number; y1: number; x2: number; y2: number }[]; pills: (Box & { text: string })[]; names: (Box & { text: string })[] };
+export type Layout = {
+  height: number;
+  nodes: Placed[];
+  lines: { x1: number; y1: number; x2: number; y2: number }[];
+  pills: (Box & { text: string })[];
+  names: (Box & { text: string })[];
+};
 
 const W = 360;
 /** The most people of their own the diagram draws in its one row; more and the list carries the page. */
@@ -66,7 +72,7 @@ export function layoutNetwork(network: Net, viewerPersonId: string): Layout | nu
   const center = nodes[0];
 
   // Names above the household (lines leave them downwards), under the others; cut to the room between neighbours.
-  const room = others.length > 1 ? (288 / (others.length - 1)) - 6 : 120;
+  const room = others.length > 1 ? 288 / (others.length - 1) - 6 : 120;
   const names = nodes.slice(1).map((n) => {
     const top = household.some((h) => h.id === n.id);
     const fit = Math.max(3, Math.floor(room / 6.5));
@@ -86,9 +92,13 @@ export function layoutNetwork(network: Net, viewerPersonId: string): Layout | nu
     const text = edgeText(e, self.id, far.y < center.y);
     if (!text) continue;
     const w = textWidth(text) + 12;
-    const spot = STOPS.map((t) => ({ text, w, h: PILL_H, x: center.x + (far.x - center.x) * t - w / 2, y: center.y + (far.y - center.y) * t - PILL_H / 2 })).find(
-      (p) => inside(p) && !taken.some((b) => overlaps(p, b)),
-    );
+    const spot = STOPS.map((t) => ({
+      text,
+      w,
+      h: PILL_H,
+      x: center.x + (far.x - center.x) * t - w / 2,
+      y: center.y + (far.y - center.y) * t - PILL_H / 2,
+    })).find((p) => inside(p) && !taken.some((b) => overlaps(p, b)));
     if (!spot) return null;
     pills.push(spot);
     taken.push(spot);
@@ -121,7 +131,15 @@ export function Network({ network, viewerPersonId }: { network: Net; viewerPerso
           <text x={n.x} y={n.y} dy="0.35em" textAnchor="middle" fontSize={11} fontWeight={700} fill="#fff">
             {n.initials}
           </text>
-          <text x={l.names[i].x + l.names[i].w / 2} y={l.names[i].y + NAME_H / 2} dy="0.35em" textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--ink)">
+          <text
+            x={l.names[i].x + l.names[i].w / 2}
+            y={l.names[i].y + NAME_H / 2}
+            dy="0.35em"
+            textAnchor="middle"
+            fontSize={12}
+            fontWeight={600}
+            fill="var(--ink)"
+          >
             {l.names[i].text}
           </text>
         </Link>

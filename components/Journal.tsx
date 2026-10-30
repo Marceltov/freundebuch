@@ -6,7 +6,8 @@ import { getCopy } from "@/components/serverCopy";
 import { shortDay } from "@/components/format";
 import { ItemActions } from "@/components/ItemActions";
 
-const monthYear = (copy: Copy, day: string) => new Intl.DateTimeFormat(copy.locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
+const monthYear = (copy: Copy, day: string) =>
+  new Intl.DateTimeFormat(copy.locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
 
 // One journal entry: its day, its words, the people it names (links), the ramble it was told in, a lock while it is private, and
 // its actions (edit, share or make private, delete) for the one who wrote it. `ramble`: false on the ramble's own page.

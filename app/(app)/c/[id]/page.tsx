@@ -51,7 +51,17 @@ export default async function ConversationPage({ params }: PageProps<"/c/[id]">)
         </div>
         {c.visibility === "private" && <Lock aria-label={copy.privateItem} className="h-4 w-4 text-muted" />}
         <ShareButton path={conversationPath(c.id)} title={longDay(copy, c.date)} />
-        <ItemActions table="conversations" id={c.id} mine={c.recordedBy === v.userId} visibility={c.visibility} text={c.summary} field="summary" after="/" date={c.date} today={today()} />
+        <ItemActions
+          table="conversations"
+          id={c.id}
+          mine={c.recordedBy === v.userId}
+          visibility={c.visibility}
+          text={c.summary}
+          field="summary"
+          after="/"
+          date={c.date}
+          today={today()}
+        />
       </header>
 
       {(there.length > 0 || mentioned.size > 0) && (
@@ -117,9 +127,14 @@ function sentence(template: string, parts: Record<string, ReactNode>): ReactNode
 const OpenAt = ({ personId, name, table, id }: { personId: string; name: string; table: "facts" | "promises" | "dates" | "exchanges"; id: string }) => {
   const copy = getCopy();
   return (
-  <a href={itemPath(personPath(personId), table, id)} aria-label={copy.openAt.replace("{name}", name)} title={copy.openAt.replace("{name}", name)} className="-mr-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
-    <ChevronRight aria-hidden className="h-5 w-5" />
-  </a>
+    <a
+      href={itemPath(personPath(personId), table, id)}
+      aria-label={copy.openAt.replace("{name}", name)}
+      title={copy.openAt.replace("{name}", name)}
+      className="-mr-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-carbon hover:bg-surface-2"
+    >
+      <ChevronRight aria-hidden className="h-5 w-5" />
+    </a>
   );
 };
 
@@ -159,7 +174,11 @@ function Recorded({ c, userId }: { c: ConversationView; userId: string }) {
       })}
       {promises.map((p) => {
         const who = <Name id={p.personId} name={p.name} />;
-        const lead = p.byMe ? sentence(copy.youPromised, { name: who }) : p.by ? sentence(copy.partnerPromised, { by: p.by, name: who }) : sentence(copy.theyPromised, { name: who });
+        const lead = p.byMe
+          ? sentence(copy.youPromised, { name: who })
+          : p.by
+            ? sentence(copy.partnerPromised, { by: p.by, name: who })
+            : sentence(copy.theyPromised, { name: who });
         return (
           <Tile
             key={p.id}
@@ -204,7 +223,13 @@ function Recorded({ c, userId }: { c: ConversationView; userId: string }) {
         </Tile>
       ))}
       {dates.map((d) => (
-        <Tile key={d.id} id={anchorId("dates", d.id)} icon={d.kind === "birthday" ? Cake : CalendarDays} private={priv(d)} actions={<OpenAt personId={d.personId} name={d.name} table="dates" id={d.id} />}>
+        <Tile
+          key={d.id}
+          id={anchorId("dates", d.id)}
+          icon={d.kind === "birthday" ? Cake : CalendarDays}
+          private={priv(d)}
+          actions={<OpenAt personId={d.personId} name={d.name} table="dates" id={d.id} />}
+        >
           <Name id={d.personId} name={d.name} />: {d.label ?? copy.dateKindName[d.kind]} · {dayMonth(copy, d.date.replace(/^--/, "2000-"))}
         </Tile>
       ))}

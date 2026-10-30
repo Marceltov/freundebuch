@@ -42,14 +42,28 @@ async function views(d: Kysely<Schema>, v: Viewer, rows: { id: string; name: str
 /** Every group the viewer sees, by name. */
 export async function listGroups(v: Viewer): Promise<GroupView[]> {
   const d = await db();
-  const rows = await d.selectFrom("groups").select(["id", "name", "household"]).$call((qb) => visibleGroups(qb, v)).orderBy("name").execute();
-  return views(d, v, rows.sort((a, b) => a.name.localeCompare(b.name, "de")));
+  const rows = await d
+    .selectFrom("groups")
+    .select(["id", "name", "household"])
+    .$call((qb) => visibleGroups(qb, v))
+    .orderBy("name")
+    .execute();
+  return views(
+    d,
+    v,
+    rows.sort((a, b) => a.name.localeCompare(b.name, "de")),
+  );
 }
 
 /** One group with its members, never seen first, then the most overdue, then by name. */
 export async function getGroup(v: Viewer, id: string): Promise<GroupView & { members: GroupMember[] }> {
   const d = await db();
-  const row = await d.selectFrom("groups").select(["id", "name", "household"]).where("id", "=", id).$call((qb) => visibleGroups(qb, v)).executeTakeFirst();
+  const row = await d
+    .selectFrom("groups")
+    .select(["id", "name", "household"])
+    .where("id", "=", id)
+    .$call((qb) => visibleGroups(qb, v))
+    .executeTakeFirst();
   if (!row) throw new NotFoundError("No such group");
   const [view] = await views(d, v, [row]);
   const members = await Promise.all(
@@ -82,7 +96,12 @@ async function visibleMembers(d: Kysely<Schema>, v: Viewer, groupId: string): Pr
 /** The people of a group the viewer sees, by name; NotFoundError when the viewer can't see the group. */
 export async function groupMembers(v: Viewer, groupId: string): Promise<Array<{ id: string; name: string }>> {
   const d = await db();
-  const row = await d.selectFrom("groups").select("id").where("id", "=", groupId).$call((qb) => visibleGroups(qb, v)).executeTakeFirst();
+  const row = await d
+    .selectFrom("groups")
+    .select("id")
+    .where("id", "=", groupId)
+    .$call((qb) => visibleGroups(qb, v))
+    .executeTakeFirst();
   if (!row) throw new NotFoundError("No such group");
   return (await visibleMembers(d, v, groupId)).map(({ id, name }) => ({ id, name }));
 }
@@ -138,11 +157,21 @@ type Slot = { group_id: string; person_id: string };
  * already at the target wins over the moved one, except that shared beats private.
  */
 export async function moveMembership(tx: Kysely<Schema>, recordedBy: string, from: Slot, to: Slot): Promise<void> {
-  const at = (x: Slot) => tx.selectFrom("group_members").select("visibility").where("group_id", "=", x.group_id).where("person_id", "=", x.person_id).where("recorded_by", "=", recordedBy);
+  const at = (x: Slot) =>
+    tx
+      .selectFrom("group_members")
+      .select("visibility")
+      .where("group_id", "=", x.group_id)
+      .where("person_id", "=", x.person_id)
+      .where("recorded_by", "=", recordedBy);
   const moved = await at(from).executeTakeFirst();
   if (!moved) return;
   const there = await at(to).executeTakeFirst();
-  const fromRow = tx.deleteFrom("group_members").where("group_id", "=", from.group_id).where("person_id", "=", from.person_id).where("recorded_by", "=", recordedBy);
+  const fromRow = tx
+    .deleteFrom("group_members")
+    .where("group_id", "=", from.group_id)
+    .where("person_id", "=", from.person_id)
+    .where("recorded_by", "=", recordedBy);
   if (!there) {
     await tx
       .updateTable("group_members")
@@ -166,7 +195,12 @@ export async function moveMembership(tx: Kysely<Schema>, recordedBy: string, fro
 
 /** A visible group, or NotFoundError. */
 async function seen(tx: Kysely<Schema>, v: Viewer, id: string): Promise<{ id: string; name: string; created_by: string | null; household: number }> {
-  const g = await tx.selectFrom("groups").select(["id", "name", "created_by", "household"]).where("id", "=", id).$call((qb) => visibleGroups(qb, v)).executeTakeFirst();
+  const g = await tx
+    .selectFrom("groups")
+    .select(["id", "name", "created_by", "household"])
+    .where("id", "=", id)
+    .$call((qb) => visibleGroups(qb, v))
+    .executeTakeFirst();
   if (!g) throw new NotFoundError("No such group");
   return g;
 }
@@ -184,7 +218,11 @@ async function assertFree(tx: Kysely<Schema>, v: Viewer, id: string, name: strin
 async function addAlias(tx: Kysely<Schema>, id: string, alias: string): Promise<void> {
   const g = await tx.selectFrom("groups").select("name").where("id", "=", id).executeTakeFirstOrThrow();
   if (norm(g.name) === norm(alias)) return;
-  await tx.insertInto("group_aliases").values({ group_id: id, alias: alias.trim(), norm: norm(alias) }).onConflict((oc) => oc.doNothing()).execute();
+  await tx
+    .insertInto("group_aliases")
+    .values({ group_id: id, alias: alias.trim(), norm: norm(alias) })
+    .onConflict((oc) => oc.doNothing())
+    .execute();
 }
 
 const tx = async <T>(f: (tx: Kysely<Schema>) => Promise<T>): Promise<T> => (await db()).transaction().execute(f);

@@ -78,7 +78,9 @@ test("redirects to the public /login behind a trusted reverse proxy", () => {
 });
 
 test("X-Forwarded-* is ignored without FREUNDEBUCH_TRUST_PROXY", () => {
-  const res = proxy(new NextRequest("http://internal:3000/p/x", { headers: { host: "internal:3000", "x-forwarded-proto": "https", "x-forwarded-host": "evil.example" } }));
+  const res = proxy(
+    new NextRequest("http://internal:3000/p/x", { headers: { host: "internal:3000", "x-forwarded-proto": "https", "x-forwarded-host": "evil.example" } }),
+  );
   expect(res.headers.get("location")).toBe("http://internal:3000/login?next=%2Fp%2Fx");
 });
 

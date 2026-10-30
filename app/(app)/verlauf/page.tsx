@@ -62,7 +62,13 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
               <ul className="space-y-2">
                 {rs.map((r) => (
                   <li key={r.id} data-ramble={r.id}>
-                    <ul className={r.conversations.length + r.experiences.length + r.journal.length + (r.items.length ? 1 : 0) > 1 ? "space-y-1 rounded-3xl border border-rule p-1" : ""}>
+                    <ul
+                      className={
+                        r.conversations.length + r.experiences.length + r.journal.length + (r.items.length ? 1 : 0) > 1
+                          ? "space-y-1 rounded-3xl border border-rule p-1"
+                          : ""
+                      }
+                    >
                       {r.experiences.map((e) => (
                         <li key={e.id}>
                           <Link href={e.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
@@ -74,7 +80,9 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
                                 {shortDay(copy, e.date)} · {e.title}
                                 {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="h-3.5 w-3.5 text-muted" />}
                               </span>
-                              <span className="line-clamp-2 block text-sm text-muted">{[e.kind, e.series?.name, e.place?.name].filter(Boolean).join(" · ")}</span>
+                              <span className="line-clamp-2 block text-sm text-muted">
+                                {[e.kind, e.series?.name, e.place?.name].filter(Boolean).join(" · ")}
+                              </span>
                             </span>
                           </Link>
                         </li>
@@ -151,7 +159,9 @@ function Hits({ query, hits }: { query: string; hits: SearchHit[] }) {
                 <Icon aria-label={copy.searchKind[h.kind]} className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{[h.date && shortDay(copy, h.date), copy.searchKind[h.kind], h.people.join(", ")].filter(Boolean).join(" · ")}</span>
+                <span className="block font-semibold">
+                  {[h.date && shortDay(copy, h.date), copy.searchKind[h.kind], h.people.join(", ")].filter(Boolean).join(" · ")}
+                </span>
                 <span className="line-clamp-3 block text-sm text-muted">
                   {markMatches(h.text, query).map((piece, i) =>
                     piece.mark ? (

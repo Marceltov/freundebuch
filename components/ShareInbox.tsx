@@ -45,7 +45,13 @@ export function ShareInbox({ again }: { again: boolean }) {
     })().catch(() => setState("failed"));
   }, [again]);
 
-  const text = { receiving: copy.shareReceiving, received: copy.shareReceived, duplicate: copy.shareDuplicate, failed: copy.shareFailed, empty: copy.shareNothing }[state];
+  const text = {
+    receiving: copy.shareReceiving,
+    received: copy.shareReceived,
+    duplicate: copy.shareDuplicate,
+    failed: copy.shareFailed,
+    empty: copy.shareNothing,
+  }[state];
   return (
     <section className="space-y-3 rounded-2xl bg-surface p-5 shadow-card">
       <p role="status" className={state === "failed" ? "text-error" : ""}>

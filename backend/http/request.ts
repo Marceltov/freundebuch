@@ -34,7 +34,8 @@ export async function readCapped(req: Request, max: number): Promise<Uint8Array 
 }
 
 // Form fields from an already-read body (multipart or urlencoded), parsed by the platform.
-export const parseForm = (bytes: Uint8Array, h: Headers) => new Response(bytes as BodyInit, { headers: { "content-type": h.get("content-type") ?? "" } }).formData();
+export const parseForm = (bytes: Uint8Array, h: Headers) =>
+  new Response(bytes as BodyInit, { headers: { "content-type": h.get("content-type") ?? "" } }).formData();
 
 // A small form post's fields; null when the body is too large or not a form.
 export async function readFields(req: Request, max: number): Promise<FormData | null> {
