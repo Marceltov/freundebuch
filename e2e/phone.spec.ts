@@ -322,6 +322,16 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   // The page behind holds still while the chat is open (iOS would otherwise scroll it, and the sheet with it).
   await expect(sheet).toBeVisible();
   expect(await page.evaluate(() => getComputedStyle(document.body).position)).toBe("fixed");
+  // A drag anywhere but a list that can scroll is held, so iOS can't pan the screen under the keyboard and take the sheet along.
+  const dragHeld = (selector: string) =>
+    sheet.locator(selector).first().evaluate((el) => {
+      const touch = (y: number) => new Touch({ identifier: 1, target: el, clientX: 10, clientY: y });
+      el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [touch(300)] }));
+      const move = new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [touch(200)] });
+      el.dispatchEvent(move);
+      return move.defaultPrevented;
+    });
+  expect(await dragHeld("header")).toBe(true);
   // Sent right away: the page it was opened on goes along even before the chip has its name.
   const field = sheet.getByLabel("Nachricht");
   // While Claude works, the message already sits in the chat, the field is empty and Claude is shown thinking.

@@ -131,6 +131,31 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
     };
   }, []);
 
+  // With the keyboard up, iOS pans the whole screen under a drag (locking the page doesn't stop that), and the sheet goes
+  // with it. So a drag inside the sheet is held unless it lands on something that can scroll that way (the messages, a long
+  // draft): that scrolls, nothing else moves.
+  const overlay = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = overlay.current;
+    if (!root) return;
+    let y = 0;
+    const start = (e: TouchEvent) => {
+      y = e.touches[0]?.clientY ?? 0;
+    };
+    const move = (e: TouchEvent) => {
+      const box = (e.target as Element | null)?.closest?.<HTMLElement>("[data-scrolls]");
+      const down = (e.touches[0]?.clientY ?? y) > y;
+      const scrolls = box && box.scrollHeight > box.clientHeight && (down ? box.scrollTop > 0 : box.scrollTop + box.clientHeight < box.scrollHeight);
+      if (!scrolls && e.cancelable) e.preventDefault();
+    };
+    root.addEventListener("touchstart", start, { passive: true });
+    root.addEventListener("touchmove", move, { passive: false });
+    return () => {
+      root.removeEventListener("touchstart", start);
+      root.removeEventListener("touchmove", move);
+    };
+  }, []);
+
   // Escape closes the sheet wherever the focus is.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -217,7 +242,7 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
   }
 
   return (
-    <div className="fixed inset-0 z-40" onKeyDown={trap}>
+    <div ref={overlay} className="fixed inset-0 z-40" onKeyDown={trap}>
       <div className="absolute inset-0 bg-black/35" onClick={onClose} />
       <section
         ref={sheet}
@@ -238,7 +263,7 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-2">
+        <div data-scrolls className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-2">
           {about && (
             <span className="inline-flex items-center gap-1 self-center rounded-full bg-surface-2 py-1 pr-1 pl-3 text-sm text-muted">
               {about.label}
@@ -349,6 +374,7 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
             </>
           )}
           <textarea
+            data-scrolls
             ref={field}
             value={draft}
             onChange={(e) => {
