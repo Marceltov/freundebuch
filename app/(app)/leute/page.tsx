@@ -1,16 +1,17 @@
 import { daysBetween, listGroups, peopleOverview, today } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { ago } from "@/components/format";
 import { PeopleList } from "@/components/PeopleList";
-import { pageViewer } from "../viewer";
+import { pageCopy, pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: copy.tabPeople };
+export const generateMetadata = async () => ({ title: (await pageCopy()).tabPeople });
 
 // Everyone in the book, not only who the orbit shows.
 export default async function PeoplePage() {
   const v = await pageViewer();
+  const copy = getCopy();
   const now = today();
   const [people, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
   return (
@@ -23,7 +24,7 @@ export default async function PeoplePage() {
           aliases: p.aliases,
           url: p.url,
           groups: p.groups,
-          seen: p.lastSeen ? ago(daysBetween(p.lastSeen, now)) : copy.neverMet,
+          seen: p.lastSeen ? ago(copy, daysBetween(p.lastSeen, now)) : copy.neverMet,
         }))}
         groups={groups.filter((g) => g.count > 0).map((g) => ({ id: g.id, name: g.name, count: g.count }))}
       />

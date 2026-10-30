@@ -3,10 +3,11 @@
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 // The search field on Verlauf: what is typed goes into ?q= after a short pause, and the page shows what holds every word.
 export function HistorySearch({ query }: { query: string }) {
+  const copy = useCopy();
   const router = useRouter();
   const path = usePathname();
   const [q, setQ] = useState(query);

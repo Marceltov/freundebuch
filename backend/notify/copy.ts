@@ -1,6 +1,8 @@
-// The German text of the reminders and the calendar feed. It lives here, not in components/copy.ts: backend/ never imports the frontend.
-// `{name}` placeholders are filled by daily.ts.
-export const copy = {
+// The text of the reminders, the calendar feed and the Shortcut's answers, in each language a user may choose. It lives here, not
+// in components/copy.ts: backend/ never imports the frontend. `{name}` placeholders are filled by daily.ts.
+import type { Language } from "../types";
+
+const de = {
   birthday: "🎂 {name} hat {when} Geburtstag",
   birthdayAge: "🎂 {name} hat {when} Geburtstag ({age})",
   date: "📅 {label} {when}: {name}",
@@ -14,6 +16,7 @@ export const copy = {
   more: "+{n} weitere",
   today: "heute",
   tomorrow: "morgen",
+  dayMonth: "{d}.{m}.",
   anniversary: "Jahrestag",
   testTitle: "🔔 freundebuch-Test",
   testBody: "So sehen Benachrichtigungen aus.",
@@ -41,3 +44,52 @@ export const copy = {
   calendarPromiseTheirs: "📌 {name} wollte: {text}",
   fileLimit: "📎 Tageslimit erreicht, die Datei wartet ungelesen",
 };
+
+export type NotifyCopy = typeof de;
+
+const en: NotifyCopy = {
+  birthday: "🎂 {name}'s birthday is {when}",
+  birthdayAge: "🎂 {name}'s birthday is {when} ({age})",
+  date: "📅 {label} {when}: {name}",
+  overdue: "⏳ Not seen in a while: {name}",
+  overdueBody: "Last seen on {date}",
+  promise: "📌 Promised: {text}",
+  promiseBody: "for {name}",
+  promiseTheirs: "📌 {name} wanted to: {text}",
+  situation: "💬 Ask about it: {name} – {text}",
+  sessionMissed: "🐾 {name} on {day}: not told yet",
+  more: "+{n} more",
+  today: "today",
+  tomorrow: "tomorrow",
+  dayMonth: "{m}/{d}",
+  anniversary: "Anniversary",
+  testTitle: "🔔 freundebuch test",
+  testBody: "This is what notifications look like.",
+  shareThanks: "Thanks! freundebuch is reading the file; it waits under “Review”.",
+  shareDuplicate: "freundebuch has this file already.",
+  shareBadKey: "The share key doesn't match: make a new one in the freundebuch settings and put it in the Shortcut.",
+  shareTooLarge: "The file is larger than 15 MB.",
+  shareNotTaken: "freundebuch takes images, PDFs, text files and voice notes.",
+  shareNoAudio: "This freundebuch takes no voice notes: no transcription server is set up.",
+  shareNotAudio: "freundebuch can't read this voice note.",
+  shareUnreadable: "freundebuch can't read this file.",
+  shareTooManyPixels: "The photo is too large (over 25 megapixels): share a smaller one or a screenshot of it.",
+  shareTextTooLong: "The text file is too long (1 MB at most): share a shorter part.",
+  shareEmpty: "The file is empty.",
+  fileReady: "📎 New under “Review”",
+  reflectionTitle: "🪞 Your week",
+  fileFailed: "📎 The file couldn't be read",
+  fileNotTranscribed: "🎙️ The voice note couldn't be transcribed",
+  calendarName: "freundebuch",
+  calendarBirthday: "🎂 {name}",
+  calendarBirthdayAge: "🎂 {name} turns {age}",
+  calendarDate: "📅 {label}: {name}",
+  calendarPromise: "📌 Promised: {text} ({name})",
+  calendarPromiseTheirs: "📌 {name} wanted to: {text}",
+  fileLimit: "📎 Daily limit reached, the file waits unread",
+};
+
+const COPY: Record<Language, NotifyCopy> = { de, en };
+
+/** The notification text in `language`. */
+export const notifyCopy = (language: Language): NotifyCopy => COPY[language];

@@ -2,7 +2,7 @@
 
 import { Check, Share2 } from "lucide-react";
 import { useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 export type ShareState = "idle" | "shared" | "copied" | "failed";
 type Nav = { share?: (data: { title: string; url: string }) => Promise<void>; clipboard: { writeText: (text: string) => Promise<void> } };
@@ -32,6 +32,7 @@ export const linkTo = (path: string) => new URL(path, window.location.origin).to
 // Sends a link to a page of the app (a person, a conversation, a group), e.g. to the other user, who opens it signed in and
 // sees what is shared with them. The icon turns into a tick once the link is shared or copied.
 export function ShareButton({ path, title }: { path: string; title: string }) {
+  const copy = useCopy();
   const [state, setState] = useState<ShareState>("idle");
   const label = state === "copied" ? copy.linkCopied : state === "failed" ? copy.copyFailed : copy.shareLink;
   const done = state === "copied" || state === "shared";

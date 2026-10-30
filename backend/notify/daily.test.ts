@@ -3,7 +3,7 @@ import { record } from "../conversations";
 import { db } from "../db";
 import { logsOf } from "../log";
 import { seed, type Seed } from "../testing/fixtures";
-import { getSettings, putSettings, testWebhook } from "../settings";
+import { getSettings, putSettings, setLanguage, testWebhook } from "../settings";
 import { runDaily, runDailyIfDue } from "./daily";
 
 type Sent = { url: string; title: string; body: string; click?: string };
@@ -38,6 +38,16 @@ describe("runDaily", () => {
     expect(toA.find((m) => m.title.includes("Tom"))?.click).toBe(`https://f.example/p/${s.tom}`);
     expect(JSON.stringify(toB)).not.toContain("Tom");
     expect(n).toBe(sent.length);
+  });
+
+  test("each user hears in their own language", async () => {
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+    await setLanguage(s.a, "en");
+    await runDaily(NOW, fetchFn);
+    expect(sent.map((m) => m.title)).toContain("🎂 Tom's birthday is tomorrow");
+    expect(await testWebhook(s.a, fetchFn)).toBe(true);
+    expect(sent.at(-1)?.title).toBe("🔔 freundebuch test");
+    await expect(setLanguage(s.a, "fr")).rejects.toThrow(/language must be one of de, en/);
   });
 
   test("a user without a webhook gets nothing", async () => {
@@ -183,14 +193,14 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
 
 describe("settings", () => {
   test("round-trips, rejects other schemes, and clears with null", async () => {
-    expect(await getSettings(s.a)).toEqual({ webhookUrl: null });
+    expect(await getSettings(s.a)).toEqual({ webhookUrl: null, language: "de" });
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    expect(await getSettings(s.a)).toEqual({ webhookUrl: "https://ntfy.example/a" });
-    expect(await getSettings(s.b)).toEqual({ webhookUrl: null });
+    expect(await getSettings(s.a)).toEqual({ webhookUrl: "https://ntfy.example/a", language: "de" });
+    expect(await getSettings(s.b)).toEqual({ webhookUrl: null, language: "de" });
     await expect(putSettings(s.a, { webhookUrl: "file:///etc/passwd" })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(putSettings(s.a, { webhookUrl: "not a url" })).rejects.toMatchObject({ code: "invalid_input" });
     await putSettings(s.a, { webhookUrl: null });
-    expect(await getSettings(s.a)).toEqual({ webhookUrl: null });
+    expect(await getSettings(s.a)).toEqual({ webhookUrl: null, language: "de" });
   });
 
   test("testWebhook sends the sample message, or reports nothing sent without a webhook", async () => {

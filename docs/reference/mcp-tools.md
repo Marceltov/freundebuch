@@ -54,7 +54,7 @@ The server also sends Claude instructions with the connection, for what it needs
 - take the day the user names ("vorgestern") as the conversation's date, and fix the date with `correct` when it was wrong,
 - give you the link whenever you may want to look at something in the web app,
 - prefer an existing group over a new one, and ask before creating one,
-- file who someone is to you as a relationship to `"us"` or `"me"`, never as a fact, saying in German words what each end is,
+- file who someone is to you as a relationship to `"us"` or `"me"`, never as a fact, saying in words what each end is, in your language,
 - file what is going on as a situation with an estimated `checkAfter`; agree a new day with you when there is news.
 
 Every person, conversation and item in a tool result carries a `url` into the web app, built from `PUBLIC_URL` (or the request's host when it is unset). A person opens their page, a conversation its page. An item opens the page that shows it with its row highlighted: in a briefing or `whats_due` that is the person's page, in a conversation the conversation's page, which also lists done and outdated items. The REST API returns the same fields.
@@ -63,7 +63,7 @@ The exact input and output schemas are served by the endpoint itself (`tools/lis
 
 ## Roles, situations, traits and gender
 
-- **Relationships in words.** There is no list of types. Each relationship says what `from` is to `to` (`label`) and what `to` is to `from` (`inverse`), in German and in each one's gender: Anna and her son Tom are `label` Mutter, `inverse` Sohn. The same words again, either way round or in another gender form ("Vermieter:in", "Vermieterin"), are the same relationship.
+- **Relationships in words.** There is no list of types. Each relationship says what `from` is to `to` (`label`) and what `to` is to `from` (`inverse`), in your language and in each one's gender: Anna and her son Tom are `label` Mutter, `inverse` Sohn. The same words again, either way round or in another gender form ("Vermieter:in", "Vermieterin"), are the same relationship.
 - **Roles.** "She's our landlady" is from her to `"us"`, `label` Vermieterin, `inverse` Mieter:in: one relationship per household member, each kept once. A briefing reads it from your side: "Unsere Vermieterin" only when you see it to both of you, else "von dir" or "von Sybille". See [ADR 0009](../adr/0009-household-members-in-the-relationship-graph.md).
 - **Situations.** Moving, a new dog, looking for a car: a situation with a `checkAfter` day, estimated from how long it usually takes (six weeks when Claude gives none); the result's `next` has Claude tell you the day. News supersedes it and needs a new day, which Claude suggests and agrees with you; once it has passed, the situation nudges in the briefing, in `whats_due`, on Start and in the daily notification, until you tell Claude how it went. Then it is marked outdated, and `next` asks Claude to file the outcome as a lasting fact. Situations never disappear on their own.
 - **Traits.** What someone needs (`need`: needs a wheelchair, vegetarian, doesn't drink) or how they are (`personality`: gets angry quickly, shy in big groups) is a fact of that kind, without a `checkAfter`. The briefing shows them as `traits` apart from `known`, and its `next` names the needs; `traits` gives them for several people and groups at once. Claude asks before filing a sensitive one as shared. See [ADR 0012](../adr/0012-traits-are-fact-kinds.md).

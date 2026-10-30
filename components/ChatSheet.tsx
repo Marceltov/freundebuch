@@ -6,7 +6,8 @@ import { AudioLines, Mic, Paperclip, SendHorizontal, SquarePen, Trash2, X } from
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { canRecord, clearUnsent, unsent, useVoice } from "@/components/useVoice";
 import type { ChatContext, ChatLink, PendingFile } from "@/backend";
-import { copy } from "@/components/copy";
+import type { Copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 import { recentTurns } from "@/components/chatTurns";
 import { shortDay } from "@/components/format";
 import { sheetFit } from "@/components/sheetFit";
@@ -35,16 +36,16 @@ const save = (userId: string, t: Turn[]) => {
   } catch {}
 };
 
-const ERRORS: Record<string, string> = {
+const errors = (copy: Copy): Record<string, string> => ({
   chat_limit: copy.chatLimit,
   chat_unavailable: copy.chatUnavailable,
   chat_refused: copy.chatRefused,
   chat_too_long: copy.chatTooLong,
-};
+});
 
 const noSubscribe = () => () => {};
 
-const linkLabel = (l: ChatLink) => (l.kind === "conversation" ? copy.conversationOn.replace("{day}", l.date ? shortDay(l.date) : "") : (l.name ?? ""));
+const linkLabel = (copy: Copy, l: ChatLink) => (l.kind === "conversation" ? copy.conversationOn.replace("{day}", l.date ? shortDay(copy, l.date) : "") : (l.name ?? ""));
 
 // The chat with Claude ("Erzählen"), as a sheet over the current page. It knows the page it was opened on (a friend or a
 // conversation) and says so in a chip the user can remove. The conversation is kept on this device; the server gets it whole
@@ -54,6 +55,7 @@ const linkLabel = (l: ChatLink) => (l.kind === "conversation" ? copy.conversatio
 // With `voice` (a transcription server is set up), the microphone takes the place of send while the field is empty: a message
 // spoken in is sent as its words (useVoice), like a voice message on WhatsApp.
 export function ChatSheet({ userId, sharing = false, voice = false, files = [], onClose }: { userId: string; sharing?: boolean; voice?: boolean; files?: string[]; onClose: () => void }) {
+  const copy = useCopy();
   const router = useRouter();
   const path = usePathname();
   // Opened on files from Prüfen, it is a conversation of its own about them.
@@ -231,7 +233,7 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
     const body = res ? await res.json().catch(() => null) : null;
     setBusy(false);
     const failed = !res || !body || "code" in body || !res.ok;
-    const message = failed ? (body && ERRORS[body.code]) || copy.chatUnavailable : null;
+    const message = failed ? (body && errors(copy)[body.code]) || copy.chatUnavailable : null;
     // Nothing filed: the message goes back into the field to send again. Filed before the failure: say so, so it isn't sent twice.
     if (failed && !body?.filed) {
       setTurns(turns);
@@ -315,7 +317,7 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
             <div key={f.id} data-shown-file={f.id} className="flex gap-3 self-stretch rounded-2xl bg-surface p-3 shadow-card">
               <FilePreview item={f} />
               <div className="min-w-0 text-sm">
-                <p className="text-muted">{copy.fileShared.replace("{day}", shortDay(f.sharedOn))}</p>
+                <p className="text-muted">{copy.fileShared.replace("{day}", shortDay(copy, f.sharedOn))}</p>
                 {f.summary && (
                   <p className={`mt-1 whitespace-pre-line ${shown.length > 1 ? "line-clamp-3" : ""}`}>
                     <b>{copy.fileSuggests}:</b> {f.summary}
@@ -343,7 +345,7 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
                   <span className="flex flex-wrap gap-1.5">
                     {t.links.map((l) => (
                       <Link key={l.url} href={l.url} onClick={onClose} className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-carbon hover:bg-rule">
-                        {linkLabel(l)} ›
+                        {linkLabel(copy, l)} ›
                       </Link>
                     ))}
                   </span>

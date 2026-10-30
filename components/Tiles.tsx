@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Lock, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 
 // The building blocks of the friend and conversation pages. `id` on a chip or a tile is its item's anchor (anchorId()): a link
 // ending in it scrolls there and the row is highlighted (`:target` in globals.css).
@@ -74,6 +74,7 @@ export function Tile({
   tone?: string;
   children: ReactNode;
 }) {
+  const copy = getCopy();
   return (
     <div id={id} className={`flex flex-wrap items-center gap-2 rounded-2xl px-3 py-2.5 text-[15px] shadow-card ${tone}`}>
       <Icon aria-hidden className="h-[18px] w-[18px] shrink-0 opacity-75" />

@@ -15,7 +15,7 @@ npm run test:e2e   # Playwright against `next dev`; run `npx playwright install 
 
 ## Conventions
 
-- Code, API, tool descriptions, logs and these docs are English. Every UI string is German: `components/copy.ts` for the web app, `backend/notify/copy.ts` for notifications.
+- Code, API, tool descriptions, logs and these docs are English. Every UI string is in `components/copy.ts` for the web app and `backend/notify/copy.ts` for notifications, in German and English with the same keys (TypeScript checks the English has every German key). Server components read the viewer's with `getCopy()` once `pageViewer()` has run, client components with `useCopy()`; see [ADR 0021](../adr/0021-a-language-per-user.md).
 - `backend/` is framework-free; the frontend imports it only through `backend/index.ts`.
 - Private items must never reach the other person through any read path, including counts and summaries. Every new read goes through `visible()`.
 - Architectural decisions are recorded as ADRs in `docs/adr/` (MADR).

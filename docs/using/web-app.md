@@ -1,6 +1,6 @@
 # The web app
 
-The web app is in German, made for a quick look on the phone before you meet someone. It looks like a friendship book: every face is a sticker, every person a page. The bar at the bottom leads to its four places: **Start**, **Verlauf**, **Leute** and **Bald**.
+The web app is in German, or in English for whoever chooses it in **Einstellungen** (Settings), made for a quick look on the phone before you meet someone. It looks like a friendship book: every face is a sticker, every person a page. The bar at the bottom leads to its four places: **Start**, **Verlauf**, **Leute** and **Bald**.
 
 ## Start
 
@@ -61,4 +61,4 @@ The share button next to a person's, conversation's or group's name sends its li
 
 ## Settings
 
-The gear icon opens **Einstellungen**: your webhook for [notifications](notifications.md), your [calendar feed](calendar.md), your groups and their other names, and signing out. **Haushalt** is the group of everyone who signs in: rename it (Herziis, say), but it can't be deleted or merged away.
+The gear icon opens **Einstellungen**: your language (**Sprache**: Deutsch or English, for the app and your notifications; each of you chooses their own, and what is filed keeps the words it was filed in), your webhook for [notifications](notifications.md), your [calendar feed](calendar.md), your groups and their other names, and signing out. **Haushalt** is the group of everyone who signs in: rename it (Herziis, say), but it can't be deleted or merged away.

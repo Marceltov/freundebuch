@@ -1,10 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
+import { copyFor } from "./copy";
 import { canEdit, factKindActions, ItemActions, rowPath } from "./ItemActions";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
 const item = { id: "x", visibility: "shared" as const, text: "t" };
+
+const de = copyFor("de");
 
 test("no menu at all when it would hold no action: the partner's conversation", () => {
   expect(renderToStaticMarkup(<ItemActions table="conversations" mine={false} {...item} />)).toBe("");
@@ -28,15 +31,15 @@ test("either of us edits or deletes a shared item; a conversation and who can se
 });
 
 test("the fact menu moves a fact to every other kind; only for who may edit it", () => {
-  expect(factKindActions("lasting", true)).toEqual([
+  expect(factKindActions(de, "lasting", true)).toEqual([
     { kind: "situation", label: "Ist gerade los" },
     { kind: "need", label: "Braucht" },
     { kind: "personality", label: "Wesen" },
   ]);
-  expect(factKindActions("situation", true).map((a) => a.kind)).toEqual(["lasting", "need", "personality"]);
-  expect(factKindActions("need", true).map((a) => a.label)).toEqual(["Gut zu wissen", "Ist gerade los", "Wesen"]);
-  expect(factKindActions("need", false)).toEqual([]);
-  expect(factKindActions(undefined, true)).toEqual([]);
+  expect(factKindActions(de, "situation", true).map((a) => a.kind)).toEqual(["lasting", "need", "personality"]);
+  expect(factKindActions(de, "need", true).map((a) => a.label)).toEqual(["Gut zu wissen", "Ist gerade los", "Wesen"]);
+  expect(factKindActions(de, "need", false)).toEqual([]);
+  expect(factKindActions(de, undefined, true)).toEqual([]);
 });
 
 test("an item's link points at its highlighted row on the page it is shared from", () => {

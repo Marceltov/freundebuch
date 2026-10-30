@@ -116,6 +116,7 @@ test("the system prompt has a cached stable block, and names today, the user and
   expect(system[1].text).toContain("2026-10-24");
   expect(system[1].text).toContain("Alice");
   expect(system[1].text).toContain(`Anna (${s.anna})`);
+  expect(system[1].text).toContain("The user's language is German.");
   expect(p).toMatchObject({
     model: "claude-sonnet-5-5",
     fallbacks: "default",

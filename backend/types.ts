@@ -19,6 +19,11 @@ export type FactKind = (typeof FACT_KINDS)[number];
 export const TRAIT_KINDS = ["need", "personality"] as const;
 export type TraitKind = (typeof TRAIT_KINDS)[number];
 export const isTrait = (kind: string): kind is TraitKind => (TRAIT_KINDS as readonly string[]).includes(kind);
+/** The languages the app speaks, each user choosing their own; German is the default. */
+export const LANGUAGES = ["de", "en"] as const;
+export type Language = (typeof LANGUAGES)[number];
+/** Each language by its English name, for telling Claude which one to write in. */
+export const LANGUAGE_NAMES: Record<Language, string> = { de: "German", en: "English" };
 /** What a search hit is (backend/search.ts). */
 export const SEARCH_KINDS = ["transcript", "conversation", "experience", "journal", "fact", "promise", "exchange", "date", "place"] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];

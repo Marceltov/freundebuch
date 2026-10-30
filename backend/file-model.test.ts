@@ -4,7 +4,7 @@ import { createLogger } from "./log";
 import { anthropicFileModel } from "./file-model";
 
 const person = { id: "p1", name: "Patrick", aliases: [] };
-const input = (type: string, bytes = new Uint8Array([1])) => ({ bytes, type, people: [person], today: "2026-10-28" });
+const input = (type: string, bytes = new Uint8Array([1])) => ({ bytes, type, people: [person], today: "2026-10-28", language: "de" as const });
 const good = { summary: "WhatsApp-Gruppe Sunshine: Patrick hatte am Wochenende Geburtstag", transcript: "[19:20] Patrick Walter: Hatte Geburtstag!", people: [{ name: "Patrick Walter", personId: "p1" }] };
 
 // A model whose client answers `reply` (or throws it), the requests it got and the lines it logged.

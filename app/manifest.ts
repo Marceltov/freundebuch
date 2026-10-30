@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
-import { copy } from "@/components/copy";
+import { copyFor } from "@/components/copy";
 
 export default function manifest(): MetadataRoute.Manifest {
+  // One manifest for every visitor, before anyone signs in: in the app's first language.
+  const copy = copyFor("de");
   return {
     name: "freundebuch",
     short_name: "freundebuch",

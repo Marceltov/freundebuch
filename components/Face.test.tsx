@@ -2,8 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { LookPart, LookParts } from "@/backend";
 import { Avatar } from "./Avatar";
-import { copy } from "./copy";
-import { Face, faceColor, initials } from "./Face";
+import { copyFor } from "./copy";
+import { Face } from "./Face";
+import { faceColor, initials } from "./faceStyle";
 import { LooksProvider } from "./Looks";
 
 test("initials: first letters of the first and last word", () => {
@@ -47,8 +48,8 @@ test("a face with a look draws the avatar instead of the initials; without one, 
 test("each part changes the drawing, so every value is visible", () => {
   const base = { face: "oval", skin: "medium", hair: "short", hairColor: "brown", glasses: "none", beard: "none" } as const;
   const draw = (look: LookParts) => renderToStaticMarkup(<Avatar look={look} size={40} />);
-  for (const part of Object.keys(copy.lookValue) as LookPart[]) {
-    const drawings = Object.keys(copy.lookValue[part]).map((value) => draw({ ...base, [part]: value }));
+  for (const part of Object.keys(copyFor("de").lookValue) as LookPart[]) {
+    const drawings = Object.keys(copyFor("de").lookValue[part]).map((value) => draw({ ...base, [part]: value }));
     expect(new Set(drawings).size).toBe(drawings.length);
   }
 });

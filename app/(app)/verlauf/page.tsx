@@ -1,23 +1,24 @@
 import Link from "next/link";
 import { BookOpen, Cake, Coffee, Gift, Info, Lock, MapPin, MessageSquareText, NotebookPen, Pin, Ticket, type LucideIcon } from "lucide-react";
 import { listRambles, markMatches, search, today, type RambleSummary, type SearchHit } from "@/backend";
-import { copy, kindName } from "@/components/copy";
+import type { Copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { shortDay } from "@/components/format";
 import { HistorySearch } from "@/components/HistorySearch";
 import { KIND_ICON } from "@/components/icons";
-import { pageViewer } from "../viewer";
+import { pageCopy, pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: copy.tabHistory };
+export const generateMetadata = async () => ({ title: (await pageCopy()).tabHistory });
 
 // Monday of the week a day is in, as days since 1970 (UTC calendar days, like everywhere in the app).
 const mondayOf = (day: string) => {
   const t = Date.parse(`${day}T00:00:00Z`) / 86_400_000;
   return t - ((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7);
 };
-const monthYear = (day: string) =>
-  new Intl.DateTimeFormat("de-DE", {
+const monthYear = (copy: Copy, day: string) =>
+  new Intl.DateTimeFormat(copy.locale, {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -28,6 +29,7 @@ const monthYear = (day: string) =>
 // ramble told in parts links to its own page. With a search (?q=), what holds every word instead, the words marked.
 export default async function HistoryPage({ searchParams }: PageProps<"/verlauf">) {
   const v = await pageViewer();
+  const copy = getCopy();
   const q = (await searchParams).q;
   const query = typeof q === "string" ? q.trim() : "";
   const now = today();
@@ -35,7 +37,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
   const thisWeek = mondayOf(now);
   const heading = (day: string) => {
     const weeks = (thisWeek - mondayOf(day)) / 7;
-    return weeks <= 0 ? copy.thisWeek : weeks === 1 ? copy.lastWeek : monthYear(day);
+    return weeks <= 0 ? copy.thisWeek : weeks === 1 ? copy.lastWeek : monthYear(copy, day);
   };
   const groups = new Map<string, typeof rambles>();
   for (const r of rambles) groups.set(heading(r.date), [...(groups.get(heading(r.date)) ?? []), r]);
@@ -69,7 +71,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="flex items-center gap-1 font-semibold">
-                                {shortDay(e.date)} · {e.title}
+                                {shortDay(copy, e.date)} · {e.title}
                                 {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="h-3.5 w-3.5 text-muted" />}
                               </span>
                               <span className="line-clamp-2 block text-sm text-muted">{[e.kind, e.series?.name, e.place?.name].filter(Boolean).join(" · ")}</span>
@@ -88,7 +90,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="flex items-center gap-1 font-semibold">
-                                {shortDay(e.date)} · {copy.journal}
+                                {shortDay(copy, e.date)} · {copy.journal}
                                 {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="h-3.5 w-3.5 text-muted" />}
                               </span>
                               <span className="line-clamp-2 block text-sm text-muted">{e.text}</span>
@@ -104,7 +106,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="block font-semibold">
-                                {shortDay(r.date)} · {[...new Set(r.items.map((x) => x.person.name))].join(", ")}
+                                {shortDay(copy, r.date)} · {[...new Set(r.items.map((x) => x.person.name))].join(", ")}
                               </span>
                               <span className="line-clamp-2 block text-sm text-muted">{r.items.map((x) => x.text).join(" · ")}</span>
                             </span>
@@ -136,6 +138,7 @@ const HIT_ICON: Record<SearchHit["kind"], LucideIcon> = {
 };
 
 function Hits({ query, hits }: { query: string; hits: SearchHit[] }) {
+  const copy = getCopy();
   if (!hits.length) return <p className="mt-6 rounded-2xl bg-surface p-4 shadow-card">{copy.searchNothing.replace("{q}", query)}</p>;
   return (
     <ul aria-label={copy.searchFound} className="mt-4 space-y-2">
@@ -148,7 +151,7 @@ function Hits({ query, hits }: { query: string; hits: SearchHit[] }) {
                 <Icon aria-label={copy.searchKind[h.kind]} className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{[h.date && shortDay(h.date), copy.searchKind[h.kind], h.people.join(", ")].filter(Boolean).join(" · ")}</span>
+                <span className="block font-semibold">{[h.date && shortDay(copy, h.date), copy.searchKind[h.kind], h.people.join(", ")].filter(Boolean).join(" · ")}</span>
                 <span className="line-clamp-3 block text-sm text-muted">
                   {markMatches(h.text, query).map((piece, i) =>
                     piece.mark ? (
@@ -170,16 +173,17 @@ function Hits({ query, hits }: { query: string; hits: SearchHit[] }) {
 }
 
 function ConversationRow({ c }: { c: RambleSummary["conversations"][number] }) {
+  const copy = getCopy();
   const Icon = KIND_ICON[c.kind] ?? Coffee;
   return (
     <li key={c.id}>
       <Link href={c.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
-        <span title={kindName[c.kind]} className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
-          <Icon aria-label={kindName[c.kind]} className="h-[18px] w-[18px]" />
+        <span title={copy.kindName[c.kind]} className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
+          <Icon aria-label={copy.kindName[c.kind]} className="h-[18px] w-[18px]" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-semibold">
-            {shortDay(c.date)}
+            {shortDay(copy, c.date)}
             {c.people.length > 0 && ` · ${c.people.map((p) => p.name).join(", ")}`}
           </span>
           <span className="line-clamp-2 block text-sm text-muted">{c.summary}</span>

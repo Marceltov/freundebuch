@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarCheck, CalendarX, Lock, MapPin, Mic, Repeat } from "lucide-react";
 import type { ExperienceView } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { shortDay } from "@/components/format";
 import { ItemActions } from "@/components/ItemActions";
 
@@ -10,12 +10,13 @@ const chip = "inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py
 // One experience: its day, kind and title, a few lines, and links to its place, its series, the people who were there and the
 // ramble it was told in; a lock while private, and its actions for whoever recorded it. `series`: false on its own series' page.
 export function ExperienceItem({ e, series = true }: { e: ExperienceView; series?: boolean }) {
+  const copy = getCopy();
   return (
     <li id={`experience-${e.id}`} className="rounded-2xl bg-surface p-3 shadow-card target:ring-2 target:ring-carbon">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1 text-sm">
           <p>
-            <b>{shortDay(e.date)}</b> · <span className="text-muted">{e.kind}</span>{" "}
+            <b>{shortDay(copy, e.date)}</b> · <span className="text-muted">{e.kind}</span>{" "}
             {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="mb-0.5 inline h-3.5 w-3.5 text-muted" />}
           </p>
           <p className="font-semibold">{e.title}</p>
@@ -52,19 +53,20 @@ export function ExperienceItem({ e, series = true }: { e: ExperienceView; series
 
 // A series' days that weren't sessions: the latest missing one (not told yet) and those marked skipped.
 export function SeriesDays({ missed, skipped }: { missed: string[]; skipped: string[] }) {
+  const copy = getCopy();
   if (!missed.length && !skipped.length) return null;
   return (
     <ul className="mt-3 space-y-1 text-sm">
       {missed.map((d) => (
         <li key={`m-${d}`} className="flex items-center gap-1.5 text-carbon">
           <CalendarX aria-hidden className="h-4 w-4" />
-          {copy.sessionMissed.replace("{day}", shortDay(d))}
+          {copy.sessionMissed.replace("{day}", shortDay(copy, d))}
         </li>
       ))}
       {skipped.map((d) => (
         <li key={`s-${d}`} className="flex items-center gap-1.5 text-muted">
           <CalendarCheck aria-hidden className="h-4 w-4" />
-          {copy.sessionSkipped.replace("{day}", shortDay(d))}
+          {copy.sessionSkipped.replace("{day}", shortDay(copy, d))}
         </li>
       ))}
     </ul>

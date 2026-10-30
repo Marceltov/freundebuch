@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 const INBOX = "freundebuch-share-inbox"; // as in public/sw.js
 
@@ -10,6 +10,7 @@ type State = "receiving" | "received" | "duplicate" | "failed" | "empty";
 
 // Sends what the service worker put into the inbox to POST /api/share, one file at a time, empties it and goes on to Prüfen.
 export function ShareInbox({ again }: { again: boolean }) {
+  const copy = useCopy();
   const [state, setState] = useState<State>(again ? "failed" : "receiving");
   useEffect(() => {
     if (again) return;

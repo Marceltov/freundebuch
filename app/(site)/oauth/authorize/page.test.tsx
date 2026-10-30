@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, test, vi } from "vitest";
 import AuthorizePage from "./page";
 
-vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ get: () => undefined }) }));
 const checked = vi.hoisted(() => ({ value: null as unknown }));
 vi.mock("@/backend", async (orig) => ({
   ...(await orig<typeof import("@/backend")>()),

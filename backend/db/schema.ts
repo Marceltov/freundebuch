@@ -15,7 +15,15 @@ interface Item {
 }
 
 export interface Schema {
-  users: { id: string; oidc_sub: string; name: string; email: string | null; person_id: string | null; created_at: number };
+  users: {
+    id: string;
+    oidc_sub: string;
+    name: string;
+    email: string | null;
+    person_id: string | null;
+    created_at: number;
+    language: ColumnType<"de" | "en", "de" | "en" | undefined, "de" | "en">;
+  };
   persons: {
     id: string;
     name: string;

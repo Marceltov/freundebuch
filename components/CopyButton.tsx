@@ -2,10 +2,11 @@
 
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 // Copies `text` to the clipboard; the icon turns into a tick once it is there.
 export function CopyButton({ text }: { text: string }) {
+  const copy = useCopy();
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const label = state === "copied" ? copy.copied : state === "failed" ? copy.copyFailed : copy.copyText;
   return (

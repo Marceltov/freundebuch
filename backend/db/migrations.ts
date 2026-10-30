@@ -655,6 +655,15 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  // The language each user sees the app and their notifications in (types.ts LANGUAGES).
+  "020_user_language": {
+    async up(db) {
+      await db.schema
+        .alterTable("users")
+        .addColumn("language", "text", (c) => c.notNull().defaultTo("de").check(oneOf("language", ["de", "en"])))
+        .execute();
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

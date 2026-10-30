@@ -1,10 +1,11 @@
-import { copy } from "@/components/copy";
 import { ShareInbox } from "@/components/ShareInbox";
+import { pageCopy } from "../viewer";
 
-export const metadata = { title: copy.shareTitle };
+export const generateMetadata = async () => ({ title: (await pageCopy()).shareTitle });
 
 // Where Android's share sheet lands (via public/sw.js): the shared images are sent on from here.
 export default async function SharePage({ searchParams }: PageProps<"/teilen">) {
+  const copy = await pageCopy();
   const again = (await searchParams).nochmal === "1";
   return (
     <div className="space-y-4">

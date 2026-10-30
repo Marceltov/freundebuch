@@ -3,7 +3,7 @@
 // vocabularies come from backend/types.ts; the rules on the values stay in the domain functions,
 // which answer a bad value with `invalid_input`.
 import * as z from "zod";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, LOOK_PARTS, SEARCH_KINDS, VISIBILITIES } from "../types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, LANGUAGES, LOOK_PARTS, SEARCH_KINDS, VISIBILITIES } from "../types";
 import type { PlaceRef } from "../places";
 import { ERROR_CODES } from "./errors";
 
@@ -497,7 +497,7 @@ export const NewRambleJson = z
       .array(
         z.object({
           date: Day.optional().describe("The day it happened, when not the ramble's day"),
-          kind: z.string().describe('A German word for what it was ("Konzert", "Festival", "Kurs", "Reise"); reuse a kind already in use'),
+          kind: z.string().describe('A word in the user\'s language for what it was ("Konzert", "Festival", "Kurs", "Reise"); reuse a kind already in use'),
           title: z.string().describe('A short title ("Wanda in der Olympiahalle", "Hundeschule, 2. Stunde")'),
           summary: z.string().optional().describe("A few lines of what happened; how it felt to the user goes in a journal entry"),
           place: PlaceRefJson.optional(),
@@ -696,8 +696,15 @@ export const DueListJson = z.array(DueItemJson).meta({ id: "DueList" });
 export const OrbitJson = z.array(OrbitFaceJson).meta({ id: "Orbit" });
 
 export const SettingsJson = z
-  .object({ webhookUrl: z.url({ protocol: /^https?$/ }).nullable().describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https") })
+  .object({
+    webhookUrl: z.url({ protocol: /^https?$/ }).nullable().describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"),
+    language: z.enum(LANGUAGES).optional().describe("The language the web app and the notifications speak to the caller; German by default. Always in a GET; a PUT ignores it (PUT /me/language sets it)"),
+  })
   .meta({ id: "Settings" });
+
+export const LanguageJson = z
+  .object({ language: z.enum(LANGUAGES).describe("The language the web app and the notifications speak to the caller") })
+  .meta({ id: "Language" });
 
 export const ReflectionJson = z
   .object({
@@ -722,7 +729,7 @@ export const PendingFileJson = z
     sharedOn: Day.describe("The day it was shared: date what it shows by this (unless it shows another day), not by the day it is reviewed"),
     url: Url.describe("The file itself (sign-in required)"),
     type: z.string().describe("image/webp, application/pdf, text/plain, or audio/* for a voice note (worked through as its transcript)"),
-    summary: z.string().nullable().describe("What Claude suggests to file, in German; null while reading or when it failed"),
+    summary: z.string().nullable().describe("What Claude suggests to file, in the sharing user's language; null while reading or when it failed"),
     transcript: z.string().nullable().describe("What the file says, word for word (or what a photo shows, or what a voice note says): all that is kept of it once filed"),
     people: z.array(z.object({ name: z.string(), person: Candidate.nullable(), candidates: z.array(Candidate) })).describe("Who is in it: the person when certain, else candidates"),
     error: z.string().nullable().describe("Why the pre-read failed, when it did"),
@@ -743,7 +750,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [LookJson, SearchHitJson, SearchJson, PlaceRefJson, PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [LanguageJson, LookJson, SearchHitJson, SearchJson, PlaceRefJson, PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

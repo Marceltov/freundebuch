@@ -15,10 +15,10 @@ import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { decodeHeic } from "./heic";
 import { logger } from "./log";
-import { copy } from "./notify/copy";
+import { notifyCopy, type NotifyCopy } from "./notify/copy";
 import { sendWebhook } from "./notify/webhook";
 import { anthropicFileModel, fakeFileModel, type FileModel, type KnownPerson, type Suggestion } from "./file-model";
-import { getSettings } from "./settings";
+import { getSettings, userLanguage } from "./settings";
 import { transcriber, type Transcriber } from "./transcribe";
 import { processState } from "./state";
 import { store } from "./storage";
@@ -213,7 +213,7 @@ export async function readFile(id: string, model: FileModel, whisper: Transcribe
   const day = today();
   if (!(await spend(v, day))) {
     await set("failed", { error: "daily limit reached" });
-    await push(v, { title: copy.fileLimit, body: "", click });
+    await push(v, (copy) => ({ title: copy.fileLimit, body: "", click }));
     return "failed";
   }
   let input = { bytes, type: row.media_type };
@@ -223,29 +223,31 @@ export async function readFile(id: string, model: FileModel, whisper: Transcribe
     const said = before?.transcript ? { text: before.transcript } : whisper ? await whisper.transcribe(bytes, row.media_type) : { error: "no transcription server is set up" };
     if ("error" in said) {
       await set("failed", said);
-      await push(v, { title: copy.fileNotTranscribed, body: "", click });
+      await push(v, (copy) => ({ title: copy.fileNotTranscribed, body: "", click }));
       return "failed";
     }
     heard = said.text;
     input = { bytes: new TextEncoder().encode(`A voice note, transcribed:\n\n${heard}`), type: "text/plain" };
   }
   const people = await knownPeople();
-  const read = await model.read({ ...input, people, today: day });
+  const read = await model.read({ ...input, people, today: day, language: await userLanguage(v) });
   if ("error" in read) {
     await set("failed", heard ? { ...read, transcript: heard } : read);
-    await push(v, { title: copy.fileFailed, body: "", click });
+    await push(v, (copy) => ({ title: copy.fileFailed, body: "", click }));
     return "failed";
   }
   // A voice note's transcript is Whisper's, word for word, not Claude's retelling of it.
   const suggestion = clean(heard ? { ...read, transcript: heard } : read, new Set(people.map((p) => p.id)));
   await set("pending", suggestion);
-  await push(v, { title: copy.fileReady, body: suggestion.summary, click });
+  await push(v, (copy) => ({ title: copy.fileReady, body: suggestion.summary, click }));
   return "pending";
 }
 
-async function push(v: Viewer, m: { title: string; body: string; click?: string }): Promise<void> {
-  const { webhookUrl } = await getSettings(v);
+// `message` is given the viewer's notification text, in their language.
+async function push(v: Viewer, message: (copy: NotifyCopy) => { title: string; body: string; click?: string }): Promise<void> {
+  const { webhookUrl, language } = await getSettings(v);
   if (!webhookUrl) return;
+  const m = message(notifyCopy(language));
   const base = config.publicUrl();
   await sendWebhook(webhookUrl, { title: m.title, body: m.body, tags: ["paperclip"], click: base && m.click ? `${base}${m.click}` : base });
 }

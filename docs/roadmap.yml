@@ -41,26 +41,6 @@ items:
       - {label: "#71", url: "https://github.com/Marceltov/freundebuch/issues/71"}
       - {label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it"}
 
-  - id: i18n
-    status: later
-    when: Later
-    icon: translate
-    title: Internationalization
-    summary: The app in more languages than German, so a household that doesn't speak German can keep its book too.
-    links:
-      - {label: "#72", url: "https://github.com/Marceltov/freundebuch/issues/72"}
-      - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
-
-  - id: chat-across-devices
-    status: later
-    when: Later
-    icon: devices
-    title: An Erzählen chat that goes on at another device
-    summary: Started on the phone, continued at the laptop. Until then, Weitererzählen on a ramble's page picks up where you left off.
-    links:
-      - {label: "#100", url: "https://github.com/Marceltov/freundebuch/issues/100"}
-      - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
-
   - id: map
     status: later
     when: Later
@@ -72,6 +52,18 @@ items:
       - {label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything"}
 
   # ---- done, newest first ------------------------------------------------------------------------------------------------
+  - id: i18n
+    status: done
+    date: 2026-10-30
+    icon: translate
+    title: German and English
+    summary: Each of you chooses the language of the app and your notifications; Claude writes the chat, the reflection and its file suggestions in it.
+    links:
+      - {label: "#72", url: "https://github.com/Marceltov/freundebuch/issues/72"}
+      - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
+      - {label: "ADR 0021", url: "https://marceltov.github.io/freundebuch/adr/0021-a-language-per-user/"}
+      - {label: "PR #PRNUM", url: "https://github.com/Marceltov/freundebuch/pull/PRNUM"}
+
   - id: search
     status: done
     date: 2026-10-30

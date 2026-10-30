@@ -1,6 +1,7 @@
 // The daily reminders: once a day, after NOTIFY_AT, every user with a webhook gets what is due today or tomorrow. Each user's
 // list comes from whatsDue(viewer), so nobody is ever told about the partner's private items.
-import { copy } from "./copy";
+import { notifyCopy, type NotifyCopy } from "./copy";
+import { userLanguage } from "../settings";
 import { config } from "../config";
 import { db } from "../db";
 import { addDays, today } from "../dates";
@@ -17,7 +18,7 @@ const log = logger("notify");
 const MAX_PER_USER = 10;
 const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{(\w+)\}/g, (_, k) => String(v[k]));
 
-async function message(v: Viewer, item: DueItem, from: string, click: (id: string) => string | undefined): Promise<WebhookMessage> {
+async function message(v: Viewer, copy: NotifyCopy, item: DueItem, from: string, click: (id: string) => string | undefined): Promise<WebhookMessage> {
   const base = { click: click(item.personId) };
   if (item.kind === "overdue") {
     const seen = await lastSeen(v, item.personId);
@@ -27,7 +28,7 @@ async function message(v: Viewer, item: DueItem, from: string, click: (id: strin
   if (item.kind === "session") {
     const [, m, d] = item.date!.split("-");
     const base = config.publicUrl();
-    return { title: fill(copy.sessionMissed, { name: item.name, day: `${d}.${m}.` }), body: "", tags: ["paw_prints"], click: base ? `${base}${item.url}` : undefined };
+    return { title: fill(copy.sessionMissed, { name: item.name, day: fill(copy.dayMonth, { d, m }) }), body: "", tags: ["paw_prints"], click: base ? `${base}${item.url}` : undefined };
   }
   if (item.kind === "promise")
     return item.byMe
@@ -71,7 +72,8 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
       // A missed session goes out once, the morning after its day.
       const items = (await whatsDue(v, from, 1)).filter((i) => i.kind !== "session" || i.date === addDays(from, -1));
       const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
-      const messages = await Promise.all(shown.map((i) => message(v, i, from, click)));
+      const copy = notifyCopy(await userLanguage(v));
+      const messages = await Promise.all(shown.map((i) => message(v, copy, i, from, click)));
       if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });
       for (const m of messages) if (await sendWebhook(row.webhook_url!, m, fetchFn)) sent++;
       if (onlyNew) await d.insertInto("meta").values({ key: doneKey(row.user_id), value: from }).onConflict((oc) => oc.column("key").doUpdateSet({ value: from })).execute();

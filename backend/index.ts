@@ -30,13 +30,14 @@ export { daysBetween, today } from "./dates";
 export { NotFoundError } from "./errors";
 export { orbit, type Badge, type OrbitFace } from "./orbit";
 export { calendarRoute, hasCalendarKey } from "./calendar";
-export { getSettings } from "./settings";
+export { getSettings, userLanguage } from "./settings";
 export { getReflection } from "./reflection";
 export { getRamble, listRambles, type RambleSummary, type RambleView } from "./rambles";
 export { journalEntries, type JournalEntry } from "./journal";
 export { getPlace, getSeries, listExperiences, type ExperienceView, type PlaceView, type SeriesView } from "./experiences";
 export { hasShareKey, listPending, pendingCount, type PendingFile } from "./files";
-export type { FactKind, Look, LookPart, LookParts, Viewer } from "./types";
+
+export type { FactKind, Language, Look, LookPart, LookParts, Viewer } from "./types";
 
 // The health probe asks the database a trivial question; opening it (and migrating) is part of answering.
 setDbProbe(async () => sql`select 1`.execute(await db()));

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { OrbitFace } from "@/backend";
-import { copy } from "@/components/copy";
-import { BADGE_ICON, faceColor, faceTilt, initials } from "@/components/Face";
+import { getCopy } from "@/components/serverCopy";
+import { BADGE_ICON, faceColor, faceTilt, initials } from "@/components/faceStyle";
 import { OrbitArt } from "@/components/Looks";
 
 // The start page: "Du" in the middle, three dashed rings around it (backend/orbit.ts places the faces). Close = seen recently,
@@ -20,6 +20,7 @@ const firstName = (name: string) => {
 };
 
 export function Orbit({ faces }: { faces: OrbitFace[] }) {
+  const copy = getCopy();
   // Faces shrink on a crowded ring so they don't overlap.
   const perRing = [0, 1, 2].map((r) => faces.filter((f) => f.ring === r).length);
   const faceR = (ring: number) => Math.max(MIN_FACE, Math.min(MAX_FACE, (Math.PI * RADII[ring]) / Math.max(perRing[ring], 1) - 3));

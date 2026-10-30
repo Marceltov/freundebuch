@@ -3,11 +3,12 @@
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 // "+ Gruppe" on the friend page: a sheet with every group the viewer sees as a checkbox, and a field for a new one. A name that
 // is already a group's name or other name ticks that group (the server resolves it). Each change goes to the groups API at once.
 export function GroupPicker({ personId, personName, groups, member }: { personId: string; personName: string; groups: { id: string; name: string }[]; member: string[] }) {
+  const copy = useCopy();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [list, setList] = useState(groups);

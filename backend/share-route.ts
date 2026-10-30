@@ -7,7 +7,8 @@
 import { bearerOf, viewerFromRequest } from "./auth/session";
 import { FreundebuchError } from "./errors";
 import { readCapped, parseForm } from "./http/request";
-import { copy } from "./notify/copy";
+import { notifyCopy, type NotifyCopy } from "./notify/copy";
+import { userLanguage } from "./settings";
 import { BATCH_HEADER, MAX_UPLOAD, NO_AUDIO, NOT_AUDIO, NOT_TAKEN, PENDING_PATH, queueRead, fileContent, fileModel, shareFile, viewerFromShareKey } from "./files";
 import { TOO_LARGE } from "./heic";
 import { publicUrl } from "./urls";
@@ -39,7 +40,7 @@ async function fileOf(req: Request, bytes: Uint8Array): Promise<{ bytes: Uint8Ar
 }
 
 /** Why a file was refused (files.ts, heic.ts), for the user. */
-function germanOf(error: string): string {
+function forUser(copy: NotifyCopy, error: string): string {
   if (error === NOT_TAKEN) return copy.shareNotTaken;
   if (error === NO_AUDIO) return copy.shareNoAudio;
   if (error === NOT_AUDIO) return copy.shareNotAudio;
@@ -54,8 +55,10 @@ export async function shareRoute(req: Request): Promise<Response> {
   if (!model) return json({ error: "not found", code: "not_found" }, 404);
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   const v = await viewerOf(req);
-  // `message`, here and below, is what the Shortcut shows when a file didn't arrive: German, for the user.
-  if (!v) return json({ error: "sign-in or share key required", code: "unauthorized", message: copy.shareBadKey }, 401);
+  // `message`, here and below, is what the Shortcut shows when a file didn't arrive, in the user's language (German while the key
+  // doesn't say who they are).
+  if (!v) return json({ error: "sign-in or share key required", code: "unauthorized", message: notifyCopy("de").shareBadKey }, 401);
+  const copy = notifyCopy(await userLanguage(v));
   const bytes = await readCapped(req, MAX_UPLOAD);
   if (!bytes) return json({ error: `The image is larger than ${MAX_UPLOAD / 1024 / 1024} MB`, code: "invalid_request", message: copy.shareTooLarge }, 413);
   const file = await fileOf(req, bytes);
@@ -68,7 +71,7 @@ export async function shareRoute(req: Request): Promise<Response> {
     // An absolute address even without PUBLIC_URL: the Shortcut can't open a path.
     return json({ ...shot, message: shot.duplicate ? copy.shareDuplicate : copy.shareThanks, url: `${publicUrl(req.headers)}${PENDING_PATH}#${shot.id}` }, 202);
   } catch (e) {
-    if (e instanceof FreundebuchError && e.code === "invalid_input") return json({ error: e.message, code: e.code, message: germanOf(e.message) }, 400);
+    if (e instanceof FreundebuchError && e.code === "invalid_input") return json({ error: e.message, code: e.code, message: forUser(copy, e.message) }, 400);
     throw e;
   }
 }

@@ -2,13 +2,14 @@ import Link from "next/link";
 import { Fragment } from "react";
 import { MapPin } from "lucide-react";
 import type { PlaceView } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { Section } from "@/components/Tiles";
 
 type Facts = Pick<PlaceView, "parents" | "address" | "owners" | "inside">;
 
 // What a place is besides what happened there: where it sits, its address, whose home it is, and the places inside it.
 export function PlaceFacts({ p }: { p: Facts }) {
+  const copy = getCopy();
   const links = (xs: Facts["owners"]) =>
     xs.map((x, i) => (
       <Fragment key={x.id}>

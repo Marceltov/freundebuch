@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 const KEY = "freundebuch.gruppe";
 
@@ -25,6 +25,7 @@ const write = (id: string | null) => {
 // The group chips above the orbit. The choice lives in the URL (?gruppe=<id>) and is remembered on this device: opening the start
 // page without one brings back the last group chosen here. Choosing the active group again clears the filter.
 export function GroupFilter({ groups, current }: { groups: { id: string; name: string; count: number }[]; current: string | null }) {
+  const copy = useCopy();
   const router = useRouter();
   useEffect(() => {
     if (current) return write(current);

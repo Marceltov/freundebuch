@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Next, Fraunces } from "next/font/google";
 import "./globals.css";
-import { copy } from "@/components/copy";
+import { LanguageProvider } from "@/components/i18n";
+import { requestLanguage, siteCopy } from "./language";
 
-export const metadata: Metadata = {
+export const generateMetadata = async (): Promise<Metadata> => ({
   title: { default: "freundebuch", template: "%s · freundebuch" },
-  description: copy.tagline,
-};
+  description: (await siteCopy()).tagline,
+});
 
 // `viewportFit: "cover"`: phone first, the page reaches into the screen's rounded corners. `interactiveWidget`: the on-screen
 // keyboard shrinks the page instead of sliding it up, so the chat sheet stays above it with its messages in view.
@@ -16,10 +17,13 @@ export const viewport: Viewport = { viewportFit: "cover", interactiveWidget: "re
 const fraunces = Fraunces({ subsets: ["latin"], axes: ["SOFT", "WONK", "opsz"], variable: "--font-fraunces", display: "swap" });
 const text = Atkinson_Hyperlegible_Next({ subsets: ["latin"], variable: "--font-text", display: "swap" });
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const language = await requestLanguage();
   return (
-    <html lang="de" className={`${fraunces.variable} ${text.variable} antialiased`}>
-      <body className="font-sans text-base leading-relaxed">{children}</body>
+    <html lang={language} className={`${fraunces.variable} ${text.variable} antialiased`}>
+      <body className="font-sans text-base leading-relaxed">
+        <LanguageProvider language={language}>{children}</LanguageProvider>
+      </body>
     </html>
   );
 }

@@ -2305,6 +2305,59 @@
         }
       }
     },
+    "/api/v1/me/language": {
+      "put": {
+        "operationId": "putLanguage",
+        "summary": "Change the language the caller sees the app in",
+        "description": "The web app and the caller's notifications (reminders, the calendar feed, the Shortcut's answers) follow it. What is filed keeps the words it was filed in.",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Language"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/reflection": {
       "get": {
         "operationId": "getReflection",
@@ -2869,6 +2922,22 @@
   },
   "components": {
     "schemas": {
+      "Language": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "de",
+              "en"
+            ],
+            "description": "The language the web app and the notifications speak to the caller"
+          }
+        },
+        "required": [
+          "language"
+        ]
+      },
       "Look": {
         "type": "object",
         "properties": {
@@ -3173,7 +3242,7 @@
             "description": "image/webp, application/pdf, text/plain, or audio/* for a voice note (worked through as its transcript)"
           },
           "summary": {
-            "description": "What Claude suggests to file, in German; null while reading or when it failed",
+            "description": "What Claude suggests to file, in the sharing user's language; null while reading or when it failed",
             "type": [
               "string",
               "null"
@@ -3320,7 +3389,7 @@
               "description": "image/webp, application/pdf, text/plain, or audio/* for a voice note (worked through as its transcript)"
             },
             "summary": {
-              "description": "What Claude suggests to file, in German; null while reading or when it failed",
+              "description": "What Claude suggests to file, in the sharing user's language; null while reading or when it failed",
               "type": [
                 "string",
                 "null"
@@ -3745,6 +3814,14 @@
               }
             ],
             "description": "Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"
+          },
+          "language": {
+            "description": "The language the web app and the notifications speak to the caller; German by default. Always in a GET; a PUT ignores it (PUT /me/language sets it)",
+            "type": "string",
+            "enum": [
+              "de",
+              "en"
+            ]
           }
         },
         "required": [
@@ -6861,7 +6938,7 @@
                 },
                 "kind": {
                   "type": "string",
-                  "description": "A German word for what it was (\"Konzert\", \"Festival\", \"Kurs\", \"Reise\"); reuse a kind already in use"
+                  "description": "A word in the user's language for what it was (\"Konzert\", \"Festival\", \"Kurs\", \"Reise\"); reuse a kind already in use"
                 },
                 "title": {
                   "type": "string",

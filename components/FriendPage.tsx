@@ -22,7 +22,8 @@ import {
   Users,
 } from "lucide-react";
 import { anchorId, type Briefing } from "@/backend";
-import { copy, kindName, roleLine } from "@/components/copy";
+import { roleLine } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { Face } from "@/components/Face";
 import { ago, dayMonth, every, shortDay } from "@/components/format";
 import { GroupPicker } from "@/components/GroupPicker";
@@ -56,10 +57,11 @@ export function FriendPage({
   today?: string;
   viewerPersonId?: string;
 }) {
+  const copy = getCopy();
   const birthday = b.person.birthday;
   const otherDates = b.nextDates.filter((d) => d.kind !== "birthday");
   const { promises, exchanges, giftIdeas } = b.open;
-  const roles = roleLine(b.roles, b.person.gender);
+  const roles = roleLine(copy, b.roles, b.person.gender);
   const drawn =
     b.network.edges.length > 0 &&
     layoutNetwork(b.network, viewerPersonId) !== null;
@@ -155,7 +157,7 @@ export function FriendPage({
         <div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             <Chip icon={Coffee} label={copy.lastSeen}>
-              {daysSince === null ? copy.neverSeen : ago(daysSince)}
+              {daysSince === null ? copy.neverSeen : ago(copy, daysSince)}
             </Chip>
             {birthday && (
               <Chip
@@ -163,7 +165,7 @@ export function FriendPage({
                 icon={Cake}
                 tone="bg-sun font-bold text-on-sun"
               >
-                {dayMonth(birthday.next)}
+                {dayMonth(copy, birthday.next)}
                 {/^\d{4}-/.test(birthday.date) &&
                   ` ${birthday.date.slice(0, 4)}`}
                 {birthday.age !== null &&
@@ -178,12 +180,12 @@ export function FriendPage({
             ))}
             {b.freshness.intervalDays !== null && (
               <Chip icon={Repeat} label={copy.interval}>
-                {every(b.freshness.intervalDays)}
+                {every(copy, b.freshness.intervalDays)}
               </Chip>
             )}
             {otherDates.map((d) => (
               <Chip key={d.id} id={anchorId("dates", d.id)} icon={CalendarDays}>
-                {dayMonth(d.date)}
+                {dayMonth(copy, d.date)}
                 {d.label && ` · ${d.label}`}
               </Chip>
             ))}
@@ -243,7 +245,7 @@ export function FriendPage({
               ) : (
                 <span className="text-muted">
                   {" "}
-                  · {copy.askFrom.replace("{date}", dayMonth(f.checkAfter))}
+                  · {copy.askFrom.replace("{date}", dayMonth(copy, f.checkAfter))}
                 </span>
               )}
             </Tile>
@@ -311,7 +313,7 @@ export function FriendPage({
               {(p.byMe || p.by) && <b>{p.byMe ? copy.byMe : p.by}: </b>}
               {p.text}
               {p.due && (
-                <span className="text-muted"> · {shortDay(p.due)}</span>
+                <span className="text-muted"> · {shortDay(copy, p.due)}</span>
               )}
             </Tile>
           ))}
@@ -381,13 +383,13 @@ export function FriendPage({
             return (
               <li key={c.id} className="flex items-start gap-3 py-1.5">
                 <span
-                  title={kindName[c.kind]}
+                  title={copy.kindName[c.kind]}
                   className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2"
                 >
-                  <Icon aria-label={kindName[c.kind]} className="h-4 w-4" />
+                  <Icon aria-label={copy.kindName[c.kind]} className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 text-sm">
-                  <b>{shortDay(c.date)}</b> {c.summary}
+                  <b>{shortDay(copy, c.date)}</b> {c.summary}
                   {c.withOthers.length > 0 && (
                     <span className="text-muted">
                       {" "}
@@ -437,6 +439,7 @@ export function FriendPage({
 
 // A fact's text, where it was read from and when, and the file it came from (facts the screenshot reading filed before files).
 function FactText({ f }: { f: Briefing["known"][number] }) {
+  const copy = getCopy();
   return (
     <>
       {f.text}
@@ -444,7 +447,7 @@ function FactText({ f }: { f: Briefing["known"][number] }) {
         <span className="text-muted">
           {" "}
           ·{" "}
-          {[f.source, f.happenedOn && dayMonth(f.happenedOn)]
+          {[f.source, f.happenedOn && dayMonth(copy, f.happenedOn)]
             .filter(Boolean)
             .join(", ")}
         </span>
@@ -472,6 +475,7 @@ function FactText({ f }: { f: Briefing["known"][number] }) {
 
 // How long nothing was heard of a situation that nudges: from the day its latest news was filed.
 function nudge(since: string, today?: string): string {
+  const copy = getCopy();
   const weeks = today
     ? Math.floor((Date.parse(today) - Date.parse(since)) / (7 * 86_400_000))
     : 0;

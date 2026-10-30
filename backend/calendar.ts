@@ -5,7 +5,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { ageOn, nextOccurrence, today } from "./dates";
 import { db } from "./db";
-import { copy } from "./notify/copy";
+import { notifyCopy } from "./notify/copy";
+import { userLanguage } from "./settings";
 import type { Viewer } from "./types";
 import { itemPath, personPath, publicUrl } from "./urls";
 import { viewerById } from "./users";
@@ -58,6 +59,7 @@ const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{(\w
 /** The viewer's feed as iCalendar text, its links absolute against `base`. */
 export async function calendarFeed(v: Viewer, base: string, now = Date.now()): Promise<string> {
   const d = await db();
+  const copy = notifyCopy(await userLanguage(v));
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const name = (id: string) => names.get(id) ?? "";
   const year = +today(now).slice(0, 4);
