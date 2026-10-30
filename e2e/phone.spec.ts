@@ -785,6 +785,15 @@ test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and i
 test.describe("voice", () => {
   // The microphone is Chromium's stand-in (playwright.config.ts), Whisper the e2e stand-in (backend/transcribe.ts).
   test("a message spoken into Erzählen is sent as its words; a voice note added there waits under Prüfen as its transcript", async ({ page }) => {
+    // Chromium headless has no screen to keep on: a stand-in counts the wake locks held.
+    await page.addInitScript(() => {
+      const w = window as unknown as { locksHeld: number };
+      w.locksHeld = 0;
+      Object.defineProperty(navigator, "wakeLock", {
+        value: { request: async () => (w.locksHeld++, { release: async () => void w.locksHeld-- }) },
+      });
+    });
+    const locksHeld = () => page.evaluate(() => (window as unknown as { locksHeld: number }).locksHeld);
     await page.goto("/");
     await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
     const sheet = page.getByRole("dialog", { name: "Erzählen" });
@@ -792,6 +801,8 @@ test.describe("voice", () => {
     await expect(sheet.getByRole("button", { name: "Senden", exact: true })).toHaveCount(0);
     await sheet.getByRole("button", { name: "Sprachnachricht aufnehmen" }).click();
     await expect(sheet.getByText("Aufnahme läuft")).toBeAttached();
+    // The screen stays on while speaking.
+    await expect.poll(locksHeld).toBe(1);
     await page.waitForTimeout(1500);
     // Whisper takes a while on CPU: the message shows at once, as being transcribed.
     let release = () => {};
@@ -799,10 +810,13 @@ test.describe("voice", () => {
     await page.route("**/api/chat/voice", async (route) => (await held, route.continue()));
     await sheet.getByRole("button", { name: "Sprachnachricht senden" }).click();
     await expect(sheet.getByText("Sprachnachricht wird transkribiert …")).toBeVisible();
+    expect(await locksHeld()).toBe(1);
     release();
     await expect(sheet.getByText("Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!")).toBeVisible({ timeout: 15_000 });
     await expect(sheet.getByText("Verstanden.")).toBeVisible({ timeout: 15_000 });
     await expect(sheet.getByText("Sprachnachricht wird transkribiert …")).toHaveCount(0);
+    // And may go off again once the words are back.
+    await expect.poll(locksHeld).toBe(0);
     await page.unroute("**/api/chat/voice");
 
     // Claude unreachable: the spoken words wait in the field, like typed ones.

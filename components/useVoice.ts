@@ -58,6 +58,29 @@ export function useVoice(onText: (text: string) => void, onError: (message: stri
     };
   }, []);
 
+  // The screen stays on while speaking and until the words are back: a phone that locks mid-message cuts the recording, or the
+  // request for its words. Where the browser can't keep it on (an older iOS, no permission), it simply isn't kept on.
+  const awake = state !== "idle";
+  useEffect(() => {
+    if (!awake || typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let done = false;
+    const take = () =>
+      navigator.wakeLock
+        .request("screen")
+        .then((l) => (done ? void l.release() : void (lock = l)))
+        .catch(() => {});
+    void take();
+    // A lock is let go when the page is hidden for a moment; it is taken again when the page shows.
+    const again = () => document.visibilityState === "visible" && !done && void take();
+    document.addEventListener("visibilitychange", again);
+    return () => {
+      done = true;
+      document.removeEventListener("visibilitychange", again);
+      void lock?.release().catch(() => {});
+    };
+  }, [awake]);
+
   useEffect(() => {
     if (state !== "recording") return;
     const started = Date.now();

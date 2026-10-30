@@ -20,7 +20,7 @@ If Claude couldn't read it, the card says why; **Nochmal lesen** tries again.
 
 A WhatsApp voice note, an iPhone voice memo or any other audio file (Opus/Ogg, M4A, MP3, WAV, WebM, FLAC) is shared like any other file. Claude takes no audio, so freundebuch first has it transcribed by a Whisper server you run yourself ([`FREUNDEBUCH_TRANSCRIBE_URL`](../self-hosting/configuration.md)); the voice note never leaves your servers. Claude then reads the transcript, and it waits under Prüfen like any file, with a player to listen to it again. Once you have gone through it, only the transcript is kept, word for word as Whisper heard it, and the audio is deleted. If it couldn't be transcribed, the card says so and **Nochmal lesen** tries again.
 
-In **Erzählen**, the microphone (in place of the send button while the field is empty) records a message, as on WhatsApp: tap it, speak, tap send. It is transcribed at once and sent as your message; the trash can throws the recording away. The recording itself is never stored, only its words, as the ramble they are.
+In **Erzählen**, the microphone (in place of the send button while the field is empty) records a message, as on WhatsApp: tap it, speak, tap send. It shows in the chat at once and is sent as your message once transcribed; the trash can throws the recording away. The screen stays on while you speak and until the words are back. The recording itself is never stored, only its words, as the ramble they are.
 
 Without a transcription server, freundebuch takes no audio files and Erzählen shows no microphone.
 
