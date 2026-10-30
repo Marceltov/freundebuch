@@ -40,9 +40,13 @@ function text(template: string, ...parts: Attachment[]) {
   }
   return { Value: { string: template, attachmentsByRange }, WFSerializationType: "WFTextTokenString" };
 }
-const action = (id: string, params: Record<string, unknown>) => ({ WFWorkflowActionIdentifier: `is.workflow.actions.${id}`, WFWorkflowActionParameters: params });
+const action = (id: string, params: Record<string, unknown>) => ({
+  WFWorkflowActionIdentifier: `is.workflow.actions.${id}`,
+  WFWorkflowActionParameters: params,
+});
 /** "If `a` has any value" (mode 0), "Otherwise" (1) and "End If" (2) of one block. */
-const ifHasValue = (group: string, a: Attachment) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 100, WFInput: { Type: "Variable", Variable: value(a) } });
+const ifHasValue = (group: string, a: Attachment) =>
+  action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 100, WFInput: { Type: "Variable", Variable: value(a) } });
 const otherwise = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 1 });
 const endIf = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 2 });
 
@@ -59,7 +63,9 @@ export function shortcutPlist(): Record<string, unknown> {
     WFWorkflowHasShortcutInputVariables: true,
     WFWorkflowInputContentItemClasses: ["WFImageContentItem", "WFPDFContentItem", "WFGenericFileContentItem", "WFStringContentItem", "WFRichTextContentItem"],
     // One thing to paste: the Zugang from Einstellungen, "<share address> <key>", split here at the space.
-    WFWorkflowImportQuestions: [{ ActionIndex: 0, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Zugang (aus den freundebuch-Einstellungen)" }],
+    WFWorkflowImportQuestions: [
+      { ActionIndex: 0, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Zugang (aus den freundebuch-Einstellungen)" },
+    ],
     WFWorkflowActions: [
       action("gettext", { UUID: ACCESS, WFTextActionText: "" }),
       action("text.split", { UUID: PARTS, text: value(output(ACCESS, "Text")), WFTextSeparator: "Custom", WFTextCustomSeparator: " " }),
@@ -71,7 +77,10 @@ export function shortcutPlist(): Record<string, unknown> {
         UUID: BATCH,
         WFTextActionText: text(
           "ios-￼-￼",
-          { Type: "CurrentDate", Aggrandizements: [{ Type: "WFDateFormatVariableAggrandizement", WFDateFormatStyle: "Custom", WFDateFormat: "yyyyMMddHHmmss" }] },
+          {
+            Type: "CurrentDate",
+            Aggrandizements: [{ Type: "WFDateFormatVariableAggrandizement", WFDateFormatStyle: "Custom", WFDateFormat: "yyyyMMddHHmmss" }],
+          },
           output(RANDOM, "Zufallszahl"),
         ),
       }),

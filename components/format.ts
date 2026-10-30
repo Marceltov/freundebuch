@@ -6,10 +6,12 @@ const at = (day: string) => new Date(`${day}T00:00:00Z`);
 const fill = (s: string, n: number | string) => s.replace("{n}", String(n));
 
 /** "Mo., 20. Okt." */
-export const shortDay = (copy: Copy, day: string) => new Intl.DateTimeFormat(copy.locale, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(at(day));
+export const shortDay = (copy: Copy, day: string) =>
+  new Intl.DateTimeFormat(copy.locale, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(at(day));
 
 /** "Samstag, 24. Oktober" */
-export const longDay = (copy: Copy, day: string) => new Intl.DateTimeFormat(copy.locale, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(at(day));
+export const longDay = (copy: Copy, day: string) =>
+  new Intl.DateTimeFormat(copy.locale, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(at(day));
 
 /** "12. März" */
 export const dayMonth = (copy: Copy, day: string) => new Intl.DateTimeFormat(copy.locale, { day: "numeric", month: "long", timeZone: "UTC" }).format(at(day));

@@ -7,7 +7,15 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} 
 
 const own = { visibility: "shared" as const, mine: false };
 const b: Briefing = {
-  person: { id: "p1", name: "Sarah", aliases: [], url: "/p/p1", birthday: { id: "d1", date: "1990-03-15", next: "2027-03-15", age: 37 }, gender: null, look: null },
+  person: {
+    id: "p1",
+    name: "Sarah",
+    aliases: [],
+    url: "/p/p1",
+    birthday: { id: "d1", date: "1990-03-15", next: "2027-03-15", age: 37 },
+    gender: null,
+    look: null,
+  },
   roles: [],
   groups: [
     { id: "g1", name: "Choir", url: "/g/g1", private: true },
@@ -72,9 +80,42 @@ test("Gehört zu lists each person by name with what they are to this one, linki
       b={{
         ...b,
         relationships: [
-          { id: "x1", personId: "r1", name: "Ramona", label: "Mutter", inverse: "Tochter", note: null, direction: "in", url: "/p/r1", visibility: "shared", mine: true },
-          { id: "x2", personId: "r2", name: "Andreas", label: "Tochter", inverse: "Vater", note: null, direction: "out", url: "/p/r2", visibility: "shared", mine: false },
-          { id: "x3", personId: "r3", name: "Sybille", label: "Patentante", inverse: "Patenkind", note: "seit der Taufe", direction: "in", url: "/p/r3", visibility: "private", mine: true },
+          {
+            id: "x1",
+            personId: "r1",
+            name: "Ramona",
+            label: "Mutter",
+            inverse: "Tochter",
+            note: null,
+            direction: "in",
+            url: "/p/r1",
+            visibility: "shared",
+            mine: true,
+          },
+          {
+            id: "x2",
+            personId: "r2",
+            name: "Andreas",
+            label: "Tochter",
+            inverse: "Vater",
+            note: null,
+            direction: "out",
+            url: "/p/r2",
+            visibility: "shared",
+            mine: false,
+          },
+          {
+            id: "x3",
+            personId: "r3",
+            name: "Sybille",
+            label: "Patentante",
+            inverse: "Patenkind",
+            note: "seit der Taufe",
+            direction: "in",
+            url: "/p/r3",
+            visibility: "private",
+            mine: true,
+          },
         ],
       }}
       daysSince={null}
@@ -96,14 +137,23 @@ const fact = (id: string, text: string, category: "home" | "other" | "work" | "h
 const role = (over: Partial<Briefing["roles"][number]> = {}): Briefing["roles"][number] => ({ label: "Vermieterin", with: "us", ids: ["r1", "r2"], ...over });
 
 test("the role line comes first, in the words filed; Unsere or Unser by the person's gender", () => {
-  const page = (over: Partial<Briefing>) => renderToStaticMarkup(<FriendPage b={{ ...b, situations: [{ ...fact("s1", "sucht ein Auto"), since: "2026-09-01", checkAfter: "2026-12-01", nudge: false }], ...over }} daysSince={null} today="2026-10-25" />);
+  const page = (over: Partial<Briefing>) =>
+    renderToStaticMarkup(
+      <FriendPage
+        b={{ ...b, situations: [{ ...fact("s1", "sucht ein Auto"), since: "2026-09-01", checkAfter: "2026-12-01", nudge: false }], ...over }}
+        daysSince={null}
+        today="2026-10-25"
+      />,
+    );
   const html = page({ roles: [role()], person: { ...b.person, gender: "female" } });
   expect(html).toContain("Unsere Vermieterin");
   expect(html.indexOf("Unsere Vermieterin")).toBeLessThan(html.indexOf("Gerade los"));
   expect(page({ roles: [role({ label: "Vermieter:in" })] })).toContain("Vermieter:in von uns");
   expect(page({ roles: [role({ label: "Klempner" })], person: { ...b.person, gender: "male" } })).toContain("Unser Klempner");
   expect(page({ roles: [role({ label: "Kollegin", with: "me" })] })).toContain("Kollegin von dir");
-  expect(page({ roles: [role({ label: "Kolleg:in", with: "partner", partnerName: "Marcel" }), role({ label: "Nachbar:in" })] })).toContain("Kolleg:in von Marcel · Nachbar:in von uns");
+  expect(page({ roles: [role({ label: "Kolleg:in", with: "partner", partnerName: "Marcel" }), role({ label: "Nachbar:in" })] })).toContain(
+    "Kolleg:in von Marcel · Nachbar:in von uns",
+  );
   expect(page({ roles: [] })).not.toContain("data-role-line");
 });
 
@@ -135,7 +185,6 @@ test("Gerade los shows situations, nudges first; lasting facts go under Gut zu w
   expect(none).not.toContain("Gut zu wissen");
 });
 
-
 test("Worauf achten shows needs under Braucht, then personality under Wesen, between Gerade los and Gut zu wissen", () => {
   const html = renderToStaticMarkup(
     <FriendPage
@@ -157,13 +206,23 @@ test("Worauf achten shows needs under Braucht, then personality under Wesen, bet
   expect(at("schüchtern in großen Runden")).toBeGreaterThan(at("Wesen"));
   expect(at("Gut zu wissen")).toBeGreaterThan(at("schüchtern in großen Runden"));
   expect(renderToStaticMarkup(<FriendPage b={b} daysSince={null} />)).not.toContain("Worauf achten");
-  const onlyNeeds = renderToStaticMarkup(<FriendPage b={{ ...b, traits: { needs: [fact("n1", "vegetarisch", "health")], personality: [] } }} daysSince={null} />);
+  const onlyNeeds = renderToStaticMarkup(
+    <FriendPage b={{ ...b, traits: { needs: [fact("n1", "vegetarisch", "health")], personality: [] } }} daysSince={null} />,
+  );
   expect(onlyNeeds).toContain("Braucht");
   expect(onlyNeeds).not.toContain("Wesen");
 });
 
 test("the header says where the person lives, with the address, linking to the place", () => {
-  const home = { id: "h1", name: "Annas Wohnung", aliases: [], parents: [{ id: "n", name: "Nürnberg", url: "/o/n" }], address: "Hauptstraße 5", owners: [], url: "/o/h1" };
+  const home = {
+    id: "h1",
+    name: "Annas Wohnung",
+    aliases: [],
+    parents: [{ id: "n", name: "Nürnberg", url: "/o/n" }],
+    address: "Hauptstraße 5",
+    owners: [],
+    url: "/o/h1",
+  };
   const html = renderToStaticMarkup(<FriendPage b={{ ...b, homes: [home] }} daysSince={null} />);
   expect(html).toMatch(/Wohnt in: <\/span>Annas Wohnung · Hauptstraße 5/);
   expect(html).toContain('href="/o/h1"');

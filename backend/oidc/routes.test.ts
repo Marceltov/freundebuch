@@ -61,7 +61,12 @@ const entries = () => lines.map((l) => JSON.parse(l) as Record<string, unknown>)
 const logged = () =>
   entries()
     .filter((e) => e.level === "warn")
-    .map(({ component, msg, ...d }) => `${component}: ${msg}${Object.entries(d).flatMap(([k, v]) => (k === "level" || k === "time" ? [] : [` ${k}=${JSON.stringify(v)}`])).join("")}`);
+    .map(
+      ({ component, msg, ...d }) =>
+        `${component}: ${msg}${Object.entries(d)
+          .flatMap(([k, v]) => (k === "level" || k === "time" ? [] : [` ${k}=${JSON.stringify(v)}`]))
+          .join("")}`,
+    );
 // From here on, every log write throws.
 const breakLog = () => {
   restore();
@@ -92,7 +97,13 @@ async function start(query: string | Record<string, string> = "next=/p/x") {
 }
 // A registered client's checked authorize fields.
 async function mcpFields(extra: Record<string, string> = {}): Promise<Record<string, string>> {
-  const reg = await registerRoute(new Request(`${BASE}/oauth/register`, { method: "POST", headers: { ...H, "content-type": "application/json" }, body: JSON.stringify({ redirect_uris: [CB] }) }));
+  const reg = await registerRoute(
+    new Request(`${BASE}/oauth/register`, {
+      method: "POST",
+      headers: { ...H, "content-type": "application/json" },
+      body: JSON.stringify({ redirect_uris: [CB] }),
+    }),
+  );
   const client_id = (await reg.json()).client_id;
   return { response_type: "code", client_id, redirect_uri: CB, code_challenge: CHALLENGE, code_challenge_method: "S256", ...extra };
 }
@@ -177,13 +188,17 @@ describe("start", () => {
     expect(fetchStub).not.toHaveBeenCalled();
   };
 
-  test.each([["another site", "https://evil.example"], ["no Origin", null]])("an MCP POST from %s never reaches the provider", async (_, origin) => {
+  test.each([
+    ["another site", "https://evil.example"],
+    ["no Origin", null],
+  ])("an MCP POST from %s never reaches the provider", async (_, origin) => {
     refused(await postStart(await mcpFields(), origin), 403);
   });
 
   test("a GET carrying MCP authorize fields is refused, even valid ones", async () => {
     refused(await oidcStartRoute(get(`/api/oidc/start?${new URLSearchParams(await mcpFields())}`)), 400);
-    for (const k of ["client_id", "redirect_uri", "code_challenge", "response_type", "state"]) refused(await oidcStartRoute(get(`/api/oidc/start?${k}=x`)), 400);
+    for (const k of ["client_id", "redirect_uri", "code_challenge", "response_type", "state"])
+      refused(await oidcStartRoute(get(`/api/oidc/start?${k}=x`)), 400);
   });
 
   test("an MCP POST that doesn't check out never reaches the provider", async () => {
@@ -305,21 +320,38 @@ describe("callback", () => {
 
 describe("failure logs", () => {
   test.each([
-    ["a wrong state", (s: { state: string; cookie: string }) => callback(`code=the-code&state=${s.state}x`, s.cookie), "oidc: state mismatch or missing sign-in cookie"],
+    [
+      "a wrong state",
+      (s: { state: string; cookie: string }) => callback(`code=the-code&state=${s.state}x`, s.cookie),
+      "oidc: state mismatch or missing sign-in cookie",
+    ],
     ["no cookie", (s: { state: string; cookie: string }) => callback(`code=the-code&state=${s.state}`), "oidc: state mismatch or missing sign-in cookie"],
     ["no code", (s: { state: string; cookie: string }) => callback(`state=${s.state}`, s.cookie), "oidc: no code in the callback"],
-    ["a denial", (s: { state: string; cookie: string }) => callback(`error=access_denied&error_description=ann%40x.com+said+no&state=${s.state}`, s.cookie), 'oidc: provider denied the sign-in error="access_denied"'],
-    ["a denial whose error isn't a short code", (s: { state: string; cookie: string }) => callback(`error=no%0Aoidc%3A+forged&state=${s.state}`, s.cookie), "oidc: provider denied the sign-in"],
+    [
+      "a denial",
+      (s: { state: string; cookie: string }) => callback(`error=access_denied&error_description=ann%40x.com+said+no&state=${s.state}`, s.cookie),
+      'oidc: provider denied the sign-in error="access_denied"',
+    ],
+    [
+      "a denial whose error isn't a short code",
+      (s: { state: string; cookie: string }) => callback(`error=no%0Aoidc%3A+forged&state=${s.state}`, s.cookie),
+      "oidc: provider denied the sign-in",
+    ],
     [
       "someone off the allow-list",
-      (s: { state: string; cookie: string }) => (vi.stubEnv("FREUNDEBUCH_OIDC_ALLOW", "x@y.z"), (person = { sub: "bob-sub", name: "Bob", email: "bob@x.com", email_verified: true }), callback(`code=the-code&state=${s.state}`, s.cookie)),
+      (s: { state: string; cookie: string }) => (
+        vi.stubEnv("FREUNDEBUCH_OIDC_ALLOW", "x@y.z"),
+        (person = { sub: "bob-sub", name: "Bob", email: "bob@x.com", email_verified: true }),
+        callback(`code=the-code&state=${s.state}`, s.cookie)
+      ),
       "oidc: person not on the allow-list",
     ],
   ])("%s logs one line saying why, and the browser sees only the plain failure", async (_, call, line) => {
     const s = await start("");
     failed(await call(s));
     expect(logged()).toEqual([line]);
-    for (const secret of ["client-secret", "the-code", s.state, s.cookie, lastNonce, "ann@x.com", "bob@x.com", "Bob", "bob-sub"]) expect(lines.join("\n")).not.toContain(secret);
+    for (const secret of ["client-secret", "the-code", s.state, s.cookie, lastNonce, "ann@x.com", "bob@x.com", "Bob", "bob-sub"])
+      expect(lines.join("\n")).not.toContain(secret);
   });
 
   test("an unreachable provider at the start is logged", async () => {

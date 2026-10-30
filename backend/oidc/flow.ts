@@ -63,7 +63,16 @@ export async function discover(provider: Provider, fetchFn: Fetch = fetch, now =
 
 export function authorizeUrl(provider: Provider, meta: Meta, p: { redirectUri: string; state: string; nonce: string; challenge: string }): string {
   const u = new URL(meta.authorization_endpoint);
-  const q = { response_type: "code", client_id: provider.clientId, redirect_uri: p.redirectUri, scope: "openid profile email", state: p.state, nonce: p.nonce, code_challenge: p.challenge, code_challenge_method: "S256" };
+  const q = {
+    response_type: "code",
+    client_id: provider.clientId,
+    redirect_uri: p.redirectUri,
+    scope: "openid profile email",
+    state: p.state,
+    nonce: p.nonce,
+    code_challenge: p.challenge,
+    code_challenge_method: "S256",
+  };
   for (const [k, v] of Object.entries(q)) u.searchParams.set(k, v);
   return u.href;
 }
@@ -105,10 +114,28 @@ function check(provider: Provider, c: Record<string, unknown>, meta: Meta, nonce
   return email === undefined ? { sub, name } : { sub, name, email };
 }
 
-export async function exchange(provider: Provider, meta: Meta, p: { code: string; redirectUri: string; verifier: string; nonce: string }, fetchFn: Fetch = fetch, now = Date.now()): Promise<Person> {
+export async function exchange(
+  provider: Provider,
+  meta: Meta,
+  p: { code: string; redirectUri: string; verifier: string; nonce: string },
+  fetchFn: Fetch = fetch,
+  now = Date.now(),
+): Promise<Person> {
   const { clientId, clientSecret } = provider;
-  const body = new URLSearchParams({ grant_type: "authorization_code", code: p.code, redirect_uri: p.redirectUri, code_verifier: p.verifier, client_id: clientId, client_secret: clientSecret });
-  const res = await getJson(fetchFn, meta.token_endpoint, { method: "POST", headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body }, "token request rejected");
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: p.code,
+    redirect_uri: p.redirectUri,
+    code_verifier: p.verifier,
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
+  const res = await getJson(
+    fetchFn,
+    meta.token_endpoint,
+    { method: "POST", headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body },
+    "token request rejected",
+  );
   // ponytail: the id_token's signature is not verified. It came straight from the token endpoint over TLS,
   // which OIDC Core 3.1.3.7 lets stand in for it. Verify against the provider's JWKS if tokens ever arrive another way.
   return check(provider, payload(res.id_token), meta, p.nonce, now);

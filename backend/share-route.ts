@@ -9,7 +9,19 @@ import { FreundebuchError } from "./errors";
 import { readCapped, parseForm } from "./http/request";
 import { notifyCopy, type NotifyCopy } from "./notify/copy";
 import { userLanguage } from "./settings";
-import { BATCH_HEADER, MAX_UPLOAD, NO_AUDIO, NOT_AUDIO, NOT_TAKEN, PENDING_PATH, queueRead, fileContent, fileModel, shareFile, viewerFromShareKey } from "./files";
+import {
+  BATCH_HEADER,
+  MAX_UPLOAD,
+  NO_AUDIO,
+  NOT_AUDIO,
+  NOT_TAKEN,
+  PENDING_PATH,
+  queueRead,
+  fileContent,
+  fileModel,
+  shareFile,
+  viewerFromShareKey,
+} from "./files";
 import { TOO_LARGE } from "./heic";
 import { publicUrl } from "./urls";
 import type { Viewer } from "./types";
@@ -33,7 +45,9 @@ async function fileOf(req: Request, bytes: Uint8Array): Promise<{ bytes: Uint8Ar
     const form = await parseForm(bytes, req.headers).catch(() => null);
     const file = form?.get("file") ?? form?.get("image");
     const field = form?.get("batch");
-    return file instanceof Blob ? { bytes: new Uint8Array(await file.arrayBuffer()), type: file.type, batch: header ?? (typeof field === "string" ? field : null) } : null;
+    return file instanceof Blob
+      ? { bytes: new Uint8Array(await file.arrayBuffer()), type: file.type, batch: header ?? (typeof field === "string" ? field : null) }
+      : null;
   }
   // The Shortcut's "File" body sends the file's own type; some versions send none or octet-stream.
   return { bytes, type, batch: header };
@@ -81,11 +95,20 @@ export async function fileRoute(req: Request, id: string): Promise<Response> {
   if (!v) return json({ error: "sign-in required", code: "unauthorized" }, 401);
   const img = await fileContent(v, id);
   if (!img) return json({ error: "not found", code: "not_found" }, 404);
-  const headers = { "Content-Type": img.type === "text/plain" ? "text/plain; charset=utf-8" : img.type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff", "Accept-Ranges": "bytes" };
+  const headers = {
+    "Content-Type": img.type === "text/plain" ? "text/plain; charset=utf-8" : img.type,
+    "Cache-Control": "private, max-age=86400",
+    "X-Content-Type-Options": "nosniff",
+    "Accept-Ranges": "bytes",
+  };
   // Safari plays a voice note only from a server that answers byte ranges.
   const range = rangeOf(req.headers.get("range"), img.bytes.byteLength);
   if (range === "unsatisfiable") return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${img.bytes.byteLength}` } });
-  if (range) return new Response(img.bytes.subarray(range.start, range.end + 1) as BodyInit, { status: 206, headers: { ...headers, "Content-Range": `bytes ${range.start}-${range.end}/${img.bytes.byteLength}` } });
+  if (range)
+    return new Response(img.bytes.subarray(range.start, range.end + 1) as BodyInit, {
+      status: 206,
+      headers: { ...headers, "Content-Range": `bytes ${range.start}-${range.end}/${img.bytes.byteLength}` },
+    });
   return new Response(img.bytes as BodyInit, { headers });
 }
 

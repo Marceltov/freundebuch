@@ -24,7 +24,9 @@ export default async function SeriesPage({ params }: PageProps<"/s/[id]">) {
         {s.name}
       </h1>
       <p className="mt-1 text-muted">
-        {[s.kind, rhythm, s.startsOn && `${shortDay(copy, s.startsOn)}${s.endsOn ? ` ${copy.seriesEnded.replace("{day}", shortDay(copy, s.endsOn))}` : ""}`].filter(Boolean).join(" · ")}
+        {[s.kind, rhythm, s.startsOn && `${shortDay(copy, s.startsOn)}${s.endsOn ? ` ${copy.seriesEnded.replace("{day}", shortDay(copy, s.endsOn))}` : ""}`]
+          .filter(Boolean)
+          .join(" · ")}
       </p>
       {s.place && (
         <Link href={s.place.url} className="mt-2 inline-flex items-center gap-1 rounded-full bg-surface-2 px-3 py-1 text-sm hover:bg-rule">

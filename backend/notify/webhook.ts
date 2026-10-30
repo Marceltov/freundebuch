@@ -4,7 +4,12 @@ import { errorFields, logger } from "../log";
 
 const log = logger("notify");
 
-export type WebhookMessage = { title: string; body: string; tags: string[]; /** Where a tap on the message goes; left out when the instance's address is unknown. */ click?: string };
+export type WebhookMessage = {
+  title: string;
+  body: string;
+  tags: string[];
+  /** Where a tap on the message goes; left out when the instance's address is unknown. */ click?: string;
+};
 
 // A header value is Latin-1 only; ntfy reads anything else as RFC 2047 encoded words.
 const header = (v: string) => (/^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, "utf8").toString("base64")}?=`);

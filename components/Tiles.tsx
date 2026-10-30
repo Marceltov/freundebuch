@@ -43,7 +43,19 @@ export function Chip({
 
 // A field of the book: its heading in the display face with an icon, its rows one under the other, read like lines on a page.
 // `list`: the children are <li>; `plain`: one block as it is.
-export function Section({ title, icon: Icon, list, plain, children }: { title: string; icon?: LucideIcon; list?: boolean; plain?: boolean; children: ReactNode }) {
+export function Section({
+  title,
+  icon: Icon,
+  list,
+  plain,
+  children,
+}: {
+  title: string;
+  icon?: LucideIcon;
+  list?: boolean;
+  plain?: boolean;
+  children: ReactNode;
+}) {
   return (
     <section className="mt-7">
       <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">

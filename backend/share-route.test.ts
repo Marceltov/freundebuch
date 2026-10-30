@@ -31,9 +31,15 @@ afterEach(() => {
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 let colour = 0;
-const png = async () => new Uint8Array(await sharp({ create: { width: 30, height: 30, channels: 3, background: { r: colour++, g: 0, b: 0 } } }).png().toBuffer());
+const png = async () =>
+  new Uint8Array(
+    await sharp({ create: { width: 30, height: 30, channels: 3, background: { r: colour++, g: 0, b: 0 } } })
+      .png()
+      .toBuffer(),
+  );
 const cookie = (uid: string) => ({ cookie: `${IDENTITY_COOKIE}=${sign("identity", { uid })}`, origin: BASE });
-const share = (body: BodyInit, headers: Record<string, string>) => shareRoute(new Request(`${BASE}/api/share`, { method: "POST", headers: { host: "localhost:3000", ...headers }, body }));
+const share = (body: BodyInit, headers: Record<string, string>) =>
+  shareRoute(new Request(`${BASE}/api/share`, { method: "POST", headers: { host: "localhost:3000", ...headers }, body }));
 
 test("the Shortcut sends the image as the body with its share key: 202, stored as the key's user", async () => {
   const key = await createShareKey(s.a);
@@ -103,7 +109,9 @@ test("the image is served to its user and refused to the partner and to the sign
 
 test("a text file is served as UTF-8, so umlauts show", async () => {
   const key = await createShareKey(s.a);
-  const { id } = await (await share(new TextEncoder().encode("Grüße von Jürgen") as BodyInit, { authorization: `Bearer ${key}`, "content-type": "text/plain" })).json();
+  const { id } = await (
+    await share(new TextEncoder().encode("Grüße von Jürgen") as BodyInit, { authorization: `Bearer ${key}`, "content-type": "text/plain" })
+  ).json();
   const res = await fileRoute(new Request(`${BASE}/api/files/${id}`, { headers: { host: "localhost:3000", ...cookie(s.a.userId) } }), id);
   expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
 });
@@ -111,7 +119,13 @@ test("a text file is served as UTF-8, so umlauts show", async () => {
 test("files sent with one batch id wait side by side, in the order they came; a malformed id is ignored", async () => {
   const key = await createShareKey(s.a);
   const send = async (batch?: string) =>
-    (await (await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", ...(batch ? { "x-freundebuch-batch": batch } : {}) })).json()) as { id: string };
+    (await (
+      await share((await png()) as BodyInit, {
+        authorization: `Bearer ${key}`,
+        "content-type": "image/png",
+        ...(batch ? { "x-freundebuch-batch": batch } : {}),
+      })
+    ).json()) as { id: string };
   const first = await send("run-20261030-1");
   const alone = await send();
   const second = await send("run-20261030-1");
@@ -131,7 +145,9 @@ test("what the Shortcut shows when a file doesn't arrive is German, and says why
     "Der Teilen-Schlüssel stimmt nicht: erzeug in den freundebuch-Einstellungen einen neuen und trag ihn im Kurzbefehl ein.",
   );
   const auth = { authorization: `Bearer ${await createShareKey(s.a)}` };
-  expect(await msg(await share(new Uint8Array(16 * 1024 * 1024) as BodyInit, { ...auth, "content-type": "image/png" }))).toBe("Die Datei ist größer als 15 MB.");
+  expect(await msg(await share(new Uint8Array(16 * 1024 * 1024) as BodyInit, { ...auth, "content-type": "image/png" }))).toBe(
+    "Die Datei ist größer als 15 MB.",
+  );
   expect(await msg(await share(new Uint8Array([0x50, 0x4b, 3, 4, 0, 0]) as BodyInit, { ...auth, "content-type": "application/zip" }))).toBe(
     "freundebuch nimmt Bilder, PDFs, Textdateien und Sprachnachrichten.",
   );
@@ -149,19 +165,34 @@ test("a file shared again with a new share joins it, so Prüfen opens on the sha
   const key = await createShareKey(s.a);
   const bytes = await png();
   const send = async (b: Uint8Array, batch: string) =>
-    (await (await share(b as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", "x-freundebuch-batch": batch })).json()) as { id: string; duplicate: boolean };
+    (await (await share(b as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", "x-freundebuch-batch": batch })).json()) as {
+      id: string;
+      duplicate: boolean;
+    };
   const old = await send(bytes, "share-old-1234");
   const fresh = await send(await png(), "share-new-1234");
   const again = await send(bytes, "share-new-1234");
   expect(again).toMatchObject({ id: old.id, duplicate: true });
   const list = await listPending(s.a);
-  expect(list.filter((f) => f.batchId === "share-new-1234").map((f) => f.id).sort()).toEqual([fresh.id, old.id].sort());
+  expect(
+    list
+      .filter((f) => f.batchId === "share-new-1234")
+      .map((f) => f.id)
+      .sort(),
+  ).toEqual([fresh.id, old.id].sort());
 });
 
 test("files of one share that came in the same millisecond keep the order they came in", async () => {
   const key = await createShareKey(s.a);
   const ids: string[] = [];
-  for (let i = 0; i < 6; i++) ids.push(((await (await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", "x-freundebuch-batch": "same-ms-1234" })).json()) as { id: string }).id);
+  for (let i = 0; i < 6; i++)
+    ids.push(
+      (
+        (await (
+          await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", "x-freundebuch-batch": "same-ms-1234" })
+        ).json()) as { id: string }
+      ).id,
+    );
   await (await db()).updateTable("files").set({ created_at: 5 }).where("id", "in", ids).execute();
   expect((await listPending(s.a)).map((f) => f.id)).toEqual(ids);
 });
@@ -170,7 +201,8 @@ test("a byte range of a file is served as 206, for Safari to play a voice note",
   const key = await createShareKey(s.a);
   const text = new TextEncoder().encode("0123456789");
   const { id } = await (await share(text as BodyInit, { authorization: `Bearer ${key}`, "content-type": "text/plain" })).json();
-  const get = (range?: string) => fileRoute(new Request(`${BASE}/api/files/${id}`, { headers: { host: "localhost:3000", ...cookie(s.a.userId), ...(range ? { range } : {}) } }), id);
+  const get = (range?: string) =>
+    fileRoute(new Request(`${BASE}/api/files/${id}`, { headers: { host: "localhost:3000", ...cookie(s.a.userId), ...(range ? { range } : {}) } }), id);
   const part = await get("bytes=2-4");
   expect([part.status, part.headers.get("content-range"), await part.text()]).toEqual([206, "bytes 2-4/10", "234"]);
   expect((await get("bytes=20-")).status).toBe(416);

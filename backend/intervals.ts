@@ -13,7 +13,9 @@ const MAX_INTERVAL_DAYS = 3650;
 
 /** Dates (newest first) of the visible conversations with the person that the viewer's own person also took part in. */
 async function datesSeen(v: Viewer, personId: string, limit: number): Promise<string[]> {
-  const rows = await (await db())
+  const rows = await (
+    await db()
+  )
     .selectFrom("conversations")
     .innerJoin("participants as them", "them.conversation_id", "conversations.id")
     .innerJoin("participants as me", "me.conversation_id", "conversations.id")
@@ -35,7 +37,10 @@ export async function lastSeen(v: Viewer, personId: string): Promise<string | nu
 export async function suggestInterval(v: Viewer, personId: string): Promise<number | null> {
   const dates = (await datesSeen(v, personId, WINDOW)).reverse();
   if (dates.length < MIN_CONVERSATIONS) return null;
-  const gaps = dates.slice(1).map((d, i) => daysBetween(dates[i], d)).sort((a, b) => a - b);
+  const gaps = dates
+    .slice(1)
+    .map((d, i) => daysBetween(dates[i], d))
+    .sort((a, b) => a - b);
   const mid = gaps.length >> 1;
   const median = gaps.length % 2 ? gaps[mid] : (gaps[mid - 1] + gaps[mid]) / 2;
   return Math.max(WEEK, Math.round(median / WEEK) * WEEK);

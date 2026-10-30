@@ -7,7 +7,7 @@ freundebuch: a personal CRM for one household, AI-first (capture happens through
 ## Commands
 
 - `npm run dev` / `npm run build` / `npm start`
-- `npm run typecheck` (next typegen + tsc), `npm run lint`
+- `npm run typecheck` (next typegen + tsc), `npm run lint`, `npm run format` / `npm run format:check` (Prettier, 160 columns); `uvx ruff check` and `uvx ruff format` for `docs_hooks/`
 - `npm test` (vitest), `npx vitest run <file>` for one file
 - `npm run test:e2e` (Playwright, needs `npx playwright install chromium` once). It runs against `next dev`, not the built app: the e2e sign-in (`FREUNDEBUCH_E2E=1`) is compiled out of production builds. Its server starts from a fresh database and a fresh `.next/dev`; if pages still reload mid-test (`ERR_ABORTED`, "navigation interrupted"), run `rm -rf .next` and retry, and don't run `next typegen` by hand while e2e runs.
 - `npm run generate` rewrites `openapi.json` from the route table (`backend/http/api.ts`); commit the result, CI fails on any difference.

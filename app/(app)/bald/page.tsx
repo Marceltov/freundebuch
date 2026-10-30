@@ -91,7 +91,9 @@ export default async function SoonPage() {
                   <span className="min-w-0 flex-1">
                     <span className="block font-display text-lg leading-tight font-semibold">{o.name}</span>
                     <span className="block text-sm text-muted">
-                      {copy.sinceWanted.replace("{since}", o.lastSeen ? ago(copy, daysBetween(o.lastSeen, now)) : copy.neverMet).replace("{every}", o.intervalDays ? every(copy, o.intervalDays) : "")}
+                      {copy.sinceWanted
+                        .replace("{since}", o.lastSeen ? ago(copy, daysBetween(o.lastSeen, now)) : copy.neverMet)
+                        .replace("{every}", o.intervalDays ? every(copy, o.intervalDays) : "")}
                     </span>
                   </span>
                 </Link>

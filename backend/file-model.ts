@@ -27,7 +27,7 @@ const SuggestionJson = z.object({
     .string()
     .min(1)
     .describe(
-      "A few short lines in the user's language: what the file is (a post, a chat, a photo, a letter, ...) and what could be filed about whom: news, plans, dates, promises, gift ideas. \"WhatsApp-Gruppe Sunshine: Patrick hatte am Wochenende Geburtstag; Freitag Spieleabend bei Olivier\"",
+      'A few short lines in the user\'s language: what the file is (a post, a chat, a photo, a letter, ...) and what could be filed about whom: news, plans, dates, promises, gift ideas. "WhatsApp-Gruppe Sunshine: Patrick hatte am Wochenende Geburtstag; Freitag Spieleabend bei Olivier"',
     ),
   transcript: z
     .string()
@@ -74,12 +74,24 @@ export function anthropicFileModel(apiKey: string, model: string, deps: { client
           model,
           max_tokens: 4000,
           system: SYSTEM,
-          tools: [{ name: "report", description: "Report what the file suggests to file", input_schema: z.toJSONSchema(SuggestionJson) as Anthropic.Tool.InputSchema }],
+          tools: [
+            {
+              name: "report",
+              description: "Report what the file suggests to file",
+              input_schema: z.toJSONSchema(SuggestionJson) as Anthropic.Tool.InputSchema,
+            },
+          ],
           tool_choice: { type: "auto" },
           messages: [
             {
               role: "user",
-              content: [fileBlock(bytes, type), { type: "text", text: `Today is ${today}. The user's language is ${LANGUAGE_NAMES[language]}. The people in freundebuch (id: name / other names):\n${list || "(nobody yet)"}` }],
+              content: [
+                fileBlock(bytes, type),
+                {
+                  type: "text",
+                  text: `Today is ${today}. The user's language is ${LANGUAGE_NAMES[language]}. The people in freundebuch (id: name / other names):\n${list || "(nobody yet)"}`,
+                },
+              ],
             },
           ],
         });

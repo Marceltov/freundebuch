@@ -4,7 +4,17 @@ import { config } from "./config";
 
 afterEach(() => {
   vi.unstubAllEnvs();
-  for (const k of ["FREUNDEBUCH_NOTIFY_AT", "FREUNDEBUCH_OIDC_ALLOW", "FREUNDEBUCH_TRUST_PROXY", "FREUNDEBUCH_RATE_LIMIT", "FREUNDEBUCH_SECRET", "PUBLIC_URL", "DATA_DIR", "TZ"]) delete process.env[k];
+  for (const k of [
+    "FREUNDEBUCH_NOTIFY_AT",
+    "FREUNDEBUCH_OIDC_ALLOW",
+    "FREUNDEBUCH_TRUST_PROXY",
+    "FREUNDEBUCH_RATE_LIMIT",
+    "FREUNDEBUCH_SECRET",
+    "PUBLIC_URL",
+    "DATA_DIR",
+    "TZ",
+  ])
+    delete process.env[k];
 });
 
 test("notifyAt is 08:00 when unset or empty", () => {
@@ -91,6 +101,7 @@ test(".env.example, compose.yaml and the configuration docs name every chat vari
   const { readFile } = await import("node:fs/promises");
   for (const file of [".env.example", "compose.yaml", "docs/self-hosting/configuration.md"]) {
     const text = await readFile(file, "utf8");
-    for (const name of ["FREUNDEBUCH_ANTHROPIC_API_KEY", "FREUNDEBUCH_ANTHROPIC_MODEL", "FREUNDEBUCH_CHAT_DAILY_LIMIT"]) expect(text, `${file} ${name}`).toContain(name);
+    for (const name of ["FREUNDEBUCH_ANTHROPIC_API_KEY", "FREUNDEBUCH_ANTHROPIC_MODEL", "FREUNDEBUCH_CHAT_DAILY_LIMIT"])
+      expect(text, `${file} ${name}`).toContain(name);
   }
 });

@@ -13,16 +13,10 @@ export type PersonRow = { id: string; name: string; aliases: string[]; url: stri
 export const NO_GROUP = "none";
 
 /** Whether the person shows under the chip `group`: every one for none chosen, else its members, or with NO_GROUP those in none. */
-export const inGroup = (p: PersonRow, group: string | null) =>
-  !group || (group === NO_GROUP ? !p.groups.length : p.groups.includes(group));
+export const inGroup = (p: PersonRow, group: string | null) => !group || (group === NO_GROUP ? !p.groups.length : p.groups.includes(group));
 
 // Lower case, without accents and umlaut dots, so "lea" finds "Léa" and "muller" finds "Müller".
-const fold = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .replace(/ß/g, "ss");
+const fold = (s: string) => s.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "").replace(/ß/g, "ss");
 
 // Leute: everyone, A to Z under their first letter, with a search over names and nicknames and the group chips to narrow it,
 // the last of them for the people in no group yet.
@@ -42,21 +36,29 @@ export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { 
     <>
       <label className="mt-3 flex items-center gap-2 rounded-2xl border-2 border-rule bg-surface px-3 py-2.5 focus-within:border-carbon">
         <Search aria-hidden className="h-5 w-5 text-muted" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} aria-label={copy.search} placeholder={copy.searchPeople} className="min-w-0 flex-1 bg-transparent outline-none" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label={copy.search}
+          placeholder={copy.searchPeople}
+          className="min-w-0 flex-1 bg-transparent outline-none"
+        />
       </label>
       {groups.length > 0 && (
         <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1">
-          {[{ id: null, name: copy.all, count: people.length }, ...groups, ...(ungrouped ? [{ id: NO_GROUP, name: copy.noGroup, count: ungrouped }] : [])].map((g) => (
-            <button
-              key={g.id ?? "all"}
-              type="button"
-              aria-pressed={group === g.id}
-              onClick={() => setGroup(group === g.id ? null : g.id)}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs ${group === g.id ? "bg-carbon font-bold text-on-carbon" : g.id && g.id !== NO_GROUP ? groupTint(g.id) : "bg-surface-2"}`}
-            >
-              {g.name} <span className="tabular-nums opacity-70">{g.count}</span>
-            </button>
-          ))}
+          {[{ id: null, name: copy.all, count: people.length }, ...groups, ...(ungrouped ? [{ id: NO_GROUP, name: copy.noGroup, count: ungrouped }] : [])].map(
+            (g) => (
+              <button
+                key={g.id ?? "all"}
+                type="button"
+                aria-pressed={group === g.id}
+                onClick={() => setGroup(group === g.id ? null : g.id)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs ${group === g.id ? "bg-carbon font-bold text-on-carbon" : g.id && g.id !== NO_GROUP ? groupTint(g.id) : "bg-surface-2"}`}
+              >
+                {g.name} <span className="tabular-nums opacity-70">{g.count}</span>
+              </button>
+            ),
+          )}
         </div>
       )}
       {shown.length === 0 ? (

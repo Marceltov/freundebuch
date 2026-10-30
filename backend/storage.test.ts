@@ -5,7 +5,16 @@ import { afterEach, expect, test } from "vitest";
 import { config } from "./config";
 import { fileStore, s3Store, store } from "./storage";
 
-const S3_VARS = ["FREUNDEBUCH_STORAGE", "FREUNDEBUCH_S3_ENDPOINT", "FREUNDEBUCH_S3_BUCKET", "FREUNDEBUCH_S3_REGION", "FREUNDEBUCH_S3_ACCESS_KEY_ID", "FREUNDEBUCH_S3_SECRET_ACCESS_KEY", "FREUNDEBUCH_S3_PATH_STYLE", "DATA_DIR"];
+const S3_VARS = [
+  "FREUNDEBUCH_STORAGE",
+  "FREUNDEBUCH_S3_ENDPOINT",
+  "FREUNDEBUCH_S3_BUCKET",
+  "FREUNDEBUCH_S3_REGION",
+  "FREUNDEBUCH_S3_ACCESS_KEY_ID",
+  "FREUNDEBUCH_S3_SECRET_ACCESS_KEY",
+  "FREUNDEBUCH_S3_PATH_STYLE",
+  "DATA_DIR",
+];
 afterEach(() => {
   for (const k of S3_VARS) delete process.env[k];
 });
@@ -65,7 +74,15 @@ test("config.storage is files by default and s3 with all its values; s3 without 
     FREUNDEBUCH_S3_SECRET_ACCESS_KEY: "SK",
     FREUNDEBUCH_S3_PATH_STYLE: "1",
   });
-  expect(config.storage()).toEqual({ kind: "s3", endpoint: "https://s3.example.com", bucket: "fb", region: "us-east-1", accessKeyId: "AK", secretAccessKey: "SK", pathStyle: true });
+  expect(config.storage()).toEqual({
+    kind: "s3",
+    endpoint: "https://s3.example.com",
+    bucket: "fb",
+    region: "us-east-1",
+    accessKeyId: "AK",
+    secretAccessKey: "SK",
+    pathStyle: true,
+  });
   process.env.FREUNDEBUCH_STORAGE = "ftp";
   expect(() => config.storage()).toThrow(/FREUNDEBUCH_STORAGE/);
 });

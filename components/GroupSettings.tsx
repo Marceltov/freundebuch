@@ -59,7 +59,13 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
               if (name.trim() && (await send("PATCH", "", { name: name.trim() }, copy.groupNameTaken))) setRenaming(false);
             }}
           >
-            <input value={name} onChange={(e) => setName(e.target.value)} aria-label={copy.groupName} autoFocus className="min-w-0 flex-1 rounded-lg border border-rule bg-surface px-2 py-1" />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-label={copy.groupName}
+              autoFocus
+              className="min-w-0 flex-1 rounded-lg border border-rule bg-surface px-2 py-1"
+            />
           </form>
         ) : (
           <span className="min-w-0 flex-1 font-semibold">{g.name}</span>
@@ -83,7 +89,12 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
         {g.aliases.map((a) => (
           <span key={a} className="inline-flex items-center gap-1 rounded-full border border-rule px-2 py-0.5 text-xs">
             {a}
-            <button type="button" aria-label={copy.removeOtherName.replace("{name}", a)} onClick={() => send("DELETE", `/aliases/${encodeURIComponent(a)}`)} className="text-muted hover:text-ink">
+            <button
+              type="button"
+              aria-label={copy.removeOtherName.replace("{name}", a)}
+              onClick={() => send("DELETE", `/aliases/${encodeURIComponent(a)}`)}
+              className="text-muted hover:text-ink"
+            >
               <X aria-hidden className="h-3 w-3" />
             </button>
           </span>
@@ -112,7 +123,9 @@ function GroupCard({ g, others }: { g: Group; others: Group[] }) {
               setDrop(e.target.value);
               setConfirmingMerge(false);
             }}
-            aria-label={copy.mergeInto} className="min-w-0 flex-1 rounded-lg border border-rule bg-surface px-2 py-1 text-sm">
+            aria-label={copy.mergeInto}
+            className="min-w-0 flex-1 rounded-lg border border-rule bg-surface px-2 py-1 text-sm"
+          >
             <option value="">{copy.mergeInto}</option>
             {others.map((o) => (
               <option key={o.id} value={o.id}>

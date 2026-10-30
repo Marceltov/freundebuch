@@ -136,7 +136,11 @@ body::after {
 
 /* iOS Safari zooms into a text field under 16px when it gets the focus, so below lg no field is smaller. */
 @media (max-width: 63.98rem) {
-  input, textarea, select { font-size: max(1rem, 1em); }
+  input,
+  textarea,
+  select {
+    font-size: max(1rem, 1em);
+  }
 }
 
 @layer base {
@@ -155,6 +159,8 @@ body::after {
 
 /* Names and headings in Fraunces, at its softest, with its friendly "wonky" letters. */
 .font-display {
-  font-variation-settings: "SOFT" 100, "WONK" 1;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1;
   letter-spacing: -0.01em;
 }

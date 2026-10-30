@@ -46,4 +46,3 @@ export const LOOK_PART_NAMES = Object.keys(LOOK_PARTS) as LookPart[];
 export type LookParts = { [P in LookPart]: (typeof LOOK_PARTS)[P][number] };
 /** `description`: how the user described them, in their words; null when the look was put together by hand. */
 export type Look = LookParts & { description: string | null };
-

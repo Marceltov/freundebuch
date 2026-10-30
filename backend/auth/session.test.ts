@@ -25,7 +25,8 @@ afterEach(() => {
 });
 
 const req = (headers: Record<string, string> = {}, method = "GET") => new Request(`${BASE}/x`, { method, headers: { ...H, ...headers } });
-const withCookie = (uid: string, extra: Record<string, string> = {}, method = "GET") => req({ cookie: `other=1; ${IDENTITY_COOKIE}=${sign("identity", { uid })}`, ...extra }, method);
+const withCookie = (uid: string, extra: Record<string, string> = {}, method = "GET") =>
+  req({ cookie: `other=1; ${IDENTITY_COOKIE}=${sign("identity", { uid })}`, ...extra }, method);
 const bearer = (token: string) => req({ authorization: `Bearer ${token}` });
 
 const MCP = `${BASE}/mcp`;
@@ -53,7 +54,8 @@ describe("viewerFromRequest", () => {
 
   test("an access token for another resource, or for this one under another public URL, is refused", async () => {
     for (const surface of ["mcp", "api"] as const)
-      for (const aud of [`${BASE}/other`, "https://evil.example/mcp", `${BASE}/mcp/`, `${API}/`]) expect(await viewerFromRequest(bearer(access(aud, a.userId)), surface)).toBeNull();
+      for (const aud of [`${BASE}/other`, "https://evil.example/mcp", `${BASE}/mcp/`, `${API}/`])
+        expect(await viewerFromRequest(bearer(access(aud, a.userId)), surface)).toBeNull();
     vi.stubEnv("PUBLIC_URL", "https://freundebuch.example");
     expect(await viewerFromRequest(bearer(access(MCP, a.userId)), "mcp")).toBeNull();
     expect(await viewerFromRequest(bearer(access("https://freundebuch.example/mcp", a.userId)), "mcp")).toEqual(a);
@@ -107,7 +109,10 @@ describe("viewerFromRequest", () => {
 test("requireViewer returns the viewer or throws AuthError", async () => {
   expect(await requireViewer(withCookie(a.userId), "api")).toEqual(a);
   expect(await requireViewer(bearer(access(MCP, a.userId)), "mcp")).toEqual(a);
-  for (const [r, surface] of [[req(), "api"], [withCookie(a.userId), "mcp"]] as const) {
+  for (const [r, surface] of [
+    [req(), "api"],
+    [withCookie(a.userId), "mcp"],
+  ] as const) {
     const e = await requireViewer(r, surface).catch((x) => x);
     expect(e).toBeInstanceOf(AuthError);
     expect(e.code).toBe("unauthorized");

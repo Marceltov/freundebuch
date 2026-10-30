@@ -15,7 +15,11 @@ const kinds = async (v: Seed["a"], q: string) => (await search(v, q)).map((h) =>
 test("a word finds what was told: the transcript, the conversation and the item", async () => {
   const hits = await search(s.a, "hiking");
   expect(hits.map((h) => h.kind).sort()).toEqual(["fact", "transcript"]);
-  expect(hits.find((h) => h.kind === "fact")).toMatchObject({ text: "likes hiking", people: ["Anna"], url: expect.stringMatching(new RegExp(`^/p/${s.anna}#`)) });
+  expect(hits.find((h) => h.kind === "fact")).toMatchObject({
+    text: "likes hiking",
+    people: ["Anna"],
+    url: expect.stringMatching(new RegExp(`^/p/${s.anna}#`)),
+  });
   expect(hits.find((h) => h.kind === "transcript")).toMatchObject({ date: "2026-10-15", url: expect.stringMatching(/^\/r\//) });
   expect(await kinds(s.a, "weekend")).toEqual(["conversation", "transcript"]);
 });

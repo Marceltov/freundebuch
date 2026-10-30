@@ -80,7 +80,9 @@ export async function putReflection(v: Viewer, r: ReflectionSetting): Promise<vo
   if (r && (!Number.isInteger(r.day) || r.day < 0 || r.day > 6 || !Number.isInteger(r.hour) || r.hour < 0 || r.hour > 23))
     throw new InvalidInputError("day is 0 (Sunday) to 6 (Saturday), hour 0 to 23");
   const values = { reflection_day: r?.day ?? null, reflection_hour: r?.hour ?? null };
-  await (await db())
+  await (
+    await db()
+  )
     .insertInto("user_settings")
     .values({ user_id: v.userId, webhook_url: null, ...values })
     .onConflict((oc) => oc.column("user_id").doUpdateSet(values))
@@ -95,7 +97,9 @@ export async function runReflection(v: Viewer, now: number, model: ReflectionMod
   const from = addDays(day, -(WEEK - 1));
   const entries = await journalEntries(v, { from, to: day, own: true });
   if (!entries.length) return false;
-  const conversations = await (await db())
+  const conversations = await (
+    await db()
+  )
     .selectFrom("conversations")
     .select(["date", "summary"])
     .where("date", ">=", from)
@@ -131,8 +135,12 @@ export async function runReflectionsDue(now = Date.now(), model: ReflectionModel
     const v = await viewerById(row.user_id);
     // Without a webhook nothing could go out: the day stays open, so one added later this hour still gets it.
     if (!v || !(await getSettings(v)).webhookUrl) continue;
-    await d.insertInto("meta").values({ key: doneKey(row.user_id), value: day }).onConflict((oc) => oc.column("key").doUpdateSet({ value: day })).execute();
-    if ((await runReflection(v, now, model, fetchFn).catch((e) => (log.error({ err: e }, "a reflection failed"), false)))) sent++;
+    await d
+      .insertInto("meta")
+      .values({ key: doneKey(row.user_id), value: day })
+      .onConflict((oc) => oc.column("key").doUpdateSet({ value: day }))
+      .execute();
+    if (await runReflection(v, now, model, fetchFn).catch((e) => (log.error({ err: e }, "a reflection failed"), false))) sent++;
   }
   return sent;
 }

@@ -85,7 +85,9 @@ export function TabBar({ chat = null }: { chat?: { userId: string; sharing: bool
           ];
         })}
       </ul>
-      {talking && chat && <ChatSheet key={files.join() || "chat"} userId={chat.userId} sharing={chat.sharing} voice={chat.voice} files={files} onClose={closeChat} />}
+      {talking && chat && (
+        <ChatSheet key={files.join() || "chat"} userId={chat.userId} sharing={chat.sharing} voice={chat.voice} files={files} onClose={closeChat} />
+      )}
     </nav>
   );
 }

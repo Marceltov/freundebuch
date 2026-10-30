@@ -16,7 +16,8 @@ beforeEach(async () => {
   s = await seed();
 });
 
-const RAMBLE = "Heute mit Bille in der Hundeschule, Toffee war super. Dann hat Anna angerufen, sie zieht nach Köln. Ich frage mich, ob ich den Job wechseln will.";
+const RAMBLE =
+  "Heute mit Bille in der Hundeschule, Toffee war super. Dann hat Anna angerufen, sie zieht nach Köln. Ich frage mich, ob ich den Job wechseln will.";
 const dogSchool = () =>
   record(s.a, {
     date: "2026-10-29",
@@ -63,9 +64,17 @@ test("a journal entry the user shares is shared; one in a private ramble stays p
 test("a part that names a conversation or a person that isn't there is refused, and nothing is filed", async () => {
   const before = await (await db()).selectFrom("rambles").select("id").execute();
   await expect(
-    record(s.a, { date: "2026-10-29", transcript: "t", visibility: "shared", people: [{ id: s.anna }], facts: [{ person: 0, text: "x", category: "other", in: 2 }] }),
+    record(s.a, {
+      date: "2026-10-29",
+      transcript: "t",
+      visibility: "shared",
+      people: [{ id: s.anna }],
+      facts: [{ person: 0, text: "x", category: "other", in: 2 }],
+    }),
   ).rejects.toThrow(InvalidInputError);
-  await expect(record(s.a, { date: "2026-10-29", transcript: "t", visibility: "shared", people: [], journal: [{ text: "x", mentions: [3] }] })).rejects.toThrow(InvalidInputError);
+  await expect(record(s.a, { date: "2026-10-29", transcript: "t", visibility: "shared", people: [], journal: [{ text: "x", mentions: [3] }] })).rejects.toThrow(
+    InvalidInputError,
+  );
   await expect(record(s.a, { date: "2026-10-29", transcript: "t", visibility: "shared", people: [] })).rejects.toThrow("Nothing to file");
   expect(await (await db()).selectFrom("rambles").select("id").execute()).toEqual(before);
 });
@@ -73,8 +82,21 @@ test("a part that names a conversation or a person that isn't there is refused, 
 test("a shared file's transcript joins the ramble's", async () => {
   process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "fb-ramble-"));
   const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend"), "text/plain");
-  await (await db()).updateTable("files").set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript: "Patrick: Freitag Spieleabend", people: [] }) }).where("id", "=", file.id).execute();
-  const r = await record(s.a, { date: "2026-10-29", transcript: "Schau mal.", visibility: "shared", fileIds: [file.id], people: [], journal: [{ text: "Gruppe plant Spieleabend.", shared: true }] });
+  await (
+    await db()
+  )
+    .updateTable("files")
+    .set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript: "Patrick: Freitag Spieleabend", people: [] }) })
+    .where("id", "=", file.id)
+    .execute();
+  const r = await record(s.a, {
+    date: "2026-10-29",
+    transcript: "Schau mal.",
+    visibility: "shared",
+    fileIds: [file.id],
+    people: [],
+    journal: [{ text: "Gruppe plant Spieleabend.", shared: true }],
+  });
   const ramble = await (await db()).selectFrom("rambles").select("transcript").where("id", "=", r.rambleId).executeTakeFirstOrThrow();
   expect(ramble.transcript).toBe("Schau mal.\n\n--- Aus einer geteilten Datei ---\nPatrick: Freitag Spieleabend");
 });
@@ -100,7 +122,13 @@ test("listRambles: the recorder sees the ramble with its conversation and its en
 });
 
 test("a ramble with only a private journal entry doesn't exist for the partner", async () => {
-  const r = await record(s.a, { date: "2026-10-29", transcript: "Mir geht es nicht gut.", visibility: "shared", people: [], journal: [{ text: "Mir geht es nicht gut." }] });
+  const r = await record(s.a, {
+    date: "2026-10-29",
+    transcript: "Mir geht es nicht gut.",
+    visibility: "shared",
+    people: [],
+    journal: [{ text: "Mir geht es nicht gut." }],
+  });
   expect((await listRambles(s.b)).map((x) => x.id)).not.toContain(r.rambleId);
   await expect(getRamble(s.b, r.rambleId)).rejects.toThrow(/No such ramble/);
   const mine = await getRamble(s.a, r.rambleId);
@@ -115,7 +143,8 @@ test("getRamble: the partner gets the shared conversation, no transcript while i
   expect(b.journal).toEqual([]);
 });
 
-const transcriptPrivate = async (rambleId: string) => (await (await db()).selectFrom("rambles").select("transcript_private").where("id", "=", rambleId).executeTakeFirstOrThrow()).transcript_private;
+const transcriptPrivate = async (rambleId: string) =>
+  (await (await db()).selectFrom("rambles").select("transcript_private").where("id", "=", rambleId).executeTakeFirstOrThrow()).transcript_private;
 
 test("review C1: share_transcript on a conversation is refused while another part of its ramble is private", async () => {
   const r = await dogSchool();
@@ -146,7 +175,13 @@ test("review I1: the partner neither edits nor deletes a shared journal entry", 
 });
 
 test("review I2: merging two people keeps the journal's mentions of the one merged away", async () => {
-  const r = await record(s.a, { date: "2026-10-29", transcript: "t", visibility: "shared", people: [{ name: "Anni" }], journal: [{ text: "Anni fehlt mir.", mentions: [0] }] });
+  const r = await record(s.a, {
+    date: "2026-10-29",
+    transcript: "t",
+    visibility: "shared",
+    people: [{ name: "Anni" }],
+    journal: [{ text: "Anni fehlt mir.", mentions: [0] }],
+  });
   await mergePeople(s.a, s.anna, r.people[0].id);
   expect((await journalEntries(s.a, { personId: s.anna })).map((e) => e.id)).toEqual([r.journal[0].id]);
 });
@@ -162,7 +197,13 @@ test("review I3: a ramble's transcript is read and shared by the ramble's id, jo
 
 test("review I4: items filed with the ramble alone belong to it; deleting the ramble, its recorder only, takes every part", async () => {
   const r = await dogSchool();
-  const extra = await record(s.a, { date: "2026-10-29", transcript: "Anna mag Tee.", visibility: "shared", people: [{ id: s.anna }], facts: [{ person: 0, text: "mag Tee", category: "other" }] });
+  const extra = await record(s.a, {
+    date: "2026-10-29",
+    transcript: "Anna mag Tee.",
+    visibility: "shared",
+    people: [{ id: s.anna }],
+    facts: [{ person: 0, text: "mag Tee", category: "other" }],
+  });
   const d = await db();
   expect((await d.selectFrom("facts").select("ramble_id").where("id", "=", extra.filed.facts[0].id).executeTakeFirstOrThrow()).ramble_id).toBe(extra.rambleId);
   expect((await listRambles(s.a)).map((x) => x.id)).toContain(extra.rambleId);
@@ -188,15 +229,33 @@ test("review I4: deleting a ramble's last conversation keeps the ramble while it
 });
 
 test("review I5: a conversation shared after it was filed privately shows in the partner's Verlauf", async () => {
-  const r = await record(s.a, { date: "2026-10-29", transcript: "t", visibility: "private", people: [{ id: s.anna }], conversations: [{ kind: "call", summary: "Anruf mit Anna", present: [0] }] });
+  const r = await record(s.a, {
+    date: "2026-10-29",
+    transcript: "t",
+    visibility: "private",
+    people: [{ id: s.anna }],
+    conversations: [{ kind: "call", summary: "Anruf mit Anna", present: [0] }],
+  });
   await setVisibility(s.a, "conversations", r.conversations[0].id, "shared");
   expect((await listRambles(s.b)).map((x) => x.id)).toContain(r.rambleId);
   expect((await getRamble(s.b, r.rambleId)).transcript).toBeNull();
 });
 
 test("a ramble that tells only an experience is in Verlauf with it; a private one not for the partner", async () => {
-  const r = await record(s.a, { date: "2026-10-28", transcript: "Konzert", visibility: "shared", people: [], experiences: [{ kind: "Konzert", title: "Wanda" }] });
-  const p = await record(s.a, { date: "2026-10-28", transcript: "Arzt", visibility: "shared", people: [], experiences: [{ kind: "Termin", title: "Arzt", private: true }] });
+  const r = await record(s.a, {
+    date: "2026-10-28",
+    transcript: "Konzert",
+    visibility: "shared",
+    people: [],
+    experiences: [{ kind: "Konzert", title: "Wanda" }],
+  });
+  const p = await record(s.a, {
+    date: "2026-10-28",
+    transcript: "Arzt",
+    visibility: "shared",
+    people: [],
+    experiences: [{ kind: "Termin", title: "Arzt", private: true }],
+  });
   expect((await listRambles(s.a)).find((x) => x.id === r.rambleId)?.experiences.map((e) => e.title)).toEqual(["Wanda"]);
   expect((await listRambles(s.b)).find((x) => x.id === r.rambleId)?.experiences.map((e) => e.title)).toEqual(["Wanda"]);
   expect((await listRambles(s.b)).map((x) => x.id)).not.toContain(p.rambleId);

@@ -34,7 +34,9 @@ export default async function OrbitPage({ searchParams }: PageProps<"/">) {
   return (
     <>
       <h1 className="font-display text-3xl font-bold">{first ? copy.hello.replace("{name}", first) : copy.helloAnon}</h1>
-      <p className="mb-3 text-muted">{waiting === 0 ? copy.nobodyWaiting : waiting === 1 ? copy.oneWaiting : copy.manyWaiting.replace("{n}", String(waiting))}</p>
+      <p className="mb-3 text-muted">
+        {waiting === 0 ? copy.nobodyWaiting : waiting === 1 ? copy.oneWaiting : copy.manyWaiting.replace("{n}", String(waiting))}
+      </p>
       {groups.length > 0 && <GroupFilter groups={groups.map((g) => ({ id: g.id, name: g.name, count: g.count }))} current={group?.id ?? null} />}
       <Orbit faces={faces} />
       {!recorded && (

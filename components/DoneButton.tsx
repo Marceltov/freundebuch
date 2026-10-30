@@ -18,7 +18,11 @@ export function DoneButton({ id, text }: { id: string; text: string }) {
       disabled={state === "busy"}
       onClick={async () => {
         setState("busy");
-        const res = await fetch(`/api/v1/items/promises/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: true }) }).catch(() => null);
+        const res = await fetch(`/api/v1/items/promises/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ done: true }),
+        }).catch(() => null);
         if (!res?.ok) return setState("failed");
         router.refresh();
       }}

@@ -18,7 +18,10 @@ const oauthError = (error: string, status = 400) => Response.json({ error }, { s
 
 // OPTIONS for the metadata documents and /oauth/register. /oauth/token takes a plain form POST, which needs no preflight.
 const preflight = (method: string) => (): Response =>
-  new Response(null, { status: 204, headers: { ...cors, "Access-Control-Allow-Methods": method, "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" } });
+  new Response(null, {
+    status: 204,
+    headers: { ...cors, "Access-Control-Allow-Methods": method, "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" },
+  });
 export const metadataPreflight = preflight("GET");
 export const registerPreflight = preflight("POST");
 
@@ -113,7 +116,13 @@ export function checkAuthorize(params: URLSearchParams, h: Headers): Checked {
   if (params.has("resource") && (resource === undefined || !resources(h).includes(resource))) return fail("invalid_target");
 
   // Exactly the parameters the POST needs back, never whatever else the URL carried.
-  const fields: Record<string, string> = { response_type: "code", client_id: clientId, redirect_uri: redirectUri, code_challenge: challenge, code_challenge_method: "S256" };
+  const fields: Record<string, string> = {
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  };
   if (state !== undefined) fields.state = state;
   if (resource !== undefined) fields.resource = resource;
   return { kind: "page", clientName: client.client_name || new URL(redirectUri).host, redirectHost: new URL(redirectUri).host, fields };
@@ -147,7 +156,12 @@ export function issueCode(fields: Record<string, string>, h: Headers, uid: strin
 // each refresh token, so the chain ends GRANT_TTL after the sign-in that started it.
 function issue(clientHash: string, aud: string, uid: string, until: number): Response {
   return Response.json(
-    { access_token: sign("access", { aud, uid }), token_type: "Bearer", expires_in: TTL.access, refresh_token: sign("refresh", { cid: clientHash, aud, jti: newJti(), uid, until }) },
+    {
+      access_token: sign("access", { aud, uid }),
+      token_type: "Bearer",
+      expires_in: TTL.access,
+      refresh_token: sign("refresh", { cid: clientHash, aud, jti: newJti(), uid, until }),
+    },
     { headers: noStore },
   );
 }

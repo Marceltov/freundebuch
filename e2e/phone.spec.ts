@@ -124,7 +124,9 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
 
   // The links Claude hands out: a fact opens its highlighted row on the friend page; the done promise still has its row, on the
   // conversation's page, which lists everything filed from it.
-  const { conversations: [{ id: conversationId }] } = await recorded.json();
+  const {
+    conversations: [{ id: conversationId }],
+  } = await recorded.json();
   const c = await (await page.request.get(`/api/v1/conversations/${conversationId}`)).json();
   await page.goto(c.facts[0].url);
   await expect(page.locator(":target")).toHaveText(/Neuer Job im Museum/);
@@ -136,7 +138,14 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
 test("groups: tick them on the friend page, open the group's page", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
-    data: asRamble({ date: today, kind: "call", summary: "Anruf mit Jonas.", transcript: "Anruf mit Jonas Keller.", visibility: "shared", people: [{ name: "Jonas Keller", present: true }] }),
+    data: asRamble({
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Jonas.",
+      transcript: "Anruf mit Jonas Keller.",
+      visibility: "shared",
+      people: [{ name: "Jonas Keller", present: true }],
+    }),
   });
   const jonas = (await recorded.json()).people[0].id;
   await page.goto(`/p/${jonas}`);
@@ -173,7 +182,14 @@ test("groups: tick them on the friend page, open the group's page", async ({ pag
 test("groups in settings: another name, rename, merge, delete", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
-    data: asRamble({ date: today, kind: "call", summary: "Anruf mit Mira.", transcript: "Anruf mit Mira Schulz.", visibility: "shared", people: [{ name: "Mira Schulz", present: true }] }),
+    data: asRamble({
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Mira.",
+      transcript: "Anruf mit Mira Schulz.",
+      visibility: "shared",
+      people: [{ name: "Mira Schulz", present: true }],
+    }),
   });
   const mira = (await recorded.json()).people[0].id;
   await page.goto("/einstellungen");
@@ -237,7 +253,10 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
       ],
     }),
   });
-  const { conversations: [{ id: conversationId }], people } = await recorded.json();
+  const {
+    conversations: [{ id: conversationId }],
+    people,
+  } = await recorded.json();
   const [kai, lea] = [people[0].id, people[1].id];
 
   // Who was there, by name; who was only mentioned, apart. What was filed reads as sentences, and links to the people.
@@ -286,7 +305,14 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
   // The person menu: how often, a nickname, merging a duplicate, a new name.
   await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
-    data: asRamble({ date: today, kind: "message", summary: "Nachricht von Leah.", transcript: "Leah hat geschrieben.", visibility: "shared", people: [{ name: "Leah B.", present: true }] }),
+    data: asRamble({
+      date: today,
+      kind: "message",
+      summary: "Nachricht von Leah.",
+      transcript: "Leah hat geschrieben.",
+      visibility: "shared",
+      people: [{ name: "Leah B.", present: true }],
+    }),
   });
   await page.goto(`/p/${lea}`);
   const menu = () => page.getByRole("button", { name: "Mehr zu Lea Brandt" });
@@ -313,7 +339,14 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
 test("Aussehen: an avatar put together in the person menu shows on the friend page and the orbit", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
-    data: asRamble({ date: today, kind: "in_person", summary: "Kaffee mit Mira.", transcript: "Kaffee mit Mira Kühn.", visibility: "shared", people: [{ name: "Mira Kühn", present: true }] }),
+    data: asRamble({
+      date: today,
+      kind: "in_person",
+      summary: "Kaffee mit Mira.",
+      transcript: "Kaffee mit Mira Kühn.",
+      visibility: "shared",
+      people: [{ name: "Mira Kühn", present: true }],
+    }),
   });
   const { people } = await recorded.json();
   await page.goto(`/p/${people[0].id}`);
@@ -373,7 +406,14 @@ test("Verlauf: a word finds what was told, its match marked; the partner's priva
 test("Erzählen files from a friend's page and keeps the chat across pages", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
-    data: asRamble({ date: today, kind: "call", summary: "Anruf mit Nele.", transcript: "Anruf mit Nele Sommer.", visibility: "shared", people: [{ name: "Nele Sommer", present: true }] }),
+    data: asRamble({
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Nele.",
+      transcript: "Anruf mit Nele Sommer.",
+      visibility: "shared",
+      people: [{ name: "Nele Sommer", present: true }],
+    }),
   });
   const nele = (await recorded.json()).people[0].id;
   await page.goto(`/p/${nele}`);
@@ -384,13 +424,16 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   expect(await page.evaluate(() => getComputedStyle(document.body).position)).toBe("fixed");
   // A drag anywhere but a list that can scroll is held, so iOS can't pan the screen under the keyboard and take the sheet along.
   const dragHeld = (selector: string) =>
-    sheet.locator(selector).first().evaluate((el) => {
-      const touch = (y: number) => new Touch({ identifier: 1, target: el, clientX: 10, clientY: y });
-      el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [touch(300)] }));
-      const move = new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [touch(200)] });
-      el.dispatchEvent(move);
-      return move.defaultPrevented;
-    });
+    sheet
+      .locator(selector)
+      .first()
+      .evaluate((el) => {
+        const touch = (y: number) => new Touch({ identifier: 1, target: el, clientX: 10, clientY: y });
+        el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [touch(300)] }));
+        const move = new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [touch(200)] });
+        el.dispatchEvent(move);
+        return move.defaultPrevented;
+      });
   expect(await dragHeld("header")).toBe(true);
   // Sent right away: the page it was opened on goes along even before the chip has its name.
   const field = sheet.getByLabel("Nachricht", { exact: true });
@@ -447,7 +490,9 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await page.goto(`/p/${nele}`);
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
   await expect(sheet.getByText("Es geht um Nele Sommer")).toBeVisible();
-  const other = (await (await page.request.get("/api/v1/people?q=Kai")).json())[0]?.id ?? (await (await page.request.get("/api/v1/people")).json()).find((p: { id: string }) => p.id !== nele).id;
+  const other =
+    (await (await page.request.get("/api/v1/people?q=Kai")).json())[0]?.id ??
+    (await (await page.request.get("/api/v1/people")).json()).find((p: { id: string }) => p.id !== nele).id;
   // The new name takes a while to load; until then the chip must not keep the old one.
   await page.route(`**/api/v1/people/${other}`, async (r) => {
     await new Promise((done) => setTimeout(done, 2000));
@@ -498,7 +543,9 @@ test("settings fit the screen and offer the MCP address", async ({ page }) => {
 
 test("a file added in Erzählen waits under Prüfen with a suggestion; opened from there, Erzählen works it through and closes it", async ({ page }) => {
   const sharp = (await import("sharp")).default;
-  const png = await sharp({ create: { width: 300, height: 600, channels: 3, background: { r: 1, g: 120, b: 200 } } }).png().toBuffer();
+  const png = await sharp({ create: { width: 300, height: 600, channels: 3, background: { r: 1, g: 120, b: 200 } } })
+    .png()
+    .toBuffer();
   await page.goto("/");
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
   const sheet = page.getByRole("dialog", { name: "Erzählen" });
@@ -542,8 +589,13 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
 test("Prüfen: files shared together come pre-selected and are worked through together; a selection is thrown away at once", async ({ page, baseURL }) => {
   const sharp = (await import("sharp")).default;
   const up = async (n: number, batch?: string) => {
-    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 10, b: 10 } } }).png().toBuffer();
-    const r = await page.request.post("/api/share", { headers: { origin: baseURL!, ...(batch ? { "x-freundebuch-batch": batch } : {}) }, multipart: { file: { name: `s${n}.png`, mimeType: "image/png", buffer } } });
+    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 10, b: 10 } } })
+      .png()
+      .toBuffer();
+    const r = await page.request.post("/api/share", {
+      headers: { origin: baseURL!, ...(batch ? { "x-freundebuch-batch": batch } : {}) },
+      multipart: { file: { name: `s${n}.png`, mimeType: "image/png", buffer } },
+    });
     expect(r.status()).toBe(202);
     return ((await r.json()) as { id: string }).id;
   };
@@ -565,8 +617,12 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   await expect(chat.getByText("Zu diesen 4 Dateien")).toBeVisible();
   await expect(chat.locator("[data-shown-file]")).toHaveCount(4);
   // A missing screenshot added with the paperclip joins them, it doesn't replace them.
-  const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: 10 } } }).png().toBuffer();
-  const sixth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 90, b: 10 } } }).png().toBuffer();
+  const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: 10 } } })
+    .png()
+    .toBuffer();
+  const sixth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 90, b: 10 } } })
+    .png()
+    .toBuffer();
   await chat.locator('input[type="file"]').setInputFiles([
     { name: "s5.png", mimeType: "image/png", buffer: fifth },
     { name: "s6.png", mimeType: "image/png", buffer: sixth },
@@ -609,12 +665,13 @@ test("settings make one Zugang (address and key), and the key hands in a screens
   await expectNoSideScroll(page);
 
   const sharp = (await import("sharp")).default;
-  const img = await sharp({ create: { width: 200, height: 400, channels: 3, background: { r: 9, g: 9, b: 9 } } }).png().toBuffer();
+  const img = await sharp({ create: { width: 200, height: 400, channels: 3, background: { r: 9, g: 9, b: 9 } } })
+    .png()
+    .toBuffer();
   const res = await fetch(`${baseURL}/api/share`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "image/png" }, body: img });
   expect(res.status).toBe(202);
   expect((await res.json()).message).toBe("Danke! freundebuch liest die Datei, sie wartet unter „Prüfen“.");
 });
-
 
 test("settings make a calendar feed that a calendar app can read, and end it", async ({ page, baseURL }) => {
   await page.request.post("/api/v1/rambles", {
@@ -773,7 +830,14 @@ test("pull to refresh: pulling down at the top loads what was filed meanwhile; t
   await expect(page.getByText("Nora Pull")).toHaveCount(0);
   const filed = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
-    data: asRamble({ date: today, kind: "call", summary: "Anruf mit Nora.", transcript: "Anruf mit Nora Pull.", visibility: "shared", people: [{ name: "Nora Pull", present: true }] }),
+    data: asRamble({
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Nora.",
+      transcript: "Anruf mit Nora Pull.",
+      visibility: "shared",
+      people: [{ name: "Nora Pull", present: true }],
+    }),
   });
   expect(filed.ok()).toBe(true);
   const bar = page.getByRole("link", { name: "Start" }).first();
@@ -834,7 +898,10 @@ test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, priv
   await expect(page.getByText("Noch nichts im Tagebuch")).toBeVisible();
 });
 
-test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and its place; a private series not for the other user", async ({ page, baseURL }) => {
+test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and its place; a private series not for the other user", async ({
+  page,
+  baseURL,
+}) => {
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
   const sheet = page.getByRole("dialog", { name: "Erzählen" });
   await sheet.getByLabel("Nachricht", { exact: true }).fill("Erlebnis: Erste Stunde mit Toffee");
@@ -854,7 +921,13 @@ test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and i
 
   const priv = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
-    data: { date: today, transcript: "t", visibility: "private", people: [], experiences: [{ kind: "Termin", title: "Gesprächsgruppe", series: { name: "Gruppe", rhythmDays: 7 } }] },
+    data: {
+      date: today,
+      transcript: "t",
+      visibility: "private",
+      people: [],
+      experiences: [{ kind: "Termin", title: "Gesprächsgruppe", series: { name: "Gruppe", rhythmDays: 7 } }],
+    },
   });
   const seriesId = (await priv.json()).experiences[0].seriesId;
   await page.goto("/api/e2e/login?name=Bodo Gast");

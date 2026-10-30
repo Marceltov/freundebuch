@@ -13,7 +13,8 @@ beforeEach(() => {
   checked.value = { kind: "page", clientName: "Claude", redirectHost: "claude.ai", fields: { client_id: "x", state: "s" } };
 });
 
-const render = async (q: Record<string, string>) => renderToStaticMarkup(await AuthorizePage({ searchParams: Promise.resolve(q) } as PageProps<"/oauth/authorize">));
+const render = async (q: Record<string, string>) =>
+  renderToStaticMarkup(await AuthorizePage({ searchParams: Promise.resolve(q) } as PageProps<"/oauth/authorize">));
 const alert = (html: string) => /<p id="login-error" role="alert"[^>]*>([^<]*)<\/p>/.exec(html)?.[1];
 
 test("shows the client's name and the redirect host, and one form posting the fields to the sign-in", async () => {

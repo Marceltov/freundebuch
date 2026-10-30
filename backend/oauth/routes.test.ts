@@ -7,7 +7,17 @@ import { logsOf } from "../log";
 import { resetSecretForTests } from "../secret";
 import type { Viewer } from "../types";
 import { userFromOidc } from "../users";
-import { GRANT_TTL, authServerRoute, checkAuthorize, issueCode, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./routes";
+import {
+  GRANT_TTL,
+  authServerRoute,
+  checkAuthorize,
+  issueCode,
+  metadataPreflight,
+  protectedResourceRoute,
+  registerPreflight,
+  registerRoute,
+  tokenRoute,
+} from "./routes";
 
 const BASE = "http://localhost:3000";
 const RESOURCE = `${BASE}/mcp`;
@@ -46,7 +56,16 @@ async function clientId(redirect_uris = [CB]) {
 }
 
 function authParams(client_id: string, challenge: string, extra: Record<string, string> = {}) {
-  return new URLSearchParams({ response_type: "code", client_id, redirect_uri: CB, code_challenge: challenge, code_challenge_method: "S256", state: "a b&c", resource: RESOURCE, ...extra });
+  return new URLSearchParams({
+    response_type: "code",
+    client_id,
+    redirect_uri: CB,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    state: "a b&c",
+    resource: RESOURCE,
+    ...extra,
+  });
 }
 
 // Registers, checks the authorize request and issues the code a sign-in would; returns what the token request needs.
@@ -64,7 +83,8 @@ const exchange = (c: { id: string; verifier: string; code: string }, extra: Reco
   token({ grant_type: "authorization_code", code: c.code, client_id: c.id, redirect_uri: CB, code_verifier: c.verifier, resource: RESOURCE, ...extra });
 
 // The access token as /mcp (or, for an /api/v1 token, the API) would check it.
-const asBearer = (t: string, surface: "mcp" | "api" = "mcp") => viewerFromRequest(new Request(RESOURCE, { method: "POST", headers: { ...H, authorization: `Bearer ${t}` } }), surface);
+const asBearer = (t: string, surface: "mcp" | "api" = "mcp") =>
+  viewerFromRequest(new Request(RESOURCE, { method: "POST", headers: { ...H, authorization: `Bearer ${t}` } }), surface);
 
 describe("flow", () => {
   test("register, authorize, sign in, exchange, use the access token", async () => {
@@ -147,7 +167,9 @@ describe("flow", () => {
     // ...until the grant's 90 days are up.
     vi.spyOn(Date, "now").mockReturnValue(start + (GRANT_TTL + 2) * 1000);
     let res = new Response();
-    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([{ level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in past its lifetime" }]);
+    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([
+      { level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in past its lifetime" },
+    ]);
     expect((await res.json()).error).toBe("invalid_grant");
   });
 
@@ -208,7 +230,15 @@ describe("token refusals", () => {
 
 describe("checkAuthorize", () => {
   test.each([
-    ["a tampered client_id", "unknown_client", (p: URLSearchParams) => p.set("client_id", p.get("client_id")!.replace(/.$/, (c) => (c === "A" ? "B" : "A")))],
+    [
+      "a tampered client_id",
+      "unknown_client",
+      (p: URLSearchParams) =>
+        p.set(
+          "client_id",
+          p.get("client_id")!.replace(/.$/, (c) => (c === "A" ? "B" : "A")),
+        ),
+    ],
     ["a redirect_uri with a trailing slash", "bad_redirect_uri", (p: URLSearchParams) => p.set("redirect_uri", `${CB}/`)],
     ["a duplicated redirect_uri", "bad_redirect_uri", (p: URLSearchParams) => p.append("redirect_uri", CB)],
   ])("%s: an error, never a redirect", async (_, reason, change) => {
@@ -242,7 +272,15 @@ describe("checkAuthorize", () => {
 
   test("fields carry only the OAuth parameters", async () => {
     const r = checkAuthorize(authParams(await clientId(), pkce().challenge, { password: "x", scope: "all" }), new Headers(H));
-    expect(Object.keys((r as { fields: Record<string, string> }).fields).sort()).toEqual(["client_id", "code_challenge", "code_challenge_method", "redirect_uri", "resource", "response_type", "state"]);
+    expect(Object.keys((r as { fields: Record<string, string> }).fields).sort()).toEqual([
+      "client_id",
+      "code_challenge",
+      "code_challenge_method",
+      "redirect_uri",
+      "resource",
+      "response_type",
+      "state",
+    ]);
   });
 
   test("a client without a name is shown by its redirect host", async () => {

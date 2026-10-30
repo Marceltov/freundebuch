@@ -48,7 +48,10 @@ test("resolveOrCreateGroup reuses a match and otherwise makes the viewer's own g
   const d = await db();
   expect(await resolveOrCreateGroup(d, s.a, "kollegen")).toBe(await idOf("Arbeit"));
   const chor = await resolveOrCreateGroup(d, s.a, " Chor ");
-  expect(await d.selectFrom("groups").select(["name", "created_by"]).where("id", "=", chor).executeTakeFirst()).toEqual({ name: "Chor", created_by: s.a.userId });
+  expect(await d.selectFrom("groups").select(["name", "created_by"]).where("id", "=", chor).executeTakeFirst()).toEqual({
+    name: "Chor",
+    created_by: s.a.userId,
+  });
   expect(await resolveOrCreateGroup(d, s.a, "chor")).toBe(chor);
 });
 
@@ -99,7 +102,9 @@ test("merge moves memberships, keeps one row per person and recorder, and turns 
   const g = await getGroup(s.b, freunde);
   expect(g.members.map((m) => m.name).sort()).toEqual(["Anna", "Lena"]);
   expect(g.aliases).toEqual(["Chor", "Freundeskreis", "Singen"]);
-  expect(await (await db()).selectFrom("group_members").select("person_id").where("group_id", "=", freunde).where("person_id", "=", s.anna).execute()).toHaveLength(1);
+  expect(
+    await (await db()).selectFrom("group_members").select("person_id").where("group_id", "=", freunde).where("person_id", "=", s.anna).execute(),
+  ).toHaveLength(1);
   await expect(getGroup(s.a, chor)).rejects.toThrow(NotFoundError);
 });
 
@@ -136,7 +141,8 @@ test("with two groups of one name in sight, a name finds the viewer's own first,
   // A's private-only Uni is hidden from B, so B's Uni is a second group; A sees both.
   await addToGroup(s.a, { name: "Uni", members: [s.anna], visibility: "private" });
   await addToGroup(s.b, { name: "Uni", members: [s.lena], visibility: "shared" });
-  const own = async (v: typeof s.a) => (await (await db()).selectFrom("groups").select("id").where("name", "=", "Uni").where("created_by", "=", v.userId).executeTakeFirstOrThrow()).id;
+  const own = async (v: typeof s.a) =>
+    (await (await db()).selectFrom("groups").select("id").where("name", "=", "Uni").where("created_by", "=", v.userId).executeTakeFirstOrThrow()).id;
   for (let i = 0; i < 3; i++) expect(await findGroup(await db(), s.a, "uni")).toBe(await own(s.a));
   expect(await findGroup(await db(), s.b, "uni")).toBe(await own(s.b));
 });

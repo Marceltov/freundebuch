@@ -50,8 +50,19 @@ export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Prom
   const [persons, birthdays, promised, gifts] = await Promise.all([
     d.selectFrom("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),
     upcomingDates(v, from, SOON_DAYS).then((ds) => ds.filter((x) => x.kind === "birthday")),
-    d.selectFrom("promises").select("person_id").where("done", "=", 0).$call((qb) => visible(qb, v, "promises")).execute(),
-    d.selectFrom("exchanges").select("person_id").where("kind", "=", "gift_idea").where("settled", "=", 0).$call((qb) => visible(qb, v, "exchanges")).execute(),
+    d
+      .selectFrom("promises")
+      .select("person_id")
+      .where("done", "=", 0)
+      .$call((qb) => visible(qb, v, "promises"))
+      .execute(),
+    d
+      .selectFrom("exchanges")
+      .select("person_id")
+      .where("kind", "=", "gift_idea")
+      .where("settled", "=", 0)
+      .$call((qb) => visible(qb, v, "exchanges"))
+      .execute(),
   ]);
   const birthdayIn = new Map(birthdays.map((b) => [b.personId, b.inDays]));
   const withPromise = new Set(promised.map((p) => p.person_id));
@@ -82,5 +93,14 @@ export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Prom
     const onRing = shown.filter((f) => f.ring === ring).sort((a, b) => hash(a.personId) - hash(b.personId));
     onRing.forEach((f, i) => angle.set(f.personId, (RING_OFFSET[ring] + (i * 360) / onRing.length) % 360));
   }
-  return shown.map((f) => ({ personId: f.personId, name: f.name, ring: f.ring, angle: angle.get(f.personId)!, badges: f.badges, url: personPath(f.personId), ...(f.unseen ? { unseen: true } : {}), ...(members ? { inGroup: members.has(f.personId) } : {}) }));
+  return shown.map((f) => ({
+    personId: f.personId,
+    name: f.name,
+    ring: f.ring,
+    angle: angle.get(f.personId)!,
+    badges: f.badges,
+    url: personPath(f.personId),
+    ...(f.unseen ? { unseen: true } : {}),
+    ...(members ? { inGroup: members.has(f.personId) } : {}),
+  }));
 }

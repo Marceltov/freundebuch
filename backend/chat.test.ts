@@ -31,7 +31,15 @@ function fake(script: Array<{ content: unknown[]; stop_reason: string }> | ((i: 
       calls.push(structuredClone(p));
       const next = typeof script === "function" ? script(calls.length - 1, p) : script[calls.length - 1];
       if (!next) throw new Error("the script ran out");
-      return { id: `msg_${calls.length}`, type: "message", role: "assistant", model: "fake", usage: {}, ...next, content: next.content as Block[] } as unknown as Anthropic.Beta.BetaMessage;
+      return {
+        id: `msg_${calls.length}`,
+        type: "message",
+        role: "assistant",
+        model: "fake",
+        usage: {},
+        ...next,
+        content: next.content as Block[],
+      } as unknown as Anthropic.Beta.BetaMessage;
     },
   };
   return { model, calls };
@@ -48,7 +56,10 @@ test("a ramble is filed as the viewer, with the verbatim transcript, and the rep
   const ramble = "Kaffee mit Anna. Sie erzählt vom Umzug nach Köln. ".repeat(800).slice(0, 40_000);
   const { model, calls } = fake([
     toolUse("find_person", { name: "Anna" }),
-    toolUse("record", asRamble({ date: "2026-10-24", kind: "in_person", summary: "Kaffee mit Anna.", visibility: "shared", people: [{ id: s.anna, present: true }] })),
+    toolUse(
+      "record",
+      asRamble({ date: "2026-10-24", kind: "in_person", summary: "Kaffee mit Anna.", visibility: "shared", people: [{ id: s.anna, present: true }] }),
+    ),
     text("Erfasst am Sa., 24. Okt."),
   ]);
   const r = await chat(s.a, [{ role: "user", content: ramble }], {}, model);
@@ -64,7 +75,10 @@ test("a ramble is filed as the viewer, with the verbatim transcript, and the rep
 
 test("a tool's refusal goes back to Claude as an error result, and Claude's question reaches the user", async () => {
   const { model, calls } = fake([
-    toolUse("record", asRamble({ date: "2026-10-24", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ name: "anna", present: true }] })),
+    toolUse(
+      "record",
+      asRamble({ date: "2026-10-24", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ name: "anna", present: true }] }),
+    ),
     text("Meinst du Anna, die neue Stelle im Museum hat?"),
   ]);
   const r = await chat(s.a, [{ role: "user", content: "Hab mit Anna telefoniert." }], {}, model);
@@ -134,7 +148,17 @@ test("the system prompt has a cached stable block, and names today, the user and
 
 test("the transcript is the user's own words since the last filing, never Claude's retelling", async () => {
   const { model, calls } = fake([
-    toolUse("record", asRamble({ date: "2026-10-24", kind: "call", summary: "Anruf mit Anna.", transcript: "Claude's Fassung", visibility: "shared", people: [{ id: s.anna, present: true }] })),
+    toolUse(
+      "record",
+      asRamble({
+        date: "2026-10-24",
+        kind: "call",
+        summary: "Anruf mit Anna.",
+        transcript: "Claude's Fassung",
+        visibility: "shared",
+        people: [{ id: s.anna, present: true }],
+      }),
+    ),
     text("Erfasst."),
   ]);
   const r = await chat(
@@ -161,7 +185,14 @@ test("when Claude fails after filing, the reply still says what was filed, so it
   const model: ChatModel = {
     async create() {
       if (call++ === 0)
-        return { id: "m", type: "message", role: "assistant", model: "fake", usage: {}, ...toolUse("record", asRamble({ date: "2026-10-24", kind: "call", summary: "s", visibility: "shared", people: [{ id: s.anna, present: true }] })) } as unknown as Anthropic.Beta.BetaMessage;
+        return {
+          id: "m",
+          type: "message",
+          role: "assistant",
+          model: "fake",
+          usage: {},
+          ...toolUse("record", asRamble({ date: "2026-10-24", kind: "call", summary: "s", visibility: "shared", people: [{ id: s.anna, present: true }] })),
+        } as unknown as Anthropic.Beta.BetaMessage;
       throw new Anthropic.APIConnectionError({ message: "down" });
     },
   };
@@ -188,7 +219,9 @@ test("messages sent at the same moment can't get past the daily limit", async ()
 });
 
 test("a reply cut off by the context window says it got too long, not that Claude refused", async () => {
-  expect(await chat(s.a, [{ role: "user", content: "x" }], {}, fake([text("", "model_context_window_exceeded" as Anthropic.Beta.BetaStopReason)]).model)).toEqual({ code: "chat_too_long" });
+  expect(
+    await chat(s.a, [{ role: "user", content: "x" }], {}, fake([text("", "model_context_window_exceeded" as Anthropic.Beta.BetaStopReason)]).model),
+  ).toEqual({ code: "chat_too_long" });
 });
 
 test("link chips never fail a tool call: an output of an unexpected shape gives no links", () => {
@@ -198,13 +231,21 @@ test("link chips never fail a tool call: an output of an unexpected shape gives 
 });
 
 test("what remember filed shows its people as link chips", () => {
-  expect(linksOf("remember", {}, { counts: {}, people: [{ id: "p1", name: "Malou", url: "/p/p1" }] })).toEqual([{ kind: "person", id: "p1", name: "Malou", url: "/p/p1" }]);
+  expect(linksOf("remember", {}, { counts: {}, people: [{ id: "p1", name: "Malou", url: "/p/p1" }] })).toEqual([
+    { kind: "person", id: "p1", name: "Malou", url: "/p/p1" },
+  ]);
 });
 
 test("opened on a shared file, Claude gets the file and its suggestion as data in the first message, and files with its id", async () => {
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
   const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend bei Olivier"), "text/plain");
-  await (await db()).updateTable("files").set({ status: "pending", reading: JSON.stringify({ summary: "Freitag Spieleabend bei Olivier", people: [] }) }).where("id", "=", file.id).execute();
+  await (
+    await db()
+  )
+    .updateTable("files")
+    .set({ status: "pending", reading: JSON.stringify({ summary: "Freitag Spieleabend bei Olivier", people: [] }) })
+    .where("id", "=", file.id)
+    .execute();
   const { model, calls } = fake([text("Darin steht ein Spieleabend am Freitag. Bei wem soll ich das ablegen?")]);
   const r = await chat(s.a, [{ role: "user", content: "Was steht da drin?" }], { fileId: file.id }, model);
   expect(r).toMatchObject({ reply: expect.stringContaining("Spieleabend") });
@@ -227,11 +268,18 @@ test("a file that isn't the viewer's own goes nowhere: nothing is attached and n
   expect(JSON.stringify(calls[0])).not.toContain("GEHEIMNIS-4711");
 });
 
-
 test("once the file is filed it is gone: the chat on it goes on without it, and Claude hears its text is in the transcript", async () => {
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
   const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend"), "text/plain");
-  await recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "Chat", transcript: "t", visibility: "shared", fileIds: [file.id], people: [{ id: s.anna, present: true }] });
+  await recordConversation(s.a, {
+    date: "2026-10-20",
+    kind: "message",
+    summary: "Chat",
+    transcript: "t",
+    visibility: "shared",
+    fileIds: [file.id],
+    people: [{ id: s.anna, present: true }],
+  });
   const { model, calls } = fake([text("Notiert.")]);
   const r = await chat(s.a, [{ role: "user", content: "und sie hat am 3.5. Geburtstag" }], { fileId: file.id }, model);
   expect(r).toMatchObject({ reply: "Notiert." });
@@ -239,11 +287,16 @@ test("once the file is filed it is gone: the chat on it goes on without it, and 
   expect(JSON.stringify(calls[0].system)).toContain("filed now and gone");
 });
 
-
 test("opened on a shared file, Claude learns the day it was shared and dates what it files by that, not by the day of review", async () => {
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
   const file = await shareFile(s.a, new TextEncoder().encode("Anna: bin wieder da"), "text/plain");
-  await (await db()).updateTable("files").set({ status: "pending", created_at: Date.parse("2026-10-20T10:00:00Z") }).where("id", "=", file.id).execute();
+  await (
+    await db()
+  )
+    .updateTable("files")
+    .set({ status: "pending", created_at: Date.parse("2026-10-20T10:00:00Z") })
+    .where("id", "=", file.id)
+    .execute();
   const { model, calls } = fake([text("ok")]);
   await chat(s.a, [{ role: "user", content: "?" }], { fileId: file.id }, model, Date.parse("2026-10-29T10:00:00Z"));
   const first = calls[0].messages[0].content as Anthropic.Beta.BetaContentBlockParam[];
@@ -256,15 +309,28 @@ test("opened on a shared file, Claude learns the day it was shared and dates wha
 test("opened on several files, Claude gets them all in order as data, hears they belong together, and files them with all their ids", async () => {
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-files-")));
   const parts = [];
-  for (const t of ["Teil 1: Patrick fragt", "Teil 2: Sybille antwortet", "Teil 3: Marcel sagt zu"]) parts.push(await shareFile(s.a, new TextEncoder().encode(t), "text/plain"));
+  for (const t of ["Teil 1: Patrick fragt", "Teil 2: Sybille antwortet", "Teil 3: Marcel sagt zu"])
+    parts.push(await shareFile(s.a, new TextEncoder().encode(t), "text/plain"));
   const d = await db();
-  await d.updateTable("files").set({ created_at: Date.parse("2026-10-21T10:00:00Z") }).where("id", "=", parts[2].id).execute();
-  await d.updateTable("files").set({ created_at: Date.parse("2026-10-20T10:00:00Z") }).where("id", "in", [parts[0].id, parts[1].id]).execute();
+  await d
+    .updateTable("files")
+    .set({ created_at: Date.parse("2026-10-21T10:00:00Z") })
+    .where("id", "=", parts[2].id)
+    .execute();
+  await d
+    .updateTable("files")
+    .set({ created_at: Date.parse("2026-10-20T10:00:00Z") })
+    .where("id", "in", [parts[0].id, parts[1].id])
+    .execute();
   const ids = parts.map((p) => p.id);
   const { model, calls } = fake([text("ok")]);
   await chat(s.a, [{ role: "user", content: "Was steht da?" }], { fileIds: ids }, model, Date.parse("2026-10-29T10:00:00Z"));
   const first = calls[0].messages[0].content as Anthropic.Beta.BetaContentBlockParam[];
-  expect(first.filter((b) => b.type === "document").map((b) => (b as { source: { data: string } }).source.data)).toEqual(["Teil 1: Patrick fragt", "Teil 2: Sybille antwortet", "Teil 3: Marcel sagt zu"]);
+  expect(first.filter((b) => b.type === "document").map((b) => (b as { source: { data: string } }).source.data)).toEqual([
+    "Teil 1: Patrick fragt",
+    "Teil 2: Sybille antwortet",
+    "Teil 3: Marcel sagt zu",
+  ]);
   const notes = first.filter((b) => b.type === "text").map((b) => (b as { text: string }).text);
   expect(ids.map((id) => notes.findIndex((n) => n.includes(`<shared_file id="${id}">`)))).toEqual([0, 1, 2]);
   expect(notes.at(-1)).toBe("Was steht da?");
@@ -309,8 +375,20 @@ test("what record filed as an experience shows as a link chip with its title", (
 });
 
 test("opened on no page, the chat tells Claude about a missed session so it asks first", async () => {
-  const r = await record(s.a, { date: "2026-09-02", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
-  await (await db()).updateTable("series").set({ created_at: Date.parse("2026-09-02T20:00:00Z") }).where("id", "=", r.experiences[0].seriesId!).execute();
+  const r = await record(s.a, {
+    date: "2026-09-02",
+    transcript: "t",
+    visibility: "shared",
+    people: [],
+    experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
+  });
+  await (
+    await db()
+  )
+    .updateTable("series")
+    .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })
+    .where("id", "=", r.experiences[0].seriesId!)
+    .execute();
   const { model, calls } = fake([text("Wie war die Hundeschule am Mittwoch?")]);
   await chat(s.a, [{ role: "user", content: "Hallo" }], {}, model, Date.parse("2026-09-10T09:00:00Z"));
   expect(JSON.stringify(calls[0].system)).toContain("Hundeschule mit Toffee on 2026-09-09");

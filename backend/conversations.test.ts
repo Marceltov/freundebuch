@@ -26,7 +26,12 @@ const base = (over: Partial<NewConversation> = {}): NewConversation => ({
 const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "group_members"] as const;
 // The rows of an item table a conversation could have filed: everyone who signs in is in Haushalt from the start, without one.
 const filedRows = async (t: (typeof ITEM_TABLES)[number] | string) => {
-  const rows = await (await db()).selectFrom(t as "group_members").selectAll().execute();
+  const rows = await (
+    await db()
+  )
+    .selectFrom(t as "group_members")
+    .selectAll()
+    .execute();
   return t === "group_members" ? rows.filter((r) => r.conversation_id !== null) : rows;
 };
 const rowCount = async (t: string) => (await filedRows(t)).length;
@@ -70,7 +75,16 @@ test("creating a new person by name sets created_from; an existing person is lin
 });
 
 test("a new person named like an existing person or alias is ambiguous, listing the candidates, unless confirmedNew", async () => {
-  const first = await recordConversation(a, base({ people: [{ name: "Anna Schmidt", aliases: ["Anni"], present: true }, { name: "Tom", present: false }], relationships: [{ from: 0, to: 1, label: "Partner:in", inverse: "Partner:in" }] }));
+  const first = await recordConversation(
+    a,
+    base({
+      people: [
+        { name: "Anna Schmidt", aliases: ["Anni"], present: true },
+        { name: "Tom", present: false },
+      ],
+      relationships: [{ from: 0, to: 1, label: "Partner:in", inverse: "Partner:in" }],
+    }),
+  );
   const anna = first.people[0].id;
   const before = await rowCount("conversations");
   for (const name of ["anna schmidt", " Anni ", "ANNI"]) {
@@ -90,7 +104,15 @@ test("a new person named like an existing person or alias is ambiguous, listing 
 });
 
 test("the viewer's own person is always a participant; absent people are not", async () => {
-  const r = await recordConversation(a, base({ people: [{ name: "Anna", present: true }, { name: "Tom", present: false }] }));
+  const r = await recordConversation(
+    a,
+    base({
+      people: [
+        { name: "Anna", present: true },
+        { name: "Tom", present: false },
+      ],
+    }),
+  );
   const c = await getConversation(a, r.conversationId);
   expect(c.participants.map((p) => p.name).sort()).toEqual(["Alice", "Anna"]);
 });
@@ -100,7 +122,10 @@ test("a private conversation makes all its items private", async () => {
     a,
     base({
       visibility: "private",
-      people: [{ name: "Anna", present: true }, { name: "Tom", present: false }],
+      people: [
+        { name: "Anna", present: true },
+        { name: "Tom", present: false },
+      ],
       facts: [{ person: 0, text: "new job", category: "work", private: false }],
       promises: [{ person: 0, text: "call back", byMe: true }],
       dates: [{ person: 0, kind: "anniversary", date: "2020-06-01", yearly: true }],
@@ -115,16 +140,30 @@ test("a private conversation makes all its items private", async () => {
     expect(rows.length, t).toBeGreaterThan(0);
     expect(new Set(rows.map((x) => x.visibility)), t).toEqual(new Set(["private"]));
   }
-  const conv = await d.selectFrom("rambles").select(["visibility", "transcript_private"]).where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", r.conversationId)).executeTakeFirstOrThrow();
+  const conv = await d
+    .selectFrom("rambles")
+    .select(["visibility", "transcript_private"])
+    .where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", r.conversationId))
+    .executeTakeFirstOrThrow();
   expect(conv).toEqual({ visibility: "private", transcript_private: 1 });
 });
 
 test("one private item makes the transcript private; none leaves it shared", async () => {
   const d = await db();
-  const tp = async (id: string) => (await d.selectFrom("rambles").select("transcript_private").where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", id)).executeTakeFirstOrThrow()).transcript_private;
+  const tp = async (id: string) =>
+    (
+      await d
+        .selectFrom("rambles")
+        .select("transcript_private")
+        .where("id", "=", (qb) => qb.selectFrom("conversations").select("ramble_id").where("id", "=", id))
+        .executeTakeFirstOrThrow()
+    ).transcript_private;
   const open = await recordConversation(a, base({ facts: [{ person: 0, text: "new job", category: "work" }] }));
   expect(await tp(open.conversationId)).toBe(0);
-  const closed = await recordConversation(a, base({ people: [{ id: open.people[0].id, present: true }], promises: [{ person: 0, text: "keep quiet", byMe: true, private: true }] }));
+  const closed = await recordConversation(
+    a,
+    base({ people: [{ id: open.people[0].id, present: true }], promises: [{ person: 0, text: "keep quiet", byMe: true, private: true }] }),
+  );
   expect(await tp(closed.conversationId)).toBe(1);
 });
 
@@ -133,7 +172,10 @@ test("supersedes marks the old fact outdated", async () => {
   const anna = first.people[0].id;
   const d = await db();
   const old = await d.selectFrom("facts").select("id").executeTakeFirstOrThrow();
-  await recordConversation(a, base({ people: [{ id: anna, present: true }], facts: [{ person: 0, text: "works at the museum", category: "work", supersedes: old.id }] }));
+  await recordConversation(
+    a,
+    base({ people: [{ id: anna, present: true }], facts: [{ person: 0, text: "works at the museum", category: "work", supersedes: old.id }] }),
+  );
   const rows = await d.selectFrom("facts").select(["text", "status"]).orderBy("created_at").orderBy("text").execute();
   expect(rows).toEqual([
     { text: "works at the bank", status: "outdated" },
@@ -192,7 +234,12 @@ test("validates date formats", async () => {
   ];
   for (const c of bad) await expect(recordConversation(a, c)).rejects.toBeInstanceOf(InvalidInputError);
   await expect(recordConversation(a, base({ dates: [{ person: 0, kind: "birthday", date: "1990-10-24", yearly: true }] }))).resolves.toBeDefined();
-  await expect(recordConversation(a, base({ date: "2024-02-29", people: [{ name: "Ben", present: true }], dates: [{ person: 0, kind: "birthday", date: "--02-29", yearly: true }] }))).resolves.toBeDefined();
+  await expect(
+    recordConversation(
+      a,
+      base({ date: "2024-02-29", people: [{ name: "Ben", present: true }], dates: [{ person: 0, kind: "birthday", date: "--02-29", yearly: true }] }),
+    ),
+  ).resolves.toBeDefined();
 });
 
 test("rejects a people entry with neither id nor name, a bad person ref and unknown vocabulary", async () => {
@@ -238,7 +285,15 @@ test("a conversation files a role to us", async () => {
 });
 
 test("a person's gender is filed with the conversation, never made up", async () => {
-  const r = await recordConversation(a, base({ people: [{ name: "Anna", present: true, gender: "female" }, { name: "Kim", present: false }] }));
+  const r = await recordConversation(
+    a,
+    base({
+      people: [
+        { name: "Anna", present: true, gender: "female" },
+        { name: "Kim", present: false },
+      ],
+    }),
+  );
   expect((await getPerson(a, r.people[0].id)).gender).toBe("female");
   expect((await getPerson(a, r.people[1].id)).gender).toBeNull();
   await recordConversation(a, base({ people: [{ id: r.people[1].id, present: true, gender: "nonbinary" }] }));
