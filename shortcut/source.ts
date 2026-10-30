@@ -1,12 +1,15 @@
-// The iPhone Shortcut "An freundebuch", as source. It shows in the share sheet; importing it asks for the share address and the
-// share key (both in Einstellungen → Dateien teilen). Shared items go one by one to POST /api/share with the key and one batch id
-// for the whole share (so Prüfen shows them together, pre-selected). What didn't arrive is shown with the server's German reason,
-// then freundebuch opens under Prüfen on what was sent. iOS imports only signed Shortcuts: `npm run shortcut:sign` on a Mac
-// signs this into public/shortcuts/An freundebuch.shortcut and records the source's hash next to it (checked by source.test.ts).
+// The iPhone Shortcut "An freundebuch", as source. It shows in the share sheet; importing it asks for one thing, the Zugang
+// from Einstellungen → Dateien teilen (the share address and the key, split here at the space). Shared items go one by one to
+// POST /api/share with the key and one batch id for the whole share (so Prüfen shows them together, pre-selected). What didn't
+// arrive is shown with the server's German reason, then freundebuch opens under Prüfen on what was sent. iOS imports only
+// signed Shortcuts: `npm run shortcut:sign` on a Mac signs this into public/shortcuts/An freundebuch.shortcut and records the
+// source's hash next to it (checked by source.test.ts).
 // Apple doesn't document the format; the keys below are the ones Shortcuts itself writes.
 import { createHash } from "node:crypto";
 import { build, type PlistValue } from "plist";
 
+const ACCESS = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C0C";
+const PARTS = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C0D";
 const ADDRESS = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C01";
 const KEY = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C02";
 const RANDOM = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C03";
@@ -55,13 +58,13 @@ export function shortcutPlist(): Record<string, unknown> {
     WFWorkflowTypes: ["ActionExtension"],
     WFWorkflowHasShortcutInputVariables: true,
     WFWorkflowInputContentItemClasses: ["WFImageContentItem", "WFPDFContentItem", "WFGenericFileContentItem", "WFStringContentItem", "WFRichTextContentItem"],
-    WFWorkflowImportQuestions: [
-      { ActionIndex: 0, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Adresse zum Teilen (aus den freundebuch-Einstellungen)" },
-      { ActionIndex: 1, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Teilen-Schlüssel (aus den freundebuch-Einstellungen)" },
-    ],
+    // One thing to paste: the Zugang from Einstellungen, "<share address> <key>", split here at the space.
+    WFWorkflowImportQuestions: [{ ActionIndex: 0, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Zugang (aus den freundebuch-Einstellungen)" }],
     WFWorkflowActions: [
-      action("gettext", { UUID: ADDRESS, WFTextActionText: "" }),
-      action("gettext", { UUID: KEY, WFTextActionText: "" }),
+      action("gettext", { UUID: ACCESS, WFTextActionText: "" }),
+      action("text.split", { UUID: PARTS, text: value(output(ACCESS, "Text")), WFTextSeparator: "Custom", WFTextCustomSeparator: " " }),
+      action("getitemfromlist", { UUID: ADDRESS, WFInput: value(output(PARTS, "Text teilen")), WFItemSpecifier: "First Item" }),
+      action("getitemfromlist", { UUID: KEY, WFInput: value(output(PARTS, "Text teilen")), WFItemSpecifier: "Last Item" }),
       // One id for the whole share: the time to the second and a random number.
       action("number.random", { UUID: RANDOM, WFRandomNumberMinimum: 100000, WFRandomNumberMaximum: 999999 }),
       action("gettext", {
@@ -75,7 +78,7 @@ export function shortcutPlist(): Record<string, unknown> {
       action("repeat.each", { UUID: LOOP, GroupingIdentifier: LOOP, WFControlFlowMode: 0, WFInput: value({ Type: "ExtensionInput" }) }),
       action("downloadurl", {
         UUID: POST,
-        WFURL: text("￼", output(ADDRESS, "Text")),
+        WFURL: text("￼", output(ADDRESS, "Element aus Liste")),
         WFHTTPMethod: "POST",
         WFHTTPBodyType: "File",
         WFRequestVariable: value(variable("Repeat Item")),
@@ -83,7 +86,7 @@ export function shortcutPlist(): Record<string, unknown> {
         WFHTTPHeaders: {
           Value: {
             WFDictionaryFieldValueItems: [
-              { WFItemType: 0, WFKey: text("Authorization"), WFValue: text("Bearer ￼", output(KEY, "Text")) },
+              { WFItemType: 0, WFKey: text("Authorization"), WFValue: text("Bearer ￼", output(KEY, "Element aus Liste")) },
               { WFItemType: 0, WFKey: text("X-Freundebuch-Batch"), WFValue: text("￼", output(BATCH, "Text")) },
             ],
           },

@@ -75,8 +75,8 @@ export function WebhookSettings({ webhookUrl }: { webhookUrl: string | null }) {
   );
 }
 
-// Sharing files: how on Android, and the share key the iPhone Shortcut sends (POST/DELETE /api/v1/me/share-key). A new
-// key is shown once, right after it was made.
+// Sharing files: how on Android, and the iPhone's Zugang: the share address and the share key the Shortcut sends
+// (POST/DELETE /api/v1/me/share-key), as one value. A new key is shown once, right after it was made.
 export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl: string }) {
   const [key, setKey] = useState<string | null>(null);
   const [active, setActive] = useState(hasKey);
@@ -109,8 +109,9 @@ export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl:
       </h3>
       <ol aria-labelledby="share-iphone" className="list-decimal space-y-4 pl-5 marker:font-bold">
         <li className="space-y-2">
-          <p>{copy.shareStepKey}</p>
-          {key && <CopyField label={copy.shareKey} text={key} shown />}
+          <p>{copy.shareStepZugang}</p>
+          {/* One value for the Shortcut's one question: it splits it at the space into the address and the key. */}
+          {key && <CopyField label={copy.shareZugang} text={`${shareUrl} ${key}`} shown />}
           {!key && active && <p className="text-muted">{copy.shareKeyActive}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={create} className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
@@ -137,10 +138,6 @@ export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl:
             <Download aria-hidden className="h-4 w-4" />
             {copy.shareShortcut}
           </a>
-        </li>
-        <li className="space-y-2">
-          <p>{copy.shareStepAnswers}</p>
-          <CopyField label={copy.shareUrl} text={shareUrl} shown />
         </li>
       </ol>
       <h3 className="pt-2 font-bold">{copy.shareHowTo}</h3>

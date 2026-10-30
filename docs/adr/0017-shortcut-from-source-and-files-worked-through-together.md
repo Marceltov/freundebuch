@@ -26,7 +26,7 @@ For files that belong together:
 
 ## Decision Outcome
 
-* `shortcut/source.ts` builds the Shortcut's property list: share sheet, two import questions (the share address and the key), each item posted to `/api/share` with the key and one batch id per run, and Prüfen opened at the end. `npm run shortcut:sign` (macOS) signs it into `public/shortcuts/An freundebuch.shortcut` and records the source's hash; a test fails when the source changes without a new signature. Einstellungen offers it as **Kurzbefehl laden**.
+* `shortcut/source.ts` builds the Shortcut's property list: share sheet, one import question (the Zugang: the share address and the key, split at the space), each item posted to `/api/share` with the key and one batch id per run, and Prüfen opened at the end. `npm run shortcut:sign` (macOS) signs it into `public/shortcuts/An freundebuch.shortcut` and records the source's hash; a test fails when the source changes without a new signature. Einstellungen offers it as **Kurzbefehl laden**.
 * HEIC is decoded with `heic-decode` (libheif in WebAssembly) and stored as WebP like every image: no system libraries in the image.
 * A file's upload may carry `X-Freundebuch-Batch` (stored as `files.batch_id`, migration 017). It is a hint only: files are stored, pre-read, discarded and filed one by one as before. Prüfen groups files of one batch and selects them when opened on one; with several selected, **Zusammen prüfen** opens the chat on all of them (context `fileIds`), Claude reads them together and `record` files them with all their ids. `inbox` names the batches and tells Claude that files may belong together without one, so it asks the user.
 

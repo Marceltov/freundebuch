@@ -510,22 +510,24 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   await expect(page.locator(`[id="${two}"]`)).toHaveCount(1);
 });
 
-test("settings make a share key, and the key hands in a screenshot", async ({ page, baseURL }) => {
+test("settings make one Zugang (address and key), and the key hands in a screenshot", async ({ page, baseURL }) => {
   await page.goto("/einstellungen");
   await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();
-  await expect(page.getByText(/\/api\/share$/)).toBeVisible();
-  // Setting up the iPhone is three numbered steps: the key, the Shortcut, the two answers it asks for, each field labelled.
+  // Setting up the iPhone is two numbered steps: make the Zugang and copy it once; load the Shortcut and paste it when asked.
   const setup = page.getByRole("list", { name: "iPhone einrichten" });
-  await expect(setup.getByRole("listitem")).toHaveCount(3);
-  await expect(setup.getByRole("listitem").nth(0)).toContainText("Teilen-Schlüssel erzeugen");
+  await expect(setup.getByRole("listitem")).toHaveCount(2);
+  await expect(setup.getByRole("listitem").nth(0)).toContainText("Zugang erzeugen");
   await expect(setup.getByRole("listitem").nth(1)).toContainText("Kurzbefehl laden");
-  await expect(setup.getByRole("listitem").nth(2).getByText("Adresse zum Teilen", { exact: true })).toBeVisible();
   // The ready-made iPhone Shortcut, signed (public/shortcuts/).
   await expect(page.getByRole("link", { name: "Kurzbefehl laden" })).toHaveAttribute("href", "/shortcuts/An%20freundebuch.shortcut");
   // How to share, once it is set up: the Shortcut sits at the very bottom of the share sheet.
   await expect(page.getByText("„An freundebuch“ steht ganz unten in der Liste", { exact: false })).toBeVisible();
-  await page.getByRole("button", { name: /Schlüssel erzeugen/ }).click();
-  const key = (await page.getByText(/^fbs_/).textContent())!;
+  await page.getByRole("button", { name: "Zugang erzeugen" }).click();
+  // One value to copy: the share address and the key, which the Shortcut splits at the space.
+  await expect(setup.getByText("Zugang für den Kurzbefehl", { exact: true })).toBeVisible();
+  const zugang = (await setup.getByText(/\/api\/share fbs_/).textContent())!;
+  const [address, key] = zugang.split(" ");
+  expect(address).toMatch(/^https?:\/\/.+\/api\/share$/);
   await expectNoSideScroll(page);
 
   const sharp = (await import("sharp")).default;
@@ -534,6 +536,7 @@ test("settings make a share key, and the key hands in a screenshot", async ({ pa
   expect(res.status).toBe(202);
   expect((await res.json()).message).toBe("Danke! freundebuch liest die Datei, sie wartet unter „Prüfen“.");
 });
+
 
 test("settings make a calendar feed that a calendar app can read, and end it", async ({ page, baseURL }) => {
   await page.request.post("/api/v1/rambles", {
