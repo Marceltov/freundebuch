@@ -10,11 +10,10 @@ You only talk; Claude sorts, links and keeps it up. A personal CRM fails when it
 
 ## Now
 
-- **Places that nest and homes** ([#78](https://github.com/Marceltov/freundebuch/issues/78)): the Olympiahalle in München, Anna's flat with its address, filled in from what you tell; "where were we with Anna?" over Claude.
+- **Voice notes** ([#58](https://github.com/Marceltov/freundebuch/issues/58)): transcribed on your own server, so a WhatsApp voice note can be worked through like any shared file ([V4](values.md#v4-only-words-are-kept)).
 
 ## Next
 
-- **Voice notes** ([#58](https://github.com/Marceltov/freundebuch/issues/58)): transcribed on your own server, so a WhatsApp voice note can be worked through like any shared file ([V4](values.md#v4-only-words-are-kept)).
 - **Avatars** ([#49](https://github.com/Marceltov/freundebuch/issues/49)): a stylized avatar per person, put together from a description.
 
 ## Later
