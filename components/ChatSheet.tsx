@@ -46,23 +46,26 @@ const linkLabel = (l: ChatLink) => (l.kind === "conversation" ? copy.conversatio
 // The chat with Claude ("Erzählen"), as a sheet over the current page. It knows the page it was opened on (a friend or a
 // conversation) and says so in a chip the user can remove. The conversation is kept on this device; the server gets it whole
 // with every message (backend/chat-route.ts). A failed message stays in the field to send again.
-// With `sharing`, the paperclip hands files to POST /api/share, as sharing from the phone does: one goes along with this chat
-// (context `fileId`), several wait under Prüfen. `file`: opened from Prüfen on that file, as a new conversation about it.
-export function ChatSheet({ userId, sharing = false, file = null, onClose }: { userId: string; sharing?: boolean; file?: string | null; onClose: () => void }) {
+// With `sharing`, the paperclip hands files to POST /api/share, as sharing from the phone does, and they go along with this chat
+// (context `fileIds`), to be worked through together. `files`: opened from Prüfen on those files, as a new conversation about them.
+export function ChatSheet({ userId, sharing = false, files = [], onClose }: { userId: string; sharing?: boolean; files?: string[]; onClose: () => void }) {
   const router = useRouter();
   const path = usePathname();
-  // Opened on a file from Prüfen, it is a conversation of its own about that file.
-  const [turns, setTurns] = useState<Turn[]>(() => (file ? [] : load(userId)));
-  const [fileId, setFileId] = useState<string | null>(file);
-  // Opened from Prüfen: the file and what a first read suggested, shown at the top, so there is something to answer to.
-  const [shown, setShown] = useState<PendingFile | null>(null);
+  // Opened on files from Prüfen, it is a conversation of its own about them.
+  const own = files.length > 0;
+  const [turns, setTurns] = useState<Turn[]>(() => (own ? [] : load(userId)));
+  const [fileIds, setFileIds] = useState<string[]>(files);
+  // Opened from Prüfen: the files and what a first read of each suggested, shown at the top, so there is something to answer to.
+  const [shown, setShown] = useState<PendingFile[]>([]);
+  const opened = files.join();
   useEffect(() => {
-    if (!file) return;
+    if (!opened) return;
+    const ids = opened.split(",");
     fetch("/api/v1/files")
       .then((r) => (r.ok ? (r.json() as Promise<PendingFile[]>) : []))
-      .then((fs) => setShown(fs.find((f) => f.id === file) ?? null))
+      .then((fs) => setShown(ids.flatMap((id) => fs.filter((f) => f.id === id))))
       .catch(() => {});
-  }, [file]);
+  }, [opened]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +83,8 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
   // The page goes along at once; the chip shows the person's name once it has loaded.
   const about: { context: ChatContext; label: string } | null = dismissed
     ? null
-    : fileId
-      ? { context: { fileId }, label: copy.aboutFile }
+    : fileIds.length
+      ? { context: { fileIds }, label: fileIds.length === 1 ? copy.aboutFile : copy.aboutFiles.replace("{n}", String(fileIds.length)) }
       : person
       ? { context: { personId: person }, label: personName ? copy.aboutPerson.replace("{name}", personName) : copy.aboutThisPerson }
       : conversation
@@ -213,21 +216,22 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
     }
     const next: Turn[] = [...asked, { role: "assistant", content: failed ? copy.filedThenFailed.replace("{error}", message!) : body.reply, links: body.links, filed: body.filed }];
     setTurns(next);
-    // A chat opened on a file from Prüfen is its own: the chat kept on this device stays as it was.
-    if (!file) save(userId, next);
+    // A chat opened on files from Prüfen is its own: the chat kept on this device stays as it was.
+    if (!own) save(userId, next);
     if (body.filed) router.refresh();
   }
 
-  // One file goes along with this chat at once; several wait under Prüfen, to be opened one by one.
-  async function upload(files: File[]) {
-    if (!files.length) return;
+  // What is picked goes along with this chat at once, all of it together; several carry one batch id, as from the phone.
+  async function upload(picked: File[]) {
+    if (!picked.length) return;
     setShot("sending");
     let result: "received" | "duplicate" | "failed" = "duplicate";
     const ids: string[] = [];
-    for (const f of files) {
+    const batch = picked.length > 1 ? `chat-${crypto.randomUUID()}` : null;
+    for (const f of picked) {
       const form = new FormData();
       form.set("file", f, f.name);
-      const res = await fetch("/api/share", { method: "POST", body: form }).catch(() => null);
+      const res = await fetch("/api/share", { method: "POST", body: form, headers: batch ? { "x-freundebuch-batch": batch } : undefined }).catch(() => null);
       if (!res || res.status !== 202) {
         result = "failed";
         continue;
@@ -236,8 +240,8 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
       ids.push(body.id);
       if (!body.duplicate && result !== "failed") result = "received";
     }
-    if (files.length === 1 && ids.length === 1) {
-      setFileId(ids[0]);
+    if (ids.length && result !== "failed") {
+      setFileIds(ids);
       setDismissed(false);
       setShot("attached");
     } else setShot(result);
@@ -246,7 +250,7 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
 
   function reset() {
     setTurns([]);
-    if (!file) save(userId, []);
+    if (!own) save(userId, []);
     setError(null);
   }
 
@@ -281,20 +285,20 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
               </button>
             </span>
           )}
-          {shown && (
-            <div className="flex gap-3 self-stretch rounded-2xl bg-surface p-3 shadow-card">
-              <FilePreview item={shown} />
+          {shown.map((f) => (
+            <div key={f.id} data-shown-file={f.id} className="flex gap-3 self-stretch rounded-2xl bg-surface p-3 shadow-card">
+              <FilePreview item={f} />
               <div className="min-w-0 text-sm">
-                <p className="text-muted">{copy.fileShared.replace("{day}", shortDay(shown.sharedOn))}</p>
-                {shown.summary && (
-                  <p className="mt-1 whitespace-pre-line">
-                    <b>{copy.fileSuggests}:</b> {shown.summary}
+                <p className="text-muted">{copy.fileShared.replace("{day}", shortDay(f.sharedOn))}</p>
+                {f.summary && (
+                  <p className={`mt-1 whitespace-pre-line ${shown.length > 1 ? "line-clamp-3" : ""}`}>
+                    <b>{copy.fileSuggests}:</b> {f.summary}
                   </p>
                 )}
               </div>
             </div>
-          )}
-          {turns.length === 0 && !shown && <p className="mt-6 text-center text-muted">{copy.chatHello}</p>}
+          ))}
+          {turns.length === 0 && !shown.length && <p className="mt-6 text-center text-muted">{copy.chatHello}</p>}
           {/* Opened on no page: one tap asks Claude to look back on the week's journal. */}
           {turns.length === 0 && !about && !busy && (
             <button type="button" onClick={() => send(copy.reflectOffer)} className="self-center rounded-full bg-surface-2 px-3.5 py-1.5 text-sm font-semibold text-carbon hover:bg-rule">

@@ -254,6 +254,7 @@ export const copy = {
   pendingRetry: "Nochmal lesen",
   pendingTell: "In Erzählen öffnen",
   aboutFile: "Zu dieser Datei",
+  aboutFiles: "Zu diesen {n} Dateien",
   fileAttached: "Die Datei ist im Gespräch: erzähl, was du dazu weißt, oder frag Claude, was drinsteht.",
   fileImage: "Geteiltes Bild",
   fileShared: "Geteilt am {day}",

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConversation, record, recordConversation } from "./conversations";
 import { db } from "./db";
-import { shareFile } from "./files";
+import { discardFile, shareFile } from "./files";
 import { asRamble, seed, type Seed } from "./testing/fixtures";
 
 let s: Seed;
@@ -250,6 +250,55 @@ test("opened on a shared file, Claude learns the day it was shared and dates wha
   const system = JSON.stringify(calls[0].system);
   expect(system).toContain("2026-10-20");
   expect(system).toContain("not the day it is reviewed");
+});
+
+test("opened on several files, Claude gets them all in order as data, hears they belong together, and files them with all their ids", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-files-")));
+  const parts = [];
+  for (const t of ["Teil 1: Patrick fragt", "Teil 2: Sybille antwortet", "Teil 3: Marcel sagt zu"]) parts.push(await shareFile(s.a, new TextEncoder().encode(t), "text/plain"));
+  const d = await db();
+  await d.updateTable("files").set({ created_at: Date.parse("2026-10-21T10:00:00Z") }).where("id", "=", parts[2].id).execute();
+  await d.updateTable("files").set({ created_at: Date.parse("2026-10-20T10:00:00Z") }).where("id", "in", [parts[0].id, parts[1].id]).execute();
+  const ids = parts.map((p) => p.id);
+  const { model, calls } = fake([text("ok")]);
+  await chat(s.a, [{ role: "user", content: "Was steht da?" }], { fileIds: ids }, model, Date.parse("2026-10-29T10:00:00Z"));
+  const first = calls[0].messages[0].content as Anthropic.Beta.BetaContentBlockParam[];
+  expect(first.filter((b) => b.type === "document").map((b) => (b as { source: { data: string } }).source.data)).toEqual(["Teil 1: Patrick fragt", "Teil 2: Sybille antwortet", "Teil 3: Marcel sagt zu"]);
+  const notes = first.filter((b) => b.type === "text").map((b) => (b as { text: string }).text);
+  expect(ids.map((id) => notes.findIndex((n) => n.includes(`<shared_file id="${id}">`)))).toEqual([0, 1, 2]);
+  expect(notes.at(-1)).toBe("Was steht da?");
+  const system = JSON.stringify(calls[0].system);
+  expect(system).toContain(`fileIds ${JSON.stringify(ids).replace(/"/g, '\\"')}`);
+  expect(system).toContain("put them together as one thing");
+  expect(system).toContain("2026-10-20");
+});
+
+test("of several files, one filed meanwhile and one of the partner's are left out without a trace", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-files-")));
+  const one = await shareFile(s.a, new TextEncoder().encode("EINS"), "text/plain");
+  const gone = await shareFile(s.a, new TextEncoder().encode("WEG"), "text/plain");
+  const three = await shareFile(s.a, new TextEncoder().encode("DREI"), "text/plain");
+  const bobs = await shareFile(s.b, new TextEncoder().encode("BOBS-GEHEIMNIS"), "text/plain");
+  await discardFile(s.a, gone.id);
+  const { model, calls } = fake([text("ok")]);
+  await chat(s.a, [{ role: "user", content: "?" }], { fileIds: [one.id, gone.id, bobs.id, three.id] }, model);
+  const all = JSON.stringify(calls[0]);
+  expect(all).toContain("EINS");
+  expect(all).toContain("DREI");
+  expect(all).not.toContain("WEG");
+  expect(all).not.toContain("BOBS-GEHEIMNIS");
+  expect(all).not.toContain(bobs.id);
+  expect(all).not.toContain(gone.id);
+});
+
+test("several files all gone: the chat goes on, and Claude hears they are filed", async () => {
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-files-")));
+  const one = await shareFile(s.a, new TextEncoder().encode("EINS"), "text/plain");
+  await discardFile(s.a, one.id);
+  const { model, calls } = fake([text("ok")]);
+  await chat(s.a, [{ role: "user", content: "?" }], { fileIds: [one.id] }, model);
+  expect(calls[0].messages[0].content).toBe("?");
+  expect(JSON.stringify(calls[0].system)).toContain("filed now and gone");
 });
 
 test("what record filed as an experience shows as a link chip with its title", () => {

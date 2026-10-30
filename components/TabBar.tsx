@@ -18,24 +18,24 @@ const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] 
 ];
 
 const TELL_FILE = "freundebuch:tell-file";
-/** Opens Erzählen on a shared file waiting under Prüfen. */
-export const tellAbout = (fileId: string) => window.dispatchEvent(new CustomEvent(TELL_FILE, { detail: fileId }));
+/** Opens Erzählen on shared files waiting under Prüfen, to work them through together (in this order). */
+export const tellAbout = (fileIds: string[]) => window.dispatchEvent(new CustomEvent(TELL_FILE, { detail: fileIds }));
 
 export function TabBar({ chat = null }: { chat?: { userId: string; sharing: boolean } | null }) {
   const path = usePathname();
   const [talking, setTalking] = useState(false);
-  const [file, setFile] = useState<string | null>(null);
+  const [files, setFiles] = useState<string[]>([]);
   const tellButton = useRef<HTMLButtonElement>(null);
   // Closing the chat hands the keyboard back to the button that opened it.
   const closeChat = useCallback(() => {
     setTalking(false);
-    setFile(null);
+    setFiles([]);
     tellButton.current?.focus();
   }, []);
-  // "In Erzählen öffnen" on a Prüfen card opens the chat on that file (tellAbout).
+  // "In Erzählen öffnen" or "Zusammen prüfen" under Prüfen opens the chat on those files (tellAbout).
   useEffect(() => {
     const open = (e: Event) => {
-      setFile((e as CustomEvent<string>).detail);
+      setFiles((e as CustomEvent<string[]>).detail);
       setTalking(true);
     };
     window.addEventListener(TELL_FILE, open);
@@ -81,7 +81,7 @@ export function TabBar({ chat = null }: { chat?: { userId: string; sharing: bool
           ];
         })}
       </ul>
-      {talking && chat && <ChatSheet key={file ?? "chat"} userId={chat.userId} sharing={chat.sharing} file={file} onClose={closeChat} />}
+      {talking && chat && <ChatSheet key={files.join() || "chat"} userId={chat.userId} sharing={chat.sharing} files={files} onClose={closeChat} />}
     </nav>
   );
 }

@@ -269,14 +269,23 @@ export async function pendingCount(v: Viewer): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-/** The viewer's own waiting file for a chat on it, with its content and suggestion; NotFoundError for any other (someone
- * else's, or gone: filed, closed or thrown away). */
-export async function chatFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null; sharedOn: string }> {
-  const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
-  const bytes = row && row.status !== "nothing" ? await store().get(row.blob_key) : null;
-  if (!row || !bytes) throw new NotFoundError("No such file");
-  const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
-  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null, sharedOn: today(row.created_at) };
+export type ChatFile = { id: string; bytes: Uint8Array; type: string; summary: string | null; sharedOn: string };
+
+/** The viewer's own waiting files among `ids`, for a chat on them, in the order given, each with its content and suggestion.
+ * Any other (someone else's, or gone: filed, closed or thrown away) is left out without a word. */
+export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return [];
+  const rows = await (await db()).selectFrom("files").selectAll().where("id", "in", unique).where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).execute();
+  const out: ChatFile[] = [];
+  for (const id of unique) {
+    const row = rows.find((r) => r.id === id);
+    const bytes = row ? await store().get(row.blob_key) : null;
+    if (!row || !bytes) continue;
+    const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
+    out.push({ id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null, sharedOn: today(row.created_at) });
+  }
+  return out;
 }
 
 /**

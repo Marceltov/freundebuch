@@ -90,7 +90,7 @@ function PendingCard({ item, onDone }: { item: PendingFile; onDone: () => void }
             <p className="whitespace-pre-line">{item.summary}</p>
             {item.people.length > 0 && <p className="text-sm text-muted">{item.people.map((p) => p.person?.name ?? p.name).join(", ")}</p>}
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => tellAbout(item.id)} className={`${button} bg-carbon text-on-carbon`}>
+              <button type="button" onClick={() => tellAbout([item.id])} className={`${button} bg-carbon text-on-carbon`}>
                 <MessageCirclePlus aria-hidden className="h-4 w-4" />
                 {copy.pendingTell}
               </button>
