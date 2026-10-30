@@ -26,7 +26,10 @@ export type JournalEntry = {
  * The viewer's journal entries, and the other user's they shared, from `from` to `to` (the last JOURNAL_DAYS days when left
  * out), newest first; `personId` narrows them to the entries that name that person. `own` leaves out the other user's.
  */
-export async function journalEntries(v: Viewer, q: { from?: string; to?: string; personId?: string; own?: boolean; limit?: number } = {}): Promise<JournalEntry[]> {
+export async function journalEntries(
+  v: Viewer,
+  q: { from?: string; to?: string; personId?: string; own?: boolean; limit?: number } = {},
+): Promise<JournalEntry[]> {
   const to = q.to ?? today();
   const from = q.from ?? addDays(to, -JOURNAL_DAYS);
   const d = await db();
@@ -47,7 +50,11 @@ export async function journalEntries(v: Viewer, q: { from?: string; to?: string;
         .selectFrom("journal_mentions")
         .innerJoin("persons", "persons.id", "journal_mentions.person_id")
         .select(["journal_mentions.entry_id", "persons.id", "persons.name"])
-        .where("journal_mentions.entry_id", "in", rows.map((r) => r.id))
+        .where(
+          "journal_mentions.entry_id",
+          "in",
+          rows.map((r) => r.id),
+        )
         .orderBy("persons.name")
         .execute()
     : [];

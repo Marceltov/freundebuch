@@ -12,7 +12,12 @@ export function CopyButton({ text }: { text: string }) {
   return (
     <button
       type="button"
-      onClick={() => navigator.clipboard.writeText(text).then(() => setState("copied"), () => setState("failed"))}
+      onClick={() =>
+        navigator.clipboard.writeText(text).then(
+          () => setState("copied"),
+          () => setState("failed"),
+        )
+      }
       aria-label={label}
       title={label}
       className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink hover:bg-rule/60"
@@ -28,9 +33,7 @@ export function CopyField({ label, text, shown = false }: { label: string; text:
   const field = (
     <div className="flex items-center gap-2 rounded-xl bg-surface-2 py-1 pr-1 pl-3">
       {!shown && <span className="sr-only">{label}</span>}
-      <code className="min-w-0 flex-1 overflow-x-auto py-1.5 text-sm whitespace-nowrap">
-        {text}
-      </code>
+      <code className="min-w-0 flex-1 overflow-x-auto py-1.5 text-sm whitespace-nowrap">{text}</code>
       <CopyButton text={text} />
     </div>
   );

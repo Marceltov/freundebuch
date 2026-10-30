@@ -5,7 +5,11 @@ import { expect, test } from "vitest";
 import { shortcutPlist, shortcutSourceHash, shortcutXml } from "./source";
 
 type Action = { WFWorkflowActionIdentifier: string; WFWorkflowActionParameters: Record<string, unknown> };
-const sc = shortcutPlist() as { WFWorkflowActions: Action[]; WFWorkflowImportQuestions: Array<{ ActionIndex: number; ParameterKey: string; Text: string }>; WFWorkflowTypes: string[] };
+const sc = shortcutPlist() as {
+  WFWorkflowActions: Action[];
+  WFWorkflowImportQuestions: Array<{ ActionIndex: number; ParameterKey: string; Text: string }>;
+  WFWorkflowTypes: string[];
+};
 const actions = sc.WFWorkflowActions;
 const SIGNED_FILE = join(__dirname, "..", "public", "shortcuts", "An freundebuch.shortcut");
 const HASH_FILE = `${SIGNED_FILE}.sha256`;
@@ -26,7 +30,7 @@ test("it shows in the share sheet for images, PDFs, files and text", () => {
   );
 });
 
-test("it is called \"An freundebuch\" (iOS names it after its file), with an open book in pink, made for a current Shortcuts", () => {
+test('it is called "An freundebuch" (iOS names it after its file), with an open book in pink, made for a current Shortcuts', () => {
   expect(SIGNED_FILE.endsWith("/An freundebuch.shortcut")).toBe(true);
   expect((sc as unknown as { WFWorkflowIcon: unknown }).WFWorkflowIcon).toEqual({ WFWorkflowIconStartColor: 3980825855, WFWorkflowIconGlyphNumber: 59465 });
   expect((sc as unknown as { WFWorkflowClientVersion: string }).WFWorkflowClientVersion).toBe("4033.0.4.3");
@@ -39,7 +43,9 @@ test("importing it asks one thing, the Zugang from Einstellungen, and splits it 
   expect(actions[qs[0].ActionIndex].WFWorkflowActionIdentifier).toBe("is.workflow.actions.gettext");
   const split = actions.find((a) => a.WFWorkflowActionIdentifier === "is.workflow.actions.text.split")!;
   expect(split.WFWorkflowActionParameters).toMatchObject({ WFTextSeparator: "Custom", WFTextCustomSeparator: " " });
-  const items = actions.filter((a) => a.WFWorkflowActionIdentifier === "is.workflow.actions.getitemfromlist").map((a) => a.WFWorkflowActionParameters.WFItemSpecifier);
+  const items = actions
+    .filter((a) => a.WFWorkflowActionIdentifier === "is.workflow.actions.getitemfromlist")
+    .map((a) => a.WFWorkflowActionParameters.WFItemSpecifier);
   expect(items).toEqual(["First Item", "Last Item"]);
 });
 

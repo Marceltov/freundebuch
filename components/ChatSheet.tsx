@@ -45,7 +45,8 @@ const errors = (copy: Copy): Record<string, string> => ({
 
 const noSubscribe = () => () => {};
 
-const linkLabel = (copy: Copy, l: ChatLink) => (l.kind === "conversation" ? copy.conversationOn.replace("{day}", l.date ? shortDay(copy, l.date) : "") : (l.name ?? ""));
+const linkLabel = (copy: Copy, l: ChatLink) =>
+  l.kind === "conversation" ? copy.conversationOn.replace("{day}", l.date ? shortDay(copy, l.date) : "") : (l.name ?? "");
 
 // The chat with Claude ("Erzählen"), as a sheet over the current page. It knows the page it was opened on (a friend or a
 // conversation) and says so in a chip the user can remove. The conversation is kept on this device; the server gets it whole
@@ -54,7 +55,19 @@ const linkLabel = (copy: Copy, l: ChatLink) => (l.kind === "conversation" ? copy
 // (context `fileIds`), to be worked through together. `files`: opened from Prüfen on those files, as a new conversation about them.
 // With `voice` (a transcription server is set up), the microphone takes the place of send while the field is empty: a message
 // spoken in is sent as its words (useVoice), like a voice message on WhatsApp.
-export function ChatSheet({ userId, sharing = false, voice = false, files = [], onClose }: { userId: string; sharing?: boolean; voice?: boolean; files?: string[]; onClose: () => void }) {
+export function ChatSheet({
+  userId,
+  sharing = false,
+  voice = false,
+  files = [],
+  onClose,
+}: {
+  userId: string;
+  sharing?: boolean;
+  voice?: boolean;
+  files?: string[];
+  onClose: () => void;
+}) {
   const copy = useCopy();
   const router = useRouter();
   const path = usePathname();
@@ -98,12 +111,12 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
     : fileIds.length
       ? { context: { fileIds }, label: fileIds.length === 1 ? copy.aboutFile : copy.aboutFiles.replace("{n}", String(fileIds.length)) }
       : person
-      ? { context: { personId: person }, label: personName ? copy.aboutPerson.replace("{name}", personName) : copy.aboutThisPerson }
-      : conversation
-        ? { context: { conversationId: conversation }, label: copy.aboutConversation }
-        : ramble
-          ? { context: { rambleId: ramble }, label: copy.aboutRamble }
-          : null;
+        ? { context: { personId: person }, label: personName ? copy.aboutPerson.replace("{name}", personName) : copy.aboutThisPerson }
+        : conversation
+          ? { context: { conversationId: conversation }, label: copy.aboutConversation }
+          : ramble
+            ? { context: { rambleId: ramble }, label: copy.aboutRamble }
+            : null;
 
   useEffect(() => {
     if (!person) return;
@@ -240,7 +253,10 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
       if (!offered || spoken) setDraft(text);
       return setError(message);
     }
-    const next: Turn[] = [...asked, { role: "assistant", content: failed ? copy.filedThenFailed.replace("{error}", message!) : body.reply, links: body.links, filed: body.filed }];
+    const next: Turn[] = [
+      ...asked,
+      { role: "assistant", content: failed ? copy.filedThenFailed.replace("{error}", message!) : body.reply, links: body.links, filed: body.filed },
+    ];
     setTurns(next);
     // A chat opened on files from Prüfen is its own: the chat kept on this device stays as it was.
     if (!own) save(userId, next);
@@ -299,7 +315,12 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
             <SquarePen aria-hidden className="h-4 w-4" />
             {copy.newChat}
           </button>
-          <button type="button" aria-label={copy.closeChat} onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-2">
+          <button
+            type="button"
+            aria-label={copy.closeChat}
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-2"
+          >
             <X aria-hidden className="h-5 w-5" />
           </button>
         </header>
@@ -308,7 +329,12 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
           {about && (
             <span className="inline-flex items-center gap-1 self-center rounded-full bg-surface-2 py-1 pr-1 pl-3 text-sm text-muted">
               {about.label}
-              <button type="button" aria-label={copy.removeContext} onClick={() => setDismissed(true)} className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-rule">
+              <button
+                type="button"
+                aria-label={copy.removeContext}
+                onClick={() => setDismissed(true)}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-rule"
+              >
                 <X aria-hidden className="h-3.5 w-3.5" />
               </button>
             </span>
@@ -329,7 +355,11 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
           {turns.length === 0 && !shown.length && <p className="mt-6 text-center text-muted">{copy.chatHello}</p>}
           {/* Opened on no page: one tap asks Claude to look back on the week's journal. */}
           {turns.length === 0 && !about && !busy && (
-            <button type="button" onClick={() => send(copy.reflectOffer)} className="self-center rounded-full bg-surface-2 px-3.5 py-1.5 text-sm font-semibold text-carbon hover:bg-rule">
+            <button
+              type="button"
+              onClick={() => send(copy.reflectOffer)}
+              className="self-center rounded-full bg-surface-2 px-3.5 py-1.5 text-sm font-semibold text-carbon hover:bg-rule"
+            >
               {copy.reflectOffer}
             </button>
           )}
@@ -344,7 +374,12 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
                 {t.links && t.links.length > 0 && (
                   <span className="flex flex-wrap gap-1.5">
                     {t.links.map((l) => (
-                      <Link key={l.url} href={l.url} onClick={onClose} className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-carbon hover:bg-rule">
+                      <Link
+                        key={l.url}
+                        href={l.url}
+                        onClick={onClose}
+                        className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-carbon hover:bg-rule"
+                      >
                         {linkLabel(copy, l)} ›
                       </Link>
                     ))}
@@ -379,8 +414,19 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
           </p>
         )}
         {shot && (
-          <p role="status" className={`mx-4 flex flex-wrap items-center gap-x-2 rounded-xl bg-surface px-3 py-2 text-sm ${shot === "failed" ? "text-error" : ""}`}>
-            {{ sending: copy.shareReceiving, received: copy.shareReceived, duplicate: copy.shareDuplicate, failed: copy.shareFailed, attached: attached > 1 ? copy.filesAttached : copy.fileAttached }[shot]}
+          <p
+            role="status"
+            className={`mx-4 flex flex-wrap items-center gap-x-2 rounded-xl bg-surface px-3 py-2 text-sm ${shot === "failed" ? "text-error" : ""}`}
+          >
+            {
+              {
+                sending: copy.shareReceiving,
+                received: copy.shareReceived,
+                duplicate: copy.shareDuplicate,
+                failed: copy.shareFailed,
+                attached: attached > 1 ? copy.filesAttached : copy.fileAttached,
+              }[shot]
+            }
             {shot === "received" && (
               <Link href="/pruefen" onClick={onClose} className="font-bold text-carbon">
                 {copy.pending} ›
@@ -423,7 +469,13 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
           )}
           {recording.state === "recording" ? (
             <>
-              <button type="button" aria-label={copy.voiceCancel} title={copy.voiceCancel} onClick={recording.cancel} className="-ml-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink">
+              <button
+                type="button"
+                aria-label={copy.voiceCancel}
+                title={copy.voiceCancel}
+                onClick={recording.cancel}
+                className="-ml-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
+              >
                 <Trash2 aria-hidden className="h-5 w-5" />
               </button>
               <p role="status" className="flex min-h-10 flex-1 items-center gap-2 py-2">
@@ -431,51 +483,61 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
                 <span className="sr-only">{copy.voiceRecording}</span>
                 <span className="tabular-nums">{`${Math.floor(recording.seconds / 60)}:${String(recording.seconds % 60).padStart(2, "0")}`}</span>
               </p>
-              <button type="button" aria-label={copy.voiceSend} onClick={recording.send} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon">
+              <button
+                type="button"
+                aria-label={copy.voiceSend}
+                onClick={recording.send}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon"
+              >
                 <SendHorizontal aria-hidden className="h-5 w-5 translate-x-px -rotate-[25deg]" />
               </button>
             </>
           ) : (
             <>
-            <textarea
-              data-scrolls
-              ref={field}
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-              }}
-              onKeyDown={(e) => {
-                // Enter starts a new line, as on a phone it has to; Ctrl+Enter or ⌘+Enter sends from a keyboard.
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
-              enterKeyHint="enter"
-              aria-label={copy.message}
-              placeholder={copy.tellPlaceholder}
-              rows={1}
-              className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent py-2 leading-6 outline-none"
-            />
-            {mic && !draft.trim() ? (
-              <button
-                type="button"
-                aria-label={recording.state === "transcribing" ? copy.voiceTranscribing : copy.voiceRecord}
-                title={recording.state === "transcribing" ? copy.voiceTranscribing : copy.voiceRecord}
-                disabled={busy || recording.state !== "idle"}
-                onClick={() => {
-                  setError(null);
-                  recording.start();
+              <textarea
+                data-scrolls
+                ref={field}
+                value={draft}
+                onChange={(e) => {
+                  setDraft(e.target.value);
                 }}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon disabled:opacity-40"
-              >
-                <Mic aria-hidden className={`h-5 w-5 ${recording.state === "transcribing" ? "motion-safe:animate-pulse" : ""}`} />
-              </button>
-            ) : (
-              <button type="submit" aria-label={copy.send} disabled={busy || !draft.trim()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon disabled:opacity-40">
-                <SendHorizontal aria-hidden className="h-5 w-5 translate-x-px -rotate-[25deg]" />
-              </button>
-            )}
+                onKeyDown={(e) => {
+                  // Enter starts a new line, as on a phone it has to; Ctrl+Enter or ⌘+Enter sends from a keyboard.
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+                enterKeyHint="enter"
+                aria-label={copy.message}
+                placeholder={copy.tellPlaceholder}
+                rows={1}
+                className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent py-2 leading-6 outline-none"
+              />
+              {mic && !draft.trim() ? (
+                <button
+                  type="button"
+                  aria-label={recording.state === "transcribing" ? copy.voiceTranscribing : copy.voiceRecord}
+                  title={recording.state === "transcribing" ? copy.voiceTranscribing : copy.voiceRecord}
+                  disabled={busy || recording.state !== "idle"}
+                  onClick={() => {
+                    setError(null);
+                    recording.start();
+                  }}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon disabled:opacity-40"
+                >
+                  <Mic aria-hidden className={`h-5 w-5 ${recording.state === "transcribing" ? "motion-safe:animate-pulse" : ""}`} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  aria-label={copy.send}
+                  disabled={busy || !draft.trim()}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon disabled:opacity-40"
+                >
+                  <SendHorizontal aria-hidden className="h-5 w-5 translate-x-px -rotate-[25deg]" />
+                </button>
+              )}
             </>
           )}
         </form>

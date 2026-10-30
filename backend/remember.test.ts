@@ -43,45 +43,71 @@ test("a private item stays the recorder's", async () => {
 
 test("an unknown person or a bad date is refused, and nothing is filed", async () => {
   await expect(remember(s.a, { visibility: "shared", facts: [{ person: "nope", text: "x", category: "other" }] })).rejects.toThrow(NotFoundError);
-  await expect(remember(s.a, { visibility: "shared", dates: [{ person: s.anna, kind: "birthday", date: "7.2.2024", yearly: true }] })).rejects.toThrow(InvalidInputError);
+  await expect(remember(s.a, { visibility: "shared", dates: [{ person: s.anna, kind: "birthday", date: "7.2.2024", yearly: true }] })).rejects.toThrow(
+    InvalidInputError,
+  );
   await expect(remember(s.a, { visibility: "shared" })).rejects.toThrow(InvalidInputError);
 });
 
-const fact = async (text: string) => (await db()).selectFrom("facts").select(["id", "kind", "check_after", "status"]).where("text", "=", text).executeTakeFirstOrThrow();
+const fact = async (text: string) =>
+  (await db()).selectFrom("facts").select(["id", "kind", "check_after", "status"]).where("text", "=", text).executeTakeFirstOrThrow();
 
 test("a situation gets a nudge date, six weeks out by default", async () => {
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation" }] });
   expect(await fact("sucht ein Auto")).toMatchObject({ kind: "situation", check_after: addDays(today(), 42) });
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht eine Wohnung", category: "home", kind: "situation", checkAfter: "2026-12-01" }] });
+  await remember(s.a, {
+    visibility: "shared",
+    facts: [{ person: s.anna, text: "sucht eine Wohnung", category: "home", kind: "situation", checkAfter: "2026-12-01" }],
+  });
   expect(await fact("sucht eine Wohnung")).toMatchObject({ kind: "situation", check_after: "2026-12-01" });
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "mag Riesling", category: "other" }] });
   expect(await fact("mag Riesling")).toMatchObject({ kind: "lasting", check_after: null });
-  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", checkAfter: "2026-12-01" }] })).rejects.toBeInstanceOf(InvalidInputError);
-  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", kind: "situation", checkAfter: "soon" }] })).rejects.toBeInstanceOf(InvalidInputError);
-  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", kind: "rumour" as "lasting" }] })).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(
+    remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", checkAfter: "2026-12-01" }] }),
+  ).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(
+    remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", kind: "situation", checkAfter: "soon" }] }),
+  ).rejects.toBeInstanceOf(InvalidInputError);
+  await expect(
+    remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "x", category: "other", kind: "rumour" as "lasting" }] }),
+  ).rejects.toBeInstanceOf(InvalidInputError);
 });
 
 test("superseding keeps a situation going and resets its nudge, unless it is lasting", async () => {
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation" }] });
   const old = await fact("sucht ein Auto");
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "hat zwei Autos in der engeren Wahl", category: "other", supersedes: old.id, checkAfter: addDays(today(), 10) }] });
+  await remember(s.a, {
+    visibility: "shared",
+    facts: [{ person: s.anna, text: "hat zwei Autos in der engeren Wahl", category: "other", supersedes: old.id, checkAfter: addDays(today(), 10) }],
+  });
   expect(await fact("hat zwei Autos in der engeren Wahl")).toMatchObject({ kind: "situation", check_after: addDays(today(), 10) });
   expect(await fact("sucht ein Auto")).toMatchObject({ status: "outdated" });
   const news = await fact("hat zwei Autos in der engeren Wahl");
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "fährt einen Golf", category: "other", kind: "lasting", supersedes: news.id }] });
   expect(await fact("fährt einen Golf")).toMatchObject({ kind: "lasting", check_after: null });
   // Superseding a lasting fact without a kind keeps it lasting.
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "fährt einen Polo", category: "other", supersedes: (await fact("fährt einen Golf")).id }] });
+  await remember(s.a, {
+    visibility: "shared",
+    facts: [{ person: s.anna, text: "fährt einen Polo", category: "other", supersedes: (await fact("fährt einen Golf")).id }],
+  });
   expect(await fact("fährt einen Polo")).toMatchObject({ kind: "lasting", check_after: null });
 });
 
 test("news about a situation needs its new day, agreed with the user; nothing is filed without one", async () => {
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "baut ein Haus", category: "home", kind: "situation", checkAfter: addDays(today(), 120) }] });
+  await remember(s.a, {
+    visibility: "shared",
+    facts: [{ person: s.anna, text: "baut ein Haus", category: "home", kind: "situation", checkAfter: addDays(today(), 120) }],
+  });
   const old = await fact("baut ein Haus");
-  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "der Rohbau steht", category: "home", supersedes: old.id }] })).rejects.toThrow(/needs a new checkAfter/);
+  await expect(
+    remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "der Rohbau steht", category: "home", supersedes: old.id }] }),
+  ).rejects.toThrow(/needs a new checkAfter/);
   expect(await fact("baut ein Haus")).toMatchObject({ status: "current" });
   expect(await (await db()).selectFrom("facts").select("id").where("text", "=", "der Rohbau steht").execute()).toEqual([]);
-  await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "zieht im Mai ein", category: "home", supersedes: old.id, checkAfter: "2027-05-15" }] });
+  await remember(s.a, {
+    visibility: "shared",
+    facts: [{ person: s.anna, text: "zieht im Mai ein", category: "home", supersedes: old.id, checkAfter: "2027-05-15" }],
+  });
   expect(await fact("zieht im Mai ein")).toMatchObject({ kind: "situation", check_after: "2027-05-15" });
 });
 
@@ -121,11 +147,25 @@ test("a conversation filed from shared files keeps their transcripts, word for w
   const one = await shareFile(s.a, new TextEncoder().encode("Bild 1"), "text/plain");
   const two = await shareFile(s.a, new TextEncoder().encode("Bild 2"), "text/plain");
   const read = (id: string, transcript: string) =>
-    db().then((d) => d.updateTable("files").set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript, people: [] }) }).where("id", "=", id).execute());
+    db().then((d) =>
+      d
+        .updateTable("files")
+        .set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript, people: [] }) })
+        .where("id", "=", id)
+        .execute(),
+    );
   await read(one.id, "[19:20] Patrick: Freitag Spieleabend bei Olivier");
   await read(two.id, "Foto: Anna und Tom auf dem Hochzeitsfest");
   await expect(
-    recordConversation(s.b, { date: "2026-10-20", kind: "message", summary: "x", transcript: "t", visibility: "shared", fileIds: [one.id], people: [{ id: s.anna, present: true }] }),
+    recordConversation(s.b, {
+      date: "2026-10-20",
+      kind: "message",
+      summary: "x",
+      transcript: "t",
+      visibility: "shared",
+      fileIds: [one.id],
+      people: [{ id: s.anna, present: true }],
+    }),
   ).rejects.toThrow(NotFoundError);
   const c = await recordConversation(s.a, {
     date: "2026-10-20",
@@ -146,12 +186,23 @@ test("a conversation filed from shared files keeps their transcripts, word for w
   expect((await (await db()).selectFrom("facts").select("file_id").where("text", "=", "plant einen Spieleabend").executeTakeFirstOrThrow()).file_id).toBeNull();
   // A file already filed is gone: it can't be taken again.
   await expect(
-    recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "x", transcript: "t", visibility: "shared", fileIds: [one.id], people: [{ id: s.anna, present: true }] }),
+    recordConversation(s.a, {
+      date: "2026-10-20",
+      kind: "message",
+      summary: "x",
+      transcript: "t",
+      visibility: "shared",
+      fileIds: [one.id],
+      people: [{ id: s.anna, present: true }],
+    }),
   ).rejects.toThrow(NotFoundError);
 });
 
 test("a home told outside a conversation files a place owned by the person", async () => {
-  const r = await remember(s.a, { visibility: "shared", homes: [{ person: s.anna, place: { name: "Annas Wohnung", in: "Nürnberg", address: "Hauptstraße 5" } }] });
+  const r = await remember(s.a, {
+    visibility: "shared",
+    homes: [{ person: s.anna, place: { name: "Annas Wohnung", in: "Nürnberg", address: "Hauptstraße 5" } }],
+  });
   expect(r.counts.homes).toBe(1);
   const [p] = await findPlaces(s.b, "Annas Wohnung");
   expect(p).toMatchObject({ address: "Hauptstraße 5", owners: [{ id: s.anna }], parents: [{ name: "Nürnberg" }] });

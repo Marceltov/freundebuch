@@ -21,7 +21,13 @@ export async function userLanguage(v: Viewer): Promise<Language> {
 
 export async function setLanguage(v: Viewer, language: string): Promise<void> {
   if (!LANGUAGES.includes(language as Language)) throw new InvalidInputError(`language must be one of ${LANGUAGES.join(", ")}`);
-  await (await db()).updateTable("users").set({ language: language as Language }).where("id", "=", v.userId).execute();
+  await (
+    await db()
+  )
+    .updateTable("users")
+    .set({ language: language as Language })
+    .where("id", "=", v.userId)
+    .execute();
 }
 
 export async function putSettings(v: Viewer, s: { webhookUrl: string | null }): Promise<void> {
@@ -36,7 +42,9 @@ export async function putSettings(v: Viewer, s: { webhookUrl: string | null }): 
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new InvalidInputError("webhookUrl must be an http or https URL");
     url = parsed.href;
   }
-  await (await db())
+  await (
+    await db()
+  )
     .insertInto("user_settings")
     .values({ user_id: v.userId, webhook_url: url })
     .onConflict((oc) => oc.column("user_id").doUpdateSet({ webhook_url: url }))

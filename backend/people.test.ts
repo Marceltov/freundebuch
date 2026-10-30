@@ -6,8 +6,13 @@ import { userFromOidc } from "./users";
 import type { Viewer } from "./types";
 
 // A ramble for a conversation inserted by hand, returning its id.
-const ramble = async (d: { insertInto: (t: "rambles") => any }, id: string, by: string) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
-  await d.insertInto("rambles").values({ id, date: "2026-01-01", transcript: "", transcript_private: 0, visibility: "shared", recorded_by: by, created_at: 0 }).execute(), id
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ramble = async (d: { insertInto: (t: "rambles") => any }, id: string, by: string) => (
+  await d
+    .insertInto("rambles")
+    .values({ id, date: "2026-01-01", transcript: "", transcript_private: 0, visibility: "shared", recorded_by: by, created_at: 0 })
+    .execute(),
+  id
 );
 
 let a: Viewer;
@@ -63,15 +68,59 @@ test("context shows relationships and when the viewer last saw the person", asyn
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
   const d = await db();
-  await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, label: "Partner:in", inverse: "Partner:in", note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
+  await d
+    .insertInto("relationships")
+    .values({
+      id: newId(),
+      from_id: anna,
+      to_id: tom,
+      label: "Partner:in",
+      inverse: "Partner:in",
+      note: null,
+      visibility: "shared",
+      recorded_by: a.userId,
+      conversation_id: null,
+      created_at: now(),
+    })
+    .execute();
   for (const date of ["2026-10-01", "2026-10-20"]) {
     const id = newId();
-    await d.insertInto("conversations").values({ id, date, kind: "call", summary: "s", ramble_id: await ramble(d, id, a.userId), visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
-    await d.insertInto("participants").values([{ conversation_id: id, person_id: anna }, { conversation_id: id, person_id: b.personId }]).execute();
+    await d
+      .insertInto("conversations")
+      .values({
+        id,
+        date,
+        kind: "call",
+        summary: "s",
+        ramble_id: await ramble(d, id, a.userId),
+        visibility: "shared",
+        recorded_by: a.userId,
+        created_at: now(),
+      })
+      .execute();
+    await d
+      .insertInto("participants")
+      .values([
+        { conversation_id: id, person_id: anna },
+        { conversation_id: id, person_id: b.personId },
+      ])
+      .execute();
   }
   // A conversation the viewer was not part of does not count as seeing Anna.
   const other = newId();
-  await d.insertInto("conversations").values({ id: other, date: "2026-10-22", kind: "call", summary: "s", ramble_id: await ramble(d, other, a.userId), visibility: "shared", recorded_by: a.userId, created_at: now() }).execute();
+  await d
+    .insertInto("conversations")
+    .values({
+      id: other,
+      date: "2026-10-22",
+      kind: "call",
+      summary: "s",
+      ramble_id: await ramble(d, other, a.userId),
+      visibility: "shared",
+      recorded_by: a.userId,
+      created_at: now(),
+    })
+    .execute();
   await d.insertInto("participants").values({ conversation_id: other, person_id: anna }).execute();
   const [c] = await findPeople(b, "Anna");
   expect(c.context).toEqual(["Partner:in of Tom", "last seen 2026-10-20"]);
@@ -82,10 +131,42 @@ test("context never contains anything from a private item of the other user", as
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
   const d = await db();
-  await d.insertInto("relationships").values({ id: newId(), from_id: anna, to_id: tom, label: "Partner:in", inverse: "Partner:in", note: null, visibility: "private", recorded_by: b.userId, conversation_id: null, created_at: now() }).execute();
+  await d
+    .insertInto("relationships")
+    .values({
+      id: newId(),
+      from_id: anna,
+      to_id: tom,
+      label: "Partner:in",
+      inverse: "Partner:in",
+      note: null,
+      visibility: "private",
+      recorded_by: b.userId,
+      conversation_id: null,
+      created_at: now(),
+    })
+    .execute();
   const cid = newId();
-  await d.insertInto("conversations").values({ id: cid, date: "2026-10-20", kind: "call", summary: "s", ramble_id: await ramble(d, cid, a.userId), visibility: "private", recorded_by: b.userId, created_at: now() }).execute();
-  await d.insertInto("participants").values([{ conversation_id: cid, person_id: anna }, { conversation_id: cid, person_id: b.personId }]).execute();
+  await d
+    .insertInto("conversations")
+    .values({
+      id: cid,
+      date: "2026-10-20",
+      kind: "call",
+      summary: "s",
+      ramble_id: await ramble(d, cid, a.userId),
+      visibility: "private",
+      recorded_by: b.userId,
+      created_at: now(),
+    })
+    .execute();
+  await d
+    .insertInto("participants")
+    .values([
+      { conversation_id: cid, person_id: anna },
+      { conversation_id: cid, person_id: b.personId },
+    ])
+    .execute();
   expect((await findPeople(a, "Anna"))[0].context).toEqual([]);
   expect((await findPeople(b, "Anna"))[0].context).toEqual(["Partner:in of Tom", "last seen 2026-10-20"]);
 });
@@ -101,7 +182,19 @@ test("addAlias adds, dedupes by norm and is found", async () => {
 test("getPerson hides createdFrom when the conversation is not visible", async () => {
   const d = await db();
   const cid = newId();
-  await d.insertInto("conversations").values({ id: cid, date: "2026-10-20", kind: "call", summary: "s", ramble_id: await ramble(d, cid, a.userId), visibility: "private", recorded_by: b.userId, created_at: now() }).execute();
+  await d
+    .insertInto("conversations")
+    .values({
+      id: cid,
+      date: "2026-10-20",
+      kind: "call",
+      summary: "s",
+      ramble_id: await ramble(d, cid, a.userId),
+      visibility: "private",
+      recorded_by: b.userId,
+      created_at: now(),
+    })
+    .execute();
   const id = await createPerson(b, { name: "Carl", createdFrom: cid });
   expect((await getPerson(b, id)).createdFrom).toBe(cid);
   expect((await getPerson(a, id)).createdFrom).toBeNull();
@@ -136,7 +229,21 @@ test("relationship hints read naturally in both directions", async () => {
   const tom = await createPerson(a, { name: "Tom" });
   const anna = await createPerson(a, { name: "Anna" });
   const rel = async (from: string, to: string, label: string, inverse: string) =>
-    (await db()).insertInto("relationships").values({ id: newId(), from_id: from, to_id: to, label, inverse, note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
+    (await db())
+      .insertInto("relationships")
+      .values({
+        id: newId(),
+        from_id: from,
+        to_id: to,
+        label,
+        inverse,
+        note: null,
+        visibility: "shared",
+        recorded_by: a.userId,
+        conversation_id: null,
+        created_at: now(),
+      })
+      .execute();
   await rel(sarah, ella, "Mutter", "Tochter");
   await rel(anna, tom, "Nichte", "Onkel");
   await rel(tom, ella, "Nachbar", "Nachbarin");
@@ -164,7 +271,12 @@ test("a gender change returns the person's relationships the viewer may edit: th
   const tom = await createPerson(a, { name: "Tom" });
   const rel = async (by: Viewer, from: string, to: string, label: string, inverse: string, visibility = "shared") => {
     const id = newId();
-    await (await db()).insertInto("relationships").values({ id, from_id: from, to_id: to, label, inverse, note: null, visibility, recorded_by: by.userId, conversation_id: null, created_at: now() }).execute();
+    await (
+      await db()
+    )
+      .insertInto("relationships")
+      .values({ id, from_id: from, to_id: to, label, inverse, note: null, visibility, recorded_by: by.userId, conversation_id: null, created_at: now() })
+      .execute();
     return id;
   };
   const mine = await rel(a, anna, tom, "Vermieter:in", "Mieter");
@@ -186,7 +298,23 @@ test("a first gender asks only for the person's words still in a neutral form; a
   const lena = await createPerson(a, { name: "Lena" });
   const rel = async (from: string, to: string, label: string, inverse: string) => {
     const id = newId();
-    await (await db()).insertInto("relationships").values({ id, from_id: from, to_id: to, label, inverse, note: null, visibility: "shared", recorded_by: a.userId, conversation_id: null, created_at: now() }).execute();
+    await (
+      await db()
+    )
+      .insertInto("relationships")
+      .values({
+        id,
+        from_id: from,
+        to_id: to,
+        label,
+        inverse,
+        note: null,
+        visibility: "shared",
+        recorded_by: a.userId,
+        conversation_id: null,
+        created_at: now(),
+      })
+      .execute();
     return id;
   };
   const neutral = await rel(anna, tom, "Vermieter:in", "Mieter");

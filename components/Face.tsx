@@ -41,7 +41,11 @@ export function Face({ id, name, size = 44, ratio, badges = [] }: { id: string; 
           {badges.map((b) => {
             const Icon = BADGE_ICON[b];
             return (
-              <span key={b} title={copy.badge[b]} className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-surface text-ink shadow-card ring-1 ring-rule">
+              <span
+                key={b}
+                title={copy.badge[b]}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-surface text-ink shadow-card ring-1 ring-rule"
+              >
                 <Icon aria-hidden className="h-3 w-3" />
               </span>
             );

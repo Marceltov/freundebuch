@@ -35,14 +35,22 @@ export const fakeModel: ChatModel = {
             type: "tool_use",
             id: "fake_record",
             name: "record",
-            input: { date: day, visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: lived[1], place: "Pfotenglück", series: { name: "Hundeschule", rhythmDays: 7 } }] },
+            input: {
+              date: day,
+              visibility: "shared",
+              people: [],
+              experiences: [{ kind: "Kurs", title: lived[1], place: "Pfotenglück", series: { name: "Hundeschule", rhythmDays: 7 } }],
+            },
           },
         ],
         "tool_use",
       );
     const journal = last.content.match(/^Tagebuch:\s*(.+)$/s);
     if (journal && day)
-      return reply([{ type: "tool_use", id: "fake_record", name: "record", input: { date: day, visibility: "shared", people: [], journal: [{ text: journal[1] }] } }], "tool_use");
+      return reply(
+        [{ type: "tool_use", id: "fake_record", name: "record", input: { date: day, visibility: "shared", people: [], journal: [{ text: journal[1] }] } }],
+        "tool_use",
+      );
     if (!note || !person || !day) return say("Verstanden.");
     return reply(
       [
@@ -50,7 +58,13 @@ export const fakeModel: ChatModel = {
           type: "tool_use",
           id: "fake_record",
           name: "record",
-          input: { date: day, transcript: note[1], visibility: "shared", people: [{ id: person }], conversations: [{ kind: "message", summary: note[1], present: [0] }] },
+          input: {
+            date: day,
+            transcript: note[1],
+            visibility: "shared",
+            people: [{ id: person }],
+            conversations: [{ kind: "message", summary: note[1], present: [0] }],
+          },
         },
       ],
       "tool_use",

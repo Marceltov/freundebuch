@@ -19,9 +19,16 @@ export function PendingList({ items }: { items: PendingFile[] }) {
   // What the user ticked; until they tick anything, the file the page was opened on (#id) and the files shared with it.
   // Opened again on another file (a new #id), what was ticked before no longer counts.
   const [ticked, setTicked] = useState<{ hash: string; ids: Set<string> } | null>(null);
-  const hash = useSyncExternalStore(onHashChange, () => idOfHash(window.location.hash), () => "");
+  const hash = useSyncExternalStore(
+    onHashChange,
+    () => idOfHash(window.location.hash),
+    () => "",
+  );
   const target = items.find((i) => i.id === hash);
-  const selected = ticked?.hash === hash ? ticked.ids : new Set(target ? (target.batchId ? items.filter((i) => i.batchId === target.batchId).map((i) => i.id) : [target.id]) : []);
+  const selected =
+    ticked?.hash === hash
+      ? ticked.ids
+      : new Set(target ? (target.batchId ? items.filter((i) => i.batchId === target.batchId).map((i) => i.id) : [target.id]) : []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   // While Claude is still reading one, look again every few seconds.
@@ -127,7 +134,12 @@ export function FilePreview({ item }: { item: Pick<PendingFile, "url" | "type"> 
       </a>
     );
   return (
-    <a href={item.url} target="_blank" rel="noreferrer" className="flex h-32 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-surface-2 text-xs text-muted">
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noreferrer"
+      className="flex h-32 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-surface-2 text-xs text-muted"
+    >
       {item.type.startsWith("audio/") ? <AudioLines aria-hidden className="h-7 w-7 text-carbon" /> : <FileText aria-hidden className="h-7 w-7 text-carbon" />}
       {item.type.startsWith("audio/") ? copy.fileAudio : item.type === "application/pdf" ? copy.filePdf : copy.fileText}
     </a>
@@ -156,7 +168,13 @@ function PendingCard({ item, selected, onSelect, onDone }: { item: PendingFile; 
   );
   return (
     <article className={`flex gap-3 rounded-2xl bg-surface p-4 shadow-card ${selected ? "ring-2 ring-carbon" : ""}`}>
-      <input type="checkbox" aria-label={copy.selectFile} checked={selected} onChange={(e) => onSelect(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-carbon" />
+      <input
+        type="checkbox"
+        aria-label={copy.selectFile}
+        checked={selected}
+        onChange={(e) => onSelect(e.target.checked)}
+        className="mt-1 h-5 w-5 shrink-0 accent-carbon"
+      />
       <FilePreview item={item} />
       <div className="min-w-0 flex-1 space-y-2">
         {/* Kept only until it is filed, like every shared file; then only its transcript remains. */}

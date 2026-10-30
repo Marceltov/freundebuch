@@ -39,7 +39,9 @@ export function absoluteUrls<T>(base: string, body: T): T {
   const walk = (x: unknown): unknown => {
     if (Array.isArray(x)) return x.map(walk);
     if (x === null || typeof x !== "object") return x;
-    return Object.fromEntries(Object.entries(x).map(([k, val]) => [k, (k === "url" || k === "imageUrl") && typeof val === "string" && val.startsWith("/") ? base + val : walk(val)]));
+    return Object.fromEntries(
+      Object.entries(x).map(([k, val]) => [k, (k === "url" || k === "imageUrl") && typeof val === "string" && val.startsWith("/") ? base + val : walk(val)]),
+    );
   };
   return walk(body) as T;
 }

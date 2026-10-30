@@ -22,13 +22,23 @@ async function message(v: Viewer, copy: NotifyCopy, item: DueItem, from: string,
   const base = { click: click(item.personId) };
   if (item.kind === "overdue") {
     const seen = await lastSeen(v, item.personId);
-    return { ...base, title: fill(copy.overdue, { name: item.name }), body: seen ? fill(copy.overdueBody, { date: seen }) : "", tags: ["hourglass_flowing_sand"] };
+    return {
+      ...base,
+      title: fill(copy.overdue, { name: item.name }),
+      body: seen ? fill(copy.overdueBody, { date: seen }) : "",
+      tags: ["hourglass_flowing_sand"],
+    };
   }
   if (item.kind === "situation") return { ...base, title: fill(copy.situation, { name: item.name, text: item.text! }), body: "", tags: ["speech_balloon"] };
   if (item.kind === "session") {
     const [, m, d] = item.date!.split("-");
     const base = config.publicUrl();
-    return { title: fill(copy.sessionMissed, { name: item.name, day: fill(copy.dayMonth, { d, m }) }), body: "", tags: ["paw_prints"], click: base ? `${base}${item.url}` : undefined };
+    return {
+      title: fill(copy.sessionMissed, { name: item.name, day: fill(copy.dayMonth, { d, m }) }),
+      body: "",
+      tags: ["paw_prints"],
+      click: base ? `${base}${item.url}` : undefined,
+    };
   }
   if (item.kind === "promise")
     return item.byMe
@@ -76,7 +86,12 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
       const messages = await Promise.all(shown.map((i) => message(v, copy, i, from, click)));
       if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });
       for (const m of messages) if (await sendWebhook(row.webhook_url!, m, fetchFn)) sent++;
-      if (onlyNew) await d.insertInto("meta").values({ key: doneKey(row.user_id), value: from }).onConflict((oc) => oc.column("key").doUpdateSet({ value: from })).execute();
+      if (onlyNew)
+        await d
+          .insertInto("meta")
+          .values({ key: doneKey(row.user_id), value: from })
+          .onConflict((oc) => oc.column("key").doUpdateSet({ value: from }))
+          .execute();
     } catch (e) {
       log.error({ err: errorFields(e) }, "daily reminders failed for a user");
     }

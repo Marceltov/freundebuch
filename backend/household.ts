@@ -11,7 +11,13 @@ export const isHouseholdWord = (t: unknown): t is "me" | "us" => t === "me" || t
 
 /** The household persons, in the order their users signed up. */
 export async function householdPersons(tx: Kysely<Schema>): Promise<string[]> {
-  const rows = await tx.selectFrom("users").select("person_id").where("person_id", "is not", null).orderBy("created_at").orderBy(sql`rowid`).execute();
+  const rows = await tx
+    .selectFrom("users")
+    .select("person_id")
+    .where("person_id", "is not", null)
+    .orderBy("created_at")
+    .orderBy(sql`rowid`)
+    .execute();
   return rows.map((r) => r.person_id!);
 }
 

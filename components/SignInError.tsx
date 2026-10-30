@@ -8,7 +8,13 @@ export function SignInError({ error, retry }: { error: Param; retry: Param }) {
   const copy = getCopy();
   const seconds = typeof retry === "string" && /^\d{1,4}$/.test(retry) ? retry : undefined;
   const message =
-    error === undefined ? "" : error === "too_many_attempts" ? (seconds ? copy.tooManyAttempts.replace("{seconds}", seconds) : copy.tooManyAttemptsSoon) : copy.signInFailed;
+    error === undefined
+      ? ""
+      : error === "too_many_attempts"
+        ? seconds
+          ? copy.tooManyAttempts.replace("{seconds}", seconds)
+          : copy.tooManyAttemptsSoon
+        : copy.signInFailed;
   return (
     <p id="login-error" role="alert" className="mt-3 text-sm text-error">
       {message}

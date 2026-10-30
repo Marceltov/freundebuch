@@ -53,10 +53,15 @@ afterEach(() => {
   resetSecretForTests();
 });
 
-const as = (user: string | null): Record<string, string> => (user ? { host: "localhost:3000", cookie: `${IDENTITY_COOKIE}=${sign("identity", { uid: user })}` } : { host: "localhost:3000" });
-const get = (path: string, user: string | null = uid, method = "GET") => dispatch(new Request(`${BASE}/api/v1${path}`, { method, headers: as(user) }), path.slice(1).split("?")[0].split("/"));
+const as = (user: string | null): Record<string, string> =>
+  user ? { host: "localhost:3000", cookie: `${IDENTITY_COOKIE}=${sign("identity", { uid: user })}` } : { host: "localhost:3000" };
+const get = (path: string, user: string | null = uid, method = "GET") =>
+  dispatch(new Request(`${BASE}/api/v1${path}`, { method, headers: as(user) }), path.slice(1).split("?")[0].split("/"));
 const post = (body: string, user: string | null = uid, headers: Record<string, string> = {}) =>
-  dispatch(new Request(`${BASE}/api/v1/things`, { method: "POST", body, headers: { ...as(user), "content-type": "application/json", origin: BASE, ...headers } }), ["things"]);
+  dispatch(
+    new Request(`${BASE}/api/v1/things`, { method: "POST", body, headers: { ...as(user), "content-type": "application/json", origin: BASE, ...headers } }),
+    ["things"],
+  );
 
 test("matchOps binds path parameters and returns every method of a path", () => {
   const m = matchOps([ping, echo] as AnyOp[], "/api/v1", ["things", "a b"]);
@@ -91,7 +96,11 @@ test("a bad query or body is 400 invalid_request", async () => {
 });
 
 test("domain errors map to their status, with their code", async () => {
-  for (const [id, status, code] of [["forbidden", 403, "forbidden"], ["ambiguous", 409, "ambiguous"], ["invalid", 400, "invalid_input"]] as const) {
+  for (const [id, status, code] of [
+    ["forbidden", 403, "forbidden"],
+    ["ambiguous", 409, "ambiguous"],
+    ["invalid", 400, "invalid_input"],
+  ] as const) {
     const res = await get(`/things/${id}`);
     expect([res.status, (await res.json()).code]).toEqual([status, code]);
   }

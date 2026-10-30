@@ -34,7 +34,17 @@ const log = logger("files");
 export const MAX_UPLOAD = 15 * 1024 * 1024;
 const WIDTH = 1080;
 /** Images are stored shrunk, as WebP; PDFs, text and voice notes as they came. */
-const EXT: Record<string, string> = { "image/webp": "webp", "application/pdf": "pdf", "text/plain": "txt", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/webm": "webm", "audio/flac": "flac" };
+const EXT: Record<string, string> = {
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+  "text/plain": "txt",
+  "audio/ogg": "ogg",
+  "audio/mp4": "m4a",
+  "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+  "audio/webm": "webm",
+  "audio/flac": "flac",
+};
 export const NOT_TAKEN = "freundebuch takes images, PDFs, text files and voice notes";
 export const NO_AUDIO = "This freundebuch takes no voice notes: it has no transcription server (FREUNDEBUCH_TRANSCRIBE_URL)";
 export const NOT_AUDIO = "That is not a voice note freundebuch can read";
@@ -100,7 +110,12 @@ const isHeic = (bytes: Uint8Array, type: string) =>
 /** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`, which keeps its
  * batch, unless it comes with a new share: then it joins that). `type` is what it was sent as ("" when unknown); `batch` the id of the share it came in with (batchOf).
  * Reading it is queued (`queueRead`); the caller doesn't wait for it. */
-export async function shareFile(v: Viewer, bytes: Uint8Array, type = "", batch: string | null = null): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
+export async function shareFile(
+  v: Viewer,
+  bytes: Uint8Array,
+  type = "",
+  batch: string | null = null,
+): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
   if (bytes.byteLength === 0) throw new InvalidInputError("The file is empty");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const d = await db();
@@ -108,10 +123,20 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = "", batch: 
   // An old pre-read that found "nothing" dropped its blob and filed nothing: sharing it again starts afresh. One the screenshot
   // reading filed stays for its fact, under a retired hash, so the same bytes can wait under Prüfen again.
   if (seen?.status === "nothing") await d.deleteFrom("files").where("id", "=", seen.id).execute();
-  else if (seen?.status === "filed") await d.updateTable("files").set({ sha256: `${sha256}:${seen.id}` }).where("id", "=", seen.id).execute();
+  else if (seen?.status === "filed")
+    await d
+      .updateTable("files")
+      .set({ sha256: `${sha256}:${seen.id}` })
+      .where("id", "=", seen.id)
+      .execute();
   else if (seen) {
     // Shared again along with a new share: it joins that one, so Prüfen opens on what was just sent.
-    if (batchOf(batch)) await d.updateTable("files").set({ batch_id: batchOf(batch) }).where("id", "=", seen.id).execute();
+    if (batchOf(batch))
+      await d
+        .updateTable("files")
+        .set({ batch_id: batchOf(batch) })
+        .where("id", "=", seen.id)
+        .execute();
     return { id: seen.id, status: seen.status, duplicate: true };
   }
   const kind = kindOf(bytes, type);
@@ -151,7 +176,20 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = "", batch: 
   const key = `files/${id}.${EXT[mediaType]}`;
   await store().put(key, stored, mediaType);
   try {
-    await d.insertInto("files").values({ id, user_id: v.userId, sha256, status: "reading", reading: null, created_at: now(), media_type: mediaType, blob_key: key, batch_id: batchOf(batch) }).execute();
+    await d
+      .insertInto("files")
+      .values({
+        id,
+        user_id: v.userId,
+        sha256,
+        status: "reading",
+        reading: null,
+        created_at: now(),
+        media_type: mediaType,
+        blob_key: key,
+        batch_id: batchOf(batch),
+      })
+      .execute();
   } catch (e) {
     await store().delete(key);
     throw e;
@@ -180,7 +218,10 @@ export async function resumeReading(model: FileModel | null = fileModel()): Prom
 
 async function knownPeople(): Promise<KnownPerson[]> {
   const d = await db();
-  const [people, aliases] = await Promise.all([d.selectFrom("persons").select(["id", "name"]).orderBy("name").execute(), d.selectFrom("aliases").select(["person_id", "alias"]).execute()]);
+  const [people, aliases] = await Promise.all([
+    d.selectFrom("persons").select(["id", "name"]).orderBy("name").execute(),
+    d.selectFrom("aliases").select(["person_id", "alias"]).execute(),
+  ]);
   return people.map((p) => ({ id: p.id, name: p.name, aliases: aliases.filter((a) => a.person_id === p.id).map((a) => a.alias) }));
 }
 
@@ -190,7 +231,9 @@ function clean(r: Suggestion, known: Set<string>): Suggestion {
     summary: r.summary.trim(),
     transcript: r.transcript.trim(),
     people: r.people.map((p) =>
-      p.personId && known.has(p.personId) ? { name: p.name, personId: p.personId } : { name: p.name, candidates: [...new Set(p.candidates ?? [])].filter((c) => known.has(c)) },
+      p.personId && known.has(p.personId)
+        ? { name: p.name, personId: p.personId }
+        : { name: p.name, candidates: [...new Set(p.candidates ?? [])].filter((c) => known.has(c)) },
     ),
   };
 }
@@ -204,7 +247,12 @@ export async function readFile(id: string, model: FileModel, whisper: Transcribe
   const v = await viewerById(row.user_id);
   const bytes = await store().get(row.blob_key);
   const set = (status: FileStatus, reading: Suggestion | { error: string; transcript?: string }) =>
-    d.updateTable("files").set({ status, reading: JSON.stringify(reading) }).where("id", "=", id).where("status", "=", "reading").execute();
+    d
+      .updateTable("files")
+      .set({ status, reading: JSON.stringify(reading) })
+      .where("id", "=", id)
+      .where("status", "=", "reading")
+      .execute();
   const click = `${PENDING_PATH}#${id}`;
   if (!v || !bytes) {
     await set("failed", { error: "the file is gone" });
@@ -220,7 +268,11 @@ export async function readFile(id: string, model: FileModel, whisper: Transcribe
   let heard: string | null = null;
   if (isAudio(row.media_type)) {
     const before = (row.reading ? JSON.parse(row.reading) : null) as { transcript?: string } | null;
-    const said = before?.transcript ? { text: before.transcript } : whisper ? await whisper.transcribe(bytes, row.media_type) : { error: "no transcription server is set up" };
+    const said = before?.transcript
+      ? { text: before.transcript }
+      : whisper
+        ? await whisper.transcribe(bytes, row.media_type)
+        : { error: "no transcription server is set up" };
     if ("error" in said) {
       await set("failed", said);
       await push(v, (copy) => ({ title: copy.fileNotTranscribed, body: "", click }));
@@ -278,14 +330,21 @@ export type PendingFile = {
  * where the batch's newest one would be. The partner's never show. */
 export async function listPending(v: Viewer): Promise<PendingFile[]> {
   const d = await db();
-  const all = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").orderBy(sql`rowid`, "desc").execute();
+  const all = await d
+    .selectFrom("files")
+    .selectAll()
+    .where("user_id", "=", v.userId)
+    .where("status", "in", ["reading", "pending", "failed"])
+    .orderBy("created_at", "desc")
+    .orderBy(sql`rowid`, "desc")
+    .execute();
   const rows: typeof all = [];
   for (const r of all) {
     if (!r.batch_id) rows.push(r);
     else if (!rows.some((x) => x.batch_id === r.batch_id)) rows.push(...all.filter((x) => x.batch_id === r.batch_id).reverse());
   }
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
-  const cand = (id: string): PendingCandidate | null => (names.has(id) ? { id, name: names.get(id)! , url: personPath(id) } : null);
+  const cand = (id: string): PendingCandidate | null => (names.has(id) ? { id, name: names.get(id)!, url: personPath(id) } : null);
   return rows.map((r) => {
     // A pre-read from before files (a social media `Reading`) has `text` where a suggestion has `summary`.
     const read = (r.reading ? JSON.parse(r.reading) : null) as (Partial<Suggestion> & { text?: string; error?: string }) | null;
@@ -311,7 +370,14 @@ export async function listPending(v: Viewer): Promise<PendingFile[]> {
 
 /** How many of the viewer's files wait for them (the badge in the navigation). */
 export async function pendingCount(v: Viewer): Promise<number> {
-  const r = await (await db()).selectFrom("files").select((eb) => eb.fn.countAll<number>().as("n")).where("user_id", "=", v.userId).where("status", "in", ["pending", "failed"]).executeTakeFirst();
+  const r = await (
+    await db()
+  )
+    .selectFrom("files")
+    .select((eb) => eb.fn.countAll<number>().as("n"))
+    .where("user_id", "=", v.userId)
+    .where("status", "in", ["pending", "failed"])
+    .executeTakeFirst();
   return Number(r?.n ?? 0);
 }
 
@@ -322,7 +388,15 @@ export type ChatFile = { id: string; bytes: Uint8Array; type: string; summary: s
 export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
   const unique = [...new Set(ids)];
   if (!unique.length) return [];
-  const rows = await (await db()).selectFrom("files").selectAll().where("id", "in", unique).where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).execute();
+  const rows = await (
+    await db()
+  )
+    .selectFrom("files")
+    .selectAll()
+    .where("id", "in", unique)
+    .where("user_id", "=", v.userId)
+    .where("status", "in", ["reading", "pending", "failed"])
+    .execute();
   const out: ChatFile[] = [];
   for (const id of unique) {
     const row = rows.find((r) => r.id === id);
@@ -332,7 +406,14 @@ export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
     const summary = read?.summary ?? read?.text ?? null;
     // Claude takes no audio: a voice note comes as its transcript, and not at all before it has one.
     if (isAudio(row.media_type)) {
-      if (read?.transcript) out.push({ id, bytes: new TextEncoder().encode(`A voice note, transcribed:\n\n${read.transcript}`), type: "text/plain", summary, sharedOn: today(row.created_at) });
+      if (read?.transcript)
+        out.push({
+          id,
+          bytes: new TextEncoder().encode(`A voice note, transcribed:\n\n${read.transcript}`),
+          type: "text/plain",
+          summary,
+          sharedOn: today(row.created_at),
+        });
       continue;
     }
     out.push({ id, bytes, type: row.media_type, summary, sharedOn: today(row.created_at) });
@@ -348,7 +429,13 @@ export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
 export async function takeFiles(tx: Kysely<Schema>, v: Viewer, ids: string[]): Promise<{ transcripts: string[]; blobs: string[] }> {
   const unique = [...new Set(ids)];
   if (!unique.length) return { transcripts: [], blobs: [] };
-  const rows = await tx.selectFrom("files").select(["id", "reading", "blob_key"]).where("id", "in", unique).where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).execute();
+  const rows = await tx
+    .selectFrom("files")
+    .select(["id", "reading", "blob_key"])
+    .where("id", "in", unique)
+    .where("user_id", "=", v.userId)
+    .where("status", "in", ["reading", "pending", "failed"])
+    .execute();
   if (rows.length !== unique.length) throw new NotFoundError("No such file waiting");
   await tx.deleteFrom("files").where("id", "in", unique).execute();
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -361,7 +448,10 @@ export async function takeFiles(tx: Kysely<Schema>, v: Viewer, ids: string[]): P
 
 /** Deletes blobs whose rows are gone; a failure leaves a stray blob, never a broken row. */
 export async function dropBlobs(keys: string[]): Promise<void> {
-  for (const k of keys) await store().delete(k).catch((e) => log.warn({ err: e }, "deleting a file's blob failed"));
+  for (const k of keys)
+    await store()
+      .delete(k)
+      .catch((e) => log.warn({ err: e }, "deleting a file's blob failed"));
 }
 
 /**
@@ -374,7 +464,16 @@ export async function hiddenFiles(v: Viewer, ids: string[]): Promise<Set<string>
   const d = await db();
   const others = await d.selectFrom("files").select("id").where("id", "in", unique).where("user_id", "!=", v.userId).execute();
   if (!others.length) return new Set();
-  const viaFact = await d.selectFrom("facts").select("file_id").where("file_id", "in", others.map((o) => o.id)).where("visibility", "=", "private").execute();
+  const viaFact = await d
+    .selectFrom("facts")
+    .select("file_id")
+    .where(
+      "file_id",
+      "in",
+      others.map((o) => o.id),
+    )
+    .where("visibility", "=", "private")
+    .execute();
   return new Set(viaFact.map((f) => f.file_id!));
 }
 
@@ -400,7 +499,16 @@ export async function discardFile(v: Viewer, id: string): Promise<void> {
 /** Closes several waiting files at once; none when any isn't the viewer's own waiting file (NotFoundError). */
 export async function discardFiles(v: Viewer, ids: string[]): Promise<void> {
   const rows = await Promise.all([...new Set(ids)].map((id) => ownPending(v, id)));
-  await (await db()).deleteFrom("files").where("id", "in", rows.map((r) => r.id)).execute();
+  await (
+    await db()
+  )
+    .deleteFrom("files")
+    .where(
+      "id",
+      "in",
+      rows.map((r) => r.id),
+    )
+    .execute();
   await dropBlobs(rows.map((r) => r.blob_key));
 }
 
@@ -411,7 +519,14 @@ export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8
   if (!row) return null;
   const mine = row.user_id === v.userId;
   if (!mine && (await hiddenFiles(v, [id])).has(id)) return null;
-  const viaFact = !mine && !!(await d.selectFrom("facts").select("id").where("file_id", "=", id).$call((qb) => visible(qb, v, "facts")).executeTakeFirst());
+  const viaFact =
+    !mine &&
+    !!(await d
+      .selectFrom("facts")
+      .select("id")
+      .where("file_id", "=", id)
+      .$call((qb) => visible(qb, v, "facts"))
+      .executeTakeFirst());
   if (!mine && !viaFact) return null;
   const bytes = await store().get(row.blob_key);
   return bytes && { bytes, type: row.media_type };
@@ -442,7 +557,9 @@ const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
 export async function createShareKey(v: Viewer): Promise<string> {
   const key = KEY_PREFIX + randomBytes(32).toString("base64url");
   const hash = hashKey(key);
-  await (await db())
+  await (
+    await db()
+  )
     .insertInto("user_settings")
     .values({ user_id: v.userId, webhook_url: null, share_key_hash: hash })
     .onConflict((oc) => oc.column("user_id").doUpdateSet({ share_key_hash: hash }))

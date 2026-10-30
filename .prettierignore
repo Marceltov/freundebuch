@@ -1,0 +1,8 @@
+# MkDocs Markdown: Python-Markdown needs nested lists and admonition bodies indented by four spaces, which Prettier rewrites.
+docs/**/*.md
+site/
+
+# freundebuch's own: generated files, rewritten by their generators.
+openapi.json
+app/_lib/api/
+AGENTS.md

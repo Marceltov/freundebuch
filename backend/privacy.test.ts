@@ -49,7 +49,8 @@ test("A's private conversation does not exist for B; B's shared call is visible 
 
 test("deleting or sharing the private items never re-exposes the dinner's transcript to B", async () => {
   const d = await db();
-  const id = async (t: "facts" | "dates" | "relationships") => (await d.selectFrom(t).select("id").where("conversation_id", "=", s.dinner).where("visibility", "=", "private").executeTakeFirstOrThrow()).id;
+  const id = async (t: "facts" | "dates" | "relationships") =>
+    (await d.selectFrom(t).select("id").where("conversation_id", "=", s.dinner).where("visibility", "=", "private").executeTakeFirstOrThrow()).id;
   // The transcript still holds "divorce", whatever happens to the items recorded from it.
   await deleteItem(s.a, "facts", await id("facts"));
   await setVisibility(s.a, "relationships", await id("relationships"), "shared");
@@ -63,7 +64,8 @@ test("deleting or sharing the private items never re-exposes the dinner's transc
 
 test("only the recorder's explicit shareTranscript reveals a transcript, and only once nothing recorded with it is private", async () => {
   const d = await db();
-  const privates = async (t: "facts" | "dates" | "relationships") => d.selectFrom(t).select("id").where("conversation_id", "=", s.dinner).where("visibility", "=", "private").execute();
+  const privates = async (t: "facts" | "dates" | "relationships") =>
+    d.selectFrom(t).select("id").where("conversation_id", "=", s.dinner).where("visibility", "=", "private").execute();
   await expect(shareTranscript(s.a, s.dinner)).rejects.toBeInstanceOf(InvalidInputError);
   await expect(shareTranscript(s.b, s.dinner)).rejects.toBeInstanceOf(ForbiddenError);
   await expect(shareTranscript(s.b, s.coffee)).rejects.toBeInstanceOf(NotFoundError);
@@ -81,7 +83,10 @@ test("only the recorder's explicit shareTranscript reveals a transcript, and onl
 });
 
 test("A's promise and exchange read as Alice's for B, never as B's own", async () => {
-  const r = await record(s.a, { promises: [{ person: 0, text: "send photos", byMe: true }], exchanges: [{ person: 0, kind: "lent", direction: "to_them", text: "my drill" }] });
+  const r = await record(s.a, {
+    promises: [{ person: 0, text: "send photos", byMe: true }],
+    exchanges: [{ person: 0, kind: "lent", direction: "to_them", text: "my drill" }],
+  });
   const b = await getConversation(s.b, r.conversationId);
   expect(b.promises.map((p) => [p.byMe, p.by])).toEqual([[false, "Alice"]]);
   expect(b.exchanges.map((e) => [e.direction, e.by])).toEqual([["to_them", "Alice"]]);
@@ -119,7 +124,15 @@ test("names and aliases are shared: B finds Lena, without context", async () => 
 });
 
 const record = (v: Viewer, over: Partial<Parameters<typeof recordConversation>[1]>) =>
-  recordConversation(v, { date: "2026-10-21", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ id: s.anna, present: true }], ...over });
+  recordConversation(v, {
+    date: "2026-10-21",
+    kind: "call",
+    summary: "s",
+    transcript: "t",
+    visibility: "shared",
+    people: [{ id: s.anna, present: true }],
+    ...over,
+  });
 
 test("A's private group membership neither blocks nor reveals itself to B's shared one for the same group and person", async () => {
   const mine = await record(s.a, { groups: [{ name: "Uni", members: [0], private: true }] });
@@ -127,7 +140,9 @@ test("A's private group membership neither blocks nor reveals itself to B's shar
   expect([mine.counts.groups, theirs.counts.groups]).toEqual([1, 1]);
   const seen = async (v: Viewer) =>
     (
-      await (await db())
+      await (
+        await db()
+      )
         .selectFrom("group_members")
         .innerJoin("groups", "groups.id", "group_members.group_id")
         .select(["groups.name", "group_members.visibility"])
@@ -241,7 +256,11 @@ test("the orbit is per viewer: A's private conversation with Anna and Bob doesn'
   // Tom's private birthday and Lena's private coffee are A's alone: B sees them only as people B never met (names are shared),
   // with no badge and no ring of their own.
   const b = await orbit(s.b, now);
-  for (const id of [s.tom, s.lena]) expect(b.find((f) => f.personId === id), id).toMatchObject({ unseen: true, ring: 2, badges: [] });
+  for (const id of [s.tom, s.lena])
+    expect(
+      b.find((f) => f.personId === id),
+      id,
+    ).toMatchObject({ unseen: true, ring: 2, badges: [] });
   const a = await orbit(s.a, now);
   expect(a.find((f) => f.personId === s.tom)?.badges).toEqual(["birthday"]);
   expect(a.map((f) => f.personId)).toContain(s.lena);
@@ -253,7 +272,9 @@ test("the orbit is per viewer: A's private conversation with Anna and Bob doesn'
 test("the links B is handed never name one of A's private items or conversations", async () => {
   const d = await db();
   const tables = ["conversations", "facts", "promises", "dates", "exchanges", "relationships"] as const;
-  const secret = (await Promise.all(tables.map((t) => d.selectFrom(t).select("id").where("visibility", "=", "private").where("recorded_by", "=", s.a.userId).execute())))
+  const secret = (
+    await Promise.all(tables.map((t) => d.selectFrom(t).select("id").where("visibility", "=", "private").where("recorded_by", "=", s.a.userId).execute()))
+  )
     .flat()
     .map((r) => r.id);
   expect(secret.length).toBeGreaterThan(0);
@@ -338,7 +359,9 @@ test("the people overview is everyone but the viewer, with last seen and groups 
 });
 
 test("a private role never shows to the partner, not even as 'us'", async () => {
-  const { ids: [secret] } = await addRelationship(s.a, { from: s.lena, to: "me", label: "Vermieter:in", inverse: "Mieter:in", visibility: "private" });
+  const {
+    ids: [secret],
+  } = await addRelationship(s.a, { from: s.lena, to: "me", label: "Vermieter:in", inverse: "Mieter:in", visibility: "private" });
   await addRelationship(s.b, { from: s.lena, to: "me", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
   expect((await briefing(s.a, s.lena)).roles).toMatchObject([{ with: "us" }]);
   const b = await briefing(s.b, s.lena);

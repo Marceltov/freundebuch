@@ -42,7 +42,9 @@ const Url = z.string().describe("Where it opens in the web app, as an absolute U
 // An item links to its row on the page that shows it, which scrolls to the row and highlights it.
 const ItemUrl = Url.describe("Where it opens in the web app, as an absolute URL to its highlighted row");
 
-export const Gender = z.enum(GENDERS).describe("The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name");
+export const Gender = z
+  .enum(GENDERS)
+  .describe("The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name");
 export const LookJson = z
   .object({
     face: z.enum(LOOK_PARTS.face).describe("The shape of the face"),
@@ -51,9 +53,17 @@ export const LookJson = z
     hairColor: z.enum(LOOK_PARTS.hairColor).describe("Hair color; also the color of the brows and beard"),
     glasses: z.enum(LOOK_PARTS.glasses),
     beard: z.enum(LOOK_PARTS.beard),
-    description: z.string().nullable().optional().describe("How the user described them, in their words (\"kurze lockige braune Haare, Brille\"), kept so the look can be chosen again; null when put together by hand"),
+    description: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        'How the user described them, in their words ("kurze lockige braune Haare, Brille"), kept so the look can be chosen again; null when put together by hand',
+      ),
   })
-  .describe("A stylized avatar put together from parts, not a portrait: choose for each part the value closest to how the user described the person, and the usual value (none, oval) for what they didn't say")
+  .describe(
+    "A stylized avatar put together from parts, not a portrait: choose for each part the value closest to how the user described the person, and the usual value (none, oval) for what they didn't say",
+  )
   .meta({ id: "Look" });
 /** A relationship's end: a person, or the household. */
 /** The words of a relationship, written by Claude in each end's gender: there is no fixed list of types. */
@@ -66,7 +76,11 @@ export const PersonJson = z
     name: z.string(),
     aliases: z.array(z.string()),
     url: Url,
-    createdFrom: z.string().nullable().optional().describe("The conversation the person was first mentioned in, when the viewer may see it; absent in a search"),
+    createdFrom: z
+      .string()
+      .nullable()
+      .optional()
+      .describe("The conversation the person was first mentioned in, when the viewer may see it; absent in a search"),
     context: z.array(z.string()).optional().describe("Only in a search: short hints that tell people with the same name apart"),
     gender: Gender.nullable().optional().describe("null when it isn't known; absent in a search"),
     look: LookJson.nullable().optional().describe("The parts of their avatar; null while nobody described them; absent in a search"),
@@ -96,7 +110,10 @@ const ByMe = z.boolean().describe("Whether the caller made the promise");
 const PromiseBy = z.string().optional().describe("The other user's name, when they made the promise; with neither, the person made it");
 const ExchangeBy = z.string().optional().describe("The other user's name, when they recorded it; `direction` then reads from their side");
 const ExchangeDirection = Direction.describe("`to_them`: the caller (or `by`) gave to the person; `from_them`: the person gave");
-const Own = { visibility: Visibility, mine: z.boolean().describe("Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete") };
+const Own = {
+  visibility: Visibility,
+  mine: z.boolean().describe("Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"),
+};
 
 const FactJson = {
   id: z.string(),
@@ -139,7 +156,11 @@ export const JournalEntryJson = z
 export const JournalJson = z.object({ entries: z.array(JournalEntryJson.extend({})).describe("Newest first") }).meta({ id: "Journal" });
 export const SearchHitJson = z
   .object({
-    kind: z.enum(SEARCH_KINDS).describe("What matched: a ramble's `transcript`, a `conversation`, an `experience`, a `journal` entry, an item about a person (`fact`, `promise`, `exchange`, `date`) or a `place`"),
+    kind: z
+      .enum(SEARCH_KINDS)
+      .describe(
+        "What matched: a ramble's `transcript`, a `conversation`, an `experience`, a `journal` entry, an item about a person (`fact`, `promise`, `exchange`, `date`) or a `place`",
+      ),
     id: z.string(),
     date: Day.nullable().describe("The day it was told or happened; null for a place"),
     text: z.string().describe("The matching text, cut around the first match when it is long"),
@@ -176,7 +197,15 @@ export const ExperienceJson = z
   })
   .meta({ id: "Experience" });
 export const SeriesSummaryJson = z
-  .object({ id: z.string(), name: z.string(), kind: z.string(), rhythmDays: z.number().int().nullable(), startsOn: Day.nullable(), endsOn: Day.nullable(), url: Url })
+  .object({
+    id: z.string(),
+    name: z.string(),
+    kind: z.string(),
+    rhythmDays: z.number().int().nullable(),
+    startsOn: Day.nullable(),
+    endsOn: Day.nullable(),
+    url: Url,
+  })
   .meta({ id: "SeriesSummary" });
 export const ExperiencesJson = z
   .object({
@@ -250,13 +279,24 @@ export const BriefingJson = z
       .array(
         z.object({
           label: z.string().describe("What the person is to the household, in the words filed: Vermieterin, Ärztin, Klempner"),
-          with: z.enum(["me", "partner", "us"]).describe("To whom, from the caller's side: `us` both of the household, `me` the caller, `partner` the other user"),
+          with: z
+            .enum(["me", "partner", "us"])
+            .describe("To whom, from the caller's side: `us` both of the household, `me` the caller, `partner` the other user"),
           partnerName: z.string().optional().describe("The other user's name, when `with` is `partner`"),
           ids: z.array(z.string()).describe("The relationships it stands for (table `relationships`), one per household person"),
         }),
       )
-      .describe("Who the person is to the household (\"your landlady\", \"Sybille's colleague\"): the first thing to say about them"),
-    groups: z.array(z.object({ id: z.string(), name: z.string(), url: Url, private: z.boolean().describe("Whether the caller's own private membership is the only one they see") })).describe("The groups the caller may see the person in, each once"),
+      .describe('Who the person is to the household ("your landlady", "Sybille\'s colleague"): the first thing to say about them'),
+    groups: z
+      .array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          url: Url,
+          private: z.boolean().describe("Whether the caller's own private membership is the only one they see"),
+        }),
+      )
+      .describe("The groups the caller may see the person in, each once"),
     freshness: Freshness,
     nextDates: z.array(UpcomingDate),
     situations: z
@@ -301,7 +341,9 @@ export const BriefingJson = z
         inverse: z.string().describe("What `to` is to `from`, as stored"),
         note: z.string().nullable(),
         ...Own,
-        direction: z.enum(["out", "in"]).describe("`out` when the person is `from` (so `inverse` is what the other is to them), `in` when they are `to` (`label` is)"),
+        direction: z
+          .enum(["out", "in"])
+          .describe("`out` when the person is `from` (so `inverse` is what the other is to them), `in` when they are `to` (`label` is)"),
         url: Url.describe("The other person's page, as an absolute URL"),
       }),
     ),
@@ -316,10 +358,22 @@ export const BriefingJson = z
             url: Url,
           }),
         ),
-        edges: z.array(z.object({ id: z.string(), from: PersonId, to: PersonId, label: z.string().describe("What `from` is to `to`"), inverse: z.string().describe("What `to` is to `from`") })),
+        edges: z.array(
+          z.object({
+            id: z.string(),
+            from: PersonId,
+            to: PersonId,
+            label: z.string().describe("What `from` is to `to`"),
+            inverse: z.string().describe("What `to` is to `from`"),
+          }),
+        ),
       })
       .describe("One hop around the person: the household persons they relate to, and their own people"),
-    suggestedInterval: z.number().int().optional().describe("Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the household"),
+    suggestedInterval: z
+      .number()
+      .int()
+      .optional()
+      .describe("Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the household"),
   })
   .meta({ id: "Briefing" });
 
@@ -327,13 +381,18 @@ export const DueItemJson = z
   .object({
     kind: z
       .enum(["date", "promise", "overdue", "situation", "session"])
-      .describe("`situation`: something going on whose checkAfter has come; ask how it went. `session`: a session day of a series that passed untold (name: the series, itemId: its id); ask how it went or whether it was skipped"),
+      .describe(
+        "`situation`: something going on whose checkAfter has come; ask how it went. `session`: a session day of a series that passed untold (name: the series, itemId: its id); ask how it went or whether it was skipped",
+      ),
     personId: PersonId,
     name: z.string(),
     date: z.string().optional(),
     text: z.string().optional(),
     ratio: z.number().optional(),
-    byMe: z.boolean().optional().describe("On a promise: whether the caller made it (false: the person promised it to the caller). Only the caller's own promises are due"),
+    byMe: z
+      .boolean()
+      .optional()
+      .describe("On a promise: whether the caller made it (false: the person promised it to the caller). Only the caller's own promises are due"),
     itemId: z.string().optional().describe("On a date, a promise or a situation (a fact): its id"),
     lastSeen: z.string().nullable().optional().describe("On someone overdue: the day the caller last saw them"),
     intervalDays: z.number().int().nullable().optional().describe("On someone overdue: the caller's check-in interval"),
@@ -345,7 +404,9 @@ export const OrbitFaceJson = z
   .object({
     personId: PersonId,
     name: z.string(),
-    ring: z.union([z.literal(0), z.literal(1), z.literal(2)]).describe("0 seen recently, 1 drifting, 2 due or overdue, by the caller's own last seen and interval"),
+    ring: z
+      .union([z.literal(0), z.literal(1), z.literal(2)])
+      .describe("0 seen recently, 1 drifting, 2 due or overdue, by the caller's own last seen and interval"),
     angle: z.number().describe("Where on its ring, in degrees; stable for a person and spread evenly within the ring"),
     badges: z.array(z.enum(["birthday", "promise", "gift"])).describe("A birthday within 14 days, an open promise, a gift idea"),
     url: Url,
@@ -382,7 +443,9 @@ export const FactRelationshipJson = z
   })
   .describe("The relationship a fact becomes; one end is the fact's person")
   .meta({ id: "FactRelationship" });
-export const RelationshipIdsJson = z.object({ ids: z.array(z.string()).describe('One per pair; "us" is one per household person') }).meta({ id: "RelationshipIds" });
+export const RelationshipIdsJson = z
+  .object({ ids: z.array(z.string()).describe('One per pair; "us" is one per household person') })
+  .meta({ id: "RelationshipIds" });
 
 export const AliasJson = z.object({ alias: z.string().describe("Another name the person goes by, e.g. a nickname") }).meta({ id: "Alias" });
 
@@ -399,7 +462,11 @@ export const CheckAfter = Day.describe(
 const Private = z.boolean().optional().describe("Makes just this item private; a private conversation makes every item private");
 
 export const FileId = z.string().describe("A shared file's id, as inbox lists it. Only the caller's own waiting file");
-const FileIds = z.array(FileId).describe("The shared files this conversation was told from: their transcripts (text word for word, or what a photo shows) join this one, and the files are deleted");
+const FileIds = z
+  .array(FileId)
+  .describe(
+    "The shared files this conversation was told from: their transcripts (text word for word, or what a photo shows) join this one, and the files are deleted",
+  );
 export const NewConversationJson = z
   .object({
     fileIds: FileIds.optional(),
@@ -418,7 +485,9 @@ export const NewConversationJson = z
         confirmedNew: z
           .boolean()
           .optional()
-          .describe("A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`"),
+          .describe(
+            "A new person whose name matches an existing person's name or alias: only once the user confirmed it is someone else; otherwise `ambiguous`",
+          ),
         gender: Gender.optional(),
       }),
     ),
@@ -449,7 +518,17 @@ export const NewConversationJson = z
       )
       .optional(),
     exchanges: z
-      .array(z.object({ person: Ref, kind: z.enum(EXCHANGE_KINDS), direction: Direction, text: z.string(), amount: z.number().optional(), currency: z.string().optional(), private: Private }))
+      .array(
+        z.object({
+          person: Ref,
+          kind: z.enum(EXCHANGE_KINDS),
+          direction: Direction,
+          text: z.string(),
+          amount: z.number().optional(),
+          currency: z.string().optional(),
+          private: Private,
+        }),
+      )
       .optional(),
     relationships: z
       .array(
@@ -458,7 +537,7 @@ export const NewConversationJson = z
           to: z.union([Ref, HOUSEHOLD_TARGET]),
           label: LABEL,
           inverse: INVERSE,
-          note: z.string().optional().describe("Anything more about it: \"seit der Schulzeit\""),
+          note: z.string().optional().describe('Anything more about it: "seit der Schulzeit"'),
           private: Private,
         }),
       )
@@ -514,7 +593,9 @@ export const NewRambleJson = z
               }),
             ])
             .optional()
-            .describe("The series this is a session of (a course, a weekly training). Start a new one only when the user speaks of it as recurring, and ask first"),
+            .describe(
+              "The series this is a session of (a course, a weekly training). Start a new one only when the user speaks of it as recurring, and ask first",
+            ),
           private: z.boolean().optional().describe("Only for this experience; a private ramble or series makes it private anyway"),
         }),
       )
@@ -560,7 +641,9 @@ export const FiledItemsJson = z.object({
     }),
   ),
   promises: z.array(z.object({ ...Filed, text: z.string(), byMe: z.boolean(), due: Day.nullable() })),
-  dates: z.array(z.object({ ...Filed, kind: z.enum(["birthday", "anniversary", "custom"]), date: z.string(), label: z.string().nullable(), yearly: z.boolean() })),
+  dates: z.array(
+    z.object({ ...Filed, kind: z.enum(["birthday", "anniversary", "custom"]), date: z.string(), label: z.string().nullable(), yearly: z.boolean() }),
+  ),
   exchanges: z.array(z.object({ ...Filed, kind: z.enum(EXCHANGE_KINDS), direction: Direction, text: z.string() })),
 });
 export const FiledRelationshipJson = z.object({
@@ -608,13 +691,24 @@ export const RecordedRambleJson = RecordedJson.omit({ conversationId: true, url:
     rambleId: z.string(),
     conversations: z.array(z.object({ id: z.string(), url: Url.describe("The conversation's page, as an absolute URL") })),
     journal: z.array(z.object({ id: z.string(), visibility: Visibility, url: Url.describe("The entry on the Tagebuch page, as an absolute URL") })),
-    experiences: z.array(z.object({ id: z.string(), seriesId: z.string().nullable(), visibility: Visibility, url: Url.describe("The experience on its series' or ramble's page") })),
+    experiences: z.array(
+      z.object({
+        id: z.string(),
+        seriesId: z.string().nullable(),
+        visibility: Visibility,
+        url: Url.describe("The experience on its series' or ramble's page"),
+      }),
+    ),
   })
   .meta({ id: "RecordedRamble" });
 
-
 const Name = z.string().describe("The name of the person it is about");
-const Item = { id: z.string(), visibility: Visibility, recordedBy: z.string().describe("The id of the user who recorded it"), url: ItemUrl.describe("Its highlighted row on the conversation's page, as an absolute URL") };
+const Item = {
+  id: z.string(),
+  visibility: Visibility,
+  recordedBy: z.string().describe("The id of the user who recorded it"),
+  url: ItemUrl.describe("Its highlighted row on the conversation's page, as an absolute URL"),
+};
 
 export const ConversationJson = z
   .object({
@@ -629,9 +723,23 @@ export const ConversationJson = z
     recordedBy: z.string(),
     url: Url,
     participants: z.array(z.object({ id: PersonId, name: z.string(), url: Url })),
-    facts: z.array(z.object({ ...Item, personId: PersonId, name: Name, text: z.string(), category: z.enum(FACT_CATEGORIES), status: z.enum(["current", "outdated"]) })),
-    promises: z.array(z.object({ ...Item, personId: PersonId, name: Name, text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), done: z.boolean() })),
-    dates: z.array(z.object({ ...Item, personId: PersonId, name: Name, kind: z.enum(["birthday", "anniversary", "custom"]), date: z.string(), label: z.string().nullable(), yearly: z.boolean() })),
+    facts: z.array(
+      z.object({ ...Item, personId: PersonId, name: Name, text: z.string(), category: z.enum(FACT_CATEGORIES), status: z.enum(["current", "outdated"]) }),
+    ),
+    promises: z.array(
+      z.object({ ...Item, personId: PersonId, name: Name, text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), done: z.boolean() }),
+    ),
+    dates: z.array(
+      z.object({
+        ...Item,
+        personId: PersonId,
+        name: Name,
+        kind: z.enum(["birthday", "anniversary", "custom"]),
+        date: z.string(),
+        label: z.string().nullable(),
+        yearly: z.boolean(),
+      }),
+    ),
     exchanges: z.array(
       z.object({
         ...Item,
@@ -646,7 +754,18 @@ export const ConversationJson = z
         settled: z.boolean(),
       }),
     ),
-    relationships: z.array(z.object({ ...Item, fromId: PersonId, fromName: z.string(), toId: PersonId, toName: z.string(), label: z.string(), inverse: z.string(), note: z.string().nullable() })),
+    relationships: z.array(
+      z.object({
+        ...Item,
+        fromId: PersonId,
+        fromName: z.string(),
+        toId: PersonId,
+        toName: z.string(),
+        label: z.string(),
+        inverse: z.string(),
+        note: z.string().nullable(),
+      }),
+    ),
   })
   .meta({ id: "Conversation" });
 
@@ -655,7 +774,10 @@ export const ItemPatchJson = z
     done: z.literal(true).optional().describe("Marks a promise done or an exchange settled"),
     outdated: z.literal(true).optional().describe("Marks a fact outdated"),
     visibility: Visibility.optional().describe("Changes who can see the item (only its recorder may)"),
-    patch: z.record(z.string(), z.unknown()).optional().describe("New values for the item's own fields (its recorder, or either user for a shared item; a conversation only its recorder)"),
+    patch: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe("New values for the item's own fields (its recorder, or either user for a shared item; a conversation only its recorder)"),
     transcriptShared: z
       .literal(true)
       .optional()
@@ -674,7 +796,11 @@ export const GroupJson = z
     aliases: z.array(z.string()).describe("Other names that find the group, e.g. Kollegen for Arbeit"),
     count: z.number().int().describe("How many people the caller may see in it"),
     url: Url,
-    household: z.boolean().describe("The household's own group (Haushalt to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them"),
+    household: z
+      .boolean()
+      .describe(
+        "The household's own group (Haushalt to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them",
+      ),
   })
   .meta({ id: "Group" });
 export const GroupListJson = z.array(GroupJson).meta({ id: "GroupList" });
@@ -690,15 +816,25 @@ export const GroupDetailJson = GroupJson.extend({
     }),
   ),
 }).meta({ id: "GroupDetail" });
-export const GroupNameJson = z.object({ name: z.string().describe("A group's name; one that already names a group finds that group") }).meta({ id: "GroupName" });
+export const GroupNameJson = z
+  .object({ name: z.string().describe("A group's name; one that already names a group finds that group") })
+  .meta({ id: "GroupName" });
 export const GroupMergeJson = z.object({ drop: z.string().describe("The group to merge into the one in the path; it is deleted") }).meta({ id: "GroupMerge" });
 export const DueListJson = z.array(DueItemJson).meta({ id: "DueList" });
 export const OrbitJson = z.array(OrbitFaceJson).meta({ id: "Orbit" });
 
 export const SettingsJson = z
   .object({
-    webhookUrl: z.url({ protocol: /^https?$/ }).nullable().describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"),
-    language: z.enum(LANGUAGES).optional().describe("The language the web app and the notifications speak to the caller; German by default. Always in a GET; a PUT ignores it (PUT /me/language sets it)"),
+    webhookUrl: z
+      .url({ protocol: /^https?$/ })
+      .nullable()
+      .describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"),
+    language: z
+      .enum(LANGUAGES)
+      .optional()
+      .describe(
+        "The language the web app and the notifications speak to the caller; German by default. Always in a GET; a PUT ignores it (PUT /me/language sets it)",
+      ),
   })
   .meta({ id: "Settings" });
 
@@ -724,20 +860,29 @@ const Candidate = z.object({ id: z.string(), name: Name, url: Url });
 export const PendingFileJson = z
   .object({
     id: z.string(),
-    status: z.enum(["reading", "pending", "failed"]).describe("`reading`: Claude is pre-reading it; `pending`: waits to be worked through; `failed`: couldn't be pre-read (see `error`; retry or discard)"),
+    status: z
+      .enum(["reading", "pending", "failed"])
+      .describe("`reading`: Claude is pre-reading it; `pending`: waits to be worked through; `failed`: couldn't be pre-read (see `error`; retry or discard)"),
     createdAt: z.number().int().describe("When it was shared, ms since the epoch"),
     sharedOn: Day.describe("The day it was shared: date what it shows by this (unless it shows another day), not by the day it is reviewed"),
     url: Url.describe("The file itself (sign-in required)"),
     type: z.string().describe("image/webp, application/pdf, text/plain, or audio/* for a voice note (worked through as its transcript)"),
     summary: z.string().nullable().describe("What Claude suggests to file, in the sharing user's language; null while reading or when it failed"),
-    transcript: z.string().nullable().describe("What the file says, word for word (or what a photo shows, or what a voice note says): all that is kept of it once filed"),
-    people: z.array(z.object({ name: z.string(), person: Candidate.nullable(), candidates: z.array(Candidate) })).describe("Who is in it: the person when certain, else candidates"),
+    transcript: z
+      .string()
+      .nullable()
+      .describe("What the file says, word for word (or what a photo shows, or what a voice note says): all that is kept of it once filed"),
+    people: z
+      .array(z.object({ name: z.string(), person: Candidate.nullable(), candidates: z.array(Candidate) }))
+      .describe("Who is in it: the person when certain, else candidates"),
     error: z.string().nullable().describe("Why the pre-read failed, when it did"),
     batchId: z.string().nullable().describe("The id of the share it came in with: files with the same one were shared together; null when shared alone"),
   })
   .meta({ id: "PendingFile" });
 export const PendingFileListJson = z.array(PendingFileJson.extend({})).meta({ id: "PendingFileList" });
-export const ShareKeyJson = z.object({ key: z.string().describe("The share key; shown only now. Send it as `Authorization: Bearer <key>` to /api/share") }).meta({ id: "ShareKey" });
+export const ShareKeyJson = z
+  .object({ key: z.string().describe("The share key; shown only now. Send it as `Authorization: Bearer <key>` to /api/share") })
+  .meta({ id: "ShareKey" });
 
 export const CalendarFeedJson = z
   .object({
@@ -750,7 +895,55 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [LanguageJson, LookJson, SearchHitJson, SearchJson, PlaceRefJson, PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [
+  LanguageJson,
+  LookJson,
+  SearchHitJson,
+  SearchJson,
+  PlaceRefJson,
+  PendingFileJson,
+  PendingFileListJson,
+  ShareKeyJson,
+  CalendarFeedJson,
+  PersonPatchJson,
+  FactRelationshipJson,
+  RelationshipIdsJson,
+  GroupJson,
+  GroupListJson,
+  GroupDetailJson,
+  GroupNameJson,
+  GroupMergeJson,
+  SettingsJson,
+  ReflectionJson,
+  SentJson,
+  ErrorJson,
+  PersonJson,
+  PersonListJson,
+  BriefingJson,
+  TraitsJson,
+  JournalEntryJson,
+  JournalJson,
+  ExperienceJson,
+  SeriesSummaryJson,
+  ExperiencesJson,
+  PlaceJson,
+  PlaceListJson,
+  SeriesJson,
+  PlaceViewJson,
+  NewRambleJson,
+  RecordedRambleJson,
+  DueItemJson,
+  DueListJson,
+  OrbitFaceJson,
+  OrbitJson,
+  IntervalJson,
+  MergeJson,
+  AliasJson,
+  NewConversationJson,
+  RecordedJson,
+  ConversationJson,
+  ItemPatchJson,
+];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");
@@ -758,4 +951,6 @@ export const TraitsQuery = z.object({
   people: z.string().optional().describe("Person ids, comma-separated"),
   groups: z.string().optional().describe("Group ids, comma-separated; each stands for the members the caller sees"),
 });
-export const PeopleQuery = z.object({ q: z.string().optional().describe("A name or alias to search for; best matches first, at most 5. Without it, every person") });
+export const PeopleQuery = z.object({
+  q: z.string().optional().describe("A name or alias to search for; best matches first, at most 5. Without it, every person"),
+});

@@ -23,7 +23,9 @@ export const feedPath = (key: string) => `/api/calendar/${key}.ics`;
 export async function createCalendarKey(v: Viewer): Promise<string> {
   const key = KEY_PREFIX + randomBytes(32).toString("base64url");
   const hash = hashKey(key);
-  await (await db())
+  await (
+    await db()
+  )
     .insertInto("user_settings")
     .values({ user_id: v.userId, webhook_url: null, calendar_key_hash: hash })
     .onConflict((oc) => oc.column("user_id").doUpdateSet({ calendar_key_hash: hash }))
@@ -65,7 +67,11 @@ export async function calendarFeed(v: Viewer, base: string, now = Date.now()): P
   const year = +today(now).slice(0, 4);
   const events: Event[] = [];
 
-  for (const r of await d.selectFrom("dates").selectAll().$call((qb) => visible(qb, v, "dates")).execute()) {
+  for (const r of await d
+    .selectFrom("dates")
+    .selectAll()
+    .$call((qb) => visible(qb, v, "dates"))
+    .execute()) {
     const url = base + itemPath(personPath(r.person_id), "dates", r.id);
     const label = r.kind === "anniversary" && !r.label ? copy.anniversary : (r.label ?? "");
     const summary = (day: string) => {

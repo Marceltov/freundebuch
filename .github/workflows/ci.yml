@@ -28,9 +28,19 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+
+  # The Python of the docs hook: Ruff lints and formats it (ruff.toml).
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx ruff@0.17.3 check
+      - run: uvx ruff@0.17.3 format --check
 
   # The committed openapi.json must match the route table.
   generate:

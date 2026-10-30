@@ -12,7 +12,15 @@ beforeEach(async () => {
 });
 
 const record = (v: Viewer, over: Partial<Parameters<typeof recordConversation>[1]>) =>
-  recordConversation(v, { date: "2026-10-21", kind: "call", summary: "s", transcript: "t", visibility: "shared", people: [{ id: s.anna, present: true }], ...over });
+  recordConversation(v, {
+    date: "2026-10-21",
+    kind: "call",
+    summary: "s",
+    transcript: "t",
+    visibility: "shared",
+    people: [{ id: s.anna, present: true }],
+    ...over,
+  });
 
 test("a person without an interval is never overdue", async () => {
   expect(await whatsDue(s.a, "2027-06-01")).toEqual([]);
@@ -33,7 +41,17 @@ test("someone never seen is not overdue, even with an interval", async () => {
 });
 
 test("Tom's private birthday is due for A and absent for B", async () => {
-  expect(await whatsDue(s.a, "2026-10-23")).toEqual([{ kind: "date", personId: s.tom, name: "Tom", date: "2026-10-24", text: "birthday", itemId: expect.any(String), url: expect.stringMatching(`^/p/${s.tom}#dates-`) }]);
+  expect(await whatsDue(s.a, "2026-10-23")).toEqual([
+    {
+      kind: "date",
+      personId: s.tom,
+      name: "Tom",
+      date: "2026-10-24",
+      text: "birthday",
+      itemId: expect.any(String),
+      url: expect.stringMatching(`^/p/${s.tom}#dates-`),
+    },
+  ]);
   expect(await whatsDue(s.b, "2026-10-23")).toEqual([]);
 });
 
@@ -69,10 +87,28 @@ test("only the viewer's own promises are due: the partner's shared ones are thei
   await record(s.b, { promises: [{ person: 0, text: "bob's errand", byMe: true, due: "2026-10-24" }] });
   await record(s.a, { promises: [{ person: 0, text: "lend me the tent", byMe: false, due: "2026-10-24" }] });
   expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "promise")).toEqual([
-    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "lend me the tent", byMe: false, itemId: expect.any(String), url: expect.stringMatching(`^/p/${s.anna}#promises-`) },
+    {
+      kind: "promise",
+      personId: s.anna,
+      name: "Anna",
+      date: "2026-10-24",
+      text: "lend me the tent",
+      byMe: false,
+      itemId: expect.any(String),
+      url: expect.stringMatching(`^/p/${s.anna}#promises-`),
+    },
   ]);
   expect((await whatsDue(s.b, "2026-10-23")).filter((i) => i.kind === "promise")).toEqual([
-    { kind: "promise", personId: s.anna, name: "Anna", date: "2026-10-24", text: "bob's errand", byMe: true, itemId: expect.any(String), url: expect.stringMatching(`^/p/${s.anna}#promises-`) },
+    {
+      kind: "promise",
+      personId: s.anna,
+      name: "Anna",
+      date: "2026-10-24",
+      text: "bob's errand",
+      byMe: true,
+      itemId: expect.any(String),
+      url: expect.stringMatching(`^/p/${s.anna}#promises-`),
+    },
   ]);
 });
 

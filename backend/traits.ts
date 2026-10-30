@@ -50,8 +50,21 @@ export async function traitsOf(d: Kysely<Schema>, v: Viewer, personIds: string[]
         .orderBy("created_at")
         .execute()
     : [];
-  const hidden = await hiddenFiles(v, rows.flatMap((r) => (r.file_id ? [r.file_id] : [])));
-  return new Map(personIds.map((id) => [id, splitTraits(rows.filter((r) => r.person_id === id), v, personPath(id), hidden)]));
+  const hidden = await hiddenFiles(
+    v,
+    rows.flatMap((r) => (r.file_id ? [r.file_id] : [])),
+  );
+  return new Map(
+    personIds.map((id) => [
+      id,
+      splitTraits(
+        rows.filter((r) => r.person_id === id),
+        v,
+        personPath(id),
+        hidden,
+      ),
+    ]),
+  );
 }
 
 /** A person in a traits lookup, with what they need and how they are. */

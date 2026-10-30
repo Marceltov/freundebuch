@@ -17,7 +17,26 @@ beforeEach(async () => {
 });
 
 test("one table holds every tool the MCP endpoint offers", () => {
-  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "experiences", "find_person", "get_transcript", "groups", "inbox", "journal", "people", "places", "record", "relate", "remember", "search", "set_interval", "traits", "whats_due"]);
+  expect(TOOLS.map((t) => t.name).sort()).toEqual([
+    "briefing",
+    "calendar_feed",
+    "correct",
+    "experiences",
+    "find_person",
+    "get_transcript",
+    "groups",
+    "inbox",
+    "journal",
+    "people",
+    "places",
+    "record",
+    "relate",
+    "remember",
+    "search",
+    "set_interval",
+    "traits",
+    "whats_due",
+  ]);
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
@@ -28,8 +47,10 @@ test("a tool runs as the viewer and answers with paths, not absolute urls", asyn
 
 test("the descriptions tell Claude to file roles in words, to agree a situation's new day, and gender only when said", () => {
   const all = (name: string) => JSON.stringify([toolByName(name)!.description, toolByName(name)!.input.toJSONSchema()]);
-  for (const name of ["relate", "record", "correct"]) for (const word of ["Vermieterin", "inverse", '\\"us\\"']) expect(all(name), `${name} ${word}`).toContain(word);
-  for (const name of ["remember", "record"]) for (const word of ["situation", "checkAfter", "agree it with the user"]) expect(all(name), `${name} ${word}`).toContain(word);
+  for (const name of ["relate", "record", "correct"])
+    for (const word of ["Vermieterin", "inverse", '\\"us\\"']) expect(all(name), `${name} ${word}`).toContain(word);
+  for (const name of ["remember", "record"])
+    for (const word of ["situation", "checkAfter", "agree it with the user"]) expect(all(name), `${name} ${word}`).toContain(word);
   for (const name of ["correct", "record", "remember"]) expect(all(name), name).toContain("never from the name");
   expect(all("correct")).toContain("relabel");
   expect(toolByName("briefing")!.description).toContain("roles");
@@ -59,33 +80,66 @@ describe("next: what Claude does after a call", () => {
     const r = await run(
       s.a,
       "record",
-      asRamble(lunch({
-        people: [{ id: s.anna, present: true }, { id: s.tom, present: false }, { name: "Marina", present: false }],
-        facts: [
-          { person: 0, text: "sucht ein Auto", category: "other", kind: "situation" },
-          { person: 0, text: "zieht nach Köln", category: "home", kind: "situation", checkAfter: "2027-02-01" },
-          { person: 0, text: "spielt Cello", category: "hobby" },
-        ],
-        promises: [{ person: 0, text: "send the playlist", byMe: true }],
-        relationships: [
-          { from: 0, to: 1, label: "Partner:in", inverse: "Partner:in" },
-          { from: 2, to: "us", label: "Vermieterin", inverse: "Mieter:in" },
-        ],
-      })),
+      asRamble(
+        lunch({
+          people: [
+            { id: s.anna, present: true },
+            { id: s.tom, present: false },
+            { name: "Marina", present: false },
+          ],
+          facts: [
+            { person: 0, text: "sucht ein Auto", category: "other", kind: "situation" },
+            { person: 0, text: "zieht nach Köln", category: "home", kind: "situation", checkAfter: "2027-02-01" },
+            { person: 0, text: "spielt Cello", category: "hobby" },
+          ],
+          promises: [{ person: 0, text: "send the playlist", byMe: true }],
+          relationships: [
+            { from: 0, to: 1, label: "Partner:in", inverse: "Partner:in" },
+            { from: 2, to: "us", label: "Vermieterin", inverse: "Mieter:in" },
+          ],
+        }),
+      ),
     );
     const c = `/c/${r.conversations[0].id}`;
     const auto = await factId("sucht ein Auto");
     expect(r.filed.facts).toEqual([
-      { id: auto, personId: s.anna, name: "Anna", text: "sucht ein Auto", kind: "situation", checkAfter: SIX_WEEKS(), defaultCheckAfter: true, supersedes: null, visibility: "shared", url: `${c}#facts-${auto}` },
+      {
+        id: auto,
+        personId: s.anna,
+        name: "Anna",
+        text: "sucht ein Auto",
+        kind: "situation",
+        checkAfter: SIX_WEEKS(),
+        defaultCheckAfter: true,
+        supersedes: null,
+        visibility: "shared",
+        url: `${c}#facts-${auto}`,
+      },
       expect.objectContaining({ text: "zieht nach Köln", checkAfter: "2027-02-01", defaultCheckAfter: false }),
       expect.objectContaining({ text: "spielt Cello", kind: "lasting", checkAfter: null, defaultCheckAfter: false }),
     ]);
-    expect(r.filed.promises).toEqual([expect.objectContaining({ personId: s.anna, name: "Anna", text: "send the playlist", byMe: true, due: null, url: expect.stringMatching(`^${c}#promises-`) })]);
+    expect(r.filed.promises).toEqual([
+      expect.objectContaining({
+        personId: s.anna,
+        name: "Anna",
+        text: "send the playlist",
+        byMe: true,
+        due: null,
+        url: expect.stringMatching(`^${c}#promises-`),
+      }),
+    ]);
     const marina = r.people.find((p: Json) => p.name === "Marina");
     expect(marina.created).toBe(true);
     // Anna ↔ Tom was there already (A's own, private); Marina's role to us is new, one row each.
     expect(r.filed.relationships).toEqual([
-      expect.objectContaining({ fromName: "Anna", toName: "Tom", label: "Partner:in", inverse: "Partner:in", created: false, url: `/p/${s.anna}#relationships-${r.filed.relationships[0].id}` }),
+      expect.objectContaining({
+        fromName: "Anna",
+        toName: "Tom",
+        label: "Partner:in",
+        inverse: "Partner:in",
+        created: false,
+        url: `/p/${s.anna}#relationships-${r.filed.relationships[0].id}`,
+      }),
       expect.objectContaining({ fromName: "Marina", toName: "Alice", label: "Vermieterin", created: true }),
       expect.objectContaining({ fromName: "Marina", toName: "Bob", label: "Vermieterin", created: true }),
     ]);
@@ -105,8 +159,12 @@ describe("next: what Claude does after a call", () => {
       dates: [{ person: s.lena, kind: "birthday", date: "--03-02", yearly: true }],
     });
     const hund = await factId("sucht einen Hund");
-    expect(r.filed.facts).toEqual([expect.objectContaining({ id: hund, name: "Lena", checkAfter: SIX_WEEKS(), defaultCheckAfter: true, url: `/p/${s.lena}#facts-${hund}` })]);
-    expect(r.filed.dates).toEqual([expect.objectContaining({ personId: s.lena, kind: "birthday", date: "--03-02", url: expect.stringMatching(`^/p/${s.lena}#dates-`) })]);
+    expect(r.filed.facts).toEqual([
+      expect.objectContaining({ id: hund, name: "Lena", checkAfter: SIX_WEEKS(), defaultCheckAfter: true, url: `/p/${s.lena}#facts-${hund}` }),
+    ]);
+    expect(r.filed.dates).toEqual([
+      expect.objectContaining({ personId: s.lena, kind: "birthday", date: "--03-02", url: expect.stringMatching(`^/p/${s.lena}#dates-`) }),
+    ]);
     expect(r.next).toEqual([
       `Lena's situation "sucht einen Hund" nudges on ${SIX_WEEKS()}, a default because you gave no checkAfter: tell the user, and change it with correct (edit, table facts, patch { checkAfter }) if they want another day.`,
     ]);
@@ -127,7 +185,10 @@ describe("next: what Claude does after a call", () => {
   });
 
   test("correct: an outdated situation asks for the outcome; a fact made a situation gets its day", async () => {
-    await run(s.a, "remember", { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-11-15" }] });
+    await run(s.a, "remember", {
+      visibility: "shared",
+      facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-11-15" }],
+    });
     const auto = await factId("sucht ein Auto");
     const out = await run(s.a, "correct", { action: "outdated", id: auto });
     expect(out).toMatchObject({ corrected: true, fact: { id: auto, personId: s.anna, name: "Anna", kind: "situation", status: "outdated" } });
@@ -156,18 +217,32 @@ describe("next: what Claude does after a call", () => {
     const merge = await run(s.a, "correct", { action: "merge", id: s.anna, drop: s.tom });
     // Tom's birthday (A's private) moved; the Anna ↔ Tom relationship became one with herself and went.
     expect(merge.moved).toEqual({ facts: 0, promises: 0, dates: 1, exchanges: 0, relationships: 0, conversations: 0, groups: 0 });
-    expect(merge.next).toEqual([`Merged Tom into Anna: 1 date moved, and "Tom" now finds Anna. Look over Anna's briefing for anything doubled and fix it with correct.`]);
+    expect(merge.next).toEqual([
+      `Merged Tom into Anna: 1 date moved, and "Tom" now finds Anna. Look over Anna's briefing for anything doubled and fix it with correct.`,
+    ]);
     await run(s.a, "relate", { kind: "relationship", from: s.lena, to: "me", label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
     const gender = await run(s.a, "correct", { action: "gender", id: s.lena, gender: "female" });
     const id = gender.relabel[0].id;
-    expect(gender.next).toEqual([`Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`]);
+    expect(gender.next).toEqual([
+      `Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`,
+    ]);
   });
 
   test("looks set the avatar and tell Claude to hand over the person's page; null clears it", async () => {
-    const look = { face: "oval", skin: "light", hair: "curly", hairColor: "brown", glasses: "round", beard: "full", description: "kurze Locken, Brille, Vollbart" };
+    const look = {
+      face: "oval",
+      skin: "light",
+      hair: "curly",
+      hairColor: "brown",
+      glasses: "round",
+      beard: "full",
+      description: "kurze Locken, Brille, Vollbart",
+    };
     const r = await run(s.a, "remember", { visibility: "shared", looks: [{ person: s.lena, look }] });
     expect(r.counts.looks).toBe(1);
-    expect(r.next).toEqual(["Say in a few words which parts you chose for Lena's avatar, and give the link to their page (in people) so the user can check it and change a part there."]);
+    expect(r.next).toEqual([
+      "Say in a few words which parts you chose for Lena's avatar, and give the link to their page (in people) so the user can check it and change a part there.",
+    ]);
     expect((await run(s.b, "briefing", { personId: s.lena })).person.look).toEqual(look);
     const cleared = await run(s.a, "remember", { visibility: "shared", looks: [{ person: s.lena, look: null }] });
     expect(cleared.next).toEqual(["Lena's avatar is cleared: their initials show again."]);
@@ -180,12 +255,20 @@ describe("next: what Claude does after a call", () => {
     expect(r.next[0]).toMatch(/^Answer from the hits/);
     const none = await run(s.b, "search", { query: "divorce" });
     expect(none.hits).toEqual([]);
-    expect(none.next).toEqual([`Nothing holds "divorce": say so, and try once with another word or a shorter one (a stem: "Spiegel" for "Spiegeln") before giving up.`]);
+    expect(none.next).toEqual([
+      `Nothing holds "divorce": say so, and try once with another word or a shorter one (a stem: "Spiegel" for "Spiegeln") before giving up.`,
+    ]);
   });
 
   test("genders for both ends list their relationship once, with a line for each end's word", async () => {
     const { id } = await run(s.a, "relate", { kind: "relationship", from: s.anna, to: s.lena, label: "Elternteil", inverse: "Kind", visibility: "shared" });
-    const r = await run(s.a, "remember", { visibility: "shared", genders: [{ person: s.anna, gender: "female" }, { person: s.lena, gender: "female" }] });
+    const r = await run(s.a, "remember", {
+      visibility: "shared",
+      genders: [
+        { person: s.anna, gender: "female" },
+        { person: s.lena, gender: "female" },
+      ],
+    });
     // The seed's other neutral words of theirs come too, but each relationship once.
     const ids = r.relabel.map((x: { id: string }) => x.id);
     expect(ids.filter((x: string) => x === id)).toHaveLength(1);
@@ -200,7 +283,9 @@ describe("next: what Claude does after a call", () => {
     const r = await run(s.a, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] });
     const id = r.relabel[0].id;
     expect(r.relabel).toEqual([{ id, fromId: s.lena, fromName: "Lena", toId: s.a.personId, toName: "Alice", label: "Nachbar:in", inverse: "Nachbar:in" }]);
-    expect(r.next).toEqual([`Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`]);
+    expect(r.next).toEqual([
+      `Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`,
+    ]);
     // The same gender again asks for nothing.
     expect((await run(s.a, "remember", { visibility: "shared", genders: [{ person: s.lena, gender: "female" }] })).next).toEqual([]);
     // B may edit A's shared one too, so B is told the same; a private one of A's would never show.
@@ -242,12 +327,17 @@ describe("next: what Claude does after a call", () => {
     const [first, other] = two.people.map((p: Json) => p.id);
     expect(first).toBe(s.anna);
     // The context tells them apart, from what A may see.
-    expect(two.next).toEqual([`2 people match "anna": Anna (id ${first}; Partner:in of Tom, last seen 2026-10-20), Anna (id ${other}; last seen 2026-10-22). Ask the user which one they mean; never guess.`]);
+    expect(two.next).toEqual([
+      `2 people match "anna": Anna (id ${first}; Partner:in of Tom, last seen 2026-10-20), Anna (id ${other}; last seen 2026-10-22). Ask the user which one they mean; never guess.`,
+    ]);
   });
 
   test("briefing leads with the role, asks about nudging situations first and offers the suggested interval", async () => {
     await run(s.a, "relate", { kind: "relationship", from: s.anna, to: "us", label: "Vermieterin", inverse: "Mieter:in", visibility: "shared" });
-    await run(s.a, "remember", { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-10-01" }] });
+    await run(s.a, "remember", {
+      visibility: "shared",
+      facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", checkAfter: "2026-10-01" }],
+    });
     for (const date of ["2026-10-06", "2026-09-22"]) await run(s.a, "record", asRamble(lunch({ date })));
     const b = await run(s.a, "briefing", { personId: s.anna });
     expect(b.suggestedInterval).toBe(14);
@@ -270,7 +360,10 @@ describe("next: what Claude does after a call", () => {
     });
     const b = await run(s.a, "briefing", { personId: s.anna });
     expect(b.traits.needs.map((f: { text: string }) => f.text)).toEqual(["vegetarian", "nut allergy"]);
-    expect(b.next.slice(0, 2)).toEqual(["Lead with who Anna is to the household: Vermieterin of you both.", "Keep in mind what Anna needs: vegetarian; nut allergy."]);
+    expect(b.next.slice(0, 2)).toEqual([
+      "Lead with who Anna is to the household: Vermieterin of you both.",
+      "Keep in mind what Anna needs: vegetarian; nut allergy.",
+    ]);
   });
 
   test("traits lists people and groups once each and names the needs to keep in mind", async () => {
@@ -284,7 +377,10 @@ describe("next: what Claude does after a call", () => {
   });
 
   test("whats_due suggests asking about the due situations", async () => {
-    await run(s.a, "remember", { visibility: "shared", facts: [{ person: s.lena, text: "sucht einen Hund", category: "hobby", kind: "situation", checkAfter: "2026-10-01" }] });
+    await run(s.a, "remember", {
+      visibility: "shared",
+      facts: [{ person: s.lena, text: "sucht einen Hund", category: "hobby", kind: "situation", checkAfter: "2026-10-01" }],
+    });
     const due = await run(s.a, "whats_due", {});
     expect(due.next).toEqual(['Suggest asking Lena about "sucht einen Hund": its day to ask, 2026-10-01, has come.']);
   });
@@ -301,7 +397,9 @@ describe("next: what Claude does after a call", () => {
   });
 
   test("calendar_feed: an existing feed can't be shown again, so next offers replace", async () => {
-    expect((await run(s.a, "calendar_feed", {})).next).toEqual(["Give the URL only to the user: anyone who has it can read these dates. In Google Calendar it goes under \"From URL\", which refreshes every few hours."]);
+    expect((await run(s.a, "calendar_feed", {})).next).toEqual([
+      'Give the URL only to the user: anyone who has it can read these dates. In Google Calendar it goes under "From URL", which refreshes every few hours.',
+    ]);
     expect((await run(s.a, "calendar_feed", {})).next).toEqual([
       "The user already has a feed, whose URL can't be shown again: tell them, and offer replace, which makes a new URL and stops the old one at once.",
     ]);
@@ -310,7 +408,10 @@ describe("next: what Claude does after a call", () => {
 
 describe("next never shows the other user's private items", () => {
   test("B's briefing and whats_due never ask about A's private situation; B's relate files anew beside A's private relationship", async () => {
-    await run(s.a, "remember", { visibility: "private", facts: [{ person: s.anna, text: "heimliche Bewerbung", category: "work", kind: "situation", checkAfter: "2026-10-01" }] });
+    await run(s.a, "remember", {
+      visibility: "private",
+      facts: [{ person: s.anna, text: "heimliche Bewerbung", category: "work", kind: "situation", checkAfter: "2026-10-01" }],
+    });
     expect(JSON.stringify((await run(s.a, "briefing", { personId: s.anna })).next)).toContain("heimliche Bewerbung");
     const seen = JSON.stringify([(await run(s.b, "briefing", { personId: s.anna })).next, (await run(s.b, "whats_due", {})).next]);
     expect(seen).not.toContain("heimliche Bewerbung");
@@ -323,7 +424,9 @@ describe("next never shows the other user's private items", () => {
   test("a merge by B counts only what B may see: A's private birthday of Tom moves, but not into B's count", async () => {
     const merge = await run(s.b, "correct", { action: "merge", id: s.anna, drop: s.tom });
     expect(merge.moved).toEqual({ facts: 0, promises: 0, dates: 0, exchanges: 0, relationships: 0, conversations: 0, groups: 0 });
-    expect(merge.next).toEqual(['Merged Tom into Anna: nothing else moved, and "Tom" now finds Anna. Look over Anna\'s briefing for anything doubled and fix it with correct.']);
+    expect(merge.next).toEqual([
+      'Merged Tom into Anna: nothing else moved, and "Tom" now finds Anna. Look over Anna\'s briefing for anything doubled and fix it with correct.',
+    ]);
   });
 });
 
@@ -358,9 +461,15 @@ describe("inbox", () => {
     const one = await shareFile(s.a, text("Chat Teil 1"), "text/plain", "run-1234567");
     const two = await shareFile(s.a, text("Chat Teil 2"), "text/plain", "run-1234567");
     const r = await run(s.a, "inbox", { action: "list" });
-    expect(r.files.map((f: Json) => [f.id, f.batchId])).toEqual([[one.id, "run-1234567"], [two.id, "run-1234567"], [alone.id, null]]);
+    expect(r.files.map((f: Json) => [f.id, f.batchId])).toEqual([
+      [one.id, "run-1234567"],
+      [two.id, "run-1234567"],
+      [alone.id, null],
+    ]);
     expect(r.batches).toEqual([{ batchId: "run-1234567", ids: [one.id, two.id] }]);
-    expect(r.next).toContain(`${one.id} and ${two.id} were shared together: offer to work them through as one thing, and pass all their ids to record in fileIds.`);
+    expect(r.next).toContain(
+      `${one.id} and ${two.id} were shared together: offer to work them through as one thing, and pass all their ids to record in fileIds.`,
+    );
     const inbox = TOOLS.find((t) => t.name === "inbox")!;
     expect(inbox.description).toMatch(/batchId/);
     expect(inbox.description).toMatch(/ask the user which/);
@@ -406,23 +515,36 @@ describe("inbox", () => {
     await expect(run(s.a, "inbox", { action: "done" })).rejects.toThrow(/id/);
     await expect(run(s.a, "inbox", { action: "upload" })).rejects.toThrow();
   });
-
 });
 
 test("record names the journal entries it filed, and that they are private", async () => {
-  const r = await run(s.a, "record", { date: "2026-10-22", transcript: "Ich frage mich, ob ich den Job wechseln will.", visibility: "shared", people: [], journal: [{ text: "Ich frage mich, ob ich den Job wechseln will." }] });
+  const r = await run(s.a, "record", {
+    date: "2026-10-22",
+    transcript: "Ich frage mich, ob ich den Job wechseln will.",
+    visibility: "shared",
+    people: [],
+    journal: [{ text: "Ich frage mich, ob ich den Job wechseln will." }],
+  });
   expect(r.journal).toEqual([expect.objectContaining({ visibility: "private", url: expect.stringMatching(/^\/tagebuch#journal-/) })]);
   expect(r.next).toContain("The journal entry is private to the user: say so in the read-back.");
 });
 
 test("journal hands Claude the entries of a period to interpret, never to diagnose", async () => {
-  await run(s.a, "record", { date: "2026-10-20", transcript: "t", visibility: "shared", people: [{ id: s.anna }], journal: [{ text: "Viel Stress im Job.", mentions: [0] }] });
+  await run(s.a, "record", {
+    date: "2026-10-20",
+    transcript: "t",
+    visibility: "shared",
+    people: [{ id: s.anna }],
+    journal: [{ text: "Viel Stress im Job.", mentions: [0] }],
+  });
   const r = await run(s.a, "journal", { from: "2026-10-01", to: "2026-10-31" });
   expect(r.entries.map((e: Json) => e.text)).toEqual(["Viel Stress im Job."]);
   expect(r.next).toEqual([
     "Interpret these entries for the user: the themes that come back, what changed over the period, and how the people and conversations they name tie in, quoting entries by their date. Reflect patterns; never diagnose or give health advice, and on heavy themes point gently to real help.",
   ]);
-  expect((await run(s.a, "journal", { from: "2026-01-01", to: "2026-01-31" })).next).toEqual(["No journal entries in this period: say so, and offer to look at another one."]);
+  expect((await run(s.a, "journal", { from: "2026-01-01", to: "2026-01-31" })).next).toEqual([
+    "No journal entries in this period: say so, and offer to look at another one.",
+  ]);
   expect((await run(s.b, "journal", { from: "2026-10-01", to: "2026-10-31" })).entries).toEqual([]);
 });
 
@@ -431,7 +553,8 @@ describe("rambles over MCP (review I3, I4)", () => {
   beforeEach(async () => {
     s = await seed();
   });
-  const journalOnly = (v: Seed["a"]) => run(v, "record", { date: today(), transcript: "Nur über mich.", visibility: "shared", people: [], journal: [{ text: "Nur über mich." }] });
+  const journalOnly = (v: Seed["a"]) =>
+    run(v, "record", { date: today(), transcript: "Nur über mich.", visibility: "shared", people: [], journal: [{ text: "Nur über mich." }] });
 
   test("get_transcript reads a ramble by its id; share_transcript shares it by its id", async () => {
     const r = await journalOnly(s.a);
@@ -458,7 +581,10 @@ describe("experiences over MCP", () => {
     run(v, "record", { date: today(), transcript: title, visibility: "shared", people: [], experiences: [{ date, kind, title, ...extra }] });
 
   test("record reads back an experience with its day and series", async () => {
-    const r = await lived(s.a, "2026-10-28", "Kurs", "Erste Stunde Hundeschule", { place: "Hundeschule Pfotenglück", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } });
+    const r = await lived(s.a, "2026-10-28", "Kurs", "Erste Stunde Hundeschule", {
+      place: "Hundeschule Pfotenglück",
+      series: { name: "Hundeschule mit Toffee", rhythmDays: 7 },
+    });
     expect(r.experiences).toHaveLength(1);
     expect(r.next.join(" ")).toContain("Hundeschule mit Toffee");
   });
@@ -496,7 +622,13 @@ describe("nested places over MCP", () => {
     s = await seed();
   });
   const met = (v: Seed["a"], place: unknown) =>
-    run(v, "record", { date: today(), transcript: "t", visibility: "shared", people: [{ id: s.anna }], conversations: [{ kind: "in_person", summary: "Treffen", present: [0], place }] });
+    run(v, "record", {
+      date: today(),
+      transcript: "t",
+      visibility: "shared",
+      people: [{ id: s.anna }],
+      conversations: [{ kind: "in_person", summary: "Treffen", present: [0], place }],
+    });
 
   test("places answers where we were with someone, and what is inside a place", async () => {
     const r = await met(s.a, { name: "Olympiahalle", in: "München" });
@@ -519,7 +651,11 @@ describe("nested places over MCP", () => {
     await run(s.a, "correct", { action: "place_parent", id: home, parent: await id("Nürnberg") });
     await run(s.a, "correct", { action: "place_address", id: home, address: "Hauptstraße 5" });
     await run(s.a, "correct", { action: "place_owner", id: home, person: s.anna, private: true });
-    expect((await run(s.a, "places", { name: "Annas Wohnung" })).places[0]).toMatchObject({ address: "Hauptstraße 5", parents: [{ name: "Nürnberg" }], owners: [{ id: s.anna }] });
+    expect((await run(s.a, "places", { name: "Annas Wohnung" })).places[0]).toMatchObject({
+      address: "Hauptstraße 5",
+      parents: [{ name: "Nürnberg" }],
+      owners: [{ id: s.anna }],
+    });
     expect((await run(s.b, "places", { name: "Annas Wohnung" })).places[0].owners).toEqual([]);
     await run(s.a, "correct", { action: "place_unowner", id: home, person: s.anna });
     await run(s.a, "correct", { action: "place_parent", id: home, parent: null });
@@ -542,7 +678,13 @@ describe("series over MCP", () => {
     s = await seed();
   });
   test("correct series_skip marks a day skipped, edit ends a series, and a briefing carries the experiences", async () => {
-    const r = await run(s.a, "record", { date: today(), transcript: "t", visibility: "shared", people: [{ id: s.anna }], experiences: [{ date: "2026-10-28", kind: "Kurs", title: "Erste Stunde", present: [0], series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
+    const r = await run(s.a, "record", {
+      date: today(),
+      transcript: "t",
+      visibility: "shared",
+      people: [{ id: s.anna }],
+      experiences: [{ date: "2026-10-28", kind: "Kurs", title: "Erste Stunde", present: [0], series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
+    });
     const id = r.experiences[0].seriesId;
     await run(s.a, "correct", { action: "series_skip", id, date: "2026-11-04" });
     await run(s.a, "correct", { action: "edit", table: "series", id, patch: { endsOn: "2026-12-16" } });
@@ -557,8 +699,20 @@ describe("missed sessions over MCP", () => {
     s = await seed();
   });
   test("whats_due's next asks how a missed session went, or whether it was skipped", async () => {
-    const r = await run(s.a, "record", { date: "2026-09-02", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
-    await (await db()).updateTable("series").set({ created_at: Date.parse("2026-09-02T20:00:00Z") }).where("id", "=", r.experiences[0].seriesId).execute();
+    const r = await run(s.a, "record", {
+      date: "2026-09-02",
+      transcript: "t",
+      visibility: "shared",
+      people: [],
+      experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
+    });
+    await (
+      await db()
+    )
+      .updateTable("series")
+      .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })
+      .where("id", "=", r.experiences[0].seriesId)
+      .execute();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-10T09:00:00Z"));
     try {

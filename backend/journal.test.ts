@@ -11,7 +11,13 @@ beforeEach(async () => {
 });
 
 const write = (v: Seed["a"], date: string, text: string, mentions: string[] = [], shared = false) =>
-  record(v, { date, transcript: text, visibility: "shared", people: mentions.map((id) => ({ id })), journal: [{ text, mentions: mentions.map((_, i) => i), shared }] });
+  record(v, {
+    date,
+    transcript: text,
+    visibility: "shared",
+    people: mentions.map((id) => ({ id })),
+    journal: [{ text, mentions: mentions.map((_, i) => i), shared }],
+  });
 
 test("the journal lists the viewer's own entries in a period, newest first, with the people they name", async () => {
   await write(s.a, "2026-09-01", "Alter Gedanke");
@@ -19,8 +25,15 @@ test("the journal lists the viewer's own entries in a period, newest first, with
   await write(s.a, "2026-10-25", "Gute Woche.");
   const got = await journalEntries(s.a, { from: "2026-10-01", to: "2026-10-31" });
   expect(got.map((e) => e.text)).toEqual(["Gute Woche.", "Ich frage mich, ob ich den Job wechseln will."]);
-  expect(got[1]).toMatchObject({ date: "2026-10-20", visibility: "private", people: [{ id: s.anna, name: "Anna", url: `/p/${s.anna}` }], url: expect.stringMatching(/^\/tagebuch#journal-/) });
-  expect((await journalEntries(s.a, { from: "2026-10-01", to: "2026-10-31", personId: s.anna })).map((e) => e.text)).toEqual(["Ich frage mich, ob ich den Job wechseln will."]);
+  expect(got[1]).toMatchObject({
+    date: "2026-10-20",
+    visibility: "private",
+    people: [{ id: s.anna, name: "Anna", url: `/p/${s.anna}` }],
+    url: expect.stringMatching(/^\/tagebuch#journal-/),
+  });
+  expect((await journalEntries(s.a, { from: "2026-10-01", to: "2026-10-31", personId: s.anna })).map((e) => e.text)).toEqual([
+    "Ich frage mich, ob ich den Job wechseln will.",
+  ]);
 });
 
 test("the partner never sees a private entry: not in the journal, not in a briefing; a shared one they do", async () => {

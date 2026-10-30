@@ -5,7 +5,11 @@ import { anthropicFileModel } from "./file-model";
 
 const person = { id: "p1", name: "Patrick", aliases: [] };
 const input = (type: string, bytes = new Uint8Array([1])) => ({ bytes, type, people: [person], today: "2026-10-28", language: "de" as const });
-const good = { summary: "WhatsApp-Gruppe Sunshine: Patrick hatte am Wochenende Geburtstag", transcript: "[19:20] Patrick Walter: Hatte Geburtstag!", people: [{ name: "Patrick Walter", personId: "p1" }] };
+const good = {
+  summary: "WhatsApp-Gruppe Sunshine: Patrick hatte am Wochenende Geburtstag",
+  transcript: "[19:20] Patrick Walter: Hatte Geburtstag!",
+  people: [{ name: "Patrick Walter", personId: "p1" }],
+};
 
 // A model whose client answers `reply` (or throws it), the requests it got and the lines it logged.
 function withClient(reply: unknown) {
@@ -22,7 +26,7 @@ function withClient(reply: unknown) {
 }
 const message = (content: unknown[], stop_reason = "tool_use") => ({ content, stop_reason });
 const report = (input: unknown) => message([{ type: "tool_use", id: "t", name: "report", input }]);
-const firstBlock = (calls: Record<string, unknown>[]) => ((calls[0].messages as { content: Record<string, unknown>[] }[])[0].content)[0];
+const firstBlock = (calls: Record<string, unknown>[]) => (calls[0].messages as { content: Record<string, unknown>[] }[])[0].content[0];
 
 test("a usable report is the suggestion, and nothing is logged", async () => {
   const { model, lines } = withClient(report(good));
@@ -52,7 +56,12 @@ test("the report is asked for, not forced, and the file is data", async () => {
 });
 
 test("an API error is no suggestion, and says why", async () => {
-  const err = Anthropic.APIError.generate(400, { type: "error", error: { type: "invalid_request_error", message: "image too large" } }, "image too large", new Headers());
+  const err = Anthropic.APIError.generate(
+    400,
+    { type: "error", error: { type: "invalid_request_error", message: "image too large" } },
+    "image too large",
+    new Headers(),
+  );
   const { model, lines } = withClient(err);
   expect(await model.read(input("image/webp"))).toEqual({ error: expect.stringContaining("image too large") });
   expect(lines).toEqual([expect.objectContaining({ level: "warn", msg: "the file model call failed", status: 400 })]);

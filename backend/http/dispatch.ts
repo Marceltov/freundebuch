@@ -39,7 +39,13 @@ type Meta<R, Q, B> = {
   body?: B; // a JSON object, read and checked before the handler runs
   responses: R;
 };
-export type Handler<R, Q, B> = (input: { viewer: Viewer; req: Request; params: Record<string, string>; query: QueryOf<Q>; body: JsonOf<B> }) => Promise<Reply<R>>;
+export type Handler<R, Q, B> = (input: {
+  viewer: Viewer;
+  req: Request;
+  params: Record<string, string>;
+  query: QueryOf<Q>;
+  body: JsonOf<B>;
+}) => Promise<Reply<R>>;
 export type Op<
   R extends Record<number, ResponseSpec> = Record<number, ResponseSpec>,
   Q extends z.ZodObject | undefined = z.ZodObject | undefined,

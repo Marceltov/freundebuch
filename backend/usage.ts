@@ -7,7 +7,11 @@ import type { Viewer } from "./types";
  * the same moment can't both slip past the last free one. */
 export async function spend(v: Viewer, day: string): Promise<boolean> {
   const d = await db();
-  await d.insertInto("chat_usage").values({ user_id: v.userId, day, count: 0 }).onConflict((oc) => oc.doNothing()).execute();
+  await d
+    .insertInto("chat_usage")
+    .values({ user_id: v.userId, day, count: 0 })
+    .onConflict((oc) => oc.doNothing())
+    .execute();
   const r = await d
     .updateTable("chat_usage")
     .set((eb) => ({ count: eb("count", "+", 1) }))

@@ -318,7 +318,8 @@ const de = {
 
   // Sharing screenshots
   pending: "Zu prüfen",
-  pendingHint: "Was du geteilt hast, wartet hier: Screenshots, Fotos, PDFs, Textdateien, Sprachnachrichten. Geh sie mit Claude durch, dann wird abgelegt, was drin steht.",
+  pendingHint:
+    "Was du geteilt hast, wartet hier: Screenshots, Fotos, PDFs, Textdateien, Sprachnachrichten. Geh sie mit Claude durch, dann wird abgelegt, was drin steht.",
   pendingEmpty: "Nichts zu prüfen.",
   pendingCount: "{n} zu prüfen",
   pendingReading: "Wird gelesen …",
@@ -345,13 +346,15 @@ const de = {
   fileOf: "Datei von {source}",
   calendarTitle: "Kalender abonnieren",
   reflectionTitle: "Wochenrückblick",
-  reflectionHint: "Einmal in der Woche schaut Claude auf dein Tagebuch und schickt dir ein paar Zeilen an deine Benachrichtigungsadresse. Nur für dich, ohne etwas abzulegen.",
+  reflectionHint:
+    "Einmal in der Woche schaut Claude auf dein Tagebuch und schickt dir ein paar Zeilen an deine Benachrichtigungsadresse. Nur für dich, ohne etwas abzulegen.",
   reflectionOff: "Aus",
   reflectionDay: "Tag",
   reflectionHour: "Uhrzeit",
   reflectionNeedsWebhook: "Braucht eine Benachrichtigungsadresse (oben).",
   weekdays: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
-  calendarHint: "Geburtstage, andere Daten und deine Versprechen mit Termin als Kalender-Abo. In Google Kalender: „Weitere Kalender“ → „Per URL“ und die Adresse einfügen. Google holt Änderungen nur alle paar Stunden.",
+  calendarHint:
+    "Geburtstage, andere Daten und deine Versprechen mit Termin als Kalender-Abo. In Google Kalender: „Weitere Kalender“ → „Per URL“ und die Adresse einfügen. Google holt Änderungen nur alle paar Stunden.",
   calendarUrl: "Kalender-Adresse",
   calendarNew: "Adresse erzeugen",
   calendarReplace: "Neue Adresse erzeugen",
@@ -360,10 +363,12 @@ const de = {
   calendarOnce: "Nur jetzt sichtbar. Wer die Adresse kennt, sieht diese Termine. Eine neue Adresse ersetzt sie.",
   calendarActive: "Ein Kalender-Abo ist eingerichtet. Eine neue Adresse ersetzt die alte, ein Abo der alten bleibt dann leer.",
   shareTitle: "Dateien teilen",
-  shareHint: "Teile einen Screenshot, ein Foto, ein PDF oder einen exportierten Chat mit freundebuch, oder füg ihn unter „Erzählen“ mit dem Büroklammer-Knopf hinzu. Er wartet unter „Prüfen“, bis du ihn mit Claude durchgehst.",
+  shareHint:
+    "Teile einen Screenshot, ein Foto, ein PDF oder einen exportierten Chat mit freundebuch, oder füg ihn unter „Erzählen“ mit dem Büroklammer-Knopf hinzu. Er wartet unter „Prüfen“, bis du ihn mit Claude durchgehst.",
   shareAndroid: "Android: freundebuch über das Browser-Menü zum Startbildschirm hinzufügen. Danach steht freundebuch beim Teilen zur Auswahl.",
   shareIphoneSetup: "iPhone einrichten",
-  shareStepZugang: "Zugang erzeugen und kopieren: die Adresse zum Teilen und dein Schlüssel in einem. Nur jetzt sichtbar; der Schlüssel kann nur Dateien abgeben, sonst nichts.",
+  shareStepZugang:
+    "Zugang erzeugen und kopieren: die Adresse zum Teilen und dein Schlüssel in einem. Nur jetzt sichtbar; der Schlüssel kann nur Dateien abgeben, sonst nichts.",
   shareStepShortcut: "Kurzbefehl laden, in der Kurzbefehle-App auf „Kurzbefehl hinzufügen“ tippen und den Zugang einfügen, wenn er danach fragt.",
   shareZugang: "Zugang für den Kurzbefehl",
   shareShortcut: "Kurzbefehl laden",
@@ -748,7 +753,8 @@ const en: Copy = {
   reflectionHour: "Time",
   reflectionNeedsWebhook: "Needs a notification address (above).",
   weekdays: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-  calendarHint: "Birthdays, other dates and your promises with a due day as a calendar subscription. In Google Calendar: “Other calendars” → “From URL” and paste the address. Google fetches changes only every few hours.",
+  calendarHint:
+    "Birthdays, other dates and your promises with a due day as a calendar subscription. In Google Calendar: “Other calendars” → “From URL” and paste the address. Google fetches changes only every few hours.",
   calendarUrl: "Calendar address",
   calendarNew: "Make an address",
   calendarReplace: "Make a new address",
@@ -757,7 +763,8 @@ const en: Copy = {
   calendarOnce: "Shown only now. Whoever knows the address sees these dates. A new address replaces it.",
   calendarActive: "A calendar subscription is set up. A new address replaces the old one; a subscription to the old one then stays empty.",
   shareTitle: "Share files",
-  shareHint: "Share a screenshot, a photo, a PDF or an exported chat with freundebuch, or add it in “Tell” with the paper clip button. It waits under “Review” until you go through it with Claude.",
+  shareHint:
+    "Share a screenshot, a photo, a PDF or an exported chat with freundebuch, or add it in “Tell” with the paper clip button. It waits under “Review” until you go through it with Claude.",
   shareAndroid: "Android: add freundebuch to the home screen from the browser menu. Then freundebuch shows up when you share.",
   shareIphoneSetup: "Set up the iPhone",
   shareStepZugang: "Make the access and copy it: the address to share to and your key in one. Shown only now; the key can only hand in files, nothing else.",

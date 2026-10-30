@@ -41,7 +41,14 @@ export function Orbit({ faces }: { faces: OrbitFace[] }) {
         const y = C + RADII[f.ring] * Math.sin(rad);
         const r = faceR(f.ring);
         return (
-          <Link key={f.personId} href={`/p/${f.personId}`} aria-label={f.name} data-in-group={f.inGroup} data-unseen={f.unseen} style={f.inGroup === false ? { opacity: 0.14 } : undefined}>
+          <Link
+            key={f.personId}
+            href={`/p/${f.personId}`}
+            aria-label={f.name}
+            data-in-group={f.inGroup}
+            data-unseen={f.unseen}
+            style={f.inGroup === false ? { opacity: 0.14 } : undefined}
+          >
             <title>{f.name}</title>
             <g transform={`rotate(${faceTilt(f.personId)} ${x} ${y})`} opacity={f.unseen ? 0.5 : undefined}>
               <circle cx={x} cy={y} r={r} fill={faceColor(f.personId)} stroke="var(--rim)" strokeWidth={3} />

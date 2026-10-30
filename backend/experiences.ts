@@ -43,7 +43,8 @@ export function validateExperiences(xs: NewExperience[], people: number): void {
   for (const x of xs) {
     words(x.kind, "An experience's kind", MAX_KIND);
     words(x.title, "An experience's title", MAX_TITLE);
-    if (x.summary !== undefined && x.summary.length > MAX_EXPERIENCE) throw new InvalidInputError(`An experience's summary holds at most ${MAX_EXPERIENCE} characters`);
+    if (x.summary !== undefined && x.summary.length > MAX_EXPERIENCE)
+      throw new InvalidInputError(`An experience's summary holds at most ${MAX_EXPERIENCE} characters`);
     if (x.date !== undefined) {
       assertDay(x.date, "The experience's date");
       notFuture(x.date, "The experience's date");
@@ -60,8 +61,21 @@ export function validateExperiences(xs: NewExperience[], people: number): void {
 }
 
 /** The series an experience names, in `tx`: one the viewer may see by id or exact name, else a new one, private in a private ramble. */
-async function resolveSeries(tx: Kysely<Schema>, v: Viewer, ref: SeriesRef, x: NewExperience, day: string, rambleVisibility: Visibility, t: number, placeId: string | null) {
-  const seen = () => tx.selectFrom("series").selectAll().$call((qb) => visible(qb, v, "series"));
+async function resolveSeries(
+  tx: Kysely<Schema>,
+  v: Viewer,
+  ref: SeriesRef,
+  x: NewExperience,
+  day: string,
+  rambleVisibility: Visibility,
+  t: number,
+  placeId: string | null,
+) {
+  const seen = () =>
+    tx
+      .selectFrom("series")
+      .selectAll()
+      .$call((qb) => visible(qb, v, "series"));
   if (typeof ref === "string") {
     const s = await seen().where("id", "=", ref).executeTakeFirst();
     if (!s) throw new NotFoundError(`No such series: ${ref}`);
@@ -102,7 +116,10 @@ export async function insertExperiences(
   for (const x of xs) {
     const day = x.date ?? r.date;
     const levels: string[] = [];
-    const placeId = x.place === undefined || x.place === "" ? null : await resolvePlace(tx, v, x.place, r.visibility === "private" || x.private ? "private" : "shared", levels);
+    const placeId =
+      x.place === undefined || x.place === ""
+        ? null
+        : await resolvePlace(tx, v, x.place, r.visibility === "private" || x.private ? "private" : "shared", levels);
     // A new series started by a private experience is private too, or its name and place would reach the other user.
     const series = x.series === undefined ? null : await resolveSeries(tx, v, x.series, x, day, x.private ? "private" : r.visibility, t, placeId);
     const visibility: Visibility = r.visibility === "private" || x.private || series?.visibility === "private" ? "private" : "shared";
@@ -110,7 +127,19 @@ export async function insertExperiences(
     const id = newId();
     await tx
       .insertInto("experiences")
-      .values({ id, ramble_id: r.rambleId, series_id: series?.id ?? null, place_id: placeId, date: day, kind: x.kind.trim(), title: x.title.trim(), summary: x.summary?.trim() || null, visibility, recorded_by: v.userId, created_at: t })
+      .values({
+        id,
+        ramble_id: r.rambleId,
+        series_id: series?.id ?? null,
+        place_id: placeId,
+        date: day,
+        kind: x.kind.trim(),
+        title: x.title.trim(),
+        summary: x.summary?.trim() || null,
+        visibility,
+        recorded_by: v.userId,
+        created_at: t,
+      })
       .execute();
     for (const personId of new Set([v.personId, ...(x.present ?? []).map((p) => personIds[p])]))
       await tx.insertInto("experience_people").values({ experience_id: id, person_id: personId }).execute();
@@ -135,7 +164,16 @@ export type ExperienceView = {
   url: string;
 };
 export type SeriesSummary = { id: string; name: string; kind: string; rhythmDays: number | null; startsOn: string | null; endsOn: string | null; url: string };
-export type ExperienceQuery = { from?: string; to?: string; kind?: string; placeId?: string; seriesId?: string; personId?: string; ids?: string[]; limit?: number };
+export type ExperienceQuery = {
+  from?: string;
+  to?: string;
+  kind?: string;
+  placeId?: string;
+  seriesId?: string;
+  personId?: string;
+  ids?: string[];
+  limit?: number;
+};
 
 /** The experiences the viewer may see, newest first, narrowed by period, kind (any case), place, series or a person who was there. */
 export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promise<ExperienceView[]> {
@@ -166,8 +204,17 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
       .where("persons.id", "!=", v.personId)
       .orderBy("persons.name")
       .execute(),
-    d.selectFrom("places").select(["id", "name"]).where("id", "in", [...new Set(rows.flatMap((r) => (r.place_id ? [r.place_id] : [])))].concat([""])).execute(),
-    d.selectFrom("series").select(["id", "name"]).where("id", "in", [...new Set(rows.flatMap((r) => (r.series_id ? [r.series_id] : [])))].concat([""])).$call((qb) => visible(qb, v, "series")).execute(),
+    d
+      .selectFrom("places")
+      .select(["id", "name"])
+      .where("id", "in", [...new Set(rows.flatMap((r) => (r.place_id ? [r.place_id] : [])))].concat([""]))
+      .execute(),
+    d
+      .selectFrom("series")
+      .select(["id", "name"])
+      .where("id", "in", [...new Set(rows.flatMap((r) => (r.series_id ? [r.series_id] : [])))].concat([""]))
+      .$call((qb) => visible(qb, v, "series"))
+      .execute(),
   ]);
   const placeById = new Map(places.map((p) => [p.id, p]));
   const seriesById = new Map(series.map((s) => [s.id, s]));
@@ -193,7 +240,9 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
 
 /** The kinds the viewer's visible experiences use, most used first, so Claude keeps "Konzert" "Konzert". */
 export async function experienceKinds(v: Viewer): Promise<string[]> {
-  const rows = await (await db())
+  const rows = await (
+    await db()
+  )
     .selectFrom("experiences")
     .select(["kind", (eb) => eb.fn.countAll<number>().as("n")])
     .$call((qb) => visible(qb, v, "experiences"))
@@ -206,8 +255,23 @@ export async function experienceKinds(v: Viewer): Promise<string[]> {
 
 /** The series the viewer may see, by name. */
 export async function listSeries(v: Viewer): Promise<SeriesSummary[]> {
-  const rows = await (await db()).selectFrom("series").selectAll().$call((qb) => visible(qb, v, "series")).orderBy("name").execute();
-  return rows.map((s) => ({ id: s.id, name: s.name, kind: s.kind, rhythmDays: s.rhythm_days, startsOn: s.starts_on, endsOn: s.ends_on, url: seriesPath(s.id) }));
+  const rows = await (
+    await db()
+  )
+    .selectFrom("series")
+    .selectAll()
+    .$call((qb) => visible(qb, v, "series"))
+    .orderBy("name")
+    .execute();
+  return rows.map((s) => ({
+    id: s.id,
+    name: s.name,
+    kind: s.kind,
+    rhythmDays: s.rhythm_days,
+    startsOn: s.starts_on,
+    endsOn: s.ends_on,
+    url: seriesPath(s.id),
+  }));
 }
 
 export type SeriesView = SeriesSummary & {
@@ -224,7 +288,12 @@ export type SeriesView = SeriesSummary & {
 /** One series the viewer may see, with its sessions by date and the days skipped. */
 export async function getSeries(v: Viewer, id: string, today = todayOf()): Promise<SeriesView> {
   const d = await db();
-  const s = await d.selectFrom("series").selectAll().where("id", "=", id).$call((qb) => visible(qb, v, "series")).executeTakeFirst();
+  const s = await d
+    .selectFrom("series")
+    .selectAll()
+    .where("id", "=", id)
+    .$call((qb) => visible(qb, v, "series"))
+    .executeTakeFirst();
   if (!s) throw new NotFoundError("No such series");
   const [sessions, skips, place] = await Promise.all([
     listExperiences(v, { seriesId: id }),
@@ -263,13 +332,33 @@ export async function getPlace(v: Viewer, id: string): Promise<PlaceView> {
   const at = placeAndInsideIds(d, v, id);
   const [experiences, conversations, series] = await Promise.all([
     listExperiences(v, { placeId: id }),
-    d.selectFrom("conversations").select(["id", "date", "summary"]).where("place_id", "in", at).$call((qb) => visible(qb, v, "conversations")).orderBy("date", "desc").execute(),
-    d.selectFrom("series").selectAll().where("place_id", "in", at).$call((qb) => visible(qb, v, "series")).orderBy("name").execute(),
+    d
+      .selectFrom("conversations")
+      .select(["id", "date", "summary"])
+      .where("place_id", "in", at)
+      .$call((qb) => visible(qb, v, "conversations"))
+      .orderBy("date", "desc")
+      .execute(),
+    d
+      .selectFrom("series")
+      .selectAll()
+      .where("place_id", "in", at)
+      .$call((qb) => visible(qb, v, "series"))
+      .orderBy("name")
+      .execute(),
   ]);
   return {
     ...p,
     experiences,
     conversations: conversations.map((c) => ({ ...c, url: conversationPath(c.id) })),
-    series: series.map((s) => ({ id: s.id, name: s.name, kind: s.kind, rhythmDays: s.rhythm_days, startsOn: s.starts_on, endsOn: s.ends_on, url: seriesPath(s.id) })),
+    series: series.map((s) => ({
+      id: s.id,
+      name: s.name,
+      kind: s.kind,
+      rhythmDays: s.rhythm_days,
+      startsOn: s.starts_on,
+      endsOn: s.ends_on,
+      url: seriesPath(s.id),
+    })),
   };
 }

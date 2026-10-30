@@ -31,8 +31,7 @@ def inline(text: str) -> str:
     out = html.escape(text, quote=False)
     out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
     out = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", out)
-    return re.sub(r"\[([^\]]+)\]\((https://[^)\s]+|[\w./#-]+)\)",
-                  lambda m: f'<a href="{m.group(2).replace(chr(34), "%22")}">{m.group(1)}</a>', out)
+    return re.sub(r"\[([^\]]+)\]\((https://[^)\s]+|[\w./#-]+)\)", lambda m: f'<a href="{m.group(2).replace(chr(34), "%22")}">{m.group(1)}</a>', out)
 
 
 def blocks(text: str) -> str:
@@ -73,8 +72,7 @@ def nice_date(value) -> str:
 def row(entry: dict, icon) -> str:
     done = entry["status"] == "done"
     when = html.escape(nice_date(entry["date"]) if done else entry["when"])
-    links = "".join(f'<a href="{html.escape(link["url"], quote=True)}">{html.escape(link["label"])}</a>'
-                    for link in entry.get("links", []))
+    links = "".join(f'<a href="{html.escape(link["url"], quote=True)}">{html.escape(link["label"])}</a>' for link in entry.get("links", []))
     details = ""
     if entry.get("details"):
         details = f'<details class="fb-tl-details"><summary>Details</summary>\n{blocks(entry["details"])}\n</details>'

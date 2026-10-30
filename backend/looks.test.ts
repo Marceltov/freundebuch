@@ -41,7 +41,13 @@ test("a look is shared like the name: either user sets it, both see it", async (
 });
 
 test("remember sets looks with the rest and checks them before writing anything", async () => {
-  await expect(remember(s.a, { visibility: "shared", facts: [{ person: s.lena, text: "mag Jazz", category: "other" }], looks: [{ person: s.lena, look: { ...parts, skin: "green" } }] })).rejects.toThrow(InvalidInputError);
+  await expect(
+    remember(s.a, {
+      visibility: "shared",
+      facts: [{ person: s.lena, text: "mag Jazz", category: "other" }],
+      looks: [{ person: s.lena, look: { ...parts, skin: "green" } }],
+    }),
+  ).rejects.toThrow(InvalidInputError);
   expect(await (await db()).selectFrom("facts").select("id").where("text", "=", "mag Jazz").execute()).toEqual([]);
   const r = await remember(s.a, { visibility: "shared", looks: [{ person: s.lena, look: parts }] });
   expect(r.counts.looks).toBe(1);

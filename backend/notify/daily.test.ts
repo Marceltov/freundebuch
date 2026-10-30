@@ -69,7 +69,18 @@ describe("runDaily", () => {
     await d.updateTable("persons").set({ name: "Anna" }).where("id", "=", s.anna).execute();
     await d
       .insertInto("promises")
-      .values({ id: "pr1", person_id: s.anna, text: "Buch leihen", due: "2026-10-23", by_me: 1, done: 0, visibility: "shared", recorded_by: s.a.userId, conversation_id: null, created_at: 1 })
+      .values({
+        id: "pr1",
+        person_id: s.anna,
+        text: "Buch leihen",
+        due: "2026-10-23",
+        by_me: 1,
+        done: 0,
+        visibility: "shared",
+        recorded_by: s.a.userId,
+        conversation_id: null,
+        created_at: 1,
+      })
       .execute();
     await runDaily(NOW, fetchFn);
     const p = sent.find((m) => m.title === "📌 Versprochen: Buch leihen");
@@ -80,7 +91,10 @@ describe("runDaily", () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     const d = await db();
     const promise = (id: string, text: string, by_me: number, recorded_by: string) =>
-      d.insertInto("promises").values({ id, person_id: s.anna, text, due: "2026-10-23", by_me, done: 0, visibility: "shared", recorded_by, conversation_id: null, created_at: 1 }).execute();
+      d
+        .insertInto("promises")
+        .values({ id, person_id: s.anna, text, due: "2026-10-23", by_me, done: 0, visibility: "shared", recorded_by, conversation_id: null, created_at: 1 })
+        .execute();
     await promise("pr1", "das Zelt leihen", 0, s.a.userId);
     await promise("pr2", "Bobs Besorgung", 1, s.b.userId);
     await runDaily(NOW, fetchFn);
@@ -90,9 +104,22 @@ describe("runDaily", () => {
 
   test("a situation past its day nudges to ask", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    await (await db())
+    await (
+      await db()
+    )
       .insertInto("facts")
-      .values({ id: "f1", person_id: s.anna, text: "sucht ein Auto", category: "other", kind: "situation", check_after: "2026-10-20", visibility: "shared", recorded_by: s.a.userId, conversation_id: null, created_at: 1 })
+      .values({
+        id: "f1",
+        person_id: s.anna,
+        text: "sucht ein Auto",
+        category: "other",
+        kind: "situation",
+        check_after: "2026-10-20",
+        visibility: "shared",
+        recorded_by: s.a.userId,
+        conversation_id: null,
+        created_at: 1,
+      })
       .execute();
     await runDaily(NOW, fetchFn);
     expect(sent.map((m) => m.title)).toContain("💬 Frag mal nach: Anna – sucht ein Auto");
@@ -104,7 +131,18 @@ describe("runDaily", () => {
     for (let i = 0; i < 12; i++)
       await d
         .insertInto("promises")
-        .values({ id: `pr${i}`, person_id: s.anna, text: `P${i}`, due: "2026-10-23", by_me: 1, done: 0, visibility: "shared", recorded_by: s.a.userId, conversation_id: null, created_at: i })
+        .values({
+          id: `pr${i}`,
+          person_id: s.anna,
+          text: `P${i}`,
+          due: "2026-10-23",
+          by_me: 1,
+          done: 0,
+          visibility: "shared",
+          recorded_by: s.a.userId,
+          conversation_id: null,
+          created_at: i,
+        })
         .execute();
     const total = (await import("../due")).whatsDue;
     const items = (await total(s.a, "2026-10-23", 1)).length;
@@ -120,9 +158,22 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
   beforeEach(async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     // B has something due too (A's private birthday is not B's).
-    await (await db())
+    await (
+      await db()
+    )
       .insertInto("promises")
-      .values({ id: "pb", person_id: s.anna, text: "Anruf", due: "2026-10-23", by_me: 1, done: 0, visibility: "shared", recorded_by: s.b.userId, conversation_id: null, created_at: 1 })
+      .values({
+        id: "pb",
+        person_id: s.anna,
+        text: "Anruf",
+        due: "2026-10-23",
+        by_me: 1,
+        done: 0,
+        visibility: "shared",
+        recorded_by: s.b.userId,
+        conversation_id: null,
+        created_at: 1,
+      })
       .execute();
   });
 
@@ -176,7 +227,10 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
   test("a restart after A was served sends only to B", async () => {
     await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
     const d = await db();
-    await d.insertInto("meta").values({ key: `last_notify_date:${s.a.userId}`, value: "2026-10-23" }).execute();
+    await d
+      .insertInto("meta")
+      .values({ key: `last_notify_date:${s.a.userId}`, value: "2026-10-23" })
+      .execute();
     await runDailyIfDue(NOW, fetchFn);
     expect(sent.length).toBeGreaterThan(0);
     expect(sent.every((m) => m.url.endsWith("/b"))).toBe(true);
@@ -214,8 +268,20 @@ describe("settings", () => {
 describe("missed sessions", () => {
   test("the morning after a session day, once, a line says it wasn't told yet", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    const r = await record(s.a, { date: "2026-09-02", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }] });
-    await (await db()).updateTable("series").set({ created_at: Date.parse("2026-09-02T20:00:00Z") }).where("id", "=", r.experiences[0].seriesId!).execute();
+    const r = await record(s.a, {
+      date: "2026-09-02",
+      transcript: "t",
+      visibility: "shared",
+      people: [],
+      experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
+    });
+    await (
+      await db()
+    )
+      .updateTable("series")
+      .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })
+      .where("id", "=", r.experiences[0].seriesId!)
+      .execute();
     await runDaily(Date.parse("2026-09-10T08:00:00Z"), fetchFn);
     expect(sent.map((m) => m.title)).toContain("🐾 Hundeschule mit Toffee am 09.09.: noch nicht erzählt");
     sent = [];

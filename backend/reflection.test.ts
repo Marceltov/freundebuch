@@ -38,7 +38,9 @@ test("off by default; a day and an hour turn it on, null turns it off", async ()
 test("a week with journal entries gets a push with Claude's reflection, linking the Tagebuch", async () => {
   await record(s.a, { date: "2026-10-27", transcript: "t", visibility: "shared", people: [], journal: [{ text: "Viel Stress im Job." }] });
   expect(await runReflection(s.a, THU_19, model, fetchFn)).toBe(true);
-  expect(sent).toEqual([{ url: "https://ntfy.example/a", title: "🪞 Deine Woche", body: "Diese Woche ging es oft um deinen Job.", click: "https://f.example/tagebuch" }]);
+  expect(sent).toEqual([
+    { url: "https://ntfy.example/a", title: "🪞 Deine Woche", body: "Diese Woche ging es oft um deinen Job.", click: "https://f.example/tagebuch" },
+  ]);
   expect(JSON.stringify(seen)).toContain("Viel Stress im Job.");
   expect(seen.at(-1)?.language).toBe("de");
 });

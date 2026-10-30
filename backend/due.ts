@@ -44,14 +44,26 @@ export type UpcomingDate = {
 
 /** The viewer's visible dates that fall within `horizonDays` of `from`, soonest first; a yearly date recurs, a one-off date only counts once. */
 export async function upcomingDates(v: Viewer, from: string, horizonDays: number, personId?: string): Promise<UpcomingDate[]> {
-  let q = (await db()).selectFrom("dates").selectAll().$call((qb) => visible(qb, v, "dates"));
+  let q = (await db())
+    .selectFrom("dates")
+    .selectAll()
+    .$call((qb) => visible(qb, v, "dates"));
   if (personId) q = q.where("person_id", "=", personId);
   const out: UpcomingDate[] = [];
   for (const d of await q.execute()) {
     const date = d.yearly ? nextOccurrence(d.date, from) : d.date;
     const inDays = daysBetween(from, date);
     if (inDays < 0 || inDays > horizonDays) continue;
-    out.push({ id: d.id, personId: d.person_id, kind: d.kind, label: d.label, date, inDays, age: d.kind === "birthday" ? ageOn(d.date, date) : null, url: itemPath(personPath(d.person_id), "dates", d.id) });
+    out.push({
+      id: d.id,
+      personId: d.person_id,
+      kind: d.kind,
+      label: d.label,
+      date,
+      inDays,
+      age: d.kind === "birthday" ? ageOn(d.date, date) : null,
+      url: itemPath(personPath(d.person_id), "dates", d.id),
+    });
   }
   return out.sort((a, b) => a.inDays - b.inDays || a.id.localeCompare(b.id));
 }
@@ -99,7 +111,16 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
       .orderBy("due")
       .orderBy("created_at")
       .execute()
-  ).map((p) => ({ kind: "promise", personId: p.person_id, name: name(p.person_id), date: p.due!, text: p.text, byMe: !!p.by_me, itemId: p.id, url: itemPath(personPath(p.person_id), "promises", p.id) }));
+  ).map((p) => ({
+    kind: "promise",
+    personId: p.person_id,
+    name: name(p.person_id),
+    date: p.due!,
+    text: p.text,
+    byMe: !!p.by_me,
+    itemId: p.id,
+    url: itemPath(personPath(p.person_id), "promises", p.id),
+  }));
 
   const situations: DueItem[] = (
     await d
@@ -112,9 +133,24 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
       .orderBy("check_after")
       .orderBy("created_at")
       .execute()
-  ).map((f) => ({ kind: "situation", personId: f.person_id, name: name(f.person_id), date: f.check_after!, text: f.text, itemId: f.id, url: itemPath(personPath(f.person_id), "facts", f.id) }));
+  ).map((f) => ({
+    kind: "situation",
+    personId: f.person_id,
+    name: name(f.person_id),
+    date: f.check_after!,
+    text: f.text,
+    itemId: f.id,
+    url: itemPath(personPath(f.person_id), "facts", f.id),
+  }));
 
-  const sessions: DueItem[] = (await missedSessions(v, from)).map((m) => ({ kind: "session", personId: v.personId, name: m.name, date: m.date, itemId: m.seriesId, url: m.url }));
+  const sessions: DueItem[] = (await missedSessions(v, from)).map((m) => ({
+    kind: "session",
+    personId: v.personId,
+    name: m.name,
+    date: m.date,
+    itemId: m.seriesId,
+    url: m.url,
+  }));
 
   return [...dates, ...overdue, ...situations, ...sessions, ...promises];
 }
