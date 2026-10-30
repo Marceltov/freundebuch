@@ -330,3 +330,8 @@ export async function placesOf(v: Viewer, personId: string): Promise<Array<Place
 export async function placesInside(v: Viewer, id: string): Promise<PlaceCandidate[]> {
   return (await describePlace(await db(), v, id)).inside;
 }
+
+/** The homes of a person the viewer may see: the places with an ownership of theirs the viewer may see. */
+export async function homesOf(v: Viewer, personId: string): Promise<PlaceCandidate[]> {
+  return (await visiblePlaces(await db(), v)).filter((p) => p.owners.some((o) => o.id === personId));
+}

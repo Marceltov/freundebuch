@@ -237,6 +237,7 @@ export const BriefingJson = z
     known: z.array(z.object(FactJson)).describe("What else stays true about the person, by category"),
     journal: z.array(JournalEntryJson.extend({})).describe("The caller's own journal entries that name the person, the last few, newest first"),
     experiences: z.array(ExperienceJson.extend({})).describe("The experiences the caller may see that the person was at, the last few, newest first"),
+    homes: z.array(PlaceJson.extend({})).describe("Where the person lives: the places that are their home"),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
