@@ -9,6 +9,7 @@ import {
   Gift,
   Handshake,
   HeartHandshake,
+  House,
   Lock,
   MessageCircleQuestionMark,
   MessagesSquare,
@@ -168,6 +169,12 @@ export function FriendPage({
                   ` · ${copy.ageYears.replace("{n}", String(birthday.next === today ? birthday.age : birthday.age - 1))}`}
               </Chip>
             )}
+            {b.homes.map((h) => (
+              <Chip key={h.id} href={h.url} icon={House} label={copy.livesIn}>
+                {h.name}
+                {h.address && ` · ${h.address}`}
+              </Chip>
+            ))}
             {b.freshness.intervalDays !== null && (
               <Chip icon={Repeat} label={copy.interval}>
                 {every(b.freshness.intervalDays)}

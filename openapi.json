@@ -681,8 +681,8 @@
     "/api/v1/places": {
       "get": {
         "operationId": "findPlaces",
-        "summary": "Find places by name",
-        "description": "Places the caller may see whose name or other name matches `q`, tolerant of spelling, best first.",
+        "summary": "Find places by name, by a person, or inside a place",
+        "description": "Exactly one of: `q`, places the caller may see whose name or other name matches, tolerant of spelling, best first; `person`, the places of the conversations and experiences the person was part of, newest first, with how often and when last; `inside`, the places directly inside a place.",
         "tags": [
           "Experiences"
         ],
@@ -698,8 +698,26 @@
           {
             "name": "q",
             "in": "query",
-            "required": true,
+            "required": false,
             "description": "A place's name, or part of it",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "person",
+            "in": "query",
+            "required": false,
+            "description": "A person's id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "inside",
+            "in": "query",
+            "required": false,
+            "description": "A place's id",
             "schema": {
               "type": "string"
             }
@@ -728,6 +746,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5752,6 +5780,16 @@
             "url": {
               "type": "string",
               "description": "Where it opens in the web app, as an absolute URL"
+            },
+            "times": {
+              "description": "person: how often the person was there with the caller",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "last": {
+              "description": "person: when last",
+              "type": "string"
             }
           },
           "required": [

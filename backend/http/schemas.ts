@@ -176,7 +176,14 @@ export const PlaceJson = z
     url: Url,
   })
   .meta({ id: "Place" });
-export const PlaceListJson = z.array(PlaceJson.extend({})).meta({ id: "PlaceList" });
+export const PlaceListJson = z
+  .array(
+    PlaceJson.extend({
+      times: z.number().int().optional().describe("person: how often the person was there with the caller"),
+      last: Day.optional().describe("person: when last"),
+    }),
+  )
+  .meta({ id: "PlaceList" });
 export const SeriesJson = SeriesSummaryJson.extend({
   place: Linked.nullable(),
   sessions: z.array(ExperienceJson.extend({})).describe("Its sessions the caller may see, oldest first"),
