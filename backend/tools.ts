@@ -650,6 +650,12 @@ export const TOOLS: readonly Tool[] = [
           .filter((b) => b.ids.length > 1);
         for (const b of batches)
           next.push(`${b.ids.slice(0, -1).join(", ")} and ${b.ids.at(-1)} were shared together: offer to work them through as one thing, and pass all their ids to record in fileIds.`);
+        // Shared apart can still be one thing (a chat screenshotted on two evenings): Claude looks across them and asks.
+        const units = batches.length + shown.filter((f) => !batches.some((b) => b.batchId === f.batchId)).length;
+        if (units > 1)
+          next.push(
+            `${files.length} files wait. Tell the user so, and look across them: files that look like one thing although they were shared apart (the same chat or post, the same people, the same day) may be worked through together. Name them and ask whether to merge them before filing any.`,
+          );
         const large = (await Promise.all(shown.map(async (f) => ((await fileContent(v, f.id))?.bytes.byteLength ?? 0) > MAX_ATTACH && f.id))).filter(Boolean);
         if (large.length) next.push(`Too large to hand over here: ${large.join(", ")}. Work from its transcript, or tell the user to open it under Prüfen in the freundebuch app.`);
         return ok(InboxJson, batches.length ? { files: shown, batches } : { files: shown }, next);

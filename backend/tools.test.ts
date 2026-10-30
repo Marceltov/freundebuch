@@ -346,6 +346,20 @@ describe("inbox", () => {
     expect(inbox.description).toMatch(/ask the user which/);
   });
 
+  test("with several waiting that weren't shared together, Claude tells the user and asks which might be one thing", async () => {
+    await shareFile(s.a, text("Chat Teil 1"), "text/plain");
+    await shareFile(s.a, text("Chat Teil 2"), "text/plain");
+    const r = await run(s.a, "inbox", { action: "list" });
+    expect(r.next).toContain(
+      "2 files wait. Tell the user so, and look across them: files that look like one thing although they were shared apart (the same chat or post, the same people, the same day) may be worked through together. Name them and ask whether to merge them before filing any.",
+    );
+  });
+
+  test("a single waiting file brings no hint about merging", async () => {
+    await shareFile(s.a, text("Allein"), "text/plain");
+    expect((await run(s.a, "inbox", { action: "list" })).next.join()).not.toMatch(/merge/);
+  });
+
   test("a batch isn't cut at the fifth file", async () => {
     for (let i = 0; i < 4; i++) await shareFile(s.a, text(`Datei ${i}`), "text/plain");
     for (let i = 0; i < 3; i++) await shareFile(s.a, text(`Teil ${i}`), "text/plain", "run-7654321");
