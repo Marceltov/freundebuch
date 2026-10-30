@@ -4,6 +4,7 @@ import { getPlace } from "@/backend";
 import { copy } from "@/components/copy";
 import { shortDay } from "@/components/format";
 import { ExperienceItem } from "@/components/Experiences";
+import { PlaceFacts } from "@/components/Place";
 import { Section } from "@/components/Tiles";
 import { orNotFound, pageViewer } from "../../viewer";
 
@@ -11,7 +12,8 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: copy.place };
 
-// A place: its other names, and everything at it the viewer may see: series, experiences and conversations, newest first.
+// A place: its other names, where it sits, its address and whose home it is, the places inside it, and everything at it or inside
+// it the viewer may see: series, experiences and conversations, newest first.
 export default async function PlacePage({ params }: PageProps<"/o/[id]">) {
   const v = await pageViewer();
   const p = await orNotFound(getPlace(v, (await params).id));
@@ -22,6 +24,7 @@ export default async function PlacePage({ params }: PageProps<"/o/[id]">) {
         {p.name}
       </h1>
       {p.aliases.length > 0 && <p className="mt-1 text-muted">{copy.placeOther.replace("{names}", p.aliases.join(", "))}</p>}
+      <PlaceFacts p={p} />
       {p.series.length > 0 && (
         <Section title={copy.placeSeries} icon={Repeat} list>
           {p.series.map((s) => (

@@ -264,7 +264,7 @@ export async function editItem(v: Viewer, table: ItemTable, id: string, patch: R
   // One transaction: a new place is made only when the edit lands.
   await d.transaction().execute(async (tx) => {
     if ((table === "conversations" || table === "experiences" || table === "series") && "place" in set) {
-      set.place_id = set.place === null || set.place === "" ? null : await resolvePlace(tx, v, set.place as PlaceRef);
+      set.place_id = set.place === null || set.place === "" ? null : await resolvePlace(tx, v, set.place as PlaceRef, (row as unknown as { visibility: Visibility }).visibility);
       delete set.place;
     }
     // A conversation's transcript is its ramble's.
@@ -552,6 +552,10 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
         .onConflict((oc) => oc.doNothing())
         .execute();
     await tx.deleteFrom("experience_people").where("person_id", "=", dropId).execute();
+    // And their homes, each recorder's ownership once.
+    for (const o of await tx.selectFrom("place_owners").selectAll().where("person_id", "=", dropId).execute())
+      await tx.insertInto("place_owners").values({ ...o, person_id: keepId }).onConflict((oc) => oc.doNothing()).execute();
+    await tx.deleteFrom("place_owners").where("person_id", "=", dropId).execute();
 
     for (const m of await tx.selectFrom("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute())
       await moveMembership(tx, m.recorded_by, { group_id: m.group_id, person_id: dropId }, { group_id: m.group_id, person_id: keepId });

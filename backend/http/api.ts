@@ -15,7 +15,7 @@ import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
 import { journalEntries } from "../journal";
 import { experienceKinds, getPlace, getSeries, listExperiences, listSeries } from "../experiences";
-import { findPlaces } from "../places";
+import { findPlaces, placesInside, placesOf } from "../places";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { getReflection, putReflection } from "../reflection";
@@ -203,14 +203,23 @@ const OPS: AnyOp[] = [
     method: "GET",
     path: `${API_PREFIX}/places`,
     operationId: "findPlaces",
-    summary: "Find places by name",
-    description: "Places the caller may see whose name or other name matches `q`, tolerant of spelling, best first.",
+    summary: "Find places by name, by a person, or inside a place",
+    description:
+      "Exactly one of: `q`, places the caller may see whose name or other name matches, tolerant of spelling, best first; `person`, the places of the conversations and experiences the person was part of, newest first, with how often and when last; `inside`, the places directly inside a place.",
     tags: ["Experiences"],
     auth: true,
     params: {},
-    query: z.object({ q: z.string().describe("A place's name, or part of it") }),
-    responses: { 200: { description: "The places", schema: PlaceListJson }, 400: E400, 401: E401 },
-  }).handle(async ({ viewer, query }) => ({ status: 200, body: await findPlaces(viewer, query.q) })),
+    query: z.object({
+      q: z.string().optional().describe("A place's name, or part of it"),
+      person: z.string().optional().describe("A person's id"),
+      inside: z.string().optional().describe("A place's id"),
+    }),
+    responses: { 200: { description: "The places", schema: PlaceListJson }, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, query }) => {
+    const { q, person, inside } = query;
+    if ([q, person, inside].filter((x) => x !== undefined).length !== 1) throw new InvalidInputError("Give exactly one of q, person or inside");
+    return { status: 200, body: q !== undefined ? await findPlaces(viewer, q) : person !== undefined ? await placesOf(viewer, person) : await placesInside(viewer, inside!) };
+  }),
 
   op({
     method: "PUT",

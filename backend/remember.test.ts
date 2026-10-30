@@ -9,6 +9,7 @@ import { fileContent, shareFile } from "./files";
 import { db } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { addDays, today } from "./dates";
+import { findPlaces } from "./places";
 import { seed, type Seed } from "./testing/fixtures";
 
 let s: Seed;
@@ -147,4 +148,11 @@ test("a conversation filed from shared files keeps their transcripts, word for w
   await expect(
     recordConversation(s.a, { date: "2026-10-20", kind: "message", summary: "x", transcript: "t", visibility: "shared", fileIds: [one.id], people: [{ id: s.anna, present: true }] }),
   ).rejects.toThrow(NotFoundError);
+});
+
+test("a home told outside a conversation files a place owned by the person", async () => {
+  const r = await remember(s.a, { visibility: "shared", homes: [{ person: s.anna, place: { name: "Annas Wohnung", in: "Nürnberg", address: "Hauptstraße 5" } }] });
+  expect(r.counts.homes).toBe(1);
+  const [p] = await findPlaces(s.b, "Annas Wohnung");
+  expect(p).toMatchObject({ address: "Hauptstraße 5", owners: [{ id: s.anna }], parents: [{ name: "Nürnberg" }] });
 });

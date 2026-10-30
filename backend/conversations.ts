@@ -6,7 +6,7 @@ import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { insertExperiences, validateExperiences, type NewExperience, type RecordedExperience } from "./experiences";
-import { resolvePlace, type PlaceRef } from "./places";
+import { fileOwners, fileOwnersOf, ownersOf, resolvePlace, type PlaceRef } from "./places";
 import { checkGender, insertPerson, namedLike, relabelFor, type Relabel } from "./people";
 import {
   CONVERSATION_KINDS,
@@ -42,7 +42,7 @@ export type NewConversation = {
   fileIds?: string[];
   date: string;
   kind: ConversationKind;
-  place?: PlaceRef;
+  place?: PlaceRef<PersonRef>;
   summary: string;
   transcript: string;
   visibility: Visibility;
@@ -252,8 +252,13 @@ async function insertItems<P>(
  * February". `genders` sets (null: clears) a person's gender, shared like the name; like setGender, each comes back with the
  * person's relationships the viewer recorded, to put in it.
  */
-export type Remembered = { visibility: Visibility; genders?: Array<{ person: string; gender: Gender | null }> } & Items<string>;
-type RememberCounts = { facts: number; promises: number; dates: number; exchanges: number; genders: number };
+export type Remembered = {
+  visibility: Visibility;
+  genders?: Array<{ person: string; gender: Gender | null }>;
+  /** Where someone lives: a place (as record names one) that is their home. */
+  homes?: Array<{ person: string; place: PlaceRef<unknown>; private?: boolean }>;
+} & Items<string>;
+type RememberCounts = { facts: number; promises: number; dates: number; exchanges: number; genders: number; homes: number };
 
 export async function remember(v: Viewer, r: Remembered): Promise<{
   counts: RememberCounts;
@@ -262,8 +267,8 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
   genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }>;
 }> {
   checkVisibility(r.visibility);
-  const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0) + (r.genders?.length ?? 0);
-  if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date, exchange or gender");
+  const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0) + (r.genders?.length ?? 0) + (r.homes?.length ?? 0);
+  if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date, exchange, gender or home");
   const person = (p: unknown) => {
     if (typeof p !== "string" || !p) throw new InvalidInputError("Each item needs the id of an existing person");
   };
@@ -272,10 +277,15 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
     person(g.person);
     checkGender(g.gender);
   }
+  for (const h of r.homes ?? []) {
+    person(h.person);
+    if (!h.place) throw new InvalidInputError("A home needs a place");
+    if (ownersOf(h.place).length) throw new InvalidInputError("A home is its person's: leave owners out of its place");
+  }
   const vis = (item: { private?: boolean }): Visibility => (r.visibility === "private" || item.private ? "private" : "shared");
   const base: ItemBase = { recorded_by: v.userId, conversation_id: null, created_at: now() };
   return (await db()).transaction().execute(async (tx) => {
-    const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? [])].map((i) => i.person))];
+    const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? []), ...(r.homes ?? [])].map((i) => i.person))];
     const people = await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute();
     if (people.length !== ids.length) throw new NotFoundError("No such person");
     const genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }> = [];
@@ -286,10 +296,11 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
     }
     const names = new Map(people.map((p) => [p.id, p.name]));
     const filed = await insertItems(tx, v, base, r, (p) => p, vis, (p) => names.get(p) ?? "", personPath);
+    for (const h of r.homes ?? []) await fileOwners(tx, v, await resolvePlace(tx, v, h.place, vis(h)), [h.person], vis(h));
     return {
       filed,
       genders,
-      counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0, genders: r.genders?.length ?? 0 },
+      counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0, genders: r.genders?.length ?? 0, homes: r.homes?.length ?? 0 },
       people: people.map((p) => ({ id: p.id, name: p.name, url: personPath(p.id) })),
     };
   });
@@ -458,7 +469,7 @@ export type NewRamble = {
   transcript: string;
   visibility: Visibility;
   people: Array<{ id?: string; name?: string; aliases?: string[]; confirmedNew?: boolean; gender?: Gender }>;
-  conversations?: Array<{ date?: string; kind: ConversationKind; place?: PlaceRef; summary: string; present: PersonRef[]; /** The experience (index) it happened at. */ at?: number }>;
+  conversations?: Array<{ date?: string; kind: ConversationKind; place?: PlaceRef<PersonRef>; summary: string; present: PersonRef[]; /** The experience (index) it happened at. */ at?: number }>;
   experiences?: NewExperience[];
   journal?: Array<{ date?: string; text: string; mentions?: PersonRef[]; shared?: boolean }>;
   facts?: Array<NonNullable<NewConversation["facts"]>[number] & In>;
@@ -497,6 +508,7 @@ function validateRamble(r: NewRamble): void {
     oneOf(c.kind, CONVERSATION_KINDS, "conversation kind");
     if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
     c.present.forEach(ref);
+    for (const o of ownersOf(c.place)) if (!isHouseholdWord(o)) ref(o);
     if (c.at !== undefined && (!Number.isInteger(c.at) || c.at < 0 || c.at >= (r.experiences ?? []).length)) throw new InvalidInputError(`Experience ${c.at} is not in experiences`);
   }
   validateExperiences(r.experiences ?? [], r.people.length);
@@ -539,8 +551,11 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     blobs = taken.blobs;
     const transcript = [r.transcript, ...taken.transcripts.map((x) => `${FROM_FILE}\n${x}`)].join("\n\n");
     await tx.insertInto("rambles").values({ id: rambleId, date: r.date, transcript, transcript_private: transcriptPrivate, visibility: r.visibility, recorded_by: v.userId, created_at: t }).execute();
+    const placeLevels: string[][] = [];
     for (const [i, c] of (r.conversations ?? []).entries()) {
-      const placeId = c.place === undefined || c.place === "" ? null : await resolvePlace(tx, v, c.place);
+      const levels: string[] = [];
+      const placeId = c.place === undefined || c.place === "" ? null : await resolvePlace(tx, v, c.place, r.visibility, levels);
+      placeLevels.push(levels);
       await tx
         .insertInto("conversations")
         .values({ id: conversationIds[i], date: c.date ?? r.date, kind: c.kind, place_id: placeId, summary: c.summary, ramble_id: rambleId, visibility: r.visibility, recorded_by: v.userId, created_at: t })
@@ -562,6 +577,9 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     const id = (x: PersonRef) => people[x].id;
     for (const [i, c] of (r.conversations ?? []).entries())
       for (const personId of new Set([v.personId, ...c.present.map(id)])) await tx.insertInto("participants").values({ conversation_id: conversationIds[i], person_id: personId }).execute();
+
+    // Whose home a conversation's place is, once the people it names are known.
+    for (const [i, c] of (r.conversations ?? []).entries()) await fileOwnersOf(tx, v, c.place, placeLevels[i], (o) => (isHouseholdWord(o) ? o : id(o)), r.visibility, rambleId);
 
     const experiences = await insertExperiences(tx, v, { rambleId, date: r.date, visibility: r.visibility }, r.experiences ?? [], people.map((p) => p.id), t);
     if (experiences.some((e) => e.visibility === "private")) await tx.updateTable("rambles").set({ transcript_private: 1 }).where("id", "=", rambleId).execute();

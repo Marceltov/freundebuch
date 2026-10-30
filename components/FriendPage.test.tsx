@@ -20,6 +20,7 @@ const b: Briefing = {
   known: [],
   journal: [],
   experiences: [],
+  homes: [],
   open: {
     promises: [
       { id: "1", text: "send photos", byMe: true, due: null, url: "/p/p1#promises-1", ...own, mine: true },
@@ -159,4 +160,12 @@ test("Worauf achten shows needs under Braucht, then personality under Wesen, bet
   const onlyNeeds = renderToStaticMarkup(<FriendPage b={{ ...b, traits: { needs: [fact("n1", "vegetarisch", "health")], personality: [] } }} daysSince={null} />);
   expect(onlyNeeds).toContain("Braucht");
   expect(onlyNeeds).not.toContain("Wesen");
+});
+
+test("the header says where the person lives, with the address, linking to the place", () => {
+  const home = { id: "h1", name: "Annas Wohnung", aliases: [], parents: [{ id: "n", name: "Nürnberg", url: "/o/n" }], address: "Hauptstraße 5", owners: [], url: "/o/h1" };
+  const html = renderToStaticMarkup(<FriendPage b={{ ...b, homes: [home] }} daysSince={null} />);
+  expect(html).toMatch(/Wohnt in: <\/span>Annas Wohnung · Hauptstraße 5/);
+  expect(html).toContain('href="/o/h1"');
+  expect(renderToStaticMarkup(<FriendPage b={b} daysSince={null} />)).not.toContain("Wohnt in");
 });

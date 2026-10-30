@@ -12,8 +12,10 @@ Everything stays as a memory: an ended series keeps all its sessions, and nothin
 
 ## Places
 
-A place has a name and other names, like a person ("Hundeschule Pfotenglück", "die Hundeschule"). Claude reuses a place you already have and asks when a new name is close to an existing one. A place's page shows everything that happened there; a series' page shows its sessions by date, with the missed and skipped days. Addresses and a map come later ([#78](https://github.com/Marceltov/freundebuch/issues/78)).
+A place has a name and other names, like a person ("Hundeschule Pfotenglück", "die Hundeschule"). Claude reuses a place you already have and asks when a new name is close to an existing one. A place's page shows everything that happened there; a series' page shows its sessions by date, with the missed and skipped days.
+
+Places sit inside other places as you tell them: "we were at the Olympiahalle in München" files the Olympiahalle inside München, and asking "what did we do in München?" finds the evening there too. A place can have an address in words, and it can be someone's home: "we cooked at Anna's" files Anna's place, and her page and her briefing say where she lives. When someone moves, tell Claude; the new place becomes their home and the old one stays with everything that happened there. Ask "where were we with Anna?" for the places of everything you did with her. There is no map: freundebuch keeps where in words.
 
 ## Private and shared
 
-Experiences and series are shared with your partner by default, like conversations; Claude asks before filing something sensitive as shared. A private ramble or a private series makes its experiences private. A place shows up for your partner only through something at it they may see.
+Experiences and series are shared with your partner by default, like conversations; Claude asks before filing something sensitive as shared. A private ramble or a private series makes its experiences private. A place shows up for your partner only through something at it they may see, a home of someone they may see is theirs, or a place inside it they see: whoever sees the Olympiahalle may see that it is in München, but a place you were at privately never shows on München's page for them. Whose home a place is can be private too.

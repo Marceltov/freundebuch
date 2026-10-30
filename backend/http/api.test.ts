@@ -467,4 +467,15 @@ describe("series and places", () => {
     expect((await call(s.b, "GET", `/series/${seriesId}`)).status).toBe(404);
     expect((await call(s.b, "GET", `/places/${placeId}`)).status).toBe(404);
   });
+
+  test("GET /places by person and inside a place, and exactly one of q, person, inside", async () => {
+    await call(s.a, "POST", "/rambles", { date: "2026-10-28", transcript: "t", visibility: "shared", people: [{ id: s.anna }], conversations: [{ kind: "in_person", summary: "Konzert", present: [0], place: { name: "Olympiahalle", in: "München" } }] });
+    const byPerson = await call(s.a, "GET", `/places?person=${s.anna}`);
+    const oly = byPerson.json.find((p: { name: string }) => p.name === "Olympiahalle");
+    expect(oly).toMatchObject({ times: 1, last: "2026-10-28", parents: [{ name: "München" }] });
+    const inside = await call(s.a, "GET", `/places?inside=${oly.parents[0].id}`);
+    expect(inside.json.map((p: { name: string }) => p.name)).toEqual(["Olympiahalle"]);
+    expect((await call(s.a, "GET", "/places")).status).toBe(400);
+    expect((await call(s.a, "GET", `/places?q=x&person=${s.anna}`)).status).toBe(400);
+  });
 });

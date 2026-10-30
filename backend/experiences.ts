@@ -7,7 +7,7 @@ import { missedSessions } from "./sessions";
 import { db, newId, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import { resolvePlace, visiblePlaceIds, type PlaceRef } from "./places";
+import { describePlace, fileOwnersOf, ownersOf, placeAndInsideIds, resolvePlace, type PlaceCandidate, type PlaceRef } from "./places";
 import type { Viewer, Visibility } from "./types";
 import { conversationPath, personPath, placePath, ramblePath, seriesPath } from "./urls";
 import { visible } from "./visibility";
@@ -24,7 +24,7 @@ export type NewExperience = {
   kind: string;
   title: string;
   summary?: string;
-  place?: PlaceRef;
+  place?: PlaceRef<number>;
   /** The people who were there, as refs into the ramble's people; the user always is. */
   present?: number[];
   series?: SeriesRef;
@@ -48,7 +48,8 @@ export function validateExperiences(xs: NewExperience[], people: number): void {
       assertDay(x.date, "The experience's date");
       notFuture(x.date, "The experience's date");
     }
-    for (const p of x.present ?? []) if (!Number.isInteger(p) || p < 0 || p >= people) throw new InvalidInputError(`Person ${p} is not in people`);
+    for (const p of [...(x.present ?? []), ...ownersOf(x.place).filter((o) => o !== "me" && o !== "us")])
+      if (!Number.isInteger(p) || (p as number) < 0 || (p as number) >= people) throw new InvalidInputError(`Person ${p} is not in people`);
     if (x.series && typeof x.series === "object") {
       words(x.series.name, "A series' name", MAX_TITLE);
       const r = x.series.rhythmDays;
@@ -100,10 +101,12 @@ export async function insertExperiences(
   const out: RecordedExperience[] = [];
   for (const x of xs) {
     const day = x.date ?? r.date;
-    const placeId = x.place === undefined || x.place === "" ? null : await resolvePlace(tx, v, x.place);
+    const levels: string[] = [];
+    const placeId = x.place === undefined || x.place === "" ? null : await resolvePlace(tx, v, x.place, r.visibility === "private" || x.private ? "private" : "shared", levels);
     // A new series started by a private experience is private too, or its name and place would reach the other user.
     const series = x.series === undefined ? null : await resolveSeries(tx, v, x.series, x, day, x.private ? "private" : r.visibility, t, placeId);
     const visibility: Visibility = r.visibility === "private" || x.private || series?.visibility === "private" ? "private" : "shared";
+    await fileOwnersOf(tx, v, x.place, levels, (o) => (o === "me" || o === "us" ? o : personIds[o]), visibility, r.rambleId);
     const id = newId();
     await tx
       .insertInto("experiences")
@@ -146,7 +149,7 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
   if (q.from) query = query.where("date", ">=", q.from);
   if (q.to) query = query.where("date", "<=", q.to);
   if (q.kind) query = query.where(sql<string>`lower(kind)`, "=", q.kind.trim().toLowerCase());
-  if (q.placeId) query = query.where("place_id", "=", q.placeId);
+  if (q.placeId) query = query.where("place_id", "in", placeAndInsideIds(d, v, q.placeId));
   if (q.seriesId) query = query.where("series_id", "=", q.seriesId);
   if (q.personId) query = query.where("id", "in", (eb) => eb.selectFrom("experience_people").select("experience_id").where("person_id", "=", q.personId!));
   if (q.ids) query = query.where("id", "in", q.ids.length ? q.ids : [""]);
@@ -245,32 +248,26 @@ export async function getSeries(v: Viewer, id: string, today = todayOf()): Promi
   };
 }
 
-export type PlaceView = {
-  id: string;
-  name: string;
-  aliases: string[];
-  url: string;
+export type PlaceView = PlaceCandidate & {
+  /** The places directly inside it the viewer may see. */
+  inside: PlaceCandidate[];
   experiences: ExperienceView[];
   conversations: Array<{ id: string; date: string; summary: string; url: string }>;
   series: SeriesSummary[];
 };
 
-/** One place the viewer may see, with everything at it they may see, newest first. */
+/** One place the viewer may see, with everything at it or inside it they may see, newest first. */
 export async function getPlace(v: Viewer, id: string): Promise<PlaceView> {
   const d = await db();
-  const p = await d.selectFrom("places").select(["id", "name"]).where("id", "=", id).where("id", "in", visiblePlaceIds(d, v)).executeTakeFirst();
-  if (!p) throw new NotFoundError("No such place");
-  const [aliases, experiences, conversations, series] = await Promise.all([
-    d.selectFrom("place_aliases").select("alias").where("place_id", "=", id).orderBy("alias").execute(),
+  const p = await describePlace(d, v, id);
+  const at = placeAndInsideIds(d, v, id);
+  const [experiences, conversations, series] = await Promise.all([
     listExperiences(v, { placeId: id }),
-    d.selectFrom("conversations").select(["id", "date", "summary"]).where("place_id", "=", id).$call((qb) => visible(qb, v, "conversations")).orderBy("date", "desc").execute(),
-    d.selectFrom("series").selectAll().where("place_id", "=", id).$call((qb) => visible(qb, v, "series")).orderBy("name").execute(),
+    d.selectFrom("conversations").select(["id", "date", "summary"]).where("place_id", "in", at).$call((qb) => visible(qb, v, "conversations")).orderBy("date", "desc").execute(),
+    d.selectFrom("series").selectAll().where("place_id", "in", at).$call((qb) => visible(qb, v, "series")).orderBy("name").execute(),
   ]);
   return {
-    id: p.id,
-    name: p.name,
-    aliases: aliases.map((a) => a.alias),
-    url: placePath(p.id),
+    ...p,
     experiences,
     conversations: conversations.map((c) => ({ ...c, url: conversationPath(c.id) })),
     series: series.map((s) => ({ id: s.id, name: s.name, kind: s.kind, rhythmDays: s.rhythm_days, startsOn: s.starts_on, endsOn: s.ends_on, url: seriesPath(s.id) })),

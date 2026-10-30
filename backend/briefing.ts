@@ -14,6 +14,7 @@ import { conversationPath, groupPath, itemPath, personPath } from "./urls";
 import { hiddenFiles } from "./files";
 import { journalEntries, type JournalEntry } from "./journal";
 import { listExperiences, type ExperienceView } from "./experiences";
+import { homesOf, type PlaceCandidate } from "./places";
 import { splitTraits, toFact, type Traits } from "./traits";
 import { visible } from "./visibility";
 
@@ -59,6 +60,8 @@ export type Briefing = {
   journal: JournalEntry[];
   /** The experiences the viewer may see that the person was at, the last few, newest first. */
   experiences: ExperienceView[];
+  /** Where the person lives: the places the viewer may see are their home. */
+  homes: PlaceCandidate[];
   open: {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
     promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null; url: string }>;
@@ -168,6 +171,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     traits: splitTraits(facts, v, page, hidden),
     journal: await journalEntries(v, { from: "0000-01-01", to: from, personId, own: true, limit: BRIEFING_JOURNAL }),
     experiences: await listExperiences(v, { personId, to: from, limit: BRIEFING_JOURNAL }),
+    homes: await homesOf(v, personId),
     known,
     open: {
       promises: promises.map((p) => ({ id: p.id, text: p.text, byMe: !!p.by_me && p.recorded_by === v.userId, ...(p.by_me ? by(p) : {}), due: p.due, url: itemPath(page, "promises", p.id), ...own(p) })),

@@ -272,3 +272,11 @@ test("B never sees A's private trait, and an outdated trait is gone", async () =
   expect(b.traits).toEqual({ needs: [], personality: [] });
   expect(JSON.stringify(b)).not.toContain("wheelchair");
 });
+
+test("the briefing says where someone lives, and a home told in confidence only to whoever told it", async () => {
+  await remember(s.a, { visibility: "shared", homes: [{ person: s.anna, place: { name: "Annas Wohnung", in: "Nürnberg", address: "Hauptstraße 5" } }] });
+  expect((await briefing(s.b, s.anna)).homes).toMatchObject([{ name: "Annas Wohnung", address: "Hauptstraße 5", parents: [{ name: "Nürnberg" }] }]);
+  await remember(s.a, { visibility: "private", homes: [{ person: s.tom, place: "Toms neue Wohnung" }] });
+  expect((await briefing(s.a, s.tom)).homes.map((h) => h.name)).toEqual(["Toms neue Wohnung"]);
+  expect((await briefing(s.b, s.tom)).homes).toEqual([]);
+});

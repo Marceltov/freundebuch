@@ -10,7 +10,7 @@ You only talk; Claude sorts, links and keeps it up. A personal CRM fails when it
 
 ## Now
 
-- **Places with an address and a map** ([#78](https://github.com/Marceltov/freundebuch/issues/78)): where something happened, on a map, filled in from what you tell.
+- **Places that nest and homes** ([#78](https://github.com/Marceltov/freundebuch/issues/78)): the Olympiahalle in München, Anna's flat with its address, filled in from what you tell; "where were we with Anna?" over Claude.
 
 ## Next
 
@@ -23,6 +23,7 @@ You only talk; Claude sorts, links and keeps it up. A personal CRM fails when it
 - **Own cards** ([#70](https://github.com/Marceltov/freundebuch/issues/70)): what a person says about themselves (number, address, birthday), shared by a link they can revoke. The only thing that crosses between people ([V3](values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it)).
 - **Birthday messages you send** ([#71](https://github.com/Marceltov/freundebuch/issues/71)): drafted by freundebuch, seen and sent by you through an integration, never on its own ([V3](values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it)).
 - **Internationalization** ([#72](https://github.com/Marceltov/freundebuch/issues/72)): the app in more languages than German.
+- **A map of where things happened**: places kept in words today could be put on a map later. Not now: the web UI stays small, it would need map tiles and a geocoder without calling out ([V6](values.md#v6-self-hosting-has-everything)), and tools that track where you have been exist already.
 
 ## Parked
 
