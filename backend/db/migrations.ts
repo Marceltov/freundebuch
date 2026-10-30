@@ -623,6 +623,7 @@ const migrations: Record<string, Migration> = {
 
   // A place may sit inside another (the Olympiahalle in München), have an address in words, and be someone's home. Whose home it
   // is can be told in confidence, so an ownership carries a visibility and its recorder like any item; each user files their own.
+  // One told in a ramble goes with it when the ramble is deleted.
   "018_place_nesting": {
     async up(db) {
       await db.schema
@@ -637,6 +638,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("person_id", "text", (c) => c.notNull().references("persons.id").onDelete("cascade"))
         .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
         .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("ramble_id", "text", (c) => c.references("rambles.id").onDelete("cascade"))
         .addColumn("created_at", "bigint", (c) => c.notNull())
         .addPrimaryKeyConstraint("place_owners_pk", ["place_id", "person_id", "recorded_by"])
         .execute();

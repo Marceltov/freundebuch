@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { getConversation, record, remember } from "./conversations";
 import { db } from "./db/testing";
 import { deleteItem, editItem, mergePeople } from "./corrections";
+import { deleteRamble } from "./rambles";
 import { AmbiguousError, InvalidInputError } from "./errors";
 import { getPlace, listExperiences } from "./experiences";
 import { addPlaceAlias, addPlaceOwner, findPlaces, mergePlaces, removePlaceOwner, renamePlace, setPlaceAddress, setPlaceParent } from "./places";
@@ -265,4 +266,21 @@ test("merging two people keeps the dropped one's homes", async () => {
 test("an owner who isn't in people is refused, not a crash", async () => {
   await expect(at(s.a, { name: "X", owners: [5] })).rejects.toThrow(/Person 5 is not in people/);
   await expect(record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Feier", title: "Y", place: { name: "Y", owners: [3] } } as never] })).rejects.toThrow(/Person 3 is not in people/);
+});
+
+test("owners on a place it sits in are filed too: Anna's room in Anna's flat", async () => {
+  await at(s.a, { name: "Annas Zimmer", in: { name: "Annas Wohnung", owners: [0] } });
+  expect((await find(s.a, "Annas Wohnung"))!.owners.map((o) => o.id)).toEqual([s.anna]);
+  await expect(at(s.a, { name: "Z", in: { name: "W", owners: [7] } })).rejects.toThrow(/Person 7 is not in people/);
+});
+
+test("deleting a ramble takes the homes it filed with it", async () => {
+  const r = await at(s.a, { name: "Annas Wohnung", owners: [0] });
+  await remember(s.a, { visibility: "shared", homes: [{ person: s.tom, place: "Annas Wohnung" }] });
+  await deleteRamble(s.a, r.rambleId);
+  expect(await (await db()).selectFrom("place_owners").select("person_id").execute()).toEqual([{ person_id: s.tom }]);
+});
+
+test("a home given to remember names its person, not owners", async () => {
+  await expect(remember(s.a, { visibility: "shared", homes: [{ person: s.anna, place: { name: "Annas Wohnung", owners: [s.tom] } }] })).rejects.toThrow(InvalidInputError);
 });

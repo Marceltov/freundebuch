@@ -483,7 +483,7 @@ const PrivateItem = z.boolean().optional().describe("Makes just this item privat
 const RememberInput = z.object({
   visibility: Visibility,
   homes: z
-    .array(z.object({ person: PersonId, place: PlaceRefJson.describe("The place that is their home, as record names one; its owners are ignored"), private: PrivateItem }))
+    .array(z.object({ person: PersonId, place: PlaceRefJson.describe("The place that is their home, as record names one, without owners: the person is its owner"), private: PrivateItem }))
     .optional()
     .describe("Where someone lives (\"Anna wohnt jetzt in der Hauptstraße 5 in Nürnberg\"): a place that is their home"),
   genders: z

@@ -55,7 +55,15 @@ export interface Schema {
     address: ColumnType<string | null, string | null | undefined, string | null>;
   };
   /** Whose home a place is, as each user filed it. */
-  place_owners: { place_id: string; person_id: string; visibility: string; recorded_by: string; created_at: number };
+  place_owners: {
+    place_id: string;
+    person_id: string;
+    visibility: string;
+    recorded_by: string;
+    /** The ramble it was told in, if any: it goes when the ramble is deleted. */
+    ramble_id: ColumnType<string | null, string | null | undefined, string | null>;
+    created_at: number;
+  };
   place_aliases: { place_id: string; alias: string; norm: string };
   series: {
     id: string;
