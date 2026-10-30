@@ -38,7 +38,7 @@ Why you can trust freundebuch with what you know: what it keeps, who decides wha
 
 ### V4. Only words are kept
 
-What you tell Claude is kept as your words: each ramble keeps its transcript, next to the conversations, journal entries and items filed from it. A file you share (a screenshot, a chat, a photo, a letter) is kept only until you have gone through it: then only its transcript stays, the text word for word or what a photo shows, and the file is deleted.
+What you tell Claude is kept as your words: each ramble keeps its transcript, next to the conversations, journal entries and items filed from it. A file you share (a screenshot, a chat, a photo, a letter, a voice note) is kept only until you have gone through it: then only its transcript stays, the text word for word, what a photo shows or what a voice note says, and the file is deleted. A message spoken into Erzählen is never stored, only its words.
 
 **Rules out:** keeping shared files after their review, storing other people's messages beyond the words you filed, a summary in place of what was said.
 

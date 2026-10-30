@@ -1,6 +1,7 @@
-// Files shared into freundebuch (a screenshot, a photo, a PDF, a text such as a chat export), from the phone or from Erzählen.
-// One goes: stored (images shrunk to WebP, the rest as it came, in the blob store) → pre-read by Claude (file-model.ts) into a
-// suggestion and a transcript (its text word for word, or what a photo shows) → waits under "Prüfen" until the user works it
+// Files shared into freundebuch (a screenshot, a photo, a PDF, a text such as a chat export, a voice note), from the phone or
+// from Erzählen. One goes: stored (images shrunk to WebP, the rest as it came, in the blob store) → a voice note transcribed by
+// the household's own Whisper (transcribe.ts) → pre-read by Claude (file-model.ts) into a suggestion and a transcript (its text
+// word for word, what a photo shows, what a voice note says) → waits under "Prüfen" until the user works it
 // through with Claude (Erzählen opened on it, or the MCP tool inbox). Filing it with record keeps only its
 // transcript, in the conversation's; the file itself goes once it is reviewed (filed, done or discarded). Nothing is filed
 // unattended. Waiting files belong to the user who shared them. Facts filed by the screenshot reading before files still show
@@ -18,6 +19,7 @@ import { copy } from "./notify/copy";
 import { sendWebhook } from "./notify/webhook";
 import { anthropicFileModel, fakeFileModel, type FileModel, type KnownPerson, type Suggestion } from "./file-model";
 import { getSettings } from "./settings";
+import { transcriber, type Transcriber } from "./transcribe";
 import { processState } from "./state";
 import { store } from "./storage";
 import { spend } from "./usage";
@@ -31,9 +33,24 @@ const log = logger("files");
 /** The largest upload taken: a phone screenshot or a letter as PDF is a few MB. */
 export const MAX_UPLOAD = 15 * 1024 * 1024;
 const WIDTH = 1080;
-/** Images are stored shrunk, as WebP; PDFs and text as they came. */
-const EXT: Record<string, string> = { "image/webp": "webp", "application/pdf": "pdf", "text/plain": "txt" };
-export const NOT_TAKEN = "freundebuch takes images, PDFs and text files";
+/** Images are stored shrunk, as WebP; PDFs, text and voice notes as they came. */
+const EXT: Record<string, string> = { "image/webp": "webp", "application/pdf": "pdf", "text/plain": "txt", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/webm": "webm", "audio/flac": "flac" };
+export const NOT_TAKEN = "freundebuch takes images, PDFs, text files and voice notes";
+export const NO_AUDIO = "This freundebuch takes no voice notes: it has no transcription server (FREUNDEBUCH_TRANSCRIBE_URL)";
+export const NOT_AUDIO = "That is not a voice note freundebuch can read";
+export const isAudio = (type: string) => type.startsWith("audio/");
+
+/** The audio format by its first bytes: Ogg (a WhatsApp voice note's Opus), MP4/M4A (an iPhone voice memo), MP3, WAV, WebM, FLAC. */
+function audioType(bytes: Uint8Array): string | null {
+  const head = new TextDecoder("latin1").decode(bytes.subarray(0, 12));
+  if (head.startsWith("OggS")) return "audio/ogg";
+  if (/^ftyp(M4A |M4B |mp42|isom|3gp)/.test(head.slice(4))) return "audio/mp4";
+  if (head.startsWith("ID3") || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)) return "audio/mpeg";
+  if (head.startsWith("RIFF") && head.slice(8) === "WAVE") return "audio/wav";
+  if (bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return "audio/webm";
+  if (head.startsWith("fLaC")) return "audio/flac";
+  return null;
+}
 /** The longest text file taken: about 250,000 tokens, which Claude reads whole in one request. */
 export const MAX_TEXT = 1024 * 1024;
 export const PENDING_PATH = "/pruefen";
@@ -59,13 +76,16 @@ export function fileModel(): FileModel | null {
 
 /** What `bytes` are, by the type they were sent with, or by their first bytes when that says nothing: a PDF, text (UTF-8
  * without NUL), else an image for sharp to try. */
-function kindOf(bytes: Uint8Array, sent: string): "pdf" | "text" | "image" | null {
+function kindOf(bytes: Uint8Array, sent: string): "pdf" | "text" | "image" | "audio" | null {
   const type = sent.split(";")[0].trim().toLowerCase();
   if (type === "application/pdf") return "pdf";
   if (type.startsWith("text/")) return "text";
   if (type.startsWith("image/")) return "image";
+  // An Opus voice note may come as audio/opus, or as video/ogg or video/mp4 from a share sheet that can't tell.
+  if (type.startsWith("audio/") || ((type === "video/ogg" || type === "video/mp4") && audioType(bytes))) return "audio";
   if (type && type !== "application/octet-stream") return null;
   if (new TextDecoder().decode(bytes.subarray(0, 5)) === "%PDF-") return "pdf";
+  if (audioType(bytes) && !isHeic(bytes, "")) return "audio";
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     if (!text.includes("\0")) return "text";
@@ -121,6 +141,11 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = "", batch: 
       }
     }
     mediaType = "image/webp";
+  } else if (kind === "audio") {
+    if (!transcriber()) throw new InvalidInputError(NO_AUDIO);
+    const sniffed = audioType(bytes);
+    if (!sniffed) throw new InvalidInputError(NOT_AUDIO);
+    [stored, mediaType] = [bytes, sniffed];
   } else throw new InvalidInputError(NOT_TAKEN);
   const id = newId();
   const key = `files/${id}.${EXT[mediaType]}`;
@@ -170,14 +195,15 @@ function clean(r: Suggestion, known: Set<string>): Suggestion {
   };
 }
 
-/** Pre-reads a file: its suggestion (`pending`), or why not (`failed`). Either way the user hears of it and it waits. */
-export async function readFile(id: string, model: FileModel): Promise<FileStatus> {
+/** Pre-reads a file: its suggestion (`pending`), or why not (`failed`). Either way the user hears of it and it waits. A voice
+ * note is transcribed first, and Claude reads the transcript; a transcript made before a failed pre-read is kept for the retry. */
+export async function readFile(id: string, model: FileModel, whisper: Transcriber | null = transcriber()): Promise<FileStatus> {
   const d = await db();
   const row = await d.selectFrom("files").selectAll().where("id", "=", id).executeTakeFirst();
   if (!row || row.status !== "reading") return row && row.status !== "nothing" ? row.status : "failed";
   const v = await viewerById(row.user_id);
   const bytes = await store().get(row.blob_key);
-  const set = (status: FileStatus, reading: Suggestion | { error: string }) =>
+  const set = (status: FileStatus, reading: Suggestion | { error: string; transcript?: string }) =>
     d.updateTable("files").set({ status, reading: JSON.stringify(reading) }).where("id", "=", id).where("status", "=", "reading").execute();
   const click = `${PENDING_PATH}#${id}`;
   if (!v || !bytes) {
@@ -190,14 +216,28 @@ export async function readFile(id: string, model: FileModel): Promise<FileStatus
     await push(v, { title: copy.fileLimit, body: "", click });
     return "failed";
   }
+  let input = { bytes, type: row.media_type };
+  let heard: string | null = null;
+  if (isAudio(row.media_type)) {
+    const before = (row.reading ? JSON.parse(row.reading) : null) as { transcript?: string } | null;
+    const said = before?.transcript ? { text: before.transcript } : whisper ? await whisper.transcribe(bytes, row.media_type) : { error: "no transcription server is set up" };
+    if ("error" in said) {
+      await set("failed", said);
+      await push(v, { title: copy.fileNotTranscribed, body: "", click });
+      return "failed";
+    }
+    heard = said.text;
+    input = { bytes: new TextEncoder().encode(`A voice note, transcribed:\n\n${heard}`), type: "text/plain" };
+  }
   const people = await knownPeople();
-  const read = await model.read({ bytes, type: row.media_type, people, today: day });
+  const read = await model.read({ ...input, people, today: day });
   if ("error" in read) {
-    await set("failed", read);
+    await set("failed", heard ? { ...read, transcript: heard } : read);
     await push(v, { title: copy.fileFailed, body: "", click });
     return "failed";
   }
-  const suggestion = clean(read, new Set(people.map((p) => p.id)));
+  // A voice note's transcript is Whisper's, word for word, not Claude's retelling of it.
+  const suggestion = clean(heard ? { ...read, transcript: heard } : read, new Set(people.map((p) => p.id)));
   await set("pending", suggestion);
   await push(v, { title: copy.fileReady, body: suggestion.summary, click });
   return "pending";
@@ -219,7 +259,7 @@ export type PendingFile = {
   sharedOn: string;
   /** The file itself (sign-in required). */
   url: string;
-  /** image/webp, application/pdf or text/plain. */
+  /** image/webp, application/pdf, text/plain, or audio/* for a voice note. */
   type: string;
   /** What Claude suggests to file; null while reading or when it failed. */
   summary: string | null;
@@ -286,8 +326,14 @@ export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
     const row = rows.find((r) => r.id === id);
     const bytes = row ? await store().get(row.blob_key) : null;
     if (!row || !bytes) continue;
-    const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
-    out.push({ id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null, sharedOn: today(row.created_at) });
+    const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string; transcript?: string } | null;
+    const summary = read?.summary ?? read?.text ?? null;
+    // Claude takes no audio: a voice note comes as its transcript, and not at all before it has one.
+    if (isAudio(row.media_type)) {
+      if (read?.transcript) out.push({ id, bytes: new TextEncoder().encode(`A voice note, transcribed:\n\n${read.transcript}`), type: "text/plain", summary, sharedOn: today(row.created_at) });
+      continue;
+    }
+    out.push({ id, bytes, type: row.media_type, summary, sharedOn: today(row.created_at) });
   }
   return out;
 }

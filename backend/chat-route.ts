@@ -8,6 +8,7 @@ import { anthropicModel, chat, MAX_TURNS, type ChatModel } from "./chat";
 import { fakeModel } from "./chat-fake";
 import { config } from "./config";
 import { readCapped } from "./http/request";
+import { transcriber } from "./transcribe";
 
 const MAX_CHARS = 200_000;
 // All turns of one message together: a long ramble fits, a runaway history doesn't (each tool round resends it).
@@ -71,4 +72,30 @@ export async function chatRoute(req: Request): Promise<Response> {
     throw e;
   }
   return "code" in reply ? json(reply, STATUS[reply.code]) : json(reply);
+}
+
+/** Whether Erzählen offers speaking a message: the chat is on and a transcription server is set up (or e2e runs). */
+export const voiceEnabled = (): boolean => chatEnabled() && !!transcriber();
+
+/** The longest spoken message taken: a few minutes of Opus or AAC from the browser is well under this. */
+const MAX_VOICE = 15 * 1024 * 1024;
+
+// POST /api/chat/voice: a message spoken into Erzählen (the body, as the browser recorded it), turned into its words by the
+// household's own Whisper and handed back, for the app to send as the user's message. The recording is never stored: only
+// its words are kept, as the ramble they become. Same caller rules as the chat.
+export async function voiceRoute(req: Request): Promise<Response> {
+  const t = model() ? transcriber() : null;
+  if (!t) return json({ error: "not found", code: "not_found" }, 404);
+  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
+  if (req.headers.has("authorization")) return json({ error: "the chat is for the web app", code: "unauthorized" }, 401);
+  const v = await viewerFromRequest(req, "api");
+  if (!v) return json({ error: "sign-in required", code: "unauthorized" }, 401);
+  const bytes = await readCapped(req, MAX_VOICE);
+  if (!bytes) return json({ error: "The recording is too long", code: "voice_too_long" }, 413);
+  if (!bytes.byteLength) return json({ error: "The recording is empty", code: "voice_empty" }, 400);
+  const type = (req.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (!type.startsWith("audio/")) return json({ error: "Send the recording as audio/*", code: "invalid_request" }, 400);
+  const said = await t.transcribe(bytes, type);
+  if ("error" in said) return json({ error: said.error, code: "voice_unavailable" }, 502);
+  return json({ text: said.text });
 }

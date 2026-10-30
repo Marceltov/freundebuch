@@ -10,19 +10,9 @@
 
 items:
   # ---- open --------------------------------------------------------------------------------------------------------------
-  - id: voice-notes
+  - id: avatars
     status: now
     when: Now
-    icon: microphone-outline
-    title: Voice notes
-    summary: Transcribed on your own server, so a WhatsApp voice note can be worked through like any shared file.
-    links:
-      - {label: "#58", url: "https://github.com/Marceltov/freundebuch/issues/58"}
-      - {label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept"}
-
-  - id: avatars
-    status: next
-    when: Next
     icon: face-man-shimmer-outline
     title: Avatars
     summary: A stylized avatar per person, put together from a description, so a face comes from words and no photo is kept.
@@ -82,6 +72,18 @@ items:
       - {label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything"}
 
   # ---- done, newest first ------------------------------------------------------------------------------------------------
+  - id: voice-notes
+    status: done
+    date: 2026-10-30
+    icon: microphone-outline
+    title: Voice notes
+    summary: A WhatsApp voice note shared in, or a message spoken into Erzählen, transcribed by a Whisper on your own server; only the words are kept.
+    links:
+      - {label: "#58", url: "https://github.com/Marceltov/freundebuch/issues/58"}
+      - {label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept"}
+      - {label: "ADR 0019", url: "https://marceltov.github.io/freundebuch/adr/0019-voice-notes-transcribed-by-a-self-hosted-whisper/"}
+      - {label: "PR #97", url: "https://github.com/Marceltov/freundebuch/pull/97"}
+
   - id: nested-places
     status: done
     date: 2026-10-30

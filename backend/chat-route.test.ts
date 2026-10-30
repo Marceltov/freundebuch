@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "./auth/session";
 import { sign } from "./auth/tokens";
-import { chatRoute, setChatModelForTests } from "./chat-route";
+import { chatRoute, setChatModelForTests, voiceEnabled, voiceRoute } from "./chat-route";
+import { setTranscriberForTests } from "./transcribe";
 import { resetSecretForTests } from "./secret";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -74,4 +75,31 @@ test("an unknown file is no error: the chat goes on without it", async () => {
 test("a chat on more than 50 files goes on with the first 50, not refused", async () => {
   const res = await post({ turns: [{ role: "user", content: "?" }], context: { fileIds: Array.from({ length: 60 }, (_, i) => `f${i}`) } });
   expect(res.status).toBe(200);
+});
+
+const speak = (body: BodyInit, headers: Record<string, string> = { cookie: `${IDENTITY_COOKIE}=${sign("identity", { uid: s.a.userId })}`, "content-type": "audio/webm" }) =>
+  voiceRoute(new Request(`${BASE}/api/chat/voice`, { method: "POST", headers: { host: "localhost:3000", origin: BASE, ...headers }, body }));
+
+test("a message spoken into Erzählen comes back as its words, from the transcription server; nothing is stored", async () => {
+  const heard: string[] = [];
+  setTranscriberForTests({ transcribe: async (_b, type) => (heard.push(type), { text: "Ich war heute mit Anna essen." }) });
+  try {
+    expect(voiceEnabled()).toBe(true);
+    const res = await speak(new Uint8Array([1, 2, 3]));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ text: "Ich war heute mit Anna essen." });
+    expect(heard).toEqual(["audio/webm"]);
+    expect((await speak(new Uint8Array([1]), { "content-type": "audio/webm" })).status).toBe(401);
+    expect((await speak(new Uint8Array([1]), { cookie: `${IDENTITY_COOKIE}=${sign("identity", { uid: s.a.userId })}`, "content-type": "text/plain" })).status).toBe(400);
+    setTranscriberForTests({ transcribe: async () => ({ error: "transcription failed (HTTP 500)" }) });
+    const failed = await speak(new Uint8Array([1, 2, 3]));
+    expect([failed.status, (await failed.json()).code]).toEqual([502, "voice_unavailable"]);
+  } finally {
+    setTranscriberForTests(null);
+  }
+});
+
+test("without a transcription server Erzählen takes no spoken messages", async () => {
+  expect(voiceEnabled()).toBe(false);
+  expect((await speak(new Uint8Array([1, 2, 3]))).status).toBe(404);
 });

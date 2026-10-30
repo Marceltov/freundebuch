@@ -43,7 +43,7 @@ The date and place, who was there and who was only mentioned (by name), the summ
 
 ## Erzählen
 
-When your instance has an Anthropic API key ([configuration](../self-hosting/configuration.md)), a raised **Erzählen** button sits in the middle of the bottom bar. It opens a chat with Claude over whatever page you're on. Tell it what happened (type or dictate) and it files it, just as Claude does over MCP: it asks before filing anything sensitive as shared, asks which Anna you mean, and reads back what it filed with links under its reply. It also takes things that aren't a conversation, like "Malou hat am 7.2.2024 Geburtstag". Ask it about someone ("Was war nochmal mit Marvins Spiegel?") and it looks them up.
+When your instance has an Anthropic API key ([configuration](../self-hosting/configuration.md)), a raised **Erzählen** button sits in the middle of the bottom bar. It opens a chat with Claude over whatever page you're on. Tell it what happened (type, dictate, or speak it in with the microphone, [voice notes](sharing.md#voice-notes)) and it files it, just as Claude does over MCP: it asks before filing anything sensitive as shared, asks which Anna you mean, and reads back what it filed with links under its reply. It also takes things that aren't a conversation, like "Malou hat am 7.2.2024 Geburtstag". Ask it about someone ("Was war nochmal mit Marvins Spiegel?") and it looks them up.
 
 Your message moves into the chat as soon as you send it, and a bubble shows while Claude thinks. **Enter** starts a new line; the send button sends (on a computer also Ctrl+Enter or ⌘+Enter). With the phone's keyboard open, the chat shrinks to the space above it.
 

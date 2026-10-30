@@ -20,6 +20,8 @@ Everything is an environment variable. [`.env.example`](https://github.com/Marce
 | `FREUNDEBUCH_ANTHROPIC_API_KEY` | none | An Anthropic API key (console.anthropic.com) turns on the chat in the web app ("Erzählen"). Without it the app has no chat; Claude over MCP works either way. Usage is billed to the key's account. |
 | `FREUNDEBUCH_ANTHROPIC_MODEL` | `claude-sonnet-5-5` | The Claude model the chat uses. |
 | `FREUNDEBUCH_CHAT_DAILY_LIMIT` | `100` | Messages each user may send the chat per day. Each shared file counts as one. |
+| `FREUNDEBUCH_TRANSCRIBE_URL` | none | A Whisper server with the OpenAI-compatible `POST /v1/audio/transcriptions`, such as [speaches](https://github.com/speaches-ai/speaches), at its address without `/v1` (`http://whisper:8000`). It turns on [voice notes](../using/sharing.md#voice-notes) and the microphone in Erzählen. Run it yourself, next to freundebuch and without a public route: voice notes are private, and Claude takes no audio. On CPU, `large-v3-turbo` with int8 transcribes a minute of speech in tens of seconds. |
+| `FREUNDEBUCH_TRANSCRIBE_MODEL` | `deepdml/faster-whisper-large-v3-turbo-ct2` | The model the Whisper server runs, as it names it. |
 | `FREUNDEBUCH_STORAGE` | `files` | Where [shared files](../using/sharing.md) are kept: `files` (under `${DATA_DIR}/files/`, older ones in `screenshots/`) or `s3`. Sharing needs `FREUNDEBUCH_ANTHROPIC_API_KEY`. |
 | `FREUNDEBUCH_S3_ENDPOINT` | none, required for `s3` | The S3-compatible endpoint, such as `https://s3.eu-central-1.amazonaws.com`, `https://<account>.r2.cloudflarestorage.com` or your MinIO/Garage. |
 | `FREUNDEBUCH_S3_BUCKET` | none, required for `s3` | The bucket. Keep it private: freundebuch serves the images itself, after checking who may see them. |

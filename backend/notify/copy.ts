@@ -22,7 +22,9 @@ export const copy = {
   // What the iPhone Shortcut shows when a file didn't arrive.
   shareBadKey: "Der Teilen-Schlüssel stimmt nicht: erzeug in den freundebuch-Einstellungen einen neuen und trag ihn im Kurzbefehl ein.",
   shareTooLarge: "Die Datei ist größer als 15 MB.",
-  shareNotTaken: "freundebuch nimmt Bilder, PDFs und Textdateien.",
+  shareNotTaken: "freundebuch nimmt Bilder, PDFs, Textdateien und Sprachnachrichten.",
+  shareNoAudio: "Dieses freundebuch nimmt keine Sprachnachrichten: es ist kein Transkriptionsserver eingerichtet.",
+  shareNotAudio: "Diese Sprachnachricht kann freundebuch nicht lesen.",
   shareUnreadable: "Diese Datei kann freundebuch nicht lesen.",
   shareTooManyPixels: "Das Foto ist zu groß (über 25 Megapixel): teil ein kleineres oder einen Screenshot davon.",
   shareTextTooLong: "Die Textdatei ist zu lang (höchstens 1 MB): teil einen kürzeren Teil.",
@@ -30,6 +32,7 @@ export const copy = {
   fileReady: "📎 Neu unter „Prüfen“",
   reflectionTitle: "🪞 Deine Woche",
   fileFailed: "📎 Die Datei konnte nicht gelesen werden",
+  fileNotTranscribed: "🎙️ Die Sprachnachricht konnte nicht transkribiert werden",
   calendarName: "freundebuch",
   calendarBirthday: "🎂 {name}",
   calendarBirthdayAge: "🎂 {name} wird {age}",
