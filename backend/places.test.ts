@@ -78,3 +78,12 @@ test("minor: a place whose last part was deleted is found no more, not even by w
   await deleteItem(s.a, "conversations", r.conversations[0].id);
   expect(await findPlaces(s.a, "Eisdiele am Eck")).toEqual([]);
 });
+
+test("a new database has places with a parent, an address, and owners", async () => {
+  const d = await db();
+  await d.insertInto("places").values({ id: "muc", name: "München", created_by: s.a.userId, created_at: 1 }).execute();
+  await d.insertInto("places").values({ id: "oly", name: "Olympiahalle", created_by: s.a.userId, created_at: 1, parent_id: "muc", address: "Spiridon-Louis-Ring 21" }).execute();
+  await d.insertInto("place_owners").values({ place_id: "oly", person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 }).execute();
+  expect(await d.selectFrom("places").select(["parent_id", "address"]).where("id", "=", "oly").executeTakeFirst()).toEqual({ parent_id: "muc", address: "Spiridon-Louis-Ring 21" });
+  expect(await d.selectFrom("place_owners").select(["person_id", "visibility"]).execute()).toEqual([{ person_id: s.anna, visibility: "private" }]);
+});

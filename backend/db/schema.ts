@@ -44,7 +44,18 @@ export interface Schema {
    * transcript is the recorder's whenever anything filed from it is private (`transcript_private`). */
   rambles: { id: string; date: string; transcript: string; transcript_private: Flag; visibility: string; recorded_by: string; created_at: number };
   participants: { conversation_id: string; person_id: string };
-  places: { id: string; name: string; created_by: string; created_at: number };
+  places: {
+    id: string;
+    name: string;
+    created_by: string;
+    created_at: number;
+    /** The place it sits inside, if the user said so. */
+    parent_id: ColumnType<string | null, string | null | undefined, string | null>;
+    /** Its address in words, as told. */
+    address: ColumnType<string | null, string | null | undefined, string | null>;
+  };
+  /** Whose home a place is, as each user filed it. */
+  place_owners: { place_id: string; person_id: string; visibility: string; recorded_by: string; created_at: number };
   place_aliases: { place_id: string; alias: string; norm: string };
   series: {
     id: string;
