@@ -14,19 +14,19 @@ You only talk; Claude sorts, links and keeps it up. A personal CRM fails when it
 
 ## Next
 
-- **Avatars** ([#49](https://github.com/Marceltov/freundebuch/issues/49)): a stylized avatar per person, put together from a description.
+- **Avatars** ([#49](https://github.com/Marceltov/freundebuch/issues/49)): a stylized avatar per person, put together from a description, so a face comes from words and no photo is kept ([V4](values.md#v4-only-words-are-kept)).
 
 ## Later
 
 - **Several households per instance, and a hosted freundebuch** ([#69](https://github.com/Marceltov/freundebuch/issues/69)): each account a person, a household the people who share a book; the same on a hosted instance as on your own ([V1](values.md#v1-a-book-for-each-household), [V6](values.md#v6-self-hosting-has-everything)).
 - **Own cards** ([#70](https://github.com/Marceltov/freundebuch/issues/70)): what a person says about themselves (number, address, birthday), shared by a link they can revoke. The only thing that crosses between people ([V3](values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it)).
 - **Birthday messages you send** ([#71](https://github.com/Marceltov/freundebuch/issues/71)): drafted by freundebuch, seen and sent by you through an integration, never on its own ([V3](values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it)).
-- **Internationalization** ([#72](https://github.com/Marceltov/freundebuch/issues/72)): the app in more languages than German.
-- **A map of where things happened**: places kept in words today could be put on a map later. Not now: the web UI stays small, it would need map tiles and a geocoder without calling out ([V6](values.md#v6-self-hosting-has-everything)), and tools that track where you have been exist already.
+- **Internationalization** ([#72](https://github.com/Marceltov/freundebuch/issues/72)): the app in more languages than German, so a household that doesn't speak German can keep its book too ([V1](values.md#v1-a-book-for-each-household)).
+- **A map of where things happened** ([#93](https://github.com/Marceltov/freundebuch/issues/93)): places kept in words today could be put on a map later. Not now: the web UI stays small, it would need map tiles and a geocoder without calling out ([V6](values.md#v6-self-hosting-has-everything)), and tools that track where you have been exist already.
 
 ## Parked
 
-- **A contact book with CardDAV** ([#73](https://github.com/Marceltov/freundebuch/issues/73)): your phone's address book synced with freundebuch, people private or shared by whose book they are in. Not needed yet.
+- **A contact book with CardDAV** ([#73](https://github.com/Marceltov/freundebuch/issues/73)): your phone's address book synced with freundebuch, people private or shared by whose book they are in ([V2](values.md#v2-private-stays-private-through-every-door)). Not needed yet.
 
 ## Decided against
 
