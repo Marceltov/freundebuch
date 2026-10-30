@@ -287,8 +287,10 @@ export const copy = {
   shareTitle: "Dateien teilen",
   shareHint: "Teile einen Screenshot, ein Foto, ein PDF oder einen exportierten Chat mit freundebuch, oder füg ihn unter „Erzählen“ mit dem Büroklammer-Knopf hinzu. Er wartet unter „Prüfen“, bis du ihn mit Claude durchgehst.",
   shareAndroid: "Android: freundebuch über das Browser-Menü zum Startbildschirm hinzufügen. Danach steht freundebuch beim Teilen zur Auswahl.",
-  shareIphone:
-    "iPhone: Kurzbefehl laden und beim Hinzufügen die Adresse zum Teilen und deinen Teilen-Schlüssel (beide hier) eintragen. Danach steht „An freundebuch“ beim Teilen zur Auswahl, auch für mehrere Bilder auf einmal; iPhone-Fotos gehen so, wie sie sind.",
+  shareIphoneSetup: "iPhone einrichten",
+  shareStepKey: "Teilen-Schlüssel erzeugen und kopieren. Er ist nur jetzt sichtbar und kann nur Dateien abgeben, sonst nichts.",
+  shareStepShortcut: "Kurzbefehl laden und in der Kurzbefehle-App auf „Kurzbefehl hinzufügen“ tippen.",
+  shareStepAnswers: "Der Kurzbefehl fragt nach zwei Dingen: der Adresse zum Teilen und dem Schlüssel aus Schritt 1.",
   shareShortcut: "Kurzbefehl laden",
   shareHowTo: "So teilst du vom iPhone",
   shareHowToSteps: [
@@ -302,7 +304,6 @@ export const copy = {
   shareKeyNew: "Schlüssel erzeugen",
   shareKeyReplace: "Neuen Schlüssel erzeugen",
   shareKeyRevoke: "Schlüssel löschen",
-  shareKeyOnce: "Nur jetzt sichtbar. Der Schlüssel kann nur Dateien abgeben, sonst nichts.",
   shareKeyActive: "Ein Schlüssel ist eingerichtet. Ein neuer ersetzt ihn.",
   shareReceiving: "Wird übergeben …",
   shareReceived: "Danke! Es wartet unter „Prüfen“.",

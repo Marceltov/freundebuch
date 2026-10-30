@@ -103,43 +103,52 @@ export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl:
     <div className="space-y-3 text-sm">
       <p className="text-muted">{copy.shareHint}</p>
       <p>{copy.shareAndroid}</p>
-      <p>{copy.shareIphone}</p>
-      {/* The signed Shortcut (shortcut/source.ts): Safari on the iPhone hands it to the Kurzbefehle app, which asks for the two fields below. */}
-      <a href="/shortcuts/An%20freundebuch.shortcut" download className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
-        <Download aria-hidden className="h-4 w-4" />
-        {copy.shareShortcut}
-      </a>
-      <p className="font-bold">{copy.shareHowTo}</p>
+      {/* The iPhone in the order it is set up: each step with what it needs right there. */}
+      <h3 id="share-iphone" className="pt-2 font-bold">
+        {copy.shareIphoneSetup}
+      </h3>
+      <ol aria-labelledby="share-iphone" className="list-decimal space-y-4 pl-5 marker:font-bold">
+        <li className="space-y-2">
+          <p>{copy.shareStepKey}</p>
+          {key && <CopyField label={copy.shareKey} text={key} shown />}
+          {!key && active && <p className="text-muted">{copy.shareKeyActive}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={create} className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+              <KeyRound aria-hidden className="h-4 w-4" />
+              {active ? copy.shareKeyReplace : copy.shareKeyNew}
+            </button>
+            {active && (
+              <button type="button" onClick={revoke} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-1.5 font-bold">
+                <Trash2 aria-hidden className="h-4 w-4" />
+                {copy.shareKeyRevoke}
+              </button>
+            )}
+            {failed && (
+              <span role="status" className="text-error">
+                {copy.actionFailed}
+              </span>
+            )}
+          </div>
+        </li>
+        <li className="space-y-2">
+          <p>{copy.shareStepShortcut}</p>
+          {/* The signed Shortcut (shortcut/source.ts): Safari on the iPhone hands it to the Kurzbefehle app. */}
+          <a href="/shortcuts/An%20freundebuch.shortcut" download className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+            <Download aria-hidden className="h-4 w-4" />
+            {copy.shareShortcut}
+          </a>
+        </li>
+        <li className="space-y-2">
+          <p>{copy.shareStepAnswers}</p>
+          <CopyField label={copy.shareUrl} text={shareUrl} shown />
+        </li>
+      </ol>
+      <h3 className="pt-2 font-bold">{copy.shareHowTo}</h3>
       <ol className="list-decimal space-y-1 pl-5 text-muted">
         {copy.shareHowToSteps.map((s) => (
           <li key={s}>{s}</li>
         ))}
       </ol>
-      <CopyField label={copy.shareUrl} text={shareUrl} />
-      {key && (
-        <>
-          <CopyField label={copy.shareKey} text={key} />
-          <p className="text-muted">{copy.shareKeyOnce}</p>
-        </>
-      )}
-      {!key && active && <p className="text-muted">{copy.shareKeyActive}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={create} className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
-          <KeyRound aria-hidden className="h-4 w-4" />
-          {active ? copy.shareKeyReplace : copy.shareKeyNew}
-        </button>
-        {active && (
-          <button type="button" onClick={revoke} className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-4 py-1.5 font-bold">
-            <Trash2 aria-hidden className="h-4 w-4" />
-            {copy.shareKeyRevoke}
-          </button>
-        )}
-        {failed && (
-          <span role="status" className="text-error">
-            {copy.actionFailed}
-          </span>
-        )}
-      </div>
     </div>
   );
 }

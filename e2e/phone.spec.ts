@@ -514,6 +514,12 @@ test("settings make a share key, and the key hands in a screenshot", async ({ pa
   await page.goto("/einstellungen");
   await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();
   await expect(page.getByText(/\/api\/share$/)).toBeVisible();
+  // Setting up the iPhone is three numbered steps: the key, the Shortcut, the two answers it asks for, each field labelled.
+  const setup = page.getByRole("list", { name: "iPhone einrichten" });
+  await expect(setup.getByRole("listitem")).toHaveCount(3);
+  await expect(setup.getByRole("listitem").nth(0)).toContainText("Teilen-Schlüssel erzeugen");
+  await expect(setup.getByRole("listitem").nth(1)).toContainText("Kurzbefehl laden");
+  await expect(setup.getByRole("listitem").nth(2).getByText("Adresse zum Teilen", { exact: true })).toBeVisible();
   // The ready-made iPhone Shortcut, signed (public/shortcuts/).
   await expect(page.getByRole("link", { name: "Kurzbefehl laden" })).toHaveAttribute("href", "/shortcuts/An%20freundebuch.shortcut");
   // How to share, once it is set up: the Shortcut sits at the very bottom of the share sheet.

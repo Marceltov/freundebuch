@@ -22,14 +22,22 @@ export function CopyButton({ text }: { text: string }) {
 }
 
 /** A URL to copy: the address itself, in a box that scrolls rather than widens the page, and the button. */
-export function CopyField({ label, text }: { label: string; text: string }) {
-  return (
+/** A value to copy; `shown` puts its label above it, where the user needs to know which value is which. */
+export function CopyField({ label, text, shown = false }: { label: string; text: string; shown?: boolean }) {
+  const field = (
     <div className="flex items-center gap-2 rounded-xl bg-surface-2 py-1 pr-1 pl-3">
-      <span className="sr-only">{label}</span>
+      {!shown && <span className="sr-only">{label}</span>}
       <code className="min-w-0 flex-1 overflow-x-auto py-1.5 text-sm whitespace-nowrap">
         {text}
       </code>
       <CopyButton text={text} />
+    </div>
+  );
+  if (!shown) return field;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-bold text-muted">{label}</p>
+      {field}
     </div>
   );
 }
