@@ -344,10 +344,15 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await field.press("Enter");
   await field.pressSequentially("hat einen Hund adoptiert");
   await expect(field).toHaveValue("Notiz: Nele\nhat einen Hund adoptiert");
-  await field.fill("Notiz: Nele hat einen Hund adoptiert");
+  await field.fill("");
+  const oneLine = (await field.boundingBox())!.height;
+  await field.fill("Notiz: Nele hat einen Hund adoptiert\n\n");
+  expect((await field.boundingBox())!.height).toBeGreaterThan(oneLine);
   await field.press("Control+Enter");
   await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toBeVisible();
   await expect(field).toHaveValue("");
+  // Sent, the field is one line again, its text level with the buttons.
+  expect((await field.boundingBox())!.height).toBe(oneLine);
   await expect(sheet.getByRole("status")).toHaveText(/Claude denkt nach/);
   // The wait holds the 1.5 s delay above and the dev server's first build of /api/chat, which on a CI runner can take a few
   // seconds on its own: the default 5 s once wasn't enough.
