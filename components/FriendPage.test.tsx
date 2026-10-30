@@ -29,6 +29,7 @@ const b: Briefing = {
   journal: [],
   experiences: [],
   homes: [],
+  card: null,
   open: {
     promises: [
       { id: "1", text: "send photos", byMe: true, due: null, url: "/p/p1#promises-1", ...own, mine: true },

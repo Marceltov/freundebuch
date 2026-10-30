@@ -6,6 +6,7 @@
 import * as z from "zod";
 import { briefing, type Briefing } from "./briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "./calendar";
+import { cardPath, ownCard, publishCard, setOwnCard, subscribeCard, unpublishCard, unsubscribeCard } from "./cards";
 import { getConversation, record, remember, type FiledFact, type FiledRelationship } from "./conversations";
 import {
   addParticipant,
@@ -53,6 +54,8 @@ import {
   TraitsJson,
   HOUSEHOLD_TARGET,
   Visibility,
+  CardJson,
+  CardsJson,
 } from "./http/schemas";
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
@@ -974,6 +977,50 @@ export const TOOLS: readonly Tool[] = [
         confirmed,
         url: personPath(personId),
       });
+    },
+  }),
+  tool({
+    name: "cards",
+    description:
+      "Own cards: what a person says about themselves (name, number, email, address, birthday, a note), the only thing that crosses from one person to another. `mine` shows the user's own card; `set_mine` replaces it with `card`. `publish` makes a secret link to it for the user to give to friends, `unpublish` ends it; a new link stops the old one at once, so ask the user before either when one exists. `subscribe` attaches the card link a friend gave the user to that person (`personId`, `url`), fetches it now and then once a day; `unsubscribe` drops it. A subscribed card shows in the person's briefing as `card`: their own words, kept apart from what was told about them. Never copy it into facts.",
+    input: z.object({
+      action: z.enum(["mine", "set_mine", "publish", "unpublish", "subscribe", "unsubscribe"]),
+      card: CardJson.optional().describe("For set_mine: the whole card; fields left out are removed"),
+      personId: PersonId.optional().describe("For subscribe and unsubscribe"),
+      url: z.string().optional().describe("For subscribe: the link the friend gave the user"),
+    }),
+    output: CardsJson,
+    annotations: { destructiveHint: true },
+    handler: async (v, { action, card, personId, url }) => {
+      if (action === "mine") return ok(CardsJson, { mine: await ownCard(v) });
+      if (action === "set_mine") {
+        if (!card) throw new InvalidInputError("set_mine needs card");
+        await setOwnCard(v, card);
+        const mine = await ownCard(v);
+        return ok(CardsJson, { mine }, mine.published ? [] : ["The card isn't published yet: offer publish, for a link to give to friends."]);
+      }
+      if (action === "publish") {
+        const link = cardPath(await publishCard(v));
+        return ok(CardsJson, { mine: await ownCard(v), link }, [
+          "Give the link only to the user, to pass on to the friends they want to have it: whoever has it can read the card. Any earlier link has stopped working.",
+        ]);
+      }
+      if (action === "unpublish") {
+        await unpublishCard(v);
+        return ok(CardsJson, { mine: await ownCard(v) }, ["The link has stopped working; those who subscribed keep the card as they last got it."]);
+      }
+      if (!personId) throw new InvalidInputError(`${action} needs personId`);
+      if (action === "unsubscribe") {
+        await unsubscribeCard(personId);
+        return ok(CardsJson, { person: null });
+      }
+      if (!url) throw new InvalidInputError("subscribe needs url");
+      const person = await subscribeCard(v, personId, url);
+      return ok(CardsJson, { person }, [
+        person.failed
+          ? `The card couldn't be fetched (${person.failed}): tell the user, and ask them to check the link with their friend. It is tried again tomorrow.`
+          : "Tell the user what the card says, with the link to the person's page. If its birthday differs from the one filed, ask which is right.",
+      ]);
     },
   }),
   tool({

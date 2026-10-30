@@ -28,6 +28,7 @@ nav:
       - Notifications: using/notifications.md
       - Sharing files: using/sharing.md
       - Calendar: using/calendar.md
+      - Own cards: using/cards.md
       - The web app: using/web-app.md
   - Self-hosting:
       - Configuration: self-hosting/configuration.md

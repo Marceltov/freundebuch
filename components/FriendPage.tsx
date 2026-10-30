@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   BookOpen,
   Cake,
+  IdCard,
   CalendarDays,
   Coffee,
   Gift,
@@ -34,6 +35,7 @@ import { JournalItem } from "@/components/Journal";
 import { layoutNetwork, Network } from "@/components/Network";
 import { PersonMenu } from "@/components/PersonMenu";
 import { ShareButton } from "@/components/ShareButton";
+import { PersonCardBox } from "@/components/Cards";
 import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
 
 // One friend, as a page of the friendship book: the sticker, the name and who they are to us, the chips (last seen, birthday, interval, dates,
@@ -216,6 +218,11 @@ export function FriendPage({
           )}
         </Section>
       )}
+
+      {/* Their own card (ADR 0024): what they say about themselves, apart from what was told about them. */}
+      <Section title={copy.cardTitle} icon={IdCard}>
+        <PersonCardBox personId={b.person.id} card={b.card} />
+      </Section>
 
       {b.known.length > 0 && (
         <Section title={copy.known} icon={BookOpen}>

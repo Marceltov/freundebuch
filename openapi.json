@@ -32,6 +32,10 @@
       "description": "Corrections after the fact: facts, promises, dates, exchanges, relationships and conversations."
     },
     {
+      "name": "Cards",
+      "description": "Own cards: what a person says about themselves, shared by a secret link and subscribed to for a person (ADR 0024)."
+    },
+    {
       "name": "Calendar",
       "description": "The secret URL of the caller's calendar feed (ICS), served at /api/calendar/{key}.ics."
     },
@@ -2305,6 +2309,297 @@
         }
       }
     },
+    "/api/v1/me/card": {
+      "get": {
+        "operationId": "getOwnCard",
+        "summary": "The caller's own card",
+        "description": "What the caller says about themselves (number, address, birthday), for the people they give its link to.",
+        "tags": [
+          "Cards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnCard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putOwnCard",
+        "summary": "Replace the caller's own card",
+        "description": "Empty fields are dropped. A published link serves the new card from now on; whoever subscribed to it gets it on their next fetch.",
+        "tags": [
+          "Cards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Card"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/card/link": {
+      "post": {
+        "operationId": "publishOwnCard",
+        "summary": "A new secret link to the caller's card",
+        "description": "Served as a vCard at /api/card/{key}.vcf. Anyone with the link can read the card. A new link replaces the old one, which stops working.",
+        "tags": [
+          "Cards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardLink"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unpublishOwnCard",
+        "summary": "End the link to the caller's card",
+        "description": "Whoever subscribed keeps the card as they last fetched it and gets nothing new.",
+        "tags": [
+          "Cards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}/card": {
+      "put": {
+        "operationId": "subscribeCard",
+        "summary": "Subscribe a person to the card they gave the user",
+        "description": "Fetches it now and again once a day, from https addresses on the internet only (no redirects). Replaces any card the person had. Shared like the name.",
+        "tags": [
+          "Cards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardSubscribe"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The card as fetched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unsubscribeCard",
+        "summary": "Drop a person's card",
+        "tags": [
+          "Cards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/language": {
       "put": {
         "operationId": "putLanguage",
@@ -2937,6 +3232,146 @@
         "required": [
           "language"
         ]
+      },
+      "Card": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "birthday": {
+            "description": "`YYYY-MM-DD`, or `--MM-DD` without the year",
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "PersonCard": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Card"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the card said when last fetched; null until one was"
+          },
+          "fetchedAt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it was last fetched (epoch ms)"
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "unreachable",
+                  "not_found",
+                  "not_a_card",
+                  "refused"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the last fetch failed: the link may have been revoked (not_found); null when it worked"
+          }
+        },
+        "required": [
+          "card",
+          "fetchedAt",
+          "failed"
+        ]
+      },
+      "OwnCard": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "description": "The caller's own card; empty while they wrote none",
+            "$ref": "#/components/schemas/Card"
+          },
+          "published": {
+            "type": "boolean",
+            "description": "Whether a link to it works now"
+          }
+        },
+        "required": [
+          "card",
+          "published"
+        ]
+      },
+      "CardLink": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The new link to the caller's card, as an absolute URL; shown once, and the previous one stopped working"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "CardSubscribe": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The link to the person's own card they gave the user (https)"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "Cards": {
+        "type": "object",
+        "properties": {
+          "mine": {
+            "description": "The user's own card, for mine, set_mine, publish and unpublish",
+            "$ref": "#/components/schemas/OwnCard"
+          },
+          "link": {
+            "description": "For publish: the new link to the user's card, as an absolute URL, shown once",
+            "type": "string"
+          },
+          "person": {
+            "description": "For subscribe: the person's card as fetched; null after unsubscribe",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
       },
       "Look": {
         "type": "object",
@@ -4832,6 +5267,17 @@
             },
             "description": "Where the person lives: the places that are their home"
           },
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonCard"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the person says about themselves, from the card the household subscribed to; their own words, kept apart from what was told about them. Null without one"
+          },
           "open": {
             "type": "object",
             "properties": {
@@ -5229,6 +5675,7 @@
           "journal",
           "experiences",
           "homes",
+          "card",
           "open",
           "recent",
           "relationships",

@@ -1,5 +1,6 @@
 // Everything to know before meeting a person, as the viewer sees it: every list below is read through `visible`, and "recent"
 // shows who else was there (names are always shared) but never the items of a conversation.
+import { personCard, type PersonCard } from "./cards";
 import { sql } from "kysely";
 import { db } from "./db";
 import { ageOn, nextOccurrence, today } from "./dates";
@@ -63,6 +64,8 @@ export type Briefing = {
   experiences: ExperienceView[];
   /** Where the person lives: the places the viewer may see are their home. */
   homes: PlaceCandidate[];
+  /** What the person says about themselves on the card the household subscribed to (ADR 0024); null without one. */
+  card: PersonCard | null;
   open: {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
     promises: Array<Own & { id: string; text: string; byMe: boolean; by?: string; due: string | null; url: string }>;
@@ -227,6 +230,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     journal: await journalEntries(v, { from: "0000-01-01", to: from, personId, own: true, limit: BRIEFING_JOURNAL }),
     experiences: await listExperiences(v, { personId, to: from, limit: BRIEFING_JOURNAL }),
     homes: await homesOf(v, personId),
+    card: await personCard(personId),
     known,
     open: {
       promises: promises.map((p) => ({

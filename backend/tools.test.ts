@@ -20,6 +20,7 @@ test("one table holds every tool the MCP endpoint offers", () => {
   expect(TOOLS.map((t) => t.name).sort()).toEqual([
     "briefing",
     "calendar_feed",
+    "cards",
     "correct",
     "experiences",
     "find_person",

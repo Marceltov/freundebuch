@@ -78,11 +78,12 @@ const ramble = (over: object = {}) => ({
 });
 
 describe("protocol", () => {
-  test("tools/list names the eighteen tools with their annotations", async () => {
+  test("tools/list names the nineteen tools with their annotations", async () => {
     const tools = (await (await rpc(s.a, "tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "briefing",
       "calendar_feed",
+      "cards",
       "correct",
       "experiences",
       "find_person",
@@ -107,7 +108,7 @@ describe("protocol", () => {
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
       // calendar_feed, which can end a calendar's subscription.
       const writes = ["record", "relate", "remember", "set_interval"].includes(t.name);
-      expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed", "inbox"].includes(t.name) ? true : writes ? false : undefined);
+      expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed", "cards", "inbox"].includes(t.name) ? true : writes ? false : undefined);
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");
       // The Anthropic API refuses a tool whose input schema combines schemas at its root.

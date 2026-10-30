@@ -403,6 +403,47 @@ test("Verlauf: a word finds what was told, its match marked; the partner's priva
   await expect(page.getByRole("list", { name: "Gefunden" }).getByRole("link")).toHaveCount(1);
 });
 
+test("an own card: written in Einstellungen, given by its link, and shown on the friend's page who subscribed to it", async ({ page, baseURL }) => {
+  await page.goto("/einstellungen");
+  const mine = page.locator("#karte");
+  await mine.getByLabel("Telefon").fill("+49 170 5550123");
+  await mine.getByLabel("Adresse").fill("Lindenweg 4, Leipzig");
+  await mine.getByRole("button", { name: "Speichern" }).click();
+  await expect(mine.getByText("Gespeichert")).toBeVisible();
+  await mine.getByRole("button", { name: "Link erzeugen" }).click();
+  const link = (await mine.locator("code").textContent())!;
+  expect(link).toMatch(/\/api\/card\/fbk_[\w-]+\.vcf$/);
+  // Any contacts app can read it, without a sign-in.
+  const vcf = await (await page.request.get(link, { headers: { cookie: "" } })).text();
+  expect(vcf).toContain("TEL;TYPE=cell:+49 170 5550123");
+
+  // Someone in the book gets it: here the same instance stands in for the friend's.
+  const recorded = await page.request.post("/api/v1/rambles", {
+    headers: { origin: baseURL! },
+    data: asRamble({
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Ida.",
+      transcript: "Anruf mit Ida Karte.",
+      visibility: "shared",
+      people: [{ name: "Ida Karte", present: true }],
+    }),
+  });
+  const ida = (await recorded.json()).people[0].id;
+  await page.goto(`/p/${ida}`);
+  await page.getByPlaceholder("Link zu ihrer Karte").fill(link);
+  await page.getByRole("button", { name: "Karte verknüpfen" }).click();
+  await expect(page.getByRole("link", { name: "+49 170 5550123" })).toHaveAttribute("href", "tel:+491705550123");
+  await expect(page.getByText("Lindenweg 4, Leipzig")).toBeVisible();
+  await expect(page.getByText("Was sie selbst über sich sagen")).toBeVisible();
+  await expectNoSideScroll(page);
+  // Ending the link in Einstellungen stops it at once.
+  await page.goto("/einstellungen");
+  await page.locator("#karte").getByRole("button", { name: "Link beenden" }).click();
+  await expect(page.locator("#karte").getByRole("button", { name: "Link erzeugen" })).toBeVisible();
+  expect((await page.request.get(link)).status()).toBe(404);
+});
+
 test("Erzählen files from a friend's page and keeps the chat across pages", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
