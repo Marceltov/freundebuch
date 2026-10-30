@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ImageUp, Settings } from "lucide-react";
 import type { ReactNode } from "react";
-import { chatEnabled, sharingEnabled } from "@/backend";
+import { chatEnabled, sharingEnabled, voiceEnabled } from "@/backend";
 import { copy } from "@/components/copy";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ShareWorker } from "@/components/ShareWorker";
@@ -31,7 +31,7 @@ export function AppShell({ userId, pending = 0, children }: { userId: string; pe
       </div>
       <PullToRefresh />
       <main className="min-w-0 px-4 pt-2 pb-32">{children}</main>
-      <TabBar chat={chatEnabled() ? { userId, sharing: sharingEnabled() } : null} />
+      <TabBar chat={chatEnabled() ? { userId, sharing: sharingEnabled(), voice: voiceEnabled() } : null} />
       {sharingEnabled() && <ShareWorker />}
     </div>
   );

@@ -1,6 +1,6 @@
 # Sharing files
 
-Your friends post their trips, festivals, new jobs and other big moments on Instagram, LinkedIn and elsewhere; a group chat tells you who has a birthday and who is moving; a letter invites you to a wedding. freundebuch can't read those feeds and chats (see [why](#why-screenshots)), but it can read what you share with it: a **screenshot**, a **photo**, a **PDF**, or a **text file** such as a WhatsApp chat export. Voice notes come later ([#58](https://github.com/Marceltov/freundebuch/issues/58)).
+Your friends post their trips, festivals, new jobs and other big moments on Instagram, LinkedIn and elsewhere; a group chat tells you who has a birthday and who is moving; a letter invites you to a wedding. freundebuch can't read those feeds and chats (see [why](#why-screenshots)), but it can read what you share with it: a **screenshot**, a **photo**, a **PDF**, a **text file** such as a WhatsApp chat export, or a **voice note** (see [below](#voice-notes)).
 
 Sharing needs the instance's Anthropic API key (`FREUNDEBUCH_ANTHROPIC_API_KEY`), the same one the chat uses. Each shared file counts as one chat message against the daily limit.
 
@@ -16,13 +16,21 @@ Sharing needs the instance's Anthropic API key (`FREUNDEBUCH_ANTHROPIC_API_KEY`)
 
 If Claude couldn't read it, the card says why; **Nochmal lesen** tries again.
 
+## Voice notes
+
+A WhatsApp voice note, an iPhone voice memo or any other audio file (Opus/Ogg, M4A, MP3, WAV, WebM, FLAC) is shared like any other file. Claude takes no audio, so freundebuch first has it transcribed by a Whisper server you run yourself ([`FREUNDEBUCH_TRANSCRIBE_URL`](../self-hosting/configuration.md)); the voice note never leaves your servers. Claude then reads the transcript, and it waits under Prüfen like any file, with a player to listen to it again. Once you have gone through it, only the transcript is kept, word for word as Whisper heard it, and the audio is deleted. If it couldn't be transcribed, the card says so and **Nochmal lesen** tries again.
+
+In **Erzählen**, the microphone (in place of the send button while the field is empty) records a message, as on WhatsApp: tap it, speak, tap send. It is transcribed at once and sent as your message; the trash can throws the recording away. The recording itself is never stored, only its words, as the ramble they are.
+
+Without a transcription server, freundebuch takes no audio files and Erzählen shows no microphone.
+
 ## From Claude (MCP)
 
 Ask Claude "Was wartet unter Prüfen?": the `inbox` tool hands it the waiting files and their transcripts, and you go through them together. Claude sees which files you shared together and asks which belong to one thing before it files them. When you paste a picture or a PDF into the conversation with Claude, Claude sees it but can't pass it on to freundebuch: it writes out what it shows into the transcript it files. That is all freundebuch would keep of it anyway.
 
 ## In the app
 
-In **Erzählen**, the paperclip next to the text field picks files (images, PDFs, text) from your phone or computer. What you pick goes along with the chat at once, several files together, so you can tell Claude about them right away. Sharing from the phone (below) is quicker while scrolling.
+In **Erzählen**, the paperclip next to the text field picks files (images, PDFs, text, voice notes) from your phone or computer. What you pick goes along with the chat at once, several files together, so you can tell Claude about them right away. Sharing from the phone (below) is quicker while scrolling.
 
 ## Android
 

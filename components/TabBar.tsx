@@ -21,7 +21,7 @@ const TELL_FILE = "freundebuch:tell-file";
 /** Opens Erzählen on shared files waiting under Prüfen, to work them through together (in this order). */
 export const tellAbout = (fileIds: string[]) => window.dispatchEvent(new CustomEvent(TELL_FILE, { detail: fileIds }));
 
-export function TabBar({ chat = null }: { chat?: { userId: string; sharing: boolean } | null }) {
+export function TabBar({ chat = null }: { chat?: { userId: string; sharing: boolean; voice?: boolean } | null }) {
   const path = usePathname();
   const [talking, setTalking] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
@@ -81,7 +81,7 @@ export function TabBar({ chat = null }: { chat?: { userId: string; sharing: bool
           ];
         })}
       </ul>
-      {talking && chat && <ChatSheet key={files.join() || "chat"} userId={chat.userId} sharing={chat.sharing} files={files} onClose={closeChat} />}
+      {talking && chat && <ChatSheet key={files.join() || "chat"} userId={chat.userId} sharing={chat.sharing} voice={chat.voice} files={files} onClose={closeChat} />}
     </nav>
   );
 }

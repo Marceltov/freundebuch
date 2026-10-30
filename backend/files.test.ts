@@ -9,7 +9,11 @@ import { deleteItem } from "./corrections";
 import { db } from "./db";
 import { putSettings } from "./settings";
 import type { FileInput, FileModel, Suggestion } from "./file-model";
+import { setTranscriberForTests, type Transcriber } from "./transcribe";
 import {
+  chatFiles,
+  NO_AUDIO,
+  NOT_AUDIO,
   createShareKey,
   discardFile,
   listPending,
@@ -210,8 +214,8 @@ test("a PDF and a text file are stored as they are, with their type; anything el
   // Without a type, the bytes tell.
   const c = await shareFile(s.a, new TextEncoder().encode("%PDF-1.7 other"), "");
   expect((await fileContent(s.a, c.id))!.type).toBe("application/pdf");
-  await expect(shareFile(s.a, new Uint8Array([0x50, 0x4b, 3, 4, 0, 0, 9]), "application/zip")).rejects.toThrow("freundebuch takes images, PDFs and text files");
-  await expect(shareFile(s.a, new Uint8Array([0, 1, 2, 0xff, 0xfe]), "")).rejects.toThrow("freundebuch takes images, PDFs and text files");
+  await expect(shareFile(s.a, new Uint8Array([0x50, 0x4b, 3, 4, 0, 0, 9]), "application/zip")).rejects.toThrow("freundebuch takes images, PDFs, text files and voice notes");
+  await expect(shareFile(s.a, new Uint8Array([0, 1, 2, 0xff, 0xfe]), "")).rejects.toThrow("freundebuch takes images, PDFs, text files and voice notes");
   const keys = await (await db()).selectFrom("files").select(["id", "blob_key"]).execute();
   expect(keys.find((k) => k.id === a.id)!.blob_key).toBe(`files/${a.id}.pdf`);
   expect(keys.find((k) => k.id === b.id)!.blob_key).toBe(`files/${b.id}.txt`);
@@ -289,4 +293,69 @@ test("a file filed by the screenshot reading before files can be shared again: i
   expect(again.id).not.toBe(first.id);
   // The old row stays for the fact that may still show it.
   expect((await (await db()).selectFrom("files").select("id").where("id", "=", first.id).execute())).toHaveLength(1);
+});
+
+// A voice note as WhatsApp shares it: Ogg (Opus). Only its first bytes matter here; Whisper is a stand-in.
+const voiceNote = (n = colour++) => new Uint8Array([...new TextEncoder().encode("OggS"), 0, 2, n % 256, 0, 0, 0, 0, 0, 1, 2, 3]);
+const hearing = (r: { text: string } | { error: string }): Transcriber & { heard: string[] } => {
+  const heard: string[] = [];
+  return { heard, transcribe: async (_b, type) => (heard.push(type), r) };
+};
+
+test("a voice note is stored as it came, transcribed, and Claude pre-reads the transcript, which is kept word for word", async () => {
+  const whisper = hearing({ text: "Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!" });
+  setTranscriberForTests(whisper);
+  try {
+    const bytes = voiceNote();
+    const shot = await shareFile(s.a, bytes, "audio/ogg; codecs=opus");
+    expect(await fileContent(s.a, shot.id)).toEqual({ bytes, type: "audio/ogg" });
+    const model = answering(suggestion([{ name: "Anna", personId: s.anna }]));
+    expect(await readFile(shot.id, model, whisper)).toBe("pending");
+    expect(whisper.heard).toEqual(["audio/ogg"]);
+    expect(model.seen[0].type).toBe("text/plain");
+    expect(new TextDecoder().decode(model.seen[0].bytes)).toContain("Wir sind gut in Lissabon angekommen!");
+    expect((await listPending(s.a))[0]).toMatchObject({ type: "audio/ogg", summary: "Anna war in Lissabon im Urlaub", transcript: "Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!" });
+    // Erzählen gets the words, not the audio.
+    const [chat] = await chatFiles(s.a, [shot.id]);
+    expect(chat.type).toBe("text/plain");
+    expect(new TextDecoder().decode(chat.bytes)).toContain("Wir sind gut in Lissabon angekommen!");
+  } finally {
+    setTranscriberForTests(null);
+  }
+});
+
+test("a voice note is known by its first bytes when it comes without a type, and refused without a transcription server", async () => {
+  await expect(shareFile(s.a, voiceNote(), "audio/ogg")).rejects.toThrow(NO_AUDIO);
+  setTranscriberForTests(hearing({ text: "x" }));
+  try {
+    const shot = await shareFile(s.a, voiceNote(), "application/octet-stream");
+    expect((await fileContent(s.a, shot.id))!.type).toBe("audio/ogg");
+    const m4a = new Uint8Array([0, 0, 0, 0x20, ...new TextEncoder().encode("ftypM4A "), 0, 0, 0, 0]);
+    expect((await fileContent(s.a, (await shareFile(s.a, m4a, "")).id))!.type).toBe("audio/mp4");
+    await expect(shareFile(s.a, new TextEncoder().encode("not audio at all"), "audio/ogg")).rejects.toThrow(NOT_AUDIO);
+  } finally {
+    setTranscriberForTests(null);
+  }
+});
+
+test("a voice note that can't be transcribed fails saying so; one Claude couldn't read keeps its transcript for the retry", async () => {
+  setTranscriberForTests(hearing({ text: "x" }));
+  try {
+    const a = await shareFile(s.a, voiceNote());
+    expect(await readFile(a.id, answering(suggestion([])), hearing({ error: "transcription failed (HTTP 500)" }))).toBe("failed");
+    expect((await listPending(s.a))[0]).toMatchObject({ status: "failed", transcript: null, error: "transcription failed (HTTP 500)" });
+    expect(sent.map((m) => m.title)).toEqual(["🎙️ Die Sprachnachricht konnte nicht transkribiert werden"]);
+
+    const b = await shareFile(s.a, voiceNote());
+    const first = hearing({ text: "Anna kommt Freitag" });
+    expect(await readFile(b.id, answering({ error: "overloaded" }), first)).toBe("failed");
+    expect((await listPending(s.a)).find((f) => f.id === b.id)).toMatchObject({ status: "failed", transcript: "Anna kommt Freitag", error: "overloaded" });
+    await (await db()).updateTable("files").set({ status: "reading" }).where("id", "=", b.id).execute();
+    const again = hearing({ text: "never asked" });
+    expect(await readFile(b.id, answering(suggestion([])), again)).toBe("pending");
+    expect(again.heard).toEqual([]);
+    expect((await listPending(s.a)).find((f) => f.id === b.id)!.transcript).toBe("Anna kommt Freitag");
+  } finally {
+    setTranscriberForTests(null);
+  }
 });

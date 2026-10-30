@@ -333,7 +333,7 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
     });
   expect(await dragHeld("header")).toBe(true);
   // Sent right away: the page it was opened on goes along even before the chip has its name.
-  const field = sheet.getByLabel("Nachricht");
+  const field = sheet.getByLabel("Nachricht", { exact: true });
   // While Claude works, the message already sits in the chat, the field is empty and Claude is shown thinking.
   await page.route("**/api/chat", async (r) => {
     await new Promise((done) => setTimeout(done, 1500));
@@ -719,7 +719,7 @@ test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, priv
   // Opened on no page, one tap asks for a look back on the week.
   await sheet.getByRole("button", { name: "Wie war meine Woche?" }).click();
   await expect(sheet.getByText("Verstanden.")).toBeVisible({ timeout: 15_000 });
-  await sheet.getByLabel("Nachricht").fill("Tagebuch: Ich frage mich, ob ich öfter laufen gehen will.");
+  await sheet.getByLabel("Nachricht", { exact: true }).fill("Tagebuch: Ich frage mich, ob ich öfter laufen gehen will.");
   await sheet.getByRole("button", { name: "Senden" }).click();
   await expect(sheet.getByText("Erfasst.")).toBeVisible({ timeout: 15_000 });
   await page.keyboard.press("Escape");
@@ -755,7 +755,7 @@ test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, priv
 test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and its place; a private series not for the other user", async ({ page, baseURL }) => {
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
   const sheet = page.getByRole("dialog", { name: "Erzählen" });
-  await sheet.getByLabel("Nachricht").fill("Erlebnis: Erste Stunde mit Toffee");
+  await sheet.getByLabel("Nachricht", { exact: true }).fill("Erlebnis: Erste Stunde mit Toffee");
   await sheet.getByRole("button", { name: "Senden" }).click();
   await expect(sheet.getByText("Erfasst.")).toBeVisible({ timeout: 15_000 });
   await sheet.getByRole("link", { name: "Erste Stunde mit Toffee ›" }).click();
@@ -780,4 +780,36 @@ test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and i
   expect(res?.status()).toBe(404);
   await page.goto("/verlauf");
   await expect(page.getByText("Gesprächsgruppe")).toHaveCount(0);
+});
+
+test.describe("voice", () => {
+  // The microphone is Chromium's stand-in (playwright.config.ts), Whisper the e2e stand-in (backend/transcribe.ts).
+  test("a message spoken into Erzählen is sent as its words; a voice note added there waits under Prüfen as its transcript", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+    const sheet = page.getByRole("dialog", { name: "Erzählen" });
+    // The microphone takes the place of send while the field is empty.
+    await expect(sheet.getByRole("button", { name: "Senden", exact: true })).toHaveCount(0);
+    await sheet.getByRole("button", { name: "Sprachnachricht aufnehmen" }).click();
+    await expect(sheet.getByText("Aufnahme läuft")).toBeAttached();
+    await page.waitForTimeout(1500);
+    await sheet.getByRole("button", { name: "Sprachnachricht senden" }).click();
+    await expect(sheet.getByText("Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!")).toBeVisible({ timeout: 15_000 });
+    await expect(sheet.getByText("Verstanden.")).toBeVisible({ timeout: 15_000 });
+    // Typing brings send back.
+    await sheet.getByRole("textbox").fill("Noch was");
+    await expect(sheet.getByRole("button", { name: "Senden", exact: true })).toBeEnabled();
+    await sheet.getByRole("textbox").fill("");
+
+    const ogg = Buffer.from([...Buffer.from("OggS"), 0, 2, 7, 0, 0, 0, 0, 0, 1, 2, 3]);
+    await sheet.locator('input[type="file"]').setInputFiles({ name: "PTT-20261030.opus", mimeType: "audio/ogg", buffer: ogg });
+    await expect(sheet.getByText("Die Datei ist im Gespräch", { exact: false })).toBeVisible();
+    await page.goto("/pruefen");
+    // Other tests leave files of their own here: the voice note is the card with a player.
+    const card = page.locator("article", { has: page.locator("audio") });
+    await expect(card).toHaveCount(1);
+    await expect(card.getByText("Sprachnachricht", { exact: true })).toBeVisible();
+    await expect(card.getByText("Anna Reise war in Lissabon im Urlaub")).toBeVisible({ timeout: 15_000 });
+    await expectNoSideScroll(page);
+  });
 });

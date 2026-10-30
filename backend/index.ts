@@ -11,7 +11,7 @@ export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 export { dispatch } from "./http/api";
 export { mcpRoute } from "./mcp";
-export { chatEnabled, chatRoute } from "./chat-route";
+export { chatEnabled, chatRoute, voiceEnabled, voiceRoute } from "./chat-route";
 export { fileRoute, shareRoute, sharingEnabled } from "./share-route";
 export type { ChatContext, ChatLink, ChatTurn } from "./chat";
 export { anchorId, conversationPath, itemPath, mcpResource, personPath, publicUrl, safeNext } from "./urls";

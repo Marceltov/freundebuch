@@ -8,7 +8,7 @@ import { bearerOf, viewerFromRequest } from "./auth/session";
 import { FreundebuchError } from "./errors";
 import { readCapped, parseForm } from "./http/request";
 import { copy } from "./notify/copy";
-import { BATCH_HEADER, MAX_UPLOAD, NOT_TAKEN, PENDING_PATH, queueRead, fileContent, fileModel, shareFile, viewerFromShareKey } from "./files";
+import { BATCH_HEADER, MAX_UPLOAD, NO_AUDIO, NOT_AUDIO, NOT_TAKEN, PENDING_PATH, queueRead, fileContent, fileModel, shareFile, viewerFromShareKey } from "./files";
 import { TOO_LARGE } from "./heic";
 import { publicUrl } from "./urls";
 import type { Viewer } from "./types";
@@ -41,6 +41,8 @@ async function fileOf(req: Request, bytes: Uint8Array): Promise<{ bytes: Uint8Ar
 /** Why a file was refused (files.ts, heic.ts), for the user. */
 function germanOf(error: string): string {
   if (error === NOT_TAKEN) return copy.shareNotTaken;
+  if (error === NO_AUDIO) return copy.shareNoAudio;
+  if (error === NOT_AUDIO) return copy.shareNotAudio;
   if (error === TOO_LARGE) return copy.shareTooManyPixels;
   if (error.startsWith("The text file is too long")) return copy.shareTextTooLong;
   if (error === "The file is empty") return copy.shareEmpty;
@@ -76,7 +78,18 @@ export async function fileRoute(req: Request, id: string): Promise<Response> {
   if (!v) return json({ error: "sign-in required", code: "unauthorized" }, 401);
   const img = await fileContent(v, id);
   if (!img) return json({ error: "not found", code: "not_found" }, 404);
-  return new Response(img.bytes as BodyInit, {
-    headers: { "Content-Type": img.type === "text/plain" ? "text/plain; charset=utf-8" : img.type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff" },
-  });
+  const headers = { "Content-Type": img.type === "text/plain" ? "text/plain; charset=utf-8" : img.type, "Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff", "Accept-Ranges": "bytes" };
+  // Safari plays a voice note only from a server that answers byte ranges.
+  const range = rangeOf(req.headers.get("range"), img.bytes.byteLength);
+  if (range === "unsatisfiable") return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${img.bytes.byteLength}` } });
+  if (range) return new Response(img.bytes.subarray(range.start, range.end + 1) as BodyInit, { status: 206, headers: { ...headers, "Content-Range": `bytes ${range.start}-${range.end}/${img.bytes.byteLength}` } });
+  return new Response(img.bytes as BodyInit, { headers });
+}
+
+/** One byte range (`bytes=0-1`, `bytes=5-`, `bytes=-5`) of `size` bytes; null for none or one not understood (the whole file is sent). */
+export function rangeOf(header: string | null, size: number): { start: number; end: number } | "unsatisfiable" | null {
+  const m = header?.trim().match(/^bytes=(\d*)-(\d*)$/);
+  if (!m || (!m[1] && !m[2])) return null;
+  const [start, end] = m[1] ? [Number(m[1]), m[2] ? Math.min(Number(m[2]), size - 1) : size - 1] : [Math.max(0, size - Number(m[2])), size - 1];
+  return start > end || start >= size ? "unsatisfiable" : { start, end };
 }

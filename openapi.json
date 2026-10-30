@@ -2939,7 +2939,7 @@
           },
           "type": {
             "type": "string",
-            "description": "image/webp, application/pdf or text/plain"
+            "description": "image/webp, application/pdf, text/plain, or audio/* for a voice note (worked through as its transcript)"
           },
           "summary": {
             "description": "What Claude suggests to file, in German; null while reading or when it failed",
@@ -2949,7 +2949,7 @@
             ]
           },
           "transcript": {
-            "description": "What the file says, word for word (or what a photo shows): all that is kept of it once filed",
+            "description": "What the file says, word for word (or what a photo shows, or what a voice note says): all that is kept of it once filed",
             "type": [
               "string",
               "null"
@@ -3086,7 +3086,7 @@
             },
             "type": {
               "type": "string",
-              "description": "image/webp, application/pdf or text/plain"
+              "description": "image/webp, application/pdf, text/plain, or audio/* for a voice note (worked through as its transcript)"
             },
             "summary": {
               "description": "What Claude suggests to file, in German; null while reading or when it failed",
@@ -3096,7 +3096,7 @@
               ]
             },
             "transcript": {
-              "description": "What the file says, word for word (or what a photo shows): all that is kept of it once filed",
+              "description": "What the file says, word for word (or what a photo shows, or what a voice note says): all that is kept of it once filed",
               "type": [
                 "string",
                 "null"

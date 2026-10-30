@@ -7,7 +7,7 @@ import { IDENTITY_COOKIE } from "./auth/session";
 import { sign } from "./auth/tokens";
 import { db } from "./db";
 import { createShareKey, listPending, setFileModelForTests } from "./files";
-import { fileRoute, shareRoute } from "./share-route";
+import { fileRoute, rangeOf, shareRoute } from "./share-route";
 import { resetSecretForTests } from "./secret";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -133,7 +133,7 @@ test("what the Shortcut shows when a file doesn't arrive is German, and says why
   const auth = { authorization: `Bearer ${await createShareKey(s.a)}` };
   expect(await msg(await share(new Uint8Array(16 * 1024 * 1024) as BodyInit, { ...auth, "content-type": "image/png" }))).toBe("Die Datei ist größer als 15 MB.");
   expect(await msg(await share(new Uint8Array([0x50, 0x4b, 3, 4, 0, 0]) as BodyInit, { ...auth, "content-type": "application/zip" }))).toBe(
-    "freundebuch nimmt Bilder, PDFs und Textdateien.",
+    "freundebuch nimmt Bilder, PDFs, Textdateien und Sprachnachrichten.",
   );
   expect(await msg(await share("hello", { ...auth, "content-type": "image/png" }))).toBe("Diese Datei kann freundebuch nicht lesen.");
 });
@@ -164,4 +164,20 @@ test("files of one share that came in the same millisecond keep the order they c
   for (let i = 0; i < 6; i++) ids.push(((await (await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", "x-freundebuch-batch": "same-ms-1234" })).json()) as { id: string }).id);
   await (await db()).updateTable("files").set({ created_at: 5 }).where("id", "in", ids).execute();
   expect((await listPending(s.a)).map((f) => f.id)).toEqual(ids);
+});
+
+test("a byte range of a file is served as 206, for Safari to play a voice note", async () => {
+  const key = await createShareKey(s.a);
+  const text = new TextEncoder().encode("0123456789");
+  const { id } = await (await share(text as BodyInit, { authorization: `Bearer ${key}`, "content-type": "text/plain" })).json();
+  const get = (range?: string) => fileRoute(new Request(`${BASE}/api/files/${id}`, { headers: { host: "localhost:3000", ...cookie(s.a.userId), ...(range ? { range } : {}) } }), id);
+  const part = await get("bytes=2-4");
+  expect([part.status, part.headers.get("content-range"), await part.text()]).toEqual([206, "bytes 2-4/10", "234"]);
+  expect((await get("bytes=20-")).status).toBe(416);
+  const whole = await get();
+  expect([whole.status, whole.headers.get("accept-ranges")]).toEqual([200, "bytes"]);
+  expect(rangeOf("bytes=-3", 10)).toEqual({ start: 7, end: 9 });
+  expect(rangeOf("bytes=5-", 10)).toEqual({ start: 5, end: 9 });
+  expect(rangeOf("bytes=0-99", 10)).toEqual({ start: 0, end: 9 });
+  expect(rangeOf("bytes=1-2,4-5", 10)).toBeNull();
 });

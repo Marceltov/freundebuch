@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, MessageCirclePlus, RotateCw, Trash2 } from "lucide-react";
+import { AudioLines, FileText, MessageCirclePlus, RotateCw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PendingFile } from "@/backend";
@@ -120,8 +120,8 @@ export function FilePreview({ item }: { item: Pick<PendingFile, "url" | "type"> 
     );
   return (
     <a href={item.url} target="_blank" rel="noreferrer" className="flex h-32 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-surface-2 text-xs text-muted">
-      <FileText aria-hidden className="h-7 w-7 text-carbon" />
-      {item.type === "application/pdf" ? copy.filePdf : copy.fileText}
+      {item.type.startsWith("audio/") ? <AudioLines aria-hidden className="h-7 w-7 text-carbon" /> : <FileText aria-hidden className="h-7 w-7 text-carbon" />}
+      {item.type.startsWith("audio/") ? copy.fileAudio : item.type === "application/pdf" ? copy.filePdf : copy.fileText}
     </a>
   );
 }
@@ -150,10 +150,12 @@ function PendingCard({ item, selected, onSelect, onDone }: { item: PendingFile; 
       <input type="checkbox" aria-label={copy.selectFile} checked={selected} onChange={(e) => onSelect(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-carbon" />
       <FilePreview item={item} />
       <div className="min-w-0 flex-1 space-y-2">
+        {/* Kept only until it is filed, like every shared file; then only its transcript remains. */}
+        {item.type.startsWith("audio/") && <audio controls preload="none" src={item.url} className="w-full" />}
         {item.status === "reading" && <p className="text-muted">{copy.pendingReading}</p>}
         {item.status === "failed" && (
           <>
-            <p className="text-error">{copy.pendingFailed}</p>
+            <p className="text-error">{item.type.startsWith("audio/") && !item.transcript ? copy.pendingNotTranscribed : copy.pendingFailed}</p>
             {item.error && <p className="text-xs break-words text-muted">{item.error}</p>}
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={busy} onClick={() => act("/retry", "POST")} className={`${button} bg-carbon text-on-carbon`}>

@@ -75,6 +75,9 @@ export const config = {
   // The in-app chat (chat.ts): on only with an API key. The model and how many messages each user may send a day.
   anthropicKey: (): string | undefined => env("FREUNDEBUCH_ANTHROPIC_API_KEY").trim() || undefined,
   anthropicModel: (): string => env("FREUNDEBUCH_ANTHROPIC_MODEL").trim() || "claude-sonnet-5-5",
+  // Voice notes (transcribe.ts): a Whisper server with the OpenAI-compatible API, its address without /v1. Unset: none are taken.
+  transcribeUrl: (): string | undefined => env("FREUNDEBUCH_TRANSCRIBE_URL").trim().replace(/\/+$/, "") || undefined,
+  transcribeModel: (): string => env("FREUNDEBUCH_TRANSCRIBE_MODEL").trim() || "deepdml/faster-whisper-large-v3-turbo-ct2",
   chatDailyLimit: (): number => ((n) => (Number.isInteger(n) && n >= 0 ? n : 100))(Number.parseInt(env("FREUNDEBUCH_CHAT_DAILY_LIMIT").trim(), 10)),
   rateLimit: (): number => ((n) => (Number.isInteger(n) ? n : 60))(Number.parseInt(env("FREUNDEBUCH_RATE_LIMIT").trim(), 10)),
   // Unset, empty or not a level → info.
