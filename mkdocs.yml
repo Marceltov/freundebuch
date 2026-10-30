@@ -10,6 +10,9 @@ copyright: Copyright &copy; 2026 Marcel Bruckner. Licensed under <a href="https:
 exclude_docs: |
   superpowers/
 
+hooks:
+  - docs_hooks/roadmap.py
+
 nav:
   - Home: index.md
   - What freundebuch stands for: values.md
