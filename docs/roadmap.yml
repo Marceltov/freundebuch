@@ -93,7 +93,7 @@ items:
       - {label: "#49", url: "https://github.com/Marceltov/freundebuch/issues/49"}
       - {label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept"}
       - {label: "ADR 0020", url: "https://marceltov.github.io/freundebuch/adr/0020-avatars-built-from-parts/"}
-      - {label: "PR #PRNUM", url: "https://github.com/Marceltov/freundebuch/pull/PRNUM"}
+      - {label: "PR #104", url: "https://github.com/Marceltov/freundebuch/pull/104"}
 
   - id: voice-notes
     status: done
