@@ -32,13 +32,15 @@ test("it is called \"An freundebuch\" (iOS names it after its file), with an ope
   expect((sc as unknown as { WFWorkflowClientVersion: string }).WFWorkflowClientVersion).toBe("4033.0.4.3");
 });
 
-test("importing it asks for the share address and the share key, in German, on the text actions holding them", () => {
+test("importing it asks one thing, the Zugang from Einstellungen, and splits it into address and key at the space", () => {
   const qs = sc.WFWorkflowImportQuestions;
-  expect(qs.map((q) => q.Text)).toEqual(["Adresse zum Teilen (aus den freundebuch-Einstellungen)", "Teilen-Schlüssel (aus den freundebuch-Einstellungen)"]);
-  for (const q of qs) {
-    expect(q.ParameterKey).toBe("WFTextActionText");
-    expect(actions[q.ActionIndex].WFWorkflowActionIdentifier).toBe("is.workflow.actions.gettext");
-  }
+  expect(qs.map((q) => q.Text)).toEqual(["Zugang (aus den freundebuch-Einstellungen)"]);
+  expect(qs[0].ParameterKey).toBe("WFTextActionText");
+  expect(actions[qs[0].ActionIndex].WFWorkflowActionIdentifier).toBe("is.workflow.actions.gettext");
+  const split = actions.find((a) => a.WFWorkflowActionIdentifier === "is.workflow.actions.text.split")!;
+  expect(split.WFWorkflowActionParameters).toMatchObject({ WFTextSeparator: "Custom", WFTextCustomSeparator: " " });
+  const items = actions.filter((a) => a.WFWorkflowActionIdentifier === "is.workflow.actions.getitemfromlist").map((a) => a.WFWorkflowActionParameters.WFItemSpecifier);
+  expect(items).toEqual(["First Item", "Last Item"]);
 });
 
 test("every shared item is posted with the key and one batch id for the whole share, then Prüfen opens on what was sent", () => {

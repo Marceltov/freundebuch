@@ -35,11 +35,11 @@ If freundebuch asks you to share again right after installing it, do so: the fir
 
 iOS doesn't let web apps appear in the share sheet, so a Shortcut does the sending. freundebuch comes with one.
 
-1. In freundebuch on the iPhone, open **Einstellungen → Dateien teilen** and tap **Schlüssel erzeugen**. Copy the key; it is shown only once. The key can only hand in files: it can't read anything.
-2. Tap **Kurzbefehl laden** and add it in the Kurzbefehle app. It asks two things: the **Adresse zum Teilen** and the **Teilen-Schlüssel**, both shown on the same settings page.
-3. Take a screenshot, or pick several, or a photo, a PDF, a text; tap **Teilen**, pick **An freundebuch**. freundebuch opens on Prüfen with what you sent ticked.
+1. In freundebuch on the iPhone, open **Einstellungen → Dateien teilen** and tap **Zugang erzeugen**. Copy the Zugang: the share address and your key in one, shown only once. The key can only hand in files: it can't read anything.
+2. Tap **Kurzbefehl laden**, add it in the Kurzbefehle app, and paste the Zugang when it asks.
+3. Take a screenshot, or pick several, or a photo, a PDF, a text; tap **Teilen** and scroll to the very bottom: pick **An freundebuch**. freundebuch opens on Prüfen with what you sent ticked.
 
-iPhone photos (HEIC) go as they are. A new key replaces the old one: change it in the Shortcut's first actions, or load it again. **Schlüssel löschen** turns sharing from the Shortcut off.
+iPhone photos (HEIC) go as they are. A new Zugang replaces the old one: load the Shortcut again and paste the new one. **Zugang löschen** turns sharing from the Shortcut off.
 
 ### Building it yourself
 
