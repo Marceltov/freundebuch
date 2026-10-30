@@ -319,6 +319,9 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await page.goto(`/p/${nele}`);
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
   const sheet = page.getByRole("dialog", { name: "Erzählen" });
+  // The page behind holds still while the chat is open (iOS would otherwise scroll it, and the sheet with it).
+  await expect(sheet).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.body).position)).toBe("fixed");
   // Sent right away: the page it was opened on goes along even before the chip has its name.
   const field = sheet.getByLabel("Nachricht");
   // While Claude works, the message already sits in the chat, the field is empty and Claude is shown thinking.
@@ -363,6 +366,7 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" })).toBeFocused();
+  expect(await page.evaluate(() => getComputedStyle(document.body).position)).toBe("static");
 
   // Moving to another friend with the sheet open names that friend, never the one before.
   await page.goto(`/p/${nele}`);

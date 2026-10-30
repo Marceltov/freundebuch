@@ -8,6 +8,7 @@ import type { ChatContext, ChatLink, PendingFile } from "@/backend";
 import { copy } from "@/components/copy";
 import { recentTurns } from "@/components/chatTurns";
 import { shortDay } from "@/components/format";
+import { sheetFit } from "@/components/sheetFit";
 import { FilePreview } from "@/components/Pending";
 
 type Turn = { role: "user" | "assistant"; content: string; links?: ChatLink[]; filed?: boolean };
@@ -104,21 +105,29 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
     if (!busy) field.current?.focus();
   }, [busy]);
 
-  // Where the browser doesn't shrink the page for the keyboard (Safari on iOS), the sheet follows the visible area itself:
-  // it sits on the keyboard and fits above it.
-  const [visible, setVisible] = useState<{ height: number; bottom: number } | null>(null);
+  // Where the browser doesn't shrink the page for the keyboard (Safari on iOS), the sheet follows the visible area itself.
+  const [visible, setVisible] = useState<{ top: number; bottom: number } | null>(null);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const fit = () => {
-      const bottom = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setVisible(bottom > 0 ? { height: vv.height, bottom } : null);
-    };
+    const fit = () => setVisible(sheetFit(window.innerHeight, vv));
     vv.addEventListener("resize", fit);
     vv.addEventListener("scroll", fit);
     return () => {
       vv.removeEventListener("resize", fit);
       vv.removeEventListener("scroll", fit);
+    };
+  }, []);
+
+  // The page behind stays put while the sheet is open: iOS otherwise scrolls it under a drag, and the sheet with it.
+  useEffect(() => {
+    const y = window.scrollY;
+    const body = document.body.style;
+    const before = { position: body.position, top: body.top, width: body.width, overflow: body.overflow };
+    Object.assign(body, { position: "fixed", top: `-${y}px`, width: "100%", overflow: "hidden" });
+    return () => {
+      Object.assign(body, before);
+      window.scrollTo(0, y);
     };
   }, []);
 
@@ -216,7 +225,7 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
         aria-modal="true"
         aria-label={copy.tell}
         className="absolute inset-x-0 bottom-0 mx-auto flex h-[85dvh] max-w-2xl flex-col rounded-t-3xl bg-paper shadow-float"
-        style={visible ? { bottom: visible.bottom, height: Math.round(visible.height * 0.92) } : undefined}
+        style={visible ? { top: visible.top, bottom: visible.bottom, height: "auto" } : undefined}
       >
         <header className="flex items-center gap-2 px-4 pt-4 pb-2">
           <h2 className="flex-1 font-display text-2xl font-bold">{copy.tell}</h2>
@@ -229,7 +238,7 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 py-2">
           {about && (
             <span className="inline-flex items-center gap-1 self-center rounded-full bg-surface-2 py-1 pr-1 pl-3 text-sm text-muted">
               {about.label}
