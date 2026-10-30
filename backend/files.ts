@@ -6,6 +6,7 @@
 // unattended. Waiting files belong to the user who shared them. Facts filed by the screenshot reading before files still show
 // their image, to whoever may see the fact.
 import { createHash, randomBytes } from "node:crypto";
+import decodeHeic from "heic-decode";
 import sharp from "sharp";
 import { config } from "./config";
 import { today } from "./dates";
@@ -67,7 +68,7 @@ function kindOf(bytes: Uint8Array, sent: string): "pdf" | "text" | "image" | nul
   return "image";
 }
 
-/** An iPhone photo in HEIC/HEIF, by its type or its `ftyp` box; the bundled image library doesn't decode it. */
+/** An iPhone photo in HEIC/HEIF, by its type or its `ftyp` box; sharp's bundled libvips doesn't decode it, heic-decode does. */
 const isHeic = (bytes: Uint8Array, type: string) =>
   /^image\/hei[cf]/.test(type) || /^ftyp(heic|heix|hevc|mif1|msf1)$/.test(new TextDecoder().decode(bytes.subarray(4, 12)));
 
@@ -96,11 +97,18 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promis
     if (bytes.byteLength > MAX_TEXT) throw new InvalidInputError("The text file is too long (at most 1 MB): share a shorter part");
     [stored, mediaType] = [bytes, "text/plain"];
   } else if (kind === "image") {
+    const shrink = (img: ReturnType<typeof sharp>) => img.resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
     try {
-      stored = new Uint8Array(await sharp(bytes).rotate().resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer());
+      stored = new Uint8Array(await shrink(sharp(bytes).rotate()));
     } catch {
-      if (isHeic(bytes, type)) throw new InvalidInputError("iPhone photos in HEIC can't be read yet: share them as JPEG (in the Shortcut: Bild konvertieren, JPEG)");
-      throw new InvalidInputError(type.startsWith("image/") ? "That is not an image freundebuch can read" : NOT_TAKEN);
+      if (!isHeic(bytes, type)) throw new InvalidInputError(type.startsWith("image/") ? "That is not an image freundebuch can read" : NOT_TAKEN);
+      // sharp's libvips can't decode HEIC: libheif (WebAssembly) gives the main image's pixels, already turned the right way up.
+      try {
+        const { width, height, data } = await decodeHeic({ buffer: bytes });
+        stored = new Uint8Array(await shrink(sharp(Buffer.from(data), { raw: { width, height, channels: 4 } })));
+      } catch {
+        throw new InvalidInputError("That is not an image freundebuch can read");
+      }
     }
     mediaType = "image/webp";
   } else throw new InvalidInputError(NOT_TAKEN);

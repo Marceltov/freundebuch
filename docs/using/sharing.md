@@ -36,7 +36,6 @@ iOS doesn't let web apps appear in the share sheet, so a Shortcut does the sendi
 1. In freundebuch, open **Einstellungen → Dateien teilen** and tap **Schlüssel erzeugen**. Copy the key; it is shown only once. The key can only hand in files: it can't read anything.
 2. In the **Kurzbefehle** app, create a shortcut named "An freundebuch":
     - In its details, turn on **Im Share-Sheet anzeigen** and set the input to **Bilder**, **PDFs**, **Text** and **Dateien**.
-    - Add **Wenn** *Kurzbefehleingabe* *ist* **Bild**, and inside it **Bild konvertieren** to **JPEG**: iPhone photos are HEIC, which freundebuch can't read yet. PDFs and text skip it.
     - Add **Inhalte von URL abrufen** with the address shown in the settings (`https://<your instance>/api/share`). Method **POST**, header `Authorization` with the value `Bearer <your key>`, request body **Datei** with **Kurzbefehleingabe**.
     - Add **URL öffnen** with `url` from the result: it takes you straight to the file under Prüfen. (Or **Ergebnis anzeigen** with `message`, to stay where you are.)
 3. Take a screenshot (or pick a file), tap **Teilen**, pick **An freundebuch**.

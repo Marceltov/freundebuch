@@ -284,7 +284,6 @@ export const copy = {
   shareSteps: [
     "Kurzbefehle-App öffnen, neuen Kurzbefehl „An freundebuch“ anlegen.",
     "In den Details „Im Share-Sheet anzeigen“ einschalten, Eingabe: Bilder, PDFs, Text und Dateien.",
-    "Aktion „Wenn“ Kurzbefehleingabe ist Bild, darin „Bild konvertieren“ in JPEG (iPhone-Fotos sind HEIC, das kann freundebuch noch nicht lesen).",
     "Aktion „Inhalte von URL abrufen“: die Adresse unten, Methode POST, Header „Authorization“ mit „Bearer “ und dem Schlüssel, Hauptteil: Datei, Kurzbefehleingabe.",
     "Aktion „URL öffnen“ mit „url“ aus der Antwort: dann landest du direkt unter „Prüfen“.",
   ],
