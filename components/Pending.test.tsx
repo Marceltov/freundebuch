@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import type { PendingFile } from "@/backend";
-import { PendingList } from "./Pending";
+import { idOfHash, PendingList } from "./Pending";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {} }) }));
 
@@ -47,4 +47,10 @@ test("files shared together sit in one group, marked as shared together; every c
   expect(html).toContain("Zusammen geteilt");
   expect(html.match(/type="checkbox"/g)).toHaveLength(3);
   expect(html).toContain('aria-label="Auswählen"');
+});
+
+test("the file a link opens Prüfen on: its id from #id, nothing from a broken one", () => {
+  expect(idOfHash("#abc123")).toBe("abc123");
+  expect(idOfHash("#%")).toBe("");
+  expect(idOfHash("")).toBe("");
 });

@@ -105,10 +105,16 @@ export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl:
       <p>{copy.shareAndroid}</p>
       <p>{copy.shareIphone}</p>
       {/* The signed Shortcut (shortcut/source.ts): Safari on the iPhone hands it to the Kurzbefehle app, which asks for the two fields below. */}
-      <a href="/shortcuts/an-freundebuch.shortcut" download className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+      <a href="/shortcuts/An%20freundebuch.shortcut" download className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
         <Download aria-hidden className="h-4 w-4" />
         {copy.shareShortcut}
       </a>
+      <p className="font-bold">{copy.shareHowTo}</p>
+      <ol className="list-decimal space-y-1 pl-5 text-muted">
+        {copy.shareHowToSteps.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ol>
       <CopyField label={copy.shareUrl} text={shareUrl} />
       {key && (
         <>

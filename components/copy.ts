@@ -261,6 +261,7 @@ export const copy = {
   aboutFile: "Zu dieser Datei",
   aboutFiles: "Zu diesen {n} Dateien",
   fileAttached: "Die Datei ist im Gespräch: erzähl, was du dazu weißt, oder frag Claude, was drinsteht.",
+  filesAttached: "Die Dateien sind im Gespräch: erzähl, was du dazu weißt, oder frag Claude, was drinsteht.",
   fileImage: "Geteiltes Bild",
   fileShared: "Geteilt am {day}",
   fileSuggests: "Vorschlag",
@@ -289,6 +290,13 @@ export const copy = {
   shareIphone:
     "iPhone: Kurzbefehl laden und beim Hinzufügen die Adresse zum Teilen und deinen Teilen-Schlüssel (beide hier) eintragen. Danach steht „An freundebuch“ beim Teilen zur Auswahl, auch für mehrere Bilder auf einmal; iPhone-Fotos gehen so, wie sie sind.",
   shareShortcut: "Kurzbefehl laden",
+  shareHowTo: "So teilst du vom iPhone",
+  shareHowToSteps: [
+    "Screenshot machen oder in Fotos ein oder mehrere Bilder auswählen (auch PDFs und Texte gehen).",
+    "Auf „Teilen“ tippen (das Quadrat mit dem Pfeil) und nach unten scrollen: „An freundebuch“ steht ganz unten in der Liste, unter den Aktionen.",
+    "Beim ersten Mal fragt das iPhone, ob der Kurzbefehl freundebuch erreichen darf: „Immer erlauben“.",
+    "freundebuch öffnet sich unter „Prüfen“, mit dem Geschickten ausgewählt. Mehrere zusammen geteilte gehst du mit „Zusammen prüfen“ durch, eins mit „In Erzählen öffnen“.",
+  ],
   shareUrl: "Adresse zum Teilen",
   shareKey: "Teilen-Schlüssel",
   shareKeyNew: "Schlüssel erzeugen",

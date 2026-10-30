@@ -70,6 +70,8 @@ export function ChatSheet({ userId, sharing = false, files = [], onClose }: { us
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shot, setShot] = useState<"sending" | "received" | "duplicate" | "failed" | "attached" | null>(null);
+  // How many the last pick attached, for the message in the singular or the plural.
+  const [attached, setAttached] = useState(0);
   const picker = useRef<HTMLInputElement>(null);
   // The name belongs to the person it was loaded for, so moving to another page never shows the one before.
   const [loaded, setLoaded] = useState<{ id: string; name: string } | null>(null);
@@ -244,6 +246,7 @@ export function ChatSheet({ userId, sharing = false, files = [], onClose }: { us
       // Added to what the chat is about, not instead of it: a missing screenshot joins the others.
       setFileIds((before) => [...new Set([...before, ...ids])]);
       setDismissed(false);
+      setAttached(ids.length);
       setShot("attached");
     } else setShot(result);
     router.refresh();
@@ -346,7 +349,7 @@ export function ChatSheet({ userId, sharing = false, files = [], onClose }: { us
         )}
         {shot && (
           <p role="status" className={`mx-4 flex flex-wrap items-center gap-x-2 rounded-xl bg-surface px-3 py-2 text-sm ${shot === "failed" ? "text-error" : ""}`}>
-            {{ sending: copy.shareReceiving, received: copy.shareReceived, duplicate: copy.shareDuplicate, failed: copy.shareFailed, attached: copy.fileAttached }[shot]}
+            {{ sending: copy.shareReceiving, received: copy.shareReceived, duplicate: copy.shareDuplicate, failed: copy.shareFailed, attached: attached > 1 ? copy.filesAttached : copy.fileAttached }[shot]}
             {shot === "received" && (
               <Link href="/pruefen" onClick={onClose} className="font-bold text-carbon">
                 {copy.pending} ›

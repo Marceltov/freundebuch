@@ -2,7 +2,7 @@
 // share key (both in Einstellungen → Dateien teilen). Shared items go one by one to POST /api/share with the key and one batch id
 // for the whole share (so Prüfen shows them together, pre-selected). What didn't arrive is shown with the server's German reason,
 // then freundebuch opens under Prüfen on what was sent. iOS imports only signed Shortcuts: `npm run shortcut:sign` on a Mac
-// signs this into public/shortcuts/an-freundebuch.shortcut and records the source's hash next to it (checked by source.test.ts).
+// signs this into public/shortcuts/An freundebuch.shortcut and records the source's hash next to it (checked by source.test.ts).
 // Apple doesn't document the format; the keys below are the ones Shortcuts itself writes.
 import { createHash } from "node:crypto";
 import { build, type PlistValue } from "plist";
@@ -46,10 +46,12 @@ const endIf = (group: string) => action("conditional", { GroupingIdentifier: gro
 /** The Shortcut as the dictionary its file holds. */
 export function shortcutPlist(): Record<string, unknown> {
   return {
-    WFWorkflowClientVersion: "2607.0.2",
+    // Shortcuts on iOS 26.
+    WFWorkflowClientVersion: "4033.0.4.3",
     WFWorkflowMinimumClientVersion: 900,
     WFWorkflowMinimumClientVersionString: "900",
-    WFWorkflowIcon: { WFWorkflowIconStartColor: 4282601983, WFWorkflowIconGlyphNumber: 59511 },
+    // An open book, in pink.
+    WFWorkflowIcon: { WFWorkflowIconStartColor: 3980825855, WFWorkflowIconGlyphNumber: 59465 },
     WFWorkflowTypes: ["ActionExtension"],
     WFWorkflowHasShortcutInputVariables: true,
     WFWorkflowInputContentItemClasses: ["WFImageContentItem", "WFPDFContentItem", "WFGenericFileContentItem", "WFStringContentItem", "WFRichTextContentItem"],

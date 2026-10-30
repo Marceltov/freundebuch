@@ -488,9 +488,14 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   await expect(chat.locator("[data-shown-file]")).toHaveCount(4);
   // A missing screenshot added with the paperclip joins them, it doesn't replace them.
   const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: 10 } } }).png().toBuffer();
-  await chat.locator('input[type="file"]').setInputFiles({ name: "s5.png", mimeType: "image/png", buffer: fifth });
-  await expect(chat.getByText("Zu diesen 5 Dateien")).toBeVisible();
-  await expect(chat.locator("[data-shown-file]")).toHaveCount(5);
+  const sixth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 90, b: 10 } } }).png().toBuffer();
+  await chat.locator('input[type="file"]').setInputFiles([
+    { name: "s5.png", mimeType: "image/png", buffer: fifth },
+    { name: "s6.png", mimeType: "image/png", buffer: sixth },
+  ]);
+  await expect(chat.getByText("Zu diesen 6 Dateien")).toBeVisible();
+  await expect(chat.locator("[data-shown-file]")).toHaveCount(6);
+  await expect(chat.getByText(/^Die Dateien sind im Gespräch/)).toBeVisible();
   await chat.getByRole("button", { name: "Schließen" }).click();
 
   // Opened on a file shared alone, only it is selected; two selected go at once after one question.
@@ -510,7 +515,9 @@ test("settings make a share key, and the key hands in a screenshot", async ({ pa
   await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();
   await expect(page.getByText(/\/api\/share$/)).toBeVisible();
   // The ready-made iPhone Shortcut, signed (public/shortcuts/).
-  await expect(page.getByRole("link", { name: "Kurzbefehl laden" })).toHaveAttribute("href", "/shortcuts/an-freundebuch.shortcut");
+  await expect(page.getByRole("link", { name: "Kurzbefehl laden" })).toHaveAttribute("href", "/shortcuts/An%20freundebuch.shortcut");
+  // How to share, once it is set up: the Shortcut sits at the very bottom of the share sheet.
+  await expect(page.getByText("„An freundebuch“ steht ganz unten in der Liste", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: /Schlüssel erzeugen/ }).click();
   const key = (await page.getByText(/^fbs_/).textContent())!;
   await expectNoSideScroll(page);

@@ -9,7 +9,7 @@ import { createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { config } from "./config";
 import { today } from "./dates";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { decodeHeic } from "./heic";
@@ -78,7 +78,7 @@ const isHeic = (bytes: Uint8Array, type: string) =>
   /^image\/hei[cf]/.test(type) || /^ftyp(heic|heix|hevc|mif1|msf1)$/.test(new TextDecoder().decode(bytes.subarray(4, 12)));
 
 /** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`, which keeps its
- * own batch). `type` is what it was sent as ("" when unknown); `batch` the id of the share it came in with (batchOf).
+ * batch, unless it comes with a new share: then it joins that). `type` is what it was sent as ("" when unknown); `batch` the id of the share it came in with (batchOf).
  * Reading it is queued (`queueRead`); the caller doesn't wait for it. */
 export async function shareFile(v: Viewer, bytes: Uint8Array, type = "", batch: string | null = null): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
   if (bytes.byteLength === 0) throw new InvalidInputError("The file is empty");
@@ -89,7 +89,11 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = "", batch: 
   // reading filed stays for its fact, under a retired hash, so the same bytes can wait under Prüfen again.
   if (seen?.status === "nothing") await d.deleteFrom("files").where("id", "=", seen.id).execute();
   else if (seen?.status === "filed") await d.updateTable("files").set({ sha256: `${sha256}:${seen.id}` }).where("id", "=", seen.id).execute();
-  else if (seen) return { id: seen.id, status: seen.status, duplicate: true };
+  else if (seen) {
+    // Shared again along with a new share: it joins that one, so Prüfen opens on what was just sent.
+    if (batchOf(batch)) await d.updateTable("files").set({ batch_id: batchOf(batch) }).where("id", "=", seen.id).execute();
+    return { id: seen.id, status: seen.status, duplicate: true };
+  }
   const kind = kindOf(bytes, type);
   let stored: Uint8Array;
   let mediaType: string;
@@ -232,7 +236,7 @@ export type PendingFile = {
  * where the batch's newest one would be. The partner's never show. */
 export async function listPending(v: Viewer): Promise<PendingFile[]> {
   const d = await db();
-  const all = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").orderBy("id", "desc").execute();
+  const all = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").orderBy(sql`rowid`, "desc").execute();
   const rows: typeof all = [];
   for (const r of all) {
     if (!r.batch_id) rows.push(r);
