@@ -3,6 +3,7 @@ import { getConversation, record } from "./conversations";
 import { db } from "./db/testing";
 import { deleteItem, editItem } from "./corrections";
 import { AmbiguousError, InvalidInputError } from "./errors";
+import { getPlace, listExperiences } from "./experiences";
 import { addPlaceAlias, findPlaces, mergePlaces, renamePlace } from "./places";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -86,4 +87,60 @@ test("a new database has places with a parent, an address, and owners", async ()
   await d.insertInto("place_owners").values({ place_id: "oly", person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 }).execute();
   expect(await d.selectFrom("places").select(["parent_id", "address"]).where("id", "=", "oly").executeTakeFirst()).toEqual({ parent_id: "muc", address: "Spiridon-Louis-Ring 21" });
   expect(await d.selectFrom("place_owners").select(["person_id", "visibility"]).execute()).toEqual([{ person_id: s.anna, visibility: "private" }]);
+});
+
+// Nesting set by hand until record files it: `inside(child, parent)`.
+const inside = async (child: string, parent: string) => (await db()).updateTable("places").set({ parent_id: parent }).where("id", "=", child).execute();
+const experienceAt = (v: Seed["a"], place: unknown, visibility: "shared" | "private" = "shared") =>
+  record(v, { date: "2026-10-28", transcript: "t", visibility, people: [{ id: s.anna }], experiences: [{ kind: "Konzert", title: "Konzert", place, present: [0] } as never] });
+
+test("a place inside another shows its parents, and the parent's page shows what happened inside", async () => {
+  const muc = (await placeOf(s.a, (await at(s.a, "München")).conversations[0].id))!;
+  const oly = (await placeOf(s.a, (await at(s.a, "Olympiahalle")).conversations[0].id))!;
+  await inside(oly, muc);
+  const concert = await experienceAt(s.a, { id: oly });
+  const view = await getPlace(s.a, muc);
+  expect(view.inside.map((p) => p.name)).toEqual(["Olympiahalle"]);
+  expect(view.conversations).toHaveLength(2);
+  expect(view.experiences.map((e) => e.id)).toEqual([concert.experiences[0].id]);
+  expect((await findPlaces(s.a, "Olympiahalle"))[0].parents.map((p) => p.name)).toEqual(["München"]);
+  expect((await listExperiences(s.a, { placeId: muc })).map((e) => e.id)).toEqual([concert.experiences[0].id]);
+});
+
+test("a place whose only link to the viewer is a parent of a place they see is found, with nothing of what's not theirs", async () => {
+  const oly = (await placeOf(s.a, (await at(s.a, "Olympiahalle")).conversations[0].id))!;
+  const d = await db();
+  await d.insertInto("places").values({ id: "bay", name: "Bayern", created_by: s.a.userId, created_at: 1 }).execute();
+  await inside(oly, "bay");
+  expect((await findPlaces(s.b, "Bayern")).map((p) => p.id)).toEqual(["bay"]);
+  expect((await getPlace(s.b, "bay")).inside.map((p) => p.name)).toEqual(["Olympiahalle"]);
+});
+
+test("a place with only a visible owner is found, and shows its owner", async () => {
+  const d = await db();
+  await d.insertInto("places").values({ id: "home", name: "Annas Wohnung", created_by: s.a.userId, created_at: 1, address: "Hauptstraße 5" }).execute();
+  await d.insertInto("place_owners").values({ place_id: "home", person_id: s.anna, visibility: "shared", recorded_by: s.a.userId, created_at: 1 }).execute();
+  const [p] = await findPlaces(s.b, "Annas Wohnung");
+  expect(p).toMatchObject({ id: "home", address: "Hauptstraße 5", owners: [{ id: s.anna, name: "Anna" }] });
+});
+
+test("a private place inside a shared one stays invisible downward, and a private home shows no owner", async () => {
+  const muc = (await placeOf(s.b, (await at(s.b, "München")).conversations[0].id))!;
+  const mine = await at(s.a, "Olympiahalle", "private");
+  const oly = (await placeOf(s.a, mine.conversations[0].id))!;
+  await inside(oly, muc);
+  const privateConcert = await experienceAt(s.a, { id: oly }, "private");
+  const bob = await getPlace(s.b, muc);
+  expect(bob.inside).toEqual([]);
+  expect(bob.conversations.map((c) => c.id)).not.toContain(mine.conversations[0].id);
+  expect(bob.experiences).toEqual([]);
+  expect(await findPlaces(s.b, "Olympiahalle")).toEqual([]);
+  expect(await listExperiences(s.b, { placeId: muc })).toEqual([]);
+  const alice = await getPlace(s.a, muc);
+  expect(alice.inside.map((p) => p.id)).toEqual([oly]);
+  expect(alice.experiences.map((e) => e.id)).toEqual([privateConcert.experiences[0].id]);
+
+  await (await db()).insertInto("place_owners").values({ place_id: muc, person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 }).execute();
+  expect((await getPlace(s.b, muc)).owners).toEqual([]);
+  expect((await getPlace(s.a, muc)).owners.map((o) => o.id)).toEqual([s.anna]);
 });

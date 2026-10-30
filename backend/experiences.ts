@@ -7,7 +7,7 @@ import { missedSessions } from "./sessions";
 import { db, newId, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import { resolvePlace, visiblePlaceIds, type PlaceRef } from "./places";
+import { describePlace, placeAndInsideIds, resolvePlace, type PlaceCandidate, type PlaceRef } from "./places";
 import type { Viewer, Visibility } from "./types";
 import { conversationPath, personPath, placePath, ramblePath, seriesPath } from "./urls";
 import { visible } from "./visibility";
@@ -146,7 +146,7 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
   if (q.from) query = query.where("date", ">=", q.from);
   if (q.to) query = query.where("date", "<=", q.to);
   if (q.kind) query = query.where(sql<string>`lower(kind)`, "=", q.kind.trim().toLowerCase());
-  if (q.placeId) query = query.where("place_id", "=", q.placeId);
+  if (q.placeId) query = query.where("place_id", "in", placeAndInsideIds(d, v, q.placeId));
   if (q.seriesId) query = query.where("series_id", "=", q.seriesId);
   if (q.personId) query = query.where("id", "in", (eb) => eb.selectFrom("experience_people").select("experience_id").where("person_id", "=", q.personId!));
   if (q.ids) query = query.where("id", "in", q.ids.length ? q.ids : [""]);
@@ -245,32 +245,26 @@ export async function getSeries(v: Viewer, id: string, today = todayOf()): Promi
   };
 }
 
-export type PlaceView = {
-  id: string;
-  name: string;
-  aliases: string[];
-  url: string;
+export type PlaceView = PlaceCandidate & {
+  /** The places directly inside it the viewer may see. */
+  inside: PlaceCandidate[];
   experiences: ExperienceView[];
   conversations: Array<{ id: string; date: string; summary: string; url: string }>;
   series: SeriesSummary[];
 };
 
-/** One place the viewer may see, with everything at it they may see, newest first. */
+/** One place the viewer may see, with everything at it or inside it they may see, newest first. */
 export async function getPlace(v: Viewer, id: string): Promise<PlaceView> {
   const d = await db();
-  const p = await d.selectFrom("places").select(["id", "name"]).where("id", "=", id).where("id", "in", visiblePlaceIds(d, v)).executeTakeFirst();
-  if (!p) throw new NotFoundError("No such place");
-  const [aliases, experiences, conversations, series] = await Promise.all([
-    d.selectFrom("place_aliases").select("alias").where("place_id", "=", id).orderBy("alias").execute(),
+  const p = await describePlace(d, v, id);
+  const at = placeAndInsideIds(d, v, id);
+  const [experiences, conversations, series] = await Promise.all([
     listExperiences(v, { placeId: id }),
-    d.selectFrom("conversations").select(["id", "date", "summary"]).where("place_id", "=", id).$call((qb) => visible(qb, v, "conversations")).orderBy("date", "desc").execute(),
-    d.selectFrom("series").selectAll().where("place_id", "=", id).$call((qb) => visible(qb, v, "series")).orderBy("name").execute(),
+    d.selectFrom("conversations").select(["id", "date", "summary"]).where("place_id", "in", at).$call((qb) => visible(qb, v, "conversations")).orderBy("date", "desc").execute(),
+    d.selectFrom("series").selectAll().where("place_id", "in", at).$call((qb) => visible(qb, v, "series")).orderBy("name").execute(),
   ]);
   return {
-    id: p.id,
-    name: p.name,
-    aliases: aliases.map((a) => a.alias),
-    url: placePath(p.id),
+    ...p,
     experiences,
     conversations: conversations.map((c) => ({ ...c, url: conversationPath(c.id) })),
     series: series.map((s) => ({ id: s.id, name: s.name, kind: s.kind, rhythmDays: s.rhythm_days, startsOn: s.starts_on, endsOn: s.ends_on, url: seriesPath(s.id) })),

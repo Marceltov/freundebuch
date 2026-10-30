@@ -1,28 +1,30 @@
 // Places: where something happened, a record of its own with other names, as people have. A place exists for a viewer only
 // through a part they may see; so a place the other user holds only
 // through private parts is neither found nor reused, and a new one is made. Parts are conversations, experiences and series. Names match as people's do (names.ts).
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { norm, rank } from "./names";
 import type { Viewer } from "./types";
-import { placePath } from "./urls";
+import { personPath, placePath } from "./urls";
 import { visible } from "./visibility";
 
 /** How a part names its place: by name (an exact name or other name is reused), by id, or as a new one the user confirmed. */
 export type PlaceRef = string | { id: string } | { name: string; confirmedNew?: boolean };
-export type PlaceCandidate = { id: string; name: string; aliases: string[]; url: string };
+type Link = { id: string; name: string; url: string };
+/** A place as found: `parents` nearest first, `owners` whose home it is, as far as the viewer may see. */
+export type PlaceCandidate = { id: string; name: string; aliases: string[]; parents: Link[]; address: string | null; owners: Link[]; url: string };
 
 export const MAX_PLACE = 120;
 
-/** The ids of the places the viewer may see: those with a part at them they may see. A place with nothing left at it is found no more. */
-export function visiblePlaceIds(d: Kysely<Schema>, v: Viewer) {
+/** The places with something at them the viewer may see, or a home of someone they may see is theirs. */
+function seenDirectly(d: Kysely<Schema>, v: Viewer) {
   return d
     .selectFrom("places")
     .select("places.id")
     .where((eb) =>
-      eb.or(
-        (["conversations", "experiences", "series"] as const).map((t) =>
+      eb.or([
+        ...(["conversations", "experiences", "series"] as const).map((t) =>
           eb(
             "places.id",
             "in",
@@ -33,14 +35,64 @@ export function visiblePlaceIds(d: Kysely<Schema>, v: Viewer) {
               .$call((qb) => visible(qb, v, t)) as never,
           ),
         ),
-      ),
+        eb("places.id", "in", d.selectFrom("place_owners").select("place_id").$call((qb) => visible(qb, v, "place_owners"))),
+      ]),
     );
 }
 
+/**
+ * The ids of the places the viewer may see: those seen directly (seenDirectly), and every place one of them sits inside. Only
+ * upward: whoever sees the Olympiahalle may know it is in München, but a place inside one they see stays hidden unless it is seen
+ * itself. A place with nothing left at it is found no more.
+ */
+export function visiblePlaceIds(d: Kysely<Schema>, v: Viewer) {
+  return sql<string>`(with recursive seen(id) as (select id from places where id in ${seenDirectly(d, v)} union select p.parent_id from places p join seen on p.id = seen.id where p.parent_id is not null) select id from seen)`;
+}
+
+/** The place `id` and the places inside it, at any depth, that the viewer may see. */
+export function placeAndInsideIds(d: Kysely<Schema>, v: Viewer, id: string) {
+  return sql<string>`(with recursive down(id) as (select ${id} union select p.id from places p join down on p.parent_id = down.id) select id from down where id in ${visiblePlaceIds(d, v)})`;
+}
+
 async function visiblePlaces(d: Kysely<Schema>, v: Viewer): Promise<PlaceCandidate[]> {
-  const rows = await d.selectFrom("places").select(["id", "name"]).where("id", "in", visiblePlaceIds(d, v)).orderBy("name").execute();
-  const aliases = rows.length ? await d.selectFrom("place_aliases").select(["place_id", "alias"]).where("place_id", "in", rows.map((r) => r.id)).orderBy("alias").execute() : [];
-  return rows.map((r) => ({ id: r.id, name: r.name, aliases: aliases.filter((a) => a.place_id === r.id).map((a) => a.alias), url: placePath(r.id) }));
+  const rows = await d.selectFrom("places").select(["id", "name", "parent_id", "address"]).where("id", "in", visiblePlaceIds(d, v)).orderBy("name").execute();
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const [aliases, owners] = await Promise.all([
+    d.selectFrom("place_aliases").select(["place_id", "alias"]).where("place_id", "in", ids).orderBy("alias").execute(),
+    d
+      .selectFrom("place_owners")
+      .innerJoin("persons", "persons.id", "place_owners.person_id")
+      .select(["place_owners.place_id", "persons.id", "persons.name"])
+      .where("place_owners.place_id", "in", ids)
+      .$call((qb) => visible(qb, v, "place_owners"))
+      .orderBy("persons.name")
+      .execute(),
+  ]);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const parents = (r: (typeof rows)[number]) => {
+    const chain: PlaceCandidate["parents"] = [];
+    for (let p = r.parent_id ? byId.get(r.parent_id) : undefined; p && !chain.some((c) => c.id === p!.id); p = p.parent_id ? byId.get(p.parent_id) : undefined)
+      chain.push({ id: p.id, name: p.name, url: placePath(p.id) });
+    return chain;
+  };
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    aliases: aliases.filter((a) => a.place_id === r.id).map((a) => a.alias),
+    parents: parents(r),
+    address: r.address,
+    owners: [...new Map(owners.filter((o) => o.place_id === r.id).map((o) => [o.id, { id: o.id, name: o.name, url: personPath(o.id) }])).values()],
+    url: placePath(r.id),
+  }));
+}
+
+/** One place the viewer may see, with where it sits, its address and owners, and the places directly inside it they may see. */
+export async function describePlace(d: Kysely<Schema>, v: Viewer, id: string): Promise<PlaceCandidate & { inside: PlaceCandidate[] }> {
+  const all = await visiblePlaces(d, v);
+  const p = all.find((x) => x.id === id);
+  if (!p) throw new NotFoundError("No such place");
+  return { ...p, inside: all.filter((x) => x.parents[0]?.id === id) };
 }
 
 /** The places the viewer may see whose name or other name matches `q`, tolerant of spelling, best first. */

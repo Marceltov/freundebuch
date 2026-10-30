@@ -5417,6 +5417,61 @@
               "type": "string"
             }
           },
+          "parents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url"
+              ]
+            },
+            "description": "The places it sits inside, nearest first"
+          },
+          "address": {
+            "description": "Its address in words, as told",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url"
+              ]
+            },
+            "description": "Whose home it is"
+          },
           "url": {
             "type": "string",
             "description": "Where it opens in the web app, as an absolute URL"
@@ -5426,6 +5481,9 @@
           "id",
           "name",
           "aliases",
+          "parents",
+          "address",
+          "owners",
           "url"
         ]
       },
@@ -5446,6 +5504,61 @@
                 "type": "string"
               }
             },
+            "parents": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Where it opens in the web app, as an absolute URL"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "url"
+                ]
+              },
+              "description": "The places it sits inside, nearest first"
+            },
+            "address": {
+              "description": "Its address in words, as told",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "owners": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Where it opens in the web app, as an absolute URL"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "url"
+                ]
+              },
+              "description": "Whose home it is"
+            },
             "url": {
               "type": "string",
               "description": "Where it opens in the web app, as an absolute URL"
@@ -5455,6 +5568,9 @@
             "id",
             "name",
             "aliases",
+            "parents",
+            "address",
+            "owners",
             "url"
           ]
         }
@@ -5734,9 +5850,153 @@
               "type": "string"
             }
           },
+          "parents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url"
+              ]
+            },
+            "description": "The places it sits inside, nearest first"
+          },
+          "address": {
+            "description": "Its address in words, as told",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "url"
+              ]
+            },
+            "description": "Whose home it is"
+          },
           "url": {
             "type": "string",
             "description": "Where it opens in the web app, as an absolute URL"
+          },
+          "inside": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "parents": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "The places it sits inside, nearest first"
+                },
+                "address": {
+                  "description": "Its address in words, as told",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "owners": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "Where it opens in the web app, as an absolute URL"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "url"
+                    ]
+                  },
+                  "description": "Whose home it is"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Where it opens in the web app, as an absolute URL"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "aliases",
+                "parents",
+                "address",
+                "owners",
+                "url"
+              ]
+            },
+            "description": "The places directly inside it"
           },
           "experiences": {
             "type": "array",
@@ -5973,7 +6233,11 @@
           "id",
           "name",
           "aliases",
+          "parents",
+          "address",
+          "owners",
           "url",
+          "inside",
           "experiences",
           "conversations",
           "series"

@@ -151,7 +151,17 @@ export const ExperienceQuery = z.object({
   seriesId: z.string().optional(),
   personId: PersonId.optional().describe("Only those this person was at"),
 });
-export const PlaceJson = z.object({ id: z.string(), name: z.string(), aliases: z.array(z.string()), url: Url }).meta({ id: "Place" });
+export const PlaceJson = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    aliases: z.array(z.string()),
+    parents: z.array(Linked).describe("The places it sits inside, nearest first"),
+    address: z.string().nullable().describe("Its address in words, as told"),
+    owners: z.array(Linked).describe("Whose home it is"),
+    url: Url,
+  })
+  .meta({ id: "Place" });
 export const PlaceListJson = z.array(PlaceJson.extend({})).meta({ id: "PlaceList" });
 export const SeriesJson = SeriesSummaryJson.extend({
   place: Linked.nullable(),
@@ -162,6 +172,7 @@ export const SeriesJson = SeriesSummaryJson.extend({
   mine: z.boolean(),
 }).meta({ id: "Series" });
 export const PlaceViewJson = PlaceJson.extend({
+  inside: z.array(PlaceJson.extend({})).describe("The places directly inside it"),
   experiences: z.array(ExperienceJson.extend({})),
   conversations: z.array(z.object({ id: z.string(), date: Day, summary: z.string(), url: Url })),
   series: z.array(SeriesSummaryJson.extend({})),
