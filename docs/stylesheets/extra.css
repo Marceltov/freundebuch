@@ -1,42 +1,121 @@
-/* The app's palette (app/globals.css): the warm "carbon" brown for links and
-   the active page, the orbit's teal for hover. The header stays quiet, paper
-   in light mode and the app's dark surface in dark mode. */
+/* The app's palette and type (app/globals.css, app/layout.tsx): cool paper, plum ink instead of black, berry as the one accent,
+   sunflower for what is happening now, mint for what is done, and Fraunces for headings over Atkinson Hyperlegible text. The
+   header stays quiet, paper with a hairline; behind the page float the app's soft colour bubbles. */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,600..700,50..100,1&display=swap");
 
 :root > * {
-  --fb-carbon: #7a5a1a;
-  --fb-fresh: #2a9d8f;
-  --fb-ink: #1e2130;
-  --fb-paper: #f2f3f0;
-  --fb-mist: #e9eae6;
+  --fb-paper: #f4f6fb;
+  --fb-surface: #ffffff;
+  --fb-surface-2: #e9ecf5;
+  --fb-ink: #2a2342;
+  --fb-muted: #6b6585;
+  --fb-rule: #dfe2ee;
+  --fb-berry: #c8326a;
+  --fb-on-berry: #ffffff;
+  --fb-sun: #ffc94d;
+  --fb-mint: #2f9e77;
+  --fb-bubble-berry: rgb(200 50 106 / 0.14);
+  --fb-bubble-sun: rgb(255 201 77 / 0.24);
+  --fb-bubble-mint: rgb(47 158 119 / 0.12);
+  --fb-bubble-sky: rgb(111 125 255 / 0.14);
+  --fb-shadow-card: 0 1px 2px rgb(42 35 66 / 0.05), 0 3px 10px rgb(42 35 66 / 0.05);
 
   --md-default-bg-color: var(--fb-paper);
+  --md-default-fg-color: var(--fb-ink);
+  --md-default-fg-color--light: var(--fb-muted);
+  --md-default-fg-color--lightest: var(--fb-rule);
   --md-primary-fg-color: var(--fb-paper);
   --md-primary-fg-color--light: var(--fb-paper);
   --md-primary-fg-color--dark: var(--fb-paper);
   --md-primary-bg-color: var(--fb-ink);
-  --md-primary-bg-color--light: #686d7a;
-  --md-accent-fg-color: var(--fb-fresh);
-  --md-typeset-a-color: var(--fb-carbon);
+  --md-primary-bg-color--light: var(--fb-muted);
+  --md-accent-fg-color: var(--fb-berry);
+  --md-typeset-a-color: var(--fb-berry);
   --md-typeset-color: var(--fb-ink);
-  --md-footer-bg-color: #2a2418;
-  --md-footer-bg-color--dark: #1f1a11;
+  --md-typeset-mark-color: rgb(255 201 77 / 0.45);
+  --md-code-bg-color: var(--fb-surface-2);
+  --md-footer-bg-color: var(--fb-ink);
+  --md-footer-bg-color--dark: #201a33;
 }
 
 [data-md-color-scheme="slate"] {
-  --md-hue: 230;
-  --fb-carbon: #e3cb94;
-  --fb-fresh: #4fc1b2;
-  --fb-ink: #e4e5eb;
-  --fb-paper: #15161b;
-  --fb-mist: #262832;
+  --md-hue: 258;
+  --fb-paper: #1b1726;
+  --fb-surface: #252036;
+  --fb-surface-2: #2f2944;
+  --fb-ink: #f1edf9;
+  --fb-muted: #aaa3c2;
+  --fb-rule: #383150;
+  --fb-berry: #ff6b9a;
+  --fb-on-berry: #1b1726;
+  --fb-sun: #ffd466;
+  --fb-mint: #4fd1a5;
+  --fb-bubble-berry: rgb(255 107 154 / 0.14);
+  --fb-bubble-sun: rgb(255 212 102 / 0.08);
+  --fb-bubble-mint: rgb(79 209 165 / 0.1);
+  --fb-bubble-sky: rgb(130 140 255 / 0.16);
+  --fb-shadow-card: 0 1px 2px rgb(0 0 0 / 0.25), 0 3px 10px rgb(0 0 0 / 0.2);
 
   --md-default-bg-color: var(--fb-paper);
-  --md-primary-fg-color: #1d1f26;
-  --md-primary-fg-color--light: #1d1f26;
-  --md-primary-fg-color--dark: #1d1f26;
+  --md-default-fg-color: var(--fb-ink);
+  --md-default-fg-color--light: var(--fb-muted);
+  --md-default-fg-color--lighter: rgb(170 163 194 / 0.6);
+  --md-default-fg-color--lightest: var(--fb-rule);
+  --md-primary-fg-color: #221d31;
+  --md-primary-fg-color--light: #221d31;
+  --md-primary-fg-color--dark: #221d31;
   --md-primary-bg-color: var(--fb-ink);
-  --md-typeset-a-color: var(--fb-carbon);
-  --md-typeset-color: #d6d8e0;
+  --md-accent-fg-color: var(--fb-berry);
+  --md-typeset-a-color: var(--fb-berry);
+  --md-typeset-color: var(--fb-ink);
+  --md-typeset-mark-color: rgb(255 212 102 / 0.3);
+  --md-code-bg-color: var(--fb-surface-2);
+  --md-footer-bg-color: #15121f;
+  --md-footer-bg-color--dark: #100d18;
+}
+
+/* The app's bubbles, on two fixed layers behind the page: gradients only, nothing to lay out. They drift slowly, as in the app,
+   and stand still for whoever asks for less motion. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+body::before {
+  background:
+    radial-gradient(circle 17rem at 4% 14%, var(--fb-bubble-berry), var(--fb-bubble-berry) 25%, transparent 70%),
+    radial-gradient(circle 15rem at 100% 38%, var(--fb-bubble-sun), var(--fb-bubble-sun) 25%, transparent 70%),
+    radial-gradient(circle 19rem at 10% 90%, var(--fb-bubble-sky), var(--fb-bubble-sky) 25%, transparent 70%);
+  animation: fb-bubbles 48s ease-in-out infinite alternate;
+}
+body::after {
+  background:
+    radial-gradient(circle 12rem at 76% 8%, var(--fb-bubble-sky), var(--fb-bubble-sky) 25%, transparent 70%),
+    radial-gradient(circle 16rem at 92% 84%, var(--fb-bubble-mint), var(--fb-bubble-mint) 25%, transparent 70%);
+  animation: fb-bubbles 64s ease-in-out -20s infinite alternate-reverse;
+}
+@keyframes fb-bubbles {
+  to {
+    transform: translate3d(3vw, -4vh, 0) scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    animation: none;
+  }
+}
+
+/* Headings, and the site name in the header like the app's wordmark, in the app's display face. */
+.md-header__topic:first-child .md-ellipsis,
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-variation-settings: "SOFT" 100, "WONK" 1;
 }
 
 /* Header: a hairline instead of a coloured bar. */
@@ -45,7 +124,7 @@
   box-shadow: none;
 }
 .md-search__input {
-  background-color: var(--fb-mist);
+  background-color: var(--fb-surface-2);
   color: var(--fb-ink);
 }
 .md-search__input::placeholder,
@@ -74,7 +153,7 @@
 }
 .md-typeset a:focus-visible,
 .md-nav__link:focus-visible {
-  outline: 2px solid var(--fb-fresh);
+  outline: 2px solid var(--fb-mint);
   outline-offset: 2px;
 }
 
@@ -96,22 +175,24 @@
   color: var(--md-default-fg-color--light);
 }
 .md-typeset .md-button {
-  color: var(--fb-carbon);
+  color: var(--fb-berry);
   border-color: currentColor;
+  border-radius: 999px;
   margin: 0.3rem 0.4rem 0.3rem 0;
 }
 .md-typeset .md-button--primary {
-  background-color: var(--fb-carbon);
-  border-color: var(--fb-carbon);
+  background-color: var(--fb-berry);
+  border-color: var(--fb-berry);
   color: #ffffff;
 }
-[data-md-color-scheme="slate"] .md-typeset .md-button--primary {
-  color: #15161b;
+.md-typeset .md-button--primary {
+  color: var(--fb-on-berry);
 }
 .md-typeset .md-button--primary:hover,
 .md-typeset .md-button--primary:focus {
-  background-color: var(--fb-fresh);
-  border-color: var(--fb-fresh);
+  background-color: color-mix(in srgb, var(--fb-berry) 86%, var(--fb-ink));
+  border-color: color-mix(in srgb, var(--fb-berry) 86%, var(--fb-ink));
+  color: var(--fb-on-berry);
 }
 @media screen and (max-width: 44.9375em) {
   .md-typeset .fb-hero h1 {
@@ -136,19 +217,19 @@
 
 .md-typeset .admonition.note,
 .md-typeset details.note {
-  border-color: var(--fb-carbon);
+  border-color: var(--fb-berry);
 }
 .md-typeset .note > .admonition-title,
 .md-typeset .note > summary {
-  background-color: color-mix(in srgb, var(--fb-carbon) 10%, transparent);
+  background-color: color-mix(in srgb, var(--fb-berry) 10%, transparent);
 }
 .md-typeset .note > .admonition-title::before,
 .md-typeset .note > summary::before {
-  background-color: var(--fb-carbon);
+  background-color: var(--fb-berry);
 }
 
 /* ---- The roadmap timeline (docs/roadmap.yml, rendered by docs_hooks/roadmap.py; the same as passageway's) ----------------------------------------
-   A label on the left (a date for what shipped), a line with a marker (hollow: planned, ringed warm: being built now, filled with a check: shipped) and a
+   A label on the left (a date for what shipped), a line with a marker (a berry ring: planned, sunflower: being built now, mint with a check: shipped) and a
    card on the right. On narrow screens the label moves into the card and the line stays on the left. */
 .md-typeset .fb-center {
   text-align: center;
@@ -204,26 +285,25 @@
   width: var(--fb-dot);
   height: var(--fb-dot);
   margin-top: 0.7rem;
-  border: 2px solid var(--fb-fresh);
+  border: 2px solid var(--fb-berry);
   border-radius: 50%;
   background: var(--md-default-bg-color);
 }
 .fb-now .fb-tl-dot {
-  border-width: 3px;
-  border-color: var(--fb-carbon);
-}
-.fb-now .fb-ic {
-  color: var(--fb-carbon);
+  border-color: var(--fb-sun);
+  background: var(--fb-sun);
+  box-shadow: 0 0 0 4px rgb(255 201 77 / 0.3);
 }
 .fb-later .fb-tl-dot {
   border-color: var(--md-default-fg-color--lighter);
 }
 .fb-decide .fb-tl-dot {
   border-style: dashed;
-  border-color: var(--fb-carbon);
+  border-color: var(--fb-berry);
 }
 .fb-done .fb-tl-dot {
-  background: var(--fb-fresh);
+  border-color: var(--fb-mint);
+  background: var(--fb-mint);
 }
 .fb-done .fb-tl-dot::after {
   content: "";
@@ -239,8 +319,9 @@
 
 .fb-tl-card {
   padding: 0.65rem 1rem 0.7rem;
-  border-radius: 0.6rem;
-  background: var(--fb-mist);
+  border-radius: 0.75rem;
+  background: var(--fb-surface);
+  box-shadow: var(--fb-shadow-card);
 }
 .fb-tl-head {
   display: flex;
@@ -252,18 +333,21 @@
   flex: none;
   width: 1.05rem;
   height: 1.05rem;
-  color: var(--fb-fresh);
+  color: var(--fb-berry);
 }
 .fb-ic svg {
   width: 100%;
   height: 100%;
   fill: currentColor;
 }
+.fb-done .fb-ic {
+  color: var(--fb-mint);
+}
 .fb-later .fb-ic {
   color: var(--md-default-fg-color--light);
 }
 .fb-decide .fb-ic {
-  color: var(--fb-carbon);
+  color: var(--fb-berry);
 }
 .fb-tl-title {
   flex: 1 1 auto;

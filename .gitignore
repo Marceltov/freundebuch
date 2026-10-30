@@ -36,3 +36,4 @@ next-env.d.ts
 
 # The unsigned iPhone Shortcut (npm run shortcut:build)
 .shortcut-build/
+__pycache__/
