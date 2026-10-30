@@ -486,6 +486,11 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   const chat = page.getByRole("dialog", { name: "Erzählen" });
   await expect(chat.getByText("Zu diesen 4 Dateien")).toBeVisible();
   await expect(chat.locator("[data-shown-file]")).toHaveCount(4);
+  // A missing screenshot added with the paperclip joins them, it doesn't replace them.
+  const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: 10 } } }).png().toBuffer();
+  await chat.locator('input[type="file"]').setInputFiles({ name: "s5.png", mimeType: "image/png", buffer: fifth });
+  await expect(chat.getByText("Zu diesen 5 Dateien")).toBeVisible();
+  await expect(chat.locator("[data-shown-file]")).toHaveCount(5);
   await chat.getByRole("button", { name: "Schließen" }).click();
 
   // Opened on a file shared alone, only it is selected; two selected go at once after one question.

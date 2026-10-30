@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "plist";
 import { expect, test } from "vitest";
@@ -7,15 +7,17 @@ import { shortcutPlist, shortcutSourceHash, shortcutXml } from "./source";
 type Action = { WFWorkflowActionIdentifier: string; WFWorkflowActionParameters: Record<string, unknown> };
 const sc = shortcutPlist() as { WFWorkflowActions: Action[]; WFWorkflowImportQuestions: Array<{ ActionIndex: number; ParameterKey: string; Text: string }>; WFWorkflowTypes: string[] };
 const actions = sc.WFWorkflowActions;
-const HASH_FILE = join(__dirname, "..", "public", "shortcuts", "an-freundebuch.shortcut.sha256");
+const SIGNED_FILE = join(__dirname, "..", "public", "shortcuts", "an-freundebuch.shortcut");
+const HASH_FILE = `${SIGNED_FILE}.sha256`;
 
-// `npm run shortcut:build` (and shortcut:sign on a Mac) runs this with UPDATE_SHORTCUT=1: it writes the unsigned property list
-// and the source's hash. The hash test below keeps a source change from shipping without a newly signed file.
+// `npm run shortcut:build` runs this with UPDATE_SHORTCUT=1: it writes the unsigned property list to .shortcut-build/. Only
+// `npm run shortcut:sign`, after `shortcuts sign` succeeded on a Mac, runs it with SIGNED_SHORTCUT=1 to record the source's hash
+// next to the signed file. The last test keeps a source change from shipping without a newly signed file.
 if (process.env.UPDATE_SHORTCUT) {
   mkdirSync(join(__dirname, "..", ".shortcut-build"), { recursive: true });
   writeFileSync(join(__dirname, "..", ".shortcut-build", "an-freundebuch.plist"), shortcutXml());
-  writeFileSync(HASH_FILE, `${shortcutSourceHash()}\n`);
 }
+if (process.env.SIGNED_SHORTCUT) writeFileSync(HASH_FILE, `${shortcutSourceHash()}\n`);
 
 test("it shows in the share sheet for images, PDFs, files and text", () => {
   expect(sc.WFWorkflowTypes).toContain("ActionExtension");
@@ -45,16 +47,36 @@ test("every shared item is posted with the key and one batch id for the whole sh
   expect(headers).toContain("X-Freundebuch-Batch");
   // The batch id is made once, before the loop.
   expect(ids.lastIndexOf("is.workflow.actions.gettext")).toBeLessThan(ids.indexOf("is.workflow.actions.repeat.each"));
-  expect(ids.at(-2)).toBe("is.workflow.actions.getvalueforkey");
-  expect(actions.at(-2)!.WFWorkflowActionParameters.WFDictionaryKey).toBe("url");
-  expect(ids.at(-1)).toBe("is.workflow.actions.openurl");
+});
+
+const params = (id: string) => actions.filter((a) => a.WFWorkflowActionIdentifier === `is.workflow.actions.${id}`).map((a) => a.WFWorkflowActionParameters);
+
+test("only an answer with a url is kept to open; an answer without one adds its German message to what is shown", () => {
+  const keys = params("getvalueforkey").map((p) => p.WFDictionaryKey);
+  expect(keys).toEqual(["url", "message"]);
+  expect(params("setvariable").map((p) => p.WFVariableName)).toEqual(["Antwort"]);
+  expect(params("appendvariable").map((p) => p.WFVariableName)).toEqual(["Fehler"]);
+  // Each item: if the answer has a url keep it, otherwise collect the error; after the loop show errors, then open.
+  const ifs = params("conditional").filter((p) => p.WFControlFlowMode === 0);
+  expect(ifs).toHaveLength(3);
+  for (const c of ifs) expect(c.WFCondition).toBe(100);
+});
+
+test("after sending, errors are shown in German with the server's words, and Prüfen opens on what arrived", () => {
+  const ids = actions.map((a) => a.WFWorkflowActionIdentifier);
+  const shown = JSON.stringify(params("showresult"));
+  expect(shown).toContain("Nicht angekommen");
+  expect(ids.indexOf("is.workflow.actions.showresult")).toBeLessThan(ids.indexOf("is.workflow.actions.openurl"));
+  expect(ids.indexOf("is.workflow.actions.openurl")).toBeGreaterThan(ids.lastIndexOf("is.workflow.actions.repeat.each"));
+  expect(JSON.stringify(params("openurl"))).toContain('"VariableName":"Antwort"');
 });
 
 test("it builds into a property list that reads back the same", () => {
   expect(parse(shortcutXml())).toEqual(sc);
 });
 
-test("the signed Shortcut is from this source", () => {
-  const signed = readFileSync(HASH_FILE, "utf8").trim();
-  expect(signed, "Shortcut source changed: run npm run shortcut:sign on a Mac and commit public/shortcuts/").toBe(shortcutSourceHash());
+test("the signed Shortcut is there, and from this source", () => {
+  const stale = "Shortcut source changed or never signed: run npm run shortcut:sign on a Mac and commit public/shortcuts/";
+  expect(existsSync(SIGNED_FILE), stale).toBe(true);
+  expect(existsSync(HASH_FILE) && readFileSync(HASH_FILE, "utf8").trim(), stale).toBe(shortcutSourceHash());
 });

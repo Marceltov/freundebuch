@@ -8,8 +8,9 @@ import { bearerOf, viewerFromRequest } from "./auth/session";
 import { FreundebuchError } from "./errors";
 import { readCapped, parseForm } from "./http/request";
 import { copy } from "./notify/copy";
-import { config } from "./config";
-import { BATCH_HEADER, MAX_UPLOAD, PENDING_PATH, queueRead, fileContent, fileModel, shareFile, viewerFromShareKey } from "./files";
+import { BATCH_HEADER, MAX_UPLOAD, NOT_TAKEN, PENDING_PATH, queueRead, fileContent, fileModel, shareFile, viewerFromShareKey } from "./files";
+import { TOO_LARGE } from "./heic";
+import { publicUrl } from "./urls";
 import type { Viewer } from "./types";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -37,24 +38,35 @@ async function fileOf(req: Request, bytes: Uint8Array): Promise<{ bytes: Uint8Ar
   return { bytes, type, batch: header };
 }
 
+/** Why a file was refused (files.ts, heic.ts), for the user. */
+function germanOf(error: string): string {
+  if (error === NOT_TAKEN) return copy.shareNotTaken;
+  if (error === TOO_LARGE) return copy.shareTooManyPixels;
+  if (error.startsWith("The text file is too long")) return copy.shareTextTooLong;
+  if (error === "The file is empty") return copy.shareEmpty;
+  return copy.shareUnreadable;
+}
+
 export async function shareRoute(req: Request): Promise<Response> {
   const model = fileModel();
   if (!model) return json({ error: "not found", code: "not_found" }, 404);
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   const v = await viewerOf(req);
-  if (!v) return json({ error: "sign-in or share key required", code: "unauthorized" }, 401);
+  // `message`, here and below, is what the Shortcut shows when a file didn't arrive: German, for the user.
+  if (!v) return json({ error: "sign-in or share key required", code: "unauthorized", message: copy.shareBadKey }, 401);
   const bytes = await readCapped(req, MAX_UPLOAD);
-  if (!bytes) return json({ error: `The image is larger than ${MAX_UPLOAD / 1024 / 1024} MB`, code: "invalid_request" }, 413);
+  if (!bytes) return json({ error: `The image is larger than ${MAX_UPLOAD / 1024 / 1024} MB`, code: "invalid_request", message: copy.shareTooLarge }, 413);
   const file = await fileOf(req, bytes);
-  if (!file) return json({ error: "Send the file as the body, or as the form field `file`", code: "invalid_request" }, 400);
+  if (!file) return json({ error: "Send the file as the body, or as the form field `file`", code: "invalid_request", message: copy.shareUnreadable }, 400);
   try {
     const shot = await shareFile(v, file.bytes, file.type, file.batch);
     if (!shot.duplicate) void queueRead(shot.id, model);
     // `message` is what the Shortcut shows.
     // `url` is where it waits, for the Shortcut to open as its last step.
-    return json({ ...shot, message: shot.duplicate ? copy.shareDuplicate : copy.shareThanks, url: `${config.publicUrl() ?? ""}${PENDING_PATH}#${shot.id}` }, 202);
+    // An absolute address even without PUBLIC_URL: the Shortcut can't open a path.
+    return json({ ...shot, message: shot.duplicate ? copy.shareDuplicate : copy.shareThanks, url: `${publicUrl(req.headers)}${PENDING_PATH}#${shot.id}` }, 202);
   } catch (e) {
-    if (e instanceof FreundebuchError && e.code === "invalid_input") return json({ error: e.message, code: e.code }, 400);
+    if (e instanceof FreundebuchError && e.code === "invalid_input") return json({ error: e.message, code: e.code, message: germanOf(e.message) }, 400);
     throw e;
   }
 }

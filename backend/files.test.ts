@@ -264,6 +264,16 @@ test("a HEIC holding several images (a burst, a Live Photo) keeps its main one",
   expect(await storedSize((await shareFile(s.a, heicFixture("multi"), "image/heic")).id)).toEqual({ width: 80, height: 40 });
 });
 
+test("a HEIC whose main image isn't its first keeps the main one", async () => {
+  expect(await storedSize((await shareFile(s.a, heicFixture("primary-second"), "image/heic")).id)).toEqual({ width: 40, height: 80 });
+});
+
+test("a HEIC over 25 megapixels is refused before it is decoded, saying what to do", async () => {
+  await expect(shareFile(s.a, heicFixture("huge"), "image/heic")).rejects.toThrow(
+    "This photo is too large (over 25 megapixels): share a smaller one, or a screenshot of it",
+  );
+});
+
 test("a broken HEIC is refused as an image freundebuch can't read", async () => {
   const heic = new Uint8Array([0, 0, 0, 24, ...new TextEncoder().encode("ftypheic"), 0, 0, 0, 0, ...new TextEncoder().encode("mif1heic")]);
   await expect(shareFile(s.a, heic, "image/heic")).rejects.toThrow("That is not an image freundebuch can read");
