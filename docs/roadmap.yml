@@ -1,0 +1,168 @@
+# The roadmap, as data. docs_hooks/roadmap.py renders it as the timeline on the roadmap page (docs/roadmap.md).
+#
+# Open entries (status now, next or later) are shown first, in the order of this file, each with a `when` label. Done entries are
+# shown below them, newest date first (the order of this file breaks ties), each with a `date` and a link to its pull request.
+#
+# To finish a step: set `status: done`, replace `when` with `date: YYYY-MM-DD`, add the link to its pull request, and move it to the
+# top of the done entries, in the pull request that finishes it. Every entry links its issue and the value point it serves.
+# `icon` is the name of a Material Design icon (https://pictogrammers.com/library/mdi/). `summary` and `details` take a small
+# subset of markdown: paragraphs, "- " lists, **bold**, `code` and [links](https://...).
+
+items:
+  # ---- open --------------------------------------------------------------------------------------------------------------
+  - id: voice-notes
+    status: now
+    when: Now
+    icon: microphone-outline
+    title: Voice notes
+    summary: Transcribed on your own server, so a WhatsApp voice note can be worked through like any shared file.
+    links:
+      - {label: "#58", url: "https://github.com/Marceltov/freundebuch/issues/58"}
+      - {label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept"}
+
+  - id: avatars
+    status: next
+    when: Next
+    icon: face-man-shimmer-outline
+    title: Avatars
+    summary: A stylized avatar per person, put together from a description, so a face comes from words and no photo is kept.
+    links:
+      - {label: "#49", url: "https://github.com/Marceltov/freundebuch/issues/49"}
+      - {label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept"}
+
+  - id: households
+    status: later
+    when: Later
+    icon: home-group
+    title: Several households per instance, and a hosted freundebuch
+    summary: Each account a person, a household the people who share a book; the same on a hosted instance as on your own.
+    links:
+      - {label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69"}
+      - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
+      - {label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything"}
+
+  - id: own-cards
+    status: later
+    when: Later
+    icon: card-account-details-outline
+    title: Own cards
+    summary: What a person says about themselves (number, address, birthday), shared by a link they can revoke. The only thing that crosses between people.
+    links:
+      - {label: "#70", url: "https://github.com/Marceltov/freundebuch/issues/70"}
+      - {label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it"}
+
+  - id: birthday-messages
+    status: later
+    when: Later
+    icon: cake-variant-outline
+    title: Birthday messages you send
+    summary: Drafted by freundebuch, seen and sent by you through an integration, never on its own.
+    links:
+      - {label: "#71", url: "https://github.com/Marceltov/freundebuch/issues/71"}
+      - {label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it"}
+
+  - id: i18n
+    status: later
+    when: Later
+    icon: translate
+    title: Internationalization
+    summary: The app in more languages than German, so a household that doesn't speak German can keep its book too.
+    links:
+      - {label: "#72", url: "https://github.com/Marceltov/freundebuch/issues/72"}
+      - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
+
+  - id: map
+    status: later
+    when: Later
+    icon: map-outline
+    title: A map of where things happened
+    summary: Places kept in words could be put on a map. Not now. The web UI stays small, a map would need tiles and a geocoder that don't call out, and tools that track where you have been exist already.
+    links:
+      - {label: "#93", url: "https://github.com/Marceltov/freundebuch/issues/93"}
+      - {label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything"}
+
+  # ---- done, newest first ------------------------------------------------------------------------------------------------
+  - id: nested-places
+    status: done
+    date: 2026-10-30
+    icon: map-marker-radius-outline
+    title: Places that nest, and homes
+    summary: The Olympiahalle in München, Anna's flat with its address, filled in from what you tell; "where were we with Anna?" over Claude, a private place never showing inside a shared one.
+    links:
+      - {label: "#78", url: "https://github.com/Marceltov/freundebuch/issues/78"}
+      - {label: "ADR 0018", url: "https://marceltov.github.io/freundebuch/adr/0018-nested-places-and-homes/"}
+      - {label: "PR #92", url: "https://github.com/Marceltov/freundebuch/pull/92"}
+
+  - id: iphone-shortcut
+    status: done
+    date: 2026-10-30
+    icon: cellphone-arrow-down
+    title: A ready-made iPhone Shortcut
+    summary: Share screenshots, photos and files from the iPhone straight into freundebuch; HEIC is read on the server, and files shared together are worked through as one.
+    links:
+      - {label: "#68", url: "https://github.com/Marceltov/freundebuch/issues/68"}
+      - {label: "PR #88", url: "https://github.com/Marceltov/freundebuch/pull/88"}
+
+  - id: experiences
+    status: done
+    date: 2026-10-29
+    icon: ticket-outline
+    title: Experiences, series and places
+    summary: Concerts, trips and courses, not only meetings; a course reminds you of a session you didn't tell about.
+    links:
+      - {label: "#67", url: "https://github.com/Marceltov/freundebuch/issues/67"}
+      - {label: "ADR 0016", url: "https://marceltov.github.io/freundebuch/adr/0016-experiences-series-and-places/"}
+      - {label: "PR #79", url: "https://github.com/Marceltov/freundebuch/pull/79"}
+
+  - id: journal
+    status: done
+    date: 2026-10-29
+    icon: notebook-edit-outline
+    title: A journal, and the ramble as its own record
+    summary: What you think and feel about your own life, kept in your words and private unless you share it; a ramble is stored once and split into its parts.
+    links:
+      - {label: "#66", url: "https://github.com/Marceltov/freundebuch/issues/66"}
+      - {label: "ADR 0015", url: "https://marceltov.github.io/freundebuch/adr/0015-the-ramble-is-its-own-record/"}
+      - {label: "PR #75", url: "https://github.com/Marceltov/freundebuch/pull/75"}
+
+  - id: pruefen
+    status: done
+    date: 2026-10-29
+    icon: file-search-outline
+    title: Prüfen, files worked through with Claude
+    summary: Share any file, work it through with Claude, and keep only its transcript.
+    links:
+      - {label: "#59", url: "https://github.com/Marceltov/freundebuch/issues/59"}
+      - {label: "ADR 0014", url: "https://marceltov.github.io/freundebuch/adr/0014-shared-files-are-worked-through-with-claude/"}
+      - {label: "PR #60", url: "https://github.com/Marceltov/freundebuch/pull/60"}
+
+  - id: traits
+    status: done
+    date: 2026-10-28
+    icon: account-heart-outline
+    title: Needs and personality
+    summary: What someone needs (plan around it) and how they are, kept as traits the briefing leads with.
+    links:
+      - {label: "#46", url: "https://github.com/Marceltov/freundebuch/issues/46"}
+      - {label: "PR #48", url: "https://github.com/Marceltov/freundebuch/pull/48"}
+
+  - id: share-links
+    status: done
+    date: 2026-10-28
+    icon: share-variant-outline
+    title: Share any page or entry as a link
+    summary: Every person, conversation and item has a link into the web app, for Claude to hand you and for you to pass on in the household.
+    links:
+      - {label: "#52", url: "https://github.com/Marceltov/freundebuch/issues/52"}
+      - {label: "PR #53", url: "https://github.com/Marceltov/freundebuch/pull/53"}
+
+  - id: first-release
+    status: done
+    date: 2026-10-27
+    icon: rocket-launch-outline
+    title: The first freundebuch
+    summary: A personal CRM for one household with its MCP built in. Tell Claude about a meeting, over MCP or in Erzählen, the chat in the web app, and get a briefing before the next one.
+    links:
+      - {label: "ADR 0001", url: "https://marceltov.github.io/freundebuch/adr/0001-ai-first-app-with-built-in-mcp/"}
+      - {label: "ADR 0006", url: "https://marceltov.github.io/freundebuch/adr/0006-in-app-chat-calls-claude/"}
+      - {label: "0.1.0", url: "https://github.com/Marceltov/freundebuch/releases/tag/v0.1.0"}
