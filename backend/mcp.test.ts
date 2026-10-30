@@ -78,9 +78,10 @@ const ramble = (over: object = {}) => ({
 });
 
 describe("protocol", () => {
-  test("tools/list names the eighteen tools with their annotations", async () => {
+  test("tools/list names the nineteen tools with their annotations", async () => {
     const tools = (await (await rpc(s.a, "tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
+      "birthday_message",
       "briefing",
       "calendar_feed",
       "correct",
@@ -102,7 +103,20 @@ describe("protocol", () => {
     ]);
     for (const t of tools) {
       expect(t.annotations?.readOnlyHint === true, t.name).toBe(
-        ["find_person", "people", "briefing", "traits", "journal", "experiences", "places", "whats_due", "get_transcript", "groups", "search"].includes(t.name),
+        [
+          "find_person",
+          "people",
+          "briefing",
+          "birthday_message",
+          "traits",
+          "journal",
+          "experiences",
+          "places",
+          "whats_due",
+          "get_transcript",
+          "groups",
+          "search",
+        ].includes(t.name),
       );
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
       // calendar_feed, which can end a calendar's subscription.

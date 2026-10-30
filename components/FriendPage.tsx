@@ -21,7 +21,7 @@ import {
   Ticket,
   Users,
 } from "lucide-react";
-import { anchorId, type Briefing } from "@/backend";
+import { anchorId, daysBetween, type Briefing } from "@/backend";
 import { roleLine } from "@/components/copy";
 import { getCopy } from "@/components/serverCopy";
 import { Face } from "@/components/Face";
@@ -34,6 +34,7 @@ import { JournalItem } from "@/components/Journal";
 import { layoutNetwork, Network } from "@/components/Network";
 import { PersonMenu } from "@/components/PersonMenu";
 import { ShareButton } from "@/components/ShareButton";
+import { WishButton } from "@/components/WishButton";
 import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
 
 // One friend, as a page of the friendship book: the sticker, the name and who they are to us, the chips (last seen, birthday, interval, dates,
@@ -42,6 +43,9 @@ import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
 // `allGroups`: every group the viewer sees, for "+ Gruppe". `others`: everyone else, for merging a duplicate in the menu.
 // `viewerPersonId`: the viewer's own person, "Du" in the network. `today` (YYYY-MM-DD, the server's) turns the age reached on the next birthday into the age the person is now; the birthday
 // chip shows the year of birth when it is known.
+/** How many days before a birthday "Glückwunsch schreiben" shows. */
+const WISH_DAYS = 7;
+
 export function FriendPage({
   b,
   daysSince,
@@ -49,6 +53,7 @@ export function FriendPage({
   others = [],
   today,
   viewerPersonId = "",
+  chat = false,
 }: {
   b: Briefing;
   daysSince: number | null;
@@ -56,6 +61,8 @@ export function FriendPage({
   others?: { id: string; name: string }[];
   today?: string;
   viewerPersonId?: string;
+  /** Whether the in-app chat is on, which drafts birthday wishes. */
+  chat?: boolean;
 }) {
   const copy = getCopy();
   const birthday = b.person.birthday;
@@ -131,6 +138,8 @@ export function FriendPage({
                 {birthday.age !== null && ` · ${copy.ageYears.replace("{n}", String(birthday.next === today ? birthday.age : birthday.age - 1))}`}
               </Chip>
             )}
+            {/* A week before the birthday and on the day: Claude drafts the wishes, the user sends them (ADR 0023). */}
+            {chat && birthday && today && daysBetween(today, birthday.next) <= WISH_DAYS && <WishButton name={b.person.name} />}
             {b.homes.map((h) => (
               <Chip key={h.id} href={h.url} icon={House} label={copy.livesIn}>
                 {h.name}

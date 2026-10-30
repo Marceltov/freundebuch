@@ -6,6 +6,7 @@
 import * as z from "zod";
 import { briefing, type Briefing } from "./briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "./calendar";
+import { birthdayMessage } from "./greetings";
 import { getConversation, record, remember, type FiledFact, type FiledRelationship } from "./conversations";
 import {
   addParticipant,
@@ -53,6 +54,7 @@ import {
   TraitsJson,
   HOUSEHOLD_TARGET,
   Visibility,
+  BirthdayMessageJson,
 } from "./http/schemas";
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
@@ -953,6 +955,29 @@ export const TOOLS: readonly Tool[] = [
         { id: ids[0], ids, relationships, url: personPath(isHouseholdWord(a.from) ? a.to : a.from) },
         relationships.flatMap(keptRelationship),
       );
+    },
+  }),
+  tool({
+    name: "birthday_message",
+    description:
+      "Help the user write birthday wishes to someone, which they then send themselves: freundebuch never sends anything. First call it without text: it returns when the birthday is, the age, who the person is to the household and what is shared about them (never anything about health). Draft a short, warm message in the user's own voice from it, show it, and change it as the user asks. Then call it again with the final text: it returns links that open WhatsApp, Telegram, SMS or email with the text filled in, for the user to pick the person and send.",
+    input: z.object({
+      personId: PersonId,
+      text: z.string().optional().describe("The final message, once the user is happy with it; leave it out while drafting"),
+    }),
+    output: BirthdayMessageJson,
+    annotations: { readOnlyHint: true },
+    handler: async (v, { personId, text }) => {
+      const m = await birthdayMessage(v, personId, text);
+      if (m.send.length)
+        return ok(BirthdayMessageJson, m, [
+          "Give the user these links to send it with; nothing is sent until they do, from their own app. Once they say they sent it, offer to file it with record as a message conversation.",
+        ]);
+      return ok(BirthdayMessageJson, m, [
+        m.birthday
+          ? `Draft a short birthday message from the user to ${m.person.name}, in the user's voice and the language they speak with ${m.person.name}${m.birthday.age !== null ? `, who turns ${m.birthday.age}` : ""}. Use one or two things from news or known that the person would be glad to hear the user remembers; leave out anything they may not want named. Show it and ask whether to change anything; with the final text, call birthday_message again for the links.`
+          : `No birthday is filed for ${m.person.name}: ask the user when it is, and file it with remember, before drafting wishes.`,
+      ]);
     },
   }),
   tool({
