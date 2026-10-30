@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Mic, Paperclip, SendHorizontal, SquarePen, Trash2, X } from "lucide-react";
+import { AudioLines, Mic, Paperclip, SendHorizontal, SquarePen, Trash2, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { canRecord, useVoice } from "@/components/useVoice";
+import { canRecord, clearUnsent, unsent, useVoice } from "@/components/useVoice";
 import type { ChatContext, ChatLink, PendingFile } from "@/backend";
 import { copy } from "@/components/copy";
 import { recentTurns } from "@/components/chatTurns";
@@ -71,7 +71,9 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
       .then((fs) => setShown(ids.flatMap((id) => fs.filter((f) => f.id === id))))
       .catch(() => {});
   }, [opened]);
-  const [draft, setDraft] = useState("");
+  // A message spoken before the last sheet was closed, whose words came back too late to send, waits in the field.
+  const [draft, setDraft] = useState(() => (typeof window === "undefined" ? "" : (unsent() ?? "")));
+  useEffect(clearUnsent, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shot, setShot] = useState<"sending" | "received" | "duplicate" | "failed" | "attached" | null>(null);
@@ -198,7 +200,7 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
   }
 
   const recording = useVoice(
-    (text) => send(text),
+    (text) => send(text, true),
     (message) => setError(message),
   );
   // Known only in the browser; the server renders no microphone.
@@ -208,7 +210,8 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
     () => false,
   );
 
-  async function send(offered?: string) {
+  /** Sends the field, or `offered` (a suggestion tapped, or words spoken in); `spoken` words go into the field when sending fails. */
+  async function send(offered?: string, spoken = false) {
     const text = (offered ?? draft).trim();
     if (!text || busy) return;
     setBusy(true);
@@ -229,7 +232,7 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
     // Nothing filed: the message goes back into the field to send again. Filed before the failure: say so, so it isn't sent twice.
     if (failed && !body?.filed) {
       setTurns(turns);
-      if (!offered) setDraft(text);
+      if (!offered || spoken) setDraft(text);
       return setError(message);
     }
     const next: Turn[] = [...asked, { role: "assistant", content: failed ? copy.filedThenFailed.replace("{error}", message!) : body.reply, links: body.links, filed: body.filed }];
@@ -344,6 +347,13 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
                 )}
               </div>
             ),
+          )}
+          {/* A spoken message shows at once, while Whisper turns it into words. */}
+          {recording.state === "transcribing" && (
+            <p role="status" className="flex max-w-[85%] items-center gap-2 self-end rounded-2xl rounded-br-md bg-carbon/80 px-3.5 py-2.5 text-on-carbon">
+              <AudioLines aria-hidden className="h-4 w-4 shrink-0 motion-safe:animate-pulse" />
+              <span className="text-sm">{copy.voiceTranscribing}</span>
+            </p>
           )}
           {busy && (
             <p role="status" className="flex items-center gap-2 self-start rounded-2xl rounded-bl-md bg-surface px-3.5 py-3 shadow-card">

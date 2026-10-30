@@ -793,9 +793,41 @@ test.describe("voice", () => {
     await sheet.getByRole("button", { name: "Sprachnachricht aufnehmen" }).click();
     await expect(sheet.getByText("Aufnahme läuft")).toBeAttached();
     await page.waitForTimeout(1500);
+    // Whisper takes a while on CPU: the message shows at once, as being transcribed.
+    let release = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    await page.route("**/api/chat/voice", async (route) => (await held, route.continue()));
     await sheet.getByRole("button", { name: "Sprachnachricht senden" }).click();
+    await expect(sheet.getByText("Sprachnachricht wird transkribiert …")).toBeVisible();
+    release();
     await expect(sheet.getByText("Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!")).toBeVisible({ timeout: 15_000 });
     await expect(sheet.getByText("Verstanden.")).toBeVisible({ timeout: 15_000 });
+    await expect(sheet.getByText("Sprachnachricht wird transkribiert …")).toHaveCount(0);
+    await page.unroute("**/api/chat/voice");
+
+    // Claude unreachable: the spoken words wait in the field, like typed ones.
+    await page.route("**/api/chat", (route) => route.abort());
+    await sheet.getByRole("button", { name: "Sprachnachricht aufnehmen" }).click();
+    await page.waitForTimeout(1000);
+    await sheet.getByRole("button", { name: "Sprachnachricht senden" }).click();
+    await expect(sheet.getByRole("alert")).toBeVisible({ timeout: 15_000 });
+    await expect(sheet.getByLabel("Nachricht", { exact: true })).toHaveValue("Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!");
+    await page.unroute("**/api/chat");
+    await sheet.getByLabel("Nachricht", { exact: true }).fill("");
+
+    // Closed while transcribing: the words wait in the field of the next sheet.
+    let letGo = () => {};
+    const later = new Promise<void>((r) => (letGo = r));
+    await page.route("**/api/chat/voice", async (route) => (await later, route.continue()));
+    await sheet.getByRole("button", { name: "Sprachnachricht aufnehmen" }).click();
+    await page.waitForTimeout(1000);
+    await sheet.getByRole("button", { name: "Sprachnachricht senden" }).click();
+    await sheet.getByRole("button", { name: "Schließen" }).click();
+    letGo();
+    await page.waitForResponse("**/api/chat/voice");
+    await page.unroute("**/api/chat/voice");
+    await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
+    await expect(sheet.getByLabel("Nachricht", { exact: true })).toHaveValue("Hi, hier ist Anna. Wir sind gut in Lissabon angekommen!");
     // Typing brings send back.
     await sheet.getByRole("textbox").fill("Noch was");
     await expect(sheet.getByRole("button", { name: "Senden", exact: true })).toBeEnabled();
