@@ -1,7 +1,7 @@
-import { beforeEach, expect, test } from "vitest";
-import { getConversation, record } from "./conversations";
+import { beforeEach, describe, expect, test } from "vitest";
+import { getConversation, record, remember } from "./conversations";
 import { db } from "./db/testing";
-import { deleteItem, editItem } from "./corrections";
+import { deleteItem, editItem, mergePeople } from "./corrections";
 import { AmbiguousError, InvalidInputError } from "./errors";
 import { getPlace, listExperiences } from "./experiences";
 import { addPlaceAlias, addPlaceOwner, findPlaces, mergePlaces, removePlaceOwner, renamePlace, setPlaceAddress, setPlaceParent } from "./places";
@@ -216,4 +216,53 @@ test("'in' naming the partner's private place makes a new one", async () => {
   const [parent] = (await find(s.b, "Cafeteria"))!.parents;
   expect(parent.name).toBe("Klinik Nord");
   expect(parent.id).not.toBe(hers);
+});
+
+describe("a private context never writes onto a place the partner sees", () => {
+  test("a private part can't give a place the partner sees a parent or an address", async () => {
+    await at(s.b, "Café Lisa");
+    await expect(at(s.a, { name: "Café Lisa", in: { name: "Frauenklinik Süd" } }, "private")).rejects.toThrow(InvalidInputError);
+    await expect(at(s.a, { name: "Café Lisa", address: "Geheimweg 1" }, "private")).rejects.toThrow(InvalidInputError);
+    const lisa = (await find(s.b, "Café Lisa"))!;
+    expect(lisa).toMatchObject({ parents: [], address: null });
+    expect(await findPlaces(s.b, "Frauenklinik Süd")).toEqual([]);
+  });
+
+  test("a private place of the user's own may still get a parent and an address in private", async () => {
+    await at(s.a, { name: "Praxis", in: "Ärztehaus", address: "Weg 2" }, "private");
+    expect(await find(s.a, "Praxis")).toMatchObject({ address: "Weg 2", parents: [{ name: "Ärztehaus" }] });
+    expect(await find(s.b, "Ärztehaus")).toBeUndefined();
+  });
+
+  test("a home remembered in private can't put an address on a place the partner sees", async () => {
+    await at(s.b, "Annas Wohnung");
+    await expect(remember(s.a, { visibility: "private", homes: [{ person: s.anna, place: { name: "Annas Wohnung", address: "Frauenhaus, Neue Str. 3" } }] })).rejects.toThrow(InvalidInputError);
+    expect((await find(s.b, "Annas Wohnung"))!.address).toBeNull();
+  });
+
+  test("merging a private place into one the partner sees adopts neither its address, its parent nor its names", async () => {
+    await at(s.b, "Haus am See");
+    await at(s.a, { name: "Seehaus", in: "Geheimdorf", address: "Privatstr 9" }, "private");
+    await mergePlaces(s.a, (await find(s.a, "Haus am See"))!.id, (await find(s.a, "Seehaus"))!.id);
+    const seen = (await find(s.b, "Haus am See"))!;
+    expect(seen).toMatchObject({ address: null, parents: [], aliases: [] });
+  });
+
+  test("place_parent refuses to put a place the partner sees inside one they can't", async () => {
+    await at(s.b, "Cafeteria");
+    await at(s.a, { name: "Privatklinik X", address: "Geheim 2" }, "private");
+    await expect(setPlaceParent(s.a, (await find(s.a, "Cafeteria"))!.id, (await find(s.a, "Privatklinik X"))!.id)).rejects.toThrow(InvalidInputError);
+    expect((await find(s.b, "Cafeteria"))!.parents).toEqual([]);
+  });
+});
+
+test("merging two people keeps the dropped one's homes", async () => {
+  const r = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [{ name: "Anni", confirmedNew: true }], conversations: [{ kind: "in_person", summary: "x", present: [0], place: { name: "Annis Wohnung", owners: [0] } } as never] });
+  await mergePeople(s.a, s.anna, r.people[0].id);
+  expect((await find(s.a, "Annis Wohnung"))!.owners.map((o) => o.id)).toEqual([s.anna]);
+});
+
+test("an owner who isn't in people is refused, not a crash", async () => {
+  await expect(at(s.a, { name: "X", owners: [5] })).rejects.toThrow(/Person 5 is not in people/);
+  await expect(record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: "Feier", title: "Y", place: { name: "Y", owners: [3] } } as never] })).rejects.toThrow(/Person 3 is not in people/);
 });

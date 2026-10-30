@@ -48,7 +48,8 @@ export function validateExperiences(xs: NewExperience[], people: number): void {
       assertDay(x.date, "The experience's date");
       notFuture(x.date, "The experience's date");
     }
-    for (const p of x.present ?? []) if (!Number.isInteger(p) || p < 0 || p >= people) throw new InvalidInputError(`Person ${p} is not in people`);
+    for (const p of [...(x.present ?? []), ...ownersOf(x.place).filter((o) => o !== "me" && o !== "us")])
+      if (!Number.isInteger(p) || (p as number) < 0 || (p as number) >= people) throw new InvalidInputError(`Person ${p} is not in people`);
     if (x.series && typeof x.series === "object") {
       words(x.series.name, "A series' name", MAX_TITLE);
       const r = x.series.rhythmDays;
@@ -100,7 +101,7 @@ export async function insertExperiences(
   const out: RecordedExperience[] = [];
   for (const x of xs) {
     const day = x.date ?? r.date;
-    const placeId = x.place === undefined || x.place === "" ? null : await resolvePlace(tx, v, x.place);
+    const placeId = x.place === undefined || x.place === "" ? null : await resolvePlace(tx, v, x.place, r.visibility === "private" || x.private ? "private" : "shared");
     // A new series started by a private experience is private too, or its name and place would reach the other user.
     const series = x.series === undefined ? null : await resolveSeries(tx, v, x.series, x, day, x.private ? "private" : r.visibility, t, placeId);
     const visibility: Visibility = r.visibility === "private" || x.private || series?.visibility === "private" ? "private" : "shared";

@@ -122,14 +122,28 @@ export async function findPlaces(v: Viewer, q: string, limit = 5): Promise<Place
  * Where it sits (`in`) is set only when it sits nowhere yet; an address given replaces the one it had. Owners are filed apart
  * (fileOwners), once the caller knows who they are.
  */
-export async function resolvePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef<unknown>): Promise<string> {
+export async function resolvePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef<unknown>, visibility: Visibility = "shared"): Promise<string> {
   const id = await findOrMakePlace(tx, v, ref);
   if (typeof ref === "string") return id;
-  if (ref.address !== undefined) await tx.updateTable("places").set({ address: checkAddress(ref.address) }).where("id", "=", id).execute();
+  // A private part writes nothing onto a place the other user sees: its address and where it sits would reach them.
+  const refuse = async (what: string) => {
+    if (visibility === "private" && (await othersSee(tx, v, id)))
+      throw new InvalidInputError(`The household sees this place, so a private part can't set ${what}: leave it out, or file it shared, or with correct once the user agrees it may be seen`);
+  };
+  const row = await tx.selectFrom("places").select(["parent_id", "address"]).where("id", "=", id).executeTakeFirstOrThrow();
+  if (ref.address !== undefined) {
+    const address = checkAddress(ref.address);
+    if (address !== row.address) {
+      await refuse("its address");
+      await tx.updateTable("places").set({ address }).where("id", "=", id).execute();
+    }
+  }
   if (ref.in !== undefined) {
-    const parent = await resolvePlace(tx, v, ref.in);
-    const row = await tx.selectFrom("places").select("parent_id").where("id", "=", id).executeTakeFirstOrThrow();
-    if (!row.parent_id && !(await wouldLoop(tx, id, parent))) await tx.updateTable("places").set({ parent_id: parent }).where("id", "=", id).execute();
+    const parent = await resolvePlace(tx, v, ref.in, visibility);
+    if (!row.parent_id && !(await wouldLoop(tx, id, parent))) {
+      await refuse("where it sits");
+      await tx.updateTable("places").set({ parent_id: parent }).where("id", "=", id).execute();
+    }
   }
   return id;
 }
@@ -153,6 +167,22 @@ async function findOrMakePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef<unkn
   const id = newId();
   await tx.insertInto("places").values({ id, name, created_by: v.userId, created_at: now() }).execute();
   return id;
+}
+
+/** The household's other users, as viewers. */
+async function others(tx: Kysely<Schema>, v: Viewer): Promise<Viewer[]> {
+  return (await tx.selectFrom("users").select(["id", "person_id"]).where("id", "!=", v.userId).execute()).map((u) => ({ userId: u.id, personId: u.person_id ?? "" }));
+}
+
+/** Whether `viewer` may see the place `id`. */
+async function sees(tx: Kysely<Schema>, viewer: Viewer, id: string): Promise<boolean> {
+  return !!(await tx.selectFrom("places").select("id").where("id", "=", id).where("id", "in", visiblePlaceIds(tx, viewer)).executeTakeFirst());
+}
+
+/** Whether another user sees the place `id` but not the place `other` (or, without `other`, sees `id` at all). */
+async function othersSee(tx: Kysely<Schema>, v: Viewer, id: string, other?: string): Promise<boolean> {
+  for (const o of await others(tx, v)) if ((await sees(tx, o, id)) && !(other && (await sees(tx, o, other)))) return true;
+  return false;
 }
 
 /** The owners a place reference names, as the caller refers to them. */
@@ -198,6 +228,8 @@ export async function setPlaceParent(v: Viewer, id: string, parentId: string | n
     if (parentId !== null) {
       await loadPlace(tx, v, parentId);
       if (await wouldLoop(tx, id, parentId)) throw new InvalidInputError("A place can't sit inside itself or a place inside it");
+      // Whoever sees the place would see the one it sits in: refused when they can't see that yet, so its name and address stay.
+      if (await othersSee(tx, v, id, parentId)) throw new InvalidInputError("The household sees this place but not the one it would sit in, which would show them that place: ask the user before making it seen, e.g. by filing something shared there");
     }
     await tx.updateTable("places").set({ parent_id: parentId }).where("id", "=", id).execute();
   });
@@ -272,23 +304,22 @@ export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Pr
     const drop = await loadPlace(tx, v, dropId);
     // Whoever sees the dropped place would see the kept one's name and other names after the merge: refused when they can't
     // see it yet, so a name from a private context never reaches them. The other way round shows them nothing new.
-    for (const u of await tx.selectFrom("users").select(["id", "person_id"]).where("id", "!=", v.userId).execute()) {
-      const other: Viewer = { userId: u.id, personId: u.person_id ?? "" };
-      const sees = async (id: string) => !!(await tx.selectFrom("places").select("id").where("id", "=", id).where("id", "in", visiblePlaceIds(tx, other)).executeTakeFirst());
-      if ((await sees(dropId)) && !(await sees(keepId)))
-        throw new InvalidInputError(`Merge the other way round: keep "${drop.name}" (${dropId}) and drop "${keep.name}" (${keepId}), so the household doesn't learn a name only you can see`);
-    }
+    if (await othersSee(tx, v, dropId, keepId))
+      throw new InvalidInputError(`Merge the other way round: keep "${drop.name}" (${dropId}) and drop "${keep.name}" (${keepId}), so the household doesn't learn a name only you can see`);
+    // The other way round, the dropped place's names, address and where it sits would show on one they see: those stay behind.
+    const hidden = await othersSee(tx, v, keepId, dropId);
     for (const t of ["conversations", "experiences", "series"] as const) await tx.updateTable(t as "conversations").set({ place_id: keepId }).where("place_id", "=", dropId).execute();
     // The kept place keeps where it sits and its address, and takes the dropped one's where it has none; what sat inside the
     // dropped place sits inside the kept one, and its owners move, each recorder's once.
     const [k, dr] = await Promise.all([keepId, dropId].map((id) => tx.selectFrom("places").select(["parent_id", "address"]).where("id", "=", id).executeTakeFirstOrThrow()));
-    const parent = k.parent_id && k.parent_id !== dropId ? k.parent_id : dr.parent_id && !(await wouldLoop(tx, keepId, dr.parent_id)) ? dr.parent_id : null;
-    await tx.updateTable("places").set({ parent_id: parent, address: k.address ?? dr.address }).where("id", "=", keepId).execute();
+    const adopt = !hidden && dr.parent_id && !(await wouldLoop(tx, keepId, dr.parent_id)) ? dr.parent_id : null;
+    const parent = k.parent_id && k.parent_id !== dropId ? k.parent_id : adopt;
+    await tx.updateTable("places").set({ parent_id: parent, address: k.address ?? (hidden ? null : dr.address) }).where("id", "=", keepId).execute();
     await tx.updateTable("places").set({ parent_id: keepId }).where("parent_id", "=", dropId).where("id", "!=", keepId).execute();
     for (const o of await tx.selectFrom("place_owners").selectAll().where("place_id", "=", dropId).execute())
       await tx.insertInto("place_owners").values({ ...o, place_id: keepId }).onConflict((oc) => oc.doNothing()).execute();
     const aliases = await tx.selectFrom("place_aliases").select("alias").where("place_id", "=", dropId).execute();
-    for (const a of [drop.name, ...aliases.map((x) => x.alias)]) if (norm(a) !== norm(keep.name)) await insertAlias(tx, keepId, a);
+    if (!hidden) for (const a of [drop.name, ...aliases.map((x) => x.alias)]) if (norm(a) !== norm(keep.name)) await insertAlias(tx, keepId, a);
     await tx.deleteFrom("places").where("id", "=", dropId).execute();
   });
 }

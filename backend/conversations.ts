@@ -295,7 +295,7 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
     }
     const names = new Map(people.map((p) => [p.id, p.name]));
     const filed = await insertItems(tx, v, base, r, (p) => p, vis, (p) => names.get(p) ?? "", personPath);
-    for (const h of r.homes ?? []) await fileOwners(tx, v, await resolvePlace(tx, v, h.place), [h.person], vis(h));
+    for (const h of r.homes ?? []) await fileOwners(tx, v, await resolvePlace(tx, v, h.place, vis(h)), [h.person], vis(h));
     return {
       filed,
       genders,
@@ -507,6 +507,7 @@ function validateRamble(r: NewRamble): void {
     oneOf(c.kind, CONVERSATION_KINDS, "conversation kind");
     if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
     c.present.forEach(ref);
+    for (const o of ownersOf(c.place)) if (!isHouseholdWord(o)) ref(o);
     if (c.at !== undefined && (!Number.isInteger(c.at) || c.at < 0 || c.at >= (r.experiences ?? []).length)) throw new InvalidInputError(`Experience ${c.at} is not in experiences`);
   }
   validateExperiences(r.experiences ?? [], r.people.length);
@@ -551,7 +552,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     await tx.insertInto("rambles").values({ id: rambleId, date: r.date, transcript, transcript_private: transcriptPrivate, visibility: r.visibility, recorded_by: v.userId, created_at: t }).execute();
     const placeIds: Array<string | null> = [];
     for (const [i, c] of (r.conversations ?? []).entries()) {
-      const placeId = c.place === undefined || c.place === "" ? null : await resolvePlace(tx, v, c.place);
+      const placeId = c.place === undefined || c.place === "" ? null : await resolvePlace(tx, v, c.place, r.visibility);
       placeIds.push(placeId);
       await tx
         .insertInto("conversations")
