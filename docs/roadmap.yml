@@ -20,6 +20,17 @@ items:
       - {label: "#49", url: "https://github.com/Marceltov/freundebuch/issues/49"}
       - {label: "V4", url: "https://marceltov.github.io/freundebuch/values/#v4-only-words-are-kept"}
 
+  - id: search
+    status: next
+    when: Next
+    icon: text-search
+    title: Search by a word you remember
+    summary: "\"Das mit dem Spiegel\", \"Hellengerst\": found over Claude first, then with a field on Verlauf; only what you may see, never the partner's private items."
+    links:
+      - {label: "#102", url: "https://github.com/Marceltov/freundebuch/issues/102"}
+      - {label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first"}
+      - {label: "V2", url: "https://marceltov.github.io/freundebuch/values/#v2-private-stays-private-through-every-door"}
+
   - id: households
     status: later
     when: Later
