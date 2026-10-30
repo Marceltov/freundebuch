@@ -1,5 +1,6 @@
 // POST /api/share: a file comes in from a phone or the app. The iPhone Shortcut sends it as the body with the user's share
 // key (`Authorization: Bearer fbs_…`); the web app's share page (Android) sends it as the form field `file` with the cookie.
+// Files shared in one go carry one id in `X-Freundebuch-Batch` (or the form field `batch`): see files.ts.
 // An API access token works too. 202: stored, Claude reads it in the background. Not in the REST table: its body isn't JSON.
 // GET /api/files/{id}: the file, for whoever may see it (fileContent).
 // Without an API key (and outside e2e) there is no sharing: 404.
@@ -8,7 +9,7 @@ import { FreundebuchError } from "./errors";
 import { readCapped, parseForm } from "./http/request";
 import { copy } from "./notify/copy";
 import { config } from "./config";
-import { MAX_UPLOAD, PENDING_PATH, queueRead, fileContent, fileModel, shareFile, viewerFromShareKey } from "./files";
+import { BATCH_HEADER, MAX_UPLOAD, PENDING_PATH, queueRead, fileContent, fileModel, shareFile, viewerFromShareKey } from "./files";
 import type { Viewer } from "./types";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -23,15 +24,17 @@ async function viewerOf(req: Request): Promise<Viewer | null> {
 }
 
 /** The shared file and the type it was sent as: the form field `file` (or `image`, as older share pages send it), else the body. */
-async function fileOf(req: Request, bytes: Uint8Array): Promise<{ bytes: Uint8Array; type: string } | null> {
+async function fileOf(req: Request, bytes: Uint8Array): Promise<{ bytes: Uint8Array; type: string; batch: string | null } | null> {
   const type = (req.headers.get("content-type") ?? "").toLowerCase();
+  const header = req.headers.get(BATCH_HEADER);
   if (type.startsWith("multipart/form-data")) {
     const form = await parseForm(bytes, req.headers).catch(() => null);
     const file = form?.get("file") ?? form?.get("image");
-    return file instanceof Blob ? { bytes: new Uint8Array(await file.arrayBuffer()), type: file.type } : null;
+    const field = form?.get("batch");
+    return file instanceof Blob ? { bytes: new Uint8Array(await file.arrayBuffer()), type: file.type, batch: header ?? (typeof field === "string" ? field : null) } : null;
   }
   // The Shortcut's "File" body sends the file's own type; some versions send none or octet-stream.
-  return { bytes, type };
+  return { bytes, type, batch: header };
 }
 
 export async function shareRoute(req: Request): Promise<Response> {
@@ -45,7 +48,7 @@ export async function shareRoute(req: Request): Promise<Response> {
   const file = await fileOf(req, bytes);
   if (!file) return json({ error: "Send the file as the body, or as the form field `file`", code: "invalid_request" }, 400);
   try {
-    const shot = await shareFile(v, file.bytes, file.type);
+    const shot = await shareFile(v, file.bytes, file.type, file.batch);
     if (!shot.duplicate) void queueRead(shot.id, model);
     // `message` is what the Shortcut shows.
     // `url` is where it waits, for the Shortcut to open as its last step.

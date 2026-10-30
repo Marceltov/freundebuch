@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeEach, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "./auth/session";
 import { sign } from "./auth/tokens";
 import { db } from "./db";
-import { createShareKey, setFileModelForTests } from "./files";
+import { createShareKey, listPending, setFileModelForTests } from "./files";
 import { fileRoute, shareRoute } from "./share-route";
 import { resetSecretForTests } from "./secret";
 import { seed, type Seed } from "./testing/fixtures";
@@ -112,4 +112,20 @@ test("a text file is served as UTF-8, so umlauts show", async () => {
   const { id } = await (await share(new TextEncoder().encode("Grüße von Jürgen") as BodyInit, { authorization: `Bearer ${key}`, "content-type": "text/plain" })).json();
   const res = await fileRoute(new Request(`${BASE}/api/files/${id}`, { headers: { host: "localhost:3000", ...cookie(s.a.userId) } }), id);
   expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+});
+
+test("files sent with one batch id wait side by side, in the order they came; a malformed id is ignored", async () => {
+  const key = await createShareKey(s.a);
+  const send = async (batch?: string) =>
+    (await (await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", ...(batch ? { "x-freundebuch-batch": batch } : {}) })).json()) as { id: string };
+  const first = await send("run-20261030-1");
+  const alone = await send();
+  const second = await send("run-20261030-1");
+  const third = await send("run-20261030-1");
+  const odd = await send("a b c d e f g h");
+  const short = await send("x");
+  const list = await listPending(s.a);
+  expect(list.map((f) => f.id)).toEqual([short.id, odd.id, first.id, second.id, third.id, alone.id]);
+  expect(list.map((f) => f.batchId)).toEqual([null, null, "run-20261030-1", "run-20261030-1", "run-20261030-1", null]);
+  expect(await listPending(s.b)).toEqual([]);
 });

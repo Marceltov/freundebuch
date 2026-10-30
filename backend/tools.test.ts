@@ -333,6 +333,36 @@ describe("inbox", () => {
     expect(r.next[2]).toBe("2 more wait; list again after these.");
   });
 
+  test("files shared together are named as a batch, with what to do about them", async () => {
+    const alone = await shareFile(s.a, text("Einzeln"), "text/plain");
+    const one = await shareFile(s.a, text("Chat Teil 1"), "text/plain", "run-1234567");
+    const two = await shareFile(s.a, text("Chat Teil 2"), "text/plain", "run-1234567");
+    const r = await run(s.a, "inbox", { action: "list" });
+    expect(r.files.map((f: Json) => [f.id, f.batchId])).toEqual([[one.id, "run-1234567"], [two.id, "run-1234567"], [alone.id, null]]);
+    expect(r.batches).toEqual([{ batchId: "run-1234567", ids: [one.id, two.id] }]);
+    expect(r.next).toContain(`${one.id} and ${two.id} were shared together: offer to work them through as one thing, and pass all their ids to record in fileIds.`);
+    const inbox = TOOLS.find((t) => t.name === "inbox")!;
+    expect(inbox.description).toMatch(/batchId/);
+    expect(inbox.description).toMatch(/ask the user which/);
+  });
+
+  test("a batch isn't cut at the fifth file", async () => {
+    for (let i = 0; i < 4; i++) await shareFile(s.a, text(`Datei ${i}`), "text/plain");
+    for (let i = 0; i < 3; i++) await shareFile(s.a, text(`Teil ${i}`), "text/plain", "run-7654321");
+    const r = await run(s.a, "inbox", { action: "list" });
+    expect(r.files.filter((f: Json) => f.batchId === "run-7654321")).toHaveLength(3);
+  });
+
+  test("done closes several files at once, and none when one isn't the caller's", async () => {
+    const one = await shareFile(s.a, text("eins"), "text/plain");
+    const two = await shareFile(s.a, text("zwei"), "text/plain");
+    const bobs = await shareFile(s.b, text("Bobs"), "text/plain");
+    await expect(run(s.a, "inbox", { action: "done", ids: [one.id, bobs.id] })).rejects.toThrow(/No such file/);
+    expect((await run(s.a, "inbox", { action: "list" })).files).toHaveLength(2);
+    expect(await run(s.a, "inbox", { action: "done", ids: [one.id, two.id] })).toMatchObject({ done: true });
+    expect((await run(s.a, "inbox", { action: "list" })).files).toEqual([]);
+  });
+
   test("done deletes a file with nothing to file; not the partner's; upload is gone", async () => {
     const one = await shareFile(s.a, text("eins"), "text/plain");
     await expect(run(s.b, "inbox", { action: "done", id: one.id })).rejects.toThrow(/No such file/);

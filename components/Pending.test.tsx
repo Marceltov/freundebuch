@@ -16,6 +16,7 @@ const file = (over: Partial<PendingFile>): PendingFile => ({
   transcript: "[19:20] Patrick: Freitag Spieleabend",
   people: [{ name: "Patrick", person: null, candidates: [] }],
   error: null,
+  batchId: null,
   ...over,
 });
 

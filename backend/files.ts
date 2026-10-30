@@ -40,6 +40,11 @@ export const PENDING_PATH = "/pruefen";
 
 export type FileStatus = "reading" | "pending" | "filed" | "failed";
 
+/** The header (and the share page's form field) a client sends the same id in with every file of one share. */
+export const BATCH_HEADER = "x-freundebuch-batch";
+/** A batch id as sent, or null when there is none or it isn't one (8–64 of A–Z, a–z, 0–9, _ and -): a hint is never an error. */
+export const batchOf = (value: string | null | undefined): string | null => (value && /^[A-Za-z0-9_-]{8,64}$/.test(value) ? value : null);
+
 // The model in use: a test's stand-in, Claude with the API key, the e2e stand-in, or none (sharing is off).
 const state = processState("files", () => ({ override: null as FileModel | null, queue: Promise.resolve() as Promise<unknown> }));
 export const setFileModelForTests = (m: FileModel | null) => {
@@ -72,9 +77,10 @@ function kindOf(bytes: Uint8Array, sent: string): "pdf" | "text" | "image" | nul
 const isHeic = (bytes: Uint8Array, type: string) =>
   /^image\/hei[cf]/.test(type) || /^ftyp(heic|heix|hevc|mif1|msf1)$/.test(new TextDecoder().decode(bytes.subarray(4, 12)));
 
-/** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`). `type` is
- * what it was sent as ("" when unknown). Reading it is queued (`queueRead`); the caller doesn't wait for it. */
-export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
+/** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`, which keeps its
+ * own batch). `type` is what it was sent as ("" when unknown); `batch` the id of the share it came in with (batchOf).
+ * Reading it is queued (`queueRead`); the caller doesn't wait for it. */
+export async function shareFile(v: Viewer, bytes: Uint8Array, type = "", batch: string | null = null): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
   if (bytes.byteLength === 0) throw new InvalidInputError("The file is empty");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const d = await db();
@@ -116,7 +122,7 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promis
   const key = `files/${id}.${EXT[mediaType]}`;
   await store().put(key, stored, mediaType);
   try {
-    await d.insertInto("files").values({ id, user_id: v.userId, sha256, status: "reading", reading: null, created_at: now(), media_type: mediaType, blob_key: key }).execute();
+    await d.insertInto("files").values({ id, user_id: v.userId, sha256, status: "reading", reading: null, created_at: now(), media_type: mediaType, blob_key: key, batch_id: batchOf(batch) }).execute();
   } catch (e) {
     await store().delete(key);
     throw e;
@@ -218,12 +224,20 @@ export type PendingFile = {
   people: Array<{ name: string; person: PendingCandidate | null; candidates: PendingCandidate[] }>;
   /** Why the pre-read failed, when it did. */
   error: string | null;
+  /** The id of the share it came in with: files with the same one were shared together (null when shared alone). */
+  batchId: string | null;
 };
 
-/** The viewer's own files that wait for them, newest first. The partner's never show. */
+/** The viewer's own files that wait for them, newest first; files shared together sit side by side, in the order they came,
+ * where the batch's newest one would be. The partner's never show. */
 export async function listPending(v: Viewer): Promise<PendingFile[]> {
   const d = await db();
-  const rows = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").execute();
+  const all = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").orderBy("id", "desc").execute();
+  const rows: typeof all = [];
+  for (const r of all) {
+    if (!r.batch_id) rows.push(r);
+    else if (!rows.some((x) => x.batch_id === r.batch_id)) rows.push(...all.filter((x) => x.batch_id === r.batch_id).reverse());
+  }
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const cand = (id: string): PendingCandidate | null => (names.has(id) ? { id, name: names.get(id)! , url: personPath(id) } : null);
   return rows.map((r) => {
@@ -244,6 +258,7 @@ export async function listPending(v: Viewer): Promise<PendingFile[]> {
         candidates: (p.candidates ?? []).map(cand).filter((c): c is PendingCandidate => c !== null),
       })),
       error: r.status === "failed" ? (read?.error ?? null) : null,
+      batchId: r.batch_id,
     };
   });
 }
@@ -318,9 +333,14 @@ export async function retryFile(v: Viewer, id: string, model: FileModel): Promis
 
 /** Closes a waiting file: worked through with nothing to file, or thrown away. Row and blob go. */
 export async function discardFile(v: Viewer, id: string): Promise<void> {
-  const row = await ownPending(v, id);
-  await (await db()).deleteFrom("files").where("id", "=", id).execute();
-  await store().delete(row.blob_key);
+  await discardFiles(v, [id]);
+}
+
+/** Closes several waiting files at once; none when any isn't the viewer's own waiting file (NotFoundError). */
+export async function discardFiles(v: Viewer, ids: string[]): Promise<void> {
+  const rows = await Promise.all([...new Set(ids)].map((id) => ownPending(v, id)));
+  await (await db()).deleteFrom("files").where("id", "in", rows.map((r) => r.id)).execute();
+  await dropBlobs(rows.map((r) => r.blob_key));
 }
 
 /** The file, for the user who shared it, or for a viewer who may see a fact filed from it; null otherwise. */

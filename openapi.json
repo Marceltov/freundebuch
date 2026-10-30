@@ -2902,6 +2902,13 @@
               "string",
               "null"
             ]
+          },
+          "batchId": {
+            "description": "The id of the share it came in with: files with the same one were shared together; null when shared alone",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -2914,7 +2921,8 @@
           "summary",
           "transcript",
           "people",
-          "error"
+          "error",
+          "batchId"
         ]
       },
       "PendingFileList": {
@@ -3041,6 +3049,13 @@
                 "string",
                 "null"
               ]
+            },
+            "batchId": {
+              "description": "The id of the share it came in with: files with the same one were shared together; null when shared alone",
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [
@@ -3053,7 +3068,8 @@
             "summary",
             "transcript",
             "people",
-            "error"
+            "error",
+            "batchId"
           ]
         }
       },

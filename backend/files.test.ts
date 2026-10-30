@@ -92,6 +92,7 @@ test("an image is shrunk to 1080 px WebP and pre-read into a suggestion that wai
       transcript: "Anna: Urlaub in Lissabon!",
       people: [{ name: "Anna", person: { id: s.anna, name: "Anna", url: `/p/${s.anna}` }, candidates: [] }],
       error: null,
+      batchId: null,
     },
   ]);
   expect(sent).toEqual([expect.objectContaining({ title: "📎 Neu unter „Prüfen“", body: "Anna war in Lissabon im Urlaub", click: `https://f.example/pruefen#${shot.id}` })]);

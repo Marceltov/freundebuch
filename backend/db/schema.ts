@@ -134,6 +134,8 @@ export interface Schema {
     media_type: ColumnType<string, string | undefined, string>;
     /** Where its bytes are in the blob store (storage.ts). */
     blob_key: string;
+    /** The batch id the client sent with it (files shared in one go), or null. */
+    batch_id: ColumnType<string | null, string | null | undefined, string | null>;
   };
   meta: { key: string; value: string };
 }
