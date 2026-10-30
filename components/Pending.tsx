@@ -103,9 +103,15 @@ export function PendingList({ items }: { items: PendingFile[] }) {
 /** The file id in a link to Prüfen (#id); ids need no decoding, and a broken one opens on nothing rather than failing. */
 export const idOfHash = (hash: string): string => (/^#[A-Za-z0-9_-]+$/.test(hash) ? hash.slice(1) : "");
 
+// Next's router doesn't see a change of the hash alone (opened again on another file) and puts its own, older URL back on the
+// next refresh, selecting the old file again. Replacing the history entry tells it the new one.
 const onHashChange = (then: () => void) => {
-  window.addEventListener("hashchange", then);
-  return () => window.removeEventListener("hashchange", then);
+  const changed = () => {
+    window.history.replaceState(null, "", window.location.href);
+    then();
+  };
+  window.addEventListener("hashchange", changed);
+  return () => window.removeEventListener("hashchange", changed);
 };
 
 const button = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-50";
