@@ -21,7 +21,7 @@ const record = (v: Viewer, over: Partial<Parameters<typeof recordConversation>[1
 
 test("A's briefing on Anna holds everything, B's only the shared part", async () => {
   const a = await briefing(s.a, s.anna, "2026-10-23");
-  expect(a.person).toEqual({ id: s.anna, name: "Anna", gender: null, aliases: [], url: `/p/${s.anna}`, birthday: null });
+  expect(a.person).toEqual({ id: s.anna, name: "Anna", gender: null, aliases: [], url: `/p/${s.anna}`, birthday: null, look: null });
   expect(a.known.map((f) => f.text).sort()).toEqual(["divorce", "likes hiking", "new job"]);
   expect(a.relationships).toEqual([{ id: expect.any(String), personId: s.tom, name: "Tom", label: "Partner:in", inverse: "Partner:in", note: null, direction: "out", url: `/p/${s.tom}`, visibility: "private", mine: true }]);
   expect(a.freshness).toEqual({ lastSeen: "2026-10-20", intervalDays: null, ratio: null });

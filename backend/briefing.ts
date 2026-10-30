@@ -9,7 +9,7 @@ import { getPerson } from "./people";
 import { labelKey } from "./conversations";
 import { householdPersons } from "./household";
 import { buildNetwork, type Network } from "./network";
-import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Viewer, type Visibility } from "./types";
+import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Look, type Viewer, type Visibility } from "./types";
 import { conversationPath, groupPath, itemPath, personPath } from "./urls";
 import { hiddenFiles } from "./files";
 import { journalEntries, type JournalEntry } from "./journal";
@@ -42,7 +42,8 @@ export type Role = { label: string; with: "me" | "partner" | "us"; partnerName?:
 
 export type Briefing = {
   /** `birthday` however far away it is; the viewer's own record of it wins over the partner's shared one. */
-  person: { id: string; name: string; aliases: string[]; url: string; birthday: Birthday | null; gender: Gender | null };
+  /** `look`: the parts the avatar is drawn from and the user's words for how they look; null while nobody described them. */
+  person: { id: string; name: string; aliases: string[]; url: string; birthday: Birthday | null; gender: Gender | null; look: Look | null };
   /** Who the person is to us: the first thing to say about them ("your landlady"). */
   roles: Role[];
   /** The groups the viewer may see the person in, each once. `private`: the viewer's own private membership is the only one they see. */
@@ -162,6 +163,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       url: page,
       birthday: bday ? { id: bday.id, date: bday.date, next, age: ageOn(bday.date, next) } : null,
       gender: person.gender,
+      look: person.look,
     },
     roles: roles(v, personId, rels, household, names),
     groups: [...new Map(groups.map((g) => [g.id, g])).values()].map((g) => ({ id: g.id, name: g.name, url: groupPath(g.id), private: groups.every((x) => x.id !== g.id || x.visibility === "private") })),

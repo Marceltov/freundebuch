@@ -439,3 +439,14 @@ test("017 gives files a batch hint, empty for the files already waiting", async 
   await migrateTo(d, "017_file_batches");
   expect(await d.selectFrom("files").select(["id", "batch_id"]).execute()).toEqual([{ id: "f1", batch_id: null }]);
 });
+
+test("019 gives persons an optional look, kept as JSON", async () => {
+  const d = fresh();
+  await migrateTo(d, "018_place_nesting");
+  await d.insertInto("users").values({ id: "u", oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: 1 }).execute();
+  await d.insertInto("persons").values({ id: "anna", name: "Anna", created_by: "u", created_from: null, created_at: 1 }).execute();
+  await migrateTo(d, "019_person_looks");
+  expect(await d.selectFrom("persons").select("look").execute()).toEqual([{ look: null }]);
+  await d.updateTable("persons").set({ look: '{"hair":"long"}' }).execute();
+  await expect(d.updateTable("persons").set({ look: "long hair" }).execute()).rejects.toThrow(/CHECK constraint failed/);
+});

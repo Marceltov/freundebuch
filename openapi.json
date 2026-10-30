@@ -163,8 +163,8 @@
       },
       "patch": {
         "operationId": "updatePerson",
-        "summary": "Rename a person, or set their gender",
-        "description": "Names and gender are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
+        "summary": "Rename a person, or set their gender or look",
+        "description": "Names, gender and look are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
         "tags": [
           "People"
         ],
@@ -2808,6 +2808,95 @@
   },
   "components": {
     "schemas": {
+      "Look": {
+        "type": "object",
+        "properties": {
+          "face": {
+            "type": "string",
+            "enum": [
+              "oval",
+              "round",
+              "long"
+            ],
+            "description": "The shape of the face"
+          },
+          "skin": {
+            "type": "string",
+            "enum": [
+              "light",
+              "fair",
+              "medium",
+              "olive",
+              "brown",
+              "dark"
+            ],
+            "description": "Skin tone, lightest to darkest"
+          },
+          "hair": {
+            "type": "string",
+            "enum": [
+              "none",
+              "buzz",
+              "short",
+              "side-part",
+              "curly",
+              "wavy",
+              "long",
+              "bun",
+              "ponytail",
+              "afro"
+            ],
+            "description": "Hair style: none is bald, buzz a very short cut, wavy reaches the chin, long the shoulders"
+          },
+          "hairColor": {
+            "type": "string",
+            "enum": [
+              "black",
+              "dark-brown",
+              "brown",
+              "blond",
+              "red",
+              "grey",
+              "white"
+            ],
+            "description": "Hair color; also the color of the brows and beard"
+          },
+          "glasses": {
+            "type": "string",
+            "enum": [
+              "none",
+              "round",
+              "square"
+            ]
+          },
+          "beard": {
+            "type": "string",
+            "enum": [
+              "none",
+              "stubble",
+              "moustache",
+              "short",
+              "full"
+            ]
+          },
+          "description": {
+            "description": "How the user described them, in their words (\"kurze lockige braune Haare, Brille\"), kept so the look can be chosen again; null when put together by hand",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "face",
+          "skin",
+          "hair",
+          "hairColor",
+          "glasses",
+          "beard"
+        ],
+        "description": "A stylized avatar put together from parts, not a portrait: choose for each part the value closest to how the user described the person, and the usual value (none, oval) for what they didn't say"
+      },
       "PlaceRef": {
         "anyOf": [
           {
@@ -3261,6 +3350,17 @@
                 "type": "null"
               }
             ]
+          },
+          "look": {
+            "description": "The person's look, all parts; null clears it",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Look"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -3634,6 +3734,17 @@
                 "type": "null"
               }
             ]
+          },
+          "look": {
+            "description": "The parts of their avatar; null while nobody described them; absent in a search",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Look"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3732,6 +3843,17 @@
                   }
                 ],
                 "description": "null when it isn't known"
+              },
+              "look": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/Look"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The parts of their avatar and the user's words for how they look; null while nobody described them"
               }
             },
             "required": [
@@ -3740,7 +3862,8 @@
               "aliases",
               "url",
               "birthday",
-              "gender"
+              "gender",
+              "look"
             ]
           },
           "roles": {

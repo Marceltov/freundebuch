@@ -645,6 +645,16 @@ const migrations: Record<string, Migration> = {
       await db.schema.createIndex("place_owners_by_person").on("place_owners").column("person_id").execute();
     },
   },
+  // A person's look (backend/looks.ts): the parts their avatar is drawn from and the user's words for it, as JSON. Shared
+  // like the name; null while nobody has described them.
+  "019_person_looks": {
+    async up(db) {
+      await db.schema
+        .alterTable("persons")
+        .addColumn("look", "text", (c) => c.check(sql`look IS NULL OR json_valid(look)`))
+        .execute();
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

@@ -3,6 +3,8 @@
 import { Ellipsis } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import type { Look, LookPart, LookParts } from "@/backend";
+import { Avatar } from "@/components/Avatar";
 import { copy } from "@/components/copy";
 
 const GENDERS: { value: "female" | "male" | "nonbinary" | null; label: string }[] = [
@@ -20,17 +22,19 @@ const INTERVALS: { days: number | null; label: string }[] = [
 ];
 
 // The round "…" on a friend's page: a sheet with what only Claude could do before. How often to see them, a new name, their
-// gender (which the role labels follow), a nickname that finds them too, and merging a duplicate into them. Each change closes the sheet and reloads the page.
+// gender (which the role labels follow), how they look (the parts of their avatar), a nickname that finds them too, and merging a duplicate into them. Each change closes the sheet and reloads the page.
 export function PersonMenu({
   id,
   name,
   gender = null,
+  look = null,
   intervalDays,
   others,
 }: {
   id: string;
   name: string;
   gender?: "female" | "male" | "nonbinary" | null;
+  look?: Look | null;
   intervalDays: number | null;
   others: { id: string; name: string }[];
 }) {
@@ -42,11 +46,12 @@ export function PersonMenu({
   const [failed, setFailed] = useState(false);
   const label = copy.moreAbout.replace("{name}", name);
 
-  async function send(method: string, path: string, body: object) {
+  // `stay`: keep the sheet open, to change several parts of a look one after another.
+  async function send(method: string, path: string, body: object, stay = false) {
     setFailed(false);
     const res = await fetch(`/api/v1/people/${id}${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
     if (!res?.ok) return setFailed(true);
-    setOpen(false);
+    if (!stay) setOpen(false);
     setAlias("");
     setDrop("");
     router.refresh();
@@ -126,6 +131,10 @@ export function PersonMenu({
               </div>
             </Part>
 
+            <Part title={copy.look} hint={copy.lookHint}>
+              <LookEditor look={look} onChange={(next) => send("PATCH", "", { look: next }, true)} />
+            </Part>
+
             <Part title={copy.addNickname} hint={copy.nicknameHint}>
               <form
                 onSubmit={(e) => {
@@ -174,5 +183,58 @@ function Part({ title, hint, children }: { title: string; hint?: string; childre
       {hint && <p className="mb-1.5 text-sm text-muted">{hint}</p>}
       <div className={hint ? "" : "mt-1.5"}>{children}</div>
     </section>
+  );
+}
+
+// What a look put together by hand starts from.
+const START: LookParts = { face: "oval", skin: "medium", hair: "short", hairColor: "brown", glasses: "none", beard: "none" };
+const PARTS = Object.keys(copy.lookValue) as LookPart[];
+
+// One select per part beside the avatar; every change is saved at once. The user's words for the look stay with it.
+function LookEditor({ look: saved, onChange }: { look: Look | null; onChange: (look: Look | null) => void }) {
+  // Shown at once; the page reloads with the saved look behind it.
+  const [look, setLook] = useState(saved);
+  const change = (next: Look | null) => {
+    setLook(next);
+    onChange(next);
+  };
+  if (!look) {
+    return (
+      <button type="button" onClick={() => change({ ...START, description: null })} className="w-full rounded-xl bg-surface-2 px-3 py-2 font-semibold hover:bg-rule">
+        {copy.lookStart}
+      </button>
+    );
+  }
+  const parts: LookParts = { face: look.face, skin: look.skin, hair: look.hair, hairColor: look.hairColor, glasses: look.glasses, beard: look.beard };
+  return (
+    <div className="space-y-2">
+      {look.description && <p className="text-sm text-muted italic">{copy.lookDescribed.replace("{description}", look.description)}</p>}
+      <div className="flex items-start gap-3">
+        <span className="shrink-0 overflow-hidden rounded-full bg-surface-2">
+          <Avatar look={parts} size={88} />
+        </span>
+        <div className="grid flex-1 grid-cols-2 gap-2">
+          {PARTS.map((part) => (
+            <label key={part} className="text-sm">
+              <span className="block text-muted">{copy.lookPart[part]}</span>
+              <select
+                value={look[part]}
+                onChange={(e) => change({ ...look, [part]: e.target.value })}
+                className="w-full rounded-xl border border-rule bg-paper px-2 py-1.5"
+              >
+                {Object.entries(copy.lookValue[part]).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </div>
+      <button type="button" onClick={() => change(null)} className="text-sm font-semibold text-muted underline">
+        {copy.lookClear}
+      </button>
+    </div>
   );
 }

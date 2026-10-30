@@ -33,7 +33,7 @@ From top to bottom:
 - **Gespräche**: the conversations, newest first,
 - **Gehört zu**: a diagram with you (and your partner, when they are related too) on top, the person in the middle and their own people below, each line saying what it is ("Vermieterin", "Sohn"). Tap a face to open them. **Alle Verbindungen** below it lists each with what they are to this person ("Patentante") and its note; with more people than the diagram fits, the list is shown instead. The … menu changes what they are or deletes it (yours, or your partner's shared ones), and makes your own private or shared. Telling freundebuch the same relationship again (also the other way round) files nothing new.
 
-The round **…** next to the name sets how often you want to see them, their gender ("Unsere" or "Unser"; Claude puts the words themselves in it), renames them, adds a nickname, or merges a duplicate into them.
+The round **…** next to the name sets how often you want to see them, their gender ("Unsere" or "Unser"; Claude puts the words themselves in it), how they look (the parts of their avatar: face, skin, hair, glasses, beard; easiest is to describe them to Claude), renames them, adds a nickname, or merges a duplicate into them.
 
 Private items have a lock icon. Only you see them.
 

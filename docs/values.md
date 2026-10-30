@@ -42,7 +42,7 @@ What you tell Claude is kept as your words: each ramble keeps its transcript, ne
 
 **Rules out:** keeping shared files after their review, storing other people's messages beyond the words you filed, a summary in place of what was said.
 
-ADRs: [0014](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0014-shared-files-are-worked-through-with-claude.md), [0015](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0015-the-ramble-is-its-own-record.md).
+ADRs: [0014](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0014-shared-files-are-worked-through-with-claude.md), [0015](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0015-the-ramble-is-its-own-record.md), [0020](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0020-avatars-built-from-parts.md).
 
 ### V5. You decide what is filed
 

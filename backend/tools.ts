@@ -22,6 +22,7 @@ import {
   FiledRelationshipJson,
   Gender,
   GroupJson,
+  LookJson,
   IntervalJson,
   NewRambleJson,
   JournalJson,
@@ -494,6 +495,10 @@ const RememberInput = z.object({
     .array(z.object({ person: PersonId, gender: Gender.nullable().describe("null when it isn't known") }))
     .optional()
     .describe("A person's gender, only when the user states it or uses a pronoun for them, never from the name"),
+  looks: z
+    .array(z.object({ person: PersonId, look: LookJson.nullable().describe("Every part, with the user's words as description; null clears it") }))
+    .optional()
+    .describe("How someone looks (\"kurze lockige braune Haare, Brille, Vollbart\"): the parts of their avatar. To change one part, send the look from the briefing with that part changed"),
   facts: z
     .array(
       z.object({
@@ -535,7 +540,7 @@ const RememberInput = z.object({
     .optional(),
 });
 const RememberedJson = z.object({
-  counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), genders: z.number().int(), homes: z.number().int() }),
+  counts: z.object({ facts: z.number().int(), promises: z.number().int(), dates: z.number().int(), exchanges: z.number().int(), genders: z.number().int(), looks: z.number().int(), homes: z.number().int() }),
   people: z.array(z.object({ id: PersonId, name: z.string(), url: z.string() })).describe("The people it is about, with a link to each"),
   filed: Filed.describe("Everything filed, with ids and links"),
   relabel: Relabels.describe("genders: the relationships the user may edit of each person given a gender, whose words are written in each end's gender"),
@@ -573,7 +578,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "remember",
     description:
-      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. A role (\"our landlady\") is not a fact: file it with relate. homes files where someone lives as a place that is their home; when they moved, file the new one and drop them as owner of the old with correct (place_unowner). genders sets a person's gender, only when the user states it or uses a pronoun for them, never from the name; it returns the relationships to relabel.",
+      "File what the user tells you about people the book already has when it isn't a conversation: a birthday or another date, a fact, a promise, a gift idea or another exchange (\"Malou's birthday is 7 February 2024\", \"Anna's new job is at the museum\"). Resolve every person with find_person first; for someone not in the book yet, or when the user is telling about a meeting, call or message, use record instead. If anything is sensitive, ask the user whether it should be private before calling. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. A role (\"our landlady\") is not a fact: file it with relate. homes files where someone lives as a place that is their home; when they moved, file the new one and drop them as owner of the old with correct (place_unowner). genders sets a person's gender, only when the user states it or uses a pronoun for them, never from the name; it returns the relationships to relabel. looks sets how someone looks, as the parts of a stylized avatar (not a portrait), when the user describes them.",
     input: RememberInput,
     output: RememberedJson,
     annotations: { destructiveHint: false },
@@ -584,6 +589,12 @@ export const TOOLS: readonly Tool[] = [
       return ok(RememberedJson, { ...out, relabel: relabels }, [
         ...out.filed.facts.flatMap(situationDay),
         ...out.genders.flatMap((g) => relabel(g.person, g.gender, g.relabel)),
+        ...(r.looks ?? []).map((l) => {
+          const p = out.people.find((x) => x.id === l.person)!;
+          return l.look
+            ? `Say in a few words which parts you chose for ${p.name}'s avatar, and give the link to their page (in people) so the user can check it and change a part there.`
+            : `${p.name}'s avatar is cleared: their initials show again.`;
+        }),
       ]);
     },
   }),

@@ -21,6 +21,7 @@ export { e2eLoginRoute } from "./auth/e2e";
 export { briefing, type Briefing } from "./briefing";
 export { getConversation, hasRecorded, listConversations, type ConversationSummary, type ConversationView } from "./conversations";
 export { whatsDue, type DueItem } from "./due";
+export { looks } from "./looks";
 export { getPerson, peopleOverview, type PersonOverview } from "./people";
 export { traitsFor, type PersonTraits, type Traits } from "./traits";
 export { getGroup, listGroups, type GroupMember, type GroupView } from "./groups";
@@ -34,7 +35,7 @@ export { getRamble, listRambles, type RambleSummary, type RambleView } from "./r
 export { journalEntries, type JournalEntry } from "./journal";
 export { getPlace, getSeries, listExperiences, type ExperienceView, type PlaceView, type SeriesView } from "./experiences";
 export { hasShareKey, listPending, pendingCount, type PendingFile } from "./files";
-export type { FactKind, Viewer } from "./types";
+export type { FactKind, Look, LookPart, LookParts, Viewer } from "./types";
 
 // The health probe asks the database a trivial question; opening it (and migrating) is part of answering.
 setDbProbe(async () => sql`select 1`.execute(await db()));

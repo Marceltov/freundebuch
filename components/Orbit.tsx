@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { OrbitFace } from "@/backend";
 import { copy } from "@/components/copy";
 import { BADGE_ICON, faceColor, faceTilt, initials } from "@/components/Face";
+import { OrbitArt } from "@/components/Looks";
 
 // The start page: "Du" in the middle, three dashed rings around it (backend/orbit.ts places the faces). Close = seen recently,
 // the outer ring = due. Each face is a sticker with the first name under it and links to the friend page. PAD leaves room
@@ -43,9 +44,7 @@ export function Orbit({ faces }: { faces: OrbitFace[] }) {
             <title>{f.name}</title>
             <g transform={`rotate(${faceTilt(f.personId)} ${x} ${y})`} opacity={f.unseen ? 0.5 : undefined}>
               <circle cx={x} cy={y} r={r} fill={faceColor(f.personId)} stroke="var(--rim)" strokeWidth={3} />
-              <text x={x} y={y} dy="0.35em" textAnchor="middle" fontSize={Math.round(r * 0.66)} fontWeight={700} fill="#fff">
-                {initials(f.name)}
-              </text>
+              <OrbitArt id={f.personId} x={x} y={y} r={r} initials={initials(f.name)} />
             </g>
             <text x={x} y={y + r + 13} textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--ink)">
               {firstName(f.name)}

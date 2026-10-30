@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
+import type { LookPart, LookParts } from "@/backend";
+import { Avatar } from "./Avatar";
+import { copy } from "./copy";
 import { Face, faceColor, initials } from "./Face";
+import { LooksProvider } from "./Looks";
 
 test("initials: first letters of the first and last word", () => {
   expect(initials("Anna Weber")).toBe("AW");
@@ -24,4 +28,27 @@ test("a face is named for screen readers and shows its badges and freshness ring
   expect(html).toContain("75%");
   expect(html.match(/<svg/g)).toHaveLength(2);
   expect(renderToStaticMarkup(<Face id="x" name="Anna Weber" />)).not.toContain("conic-gradient");
+});
+
+test("a face with a look draws the avatar instead of the initials; without one, the initials stay", () => {
+  const look = { face: "round", skin: "fair", hair: "curly", hairColor: "red", glasses: "round", beard: "none" } as const;
+  const drawn = renderToStaticMarkup(
+    <LooksProvider looks={{ x: look }}>
+      <Face id="x" name="Anna Weber" />
+      <Face id="y" name="Tom Berg" />
+    </LooksProvider>,
+  );
+  expect(drawn).toContain('aria-label="Anna Weber"');
+  expect(drawn).not.toContain(">AW<");
+  expect(drawn).toContain('viewBox="12 9 76 76"');
+  expect(drawn).toContain(">TB<");
+});
+
+test("each part changes the drawing, so every value is visible", () => {
+  const base = { face: "oval", skin: "medium", hair: "short", hairColor: "brown", glasses: "none", beard: "none" } as const;
+  const draw = (look: LookParts) => renderToStaticMarkup(<Avatar look={look} size={40} />);
+  for (const part of Object.keys(copy.lookValue) as LookPart[]) {
+    const drawings = Object.keys(copy.lookValue[part]).map((value) => draw({ ...base, [part]: value }));
+    expect(new Set(drawings).size).toBe(drawings.length);
+  }
 });

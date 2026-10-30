@@ -1,9 +1,11 @@
 import { Cake, Gift, Pin, type LucideIcon } from "lucide-react";
 import type { Badge } from "@/backend";
 import { copy } from "@/components/copy";
+import { FaceArt } from "@/components/Looks";
 
-// Until there are photos, a face is a person's initials on a color of their own (a stable hash of their id picks one of 8), cut
-// out like a sticker: a light rim and a small tilt that stays the same for each person.
+// A face is a person's avatar (components/Avatar.tsx), or their initials while nobody described how they look, on a color of
+// their own (a stable hash of their id picks one of 8), cut out like a sticker: a light rim and a small tilt that stays the
+// same for each person.
 export const PALETTE = ["#e07a5f", "#3d85c6", "#81b29a", "#9b72cf", "#f2a541", "#5e6472", "#d36582", "#2a9d8f"] as const;
 
 export const BADGE_ICON: Record<Badge, LucideIcon> = { birthday: Cake, promise: Pin, gift: Gift };
@@ -35,6 +37,7 @@ export const freshColor = (ratio: number) => (ratio >= 1 ? "var(--due)" : ratio 
 export function Face({ id, name, size = 44, ratio, badges = [] }: { id: string; name: string; size?: number; ratio?: number | null; badges?: Badge[] }) {
   const ring = ratio !== undefined && ratio !== null;
   const fill = ring ? Math.round((1 - Math.min(ratio, 1)) * 100) : 0;
+  const rim = size >= 56 ? 4 : size >= 32 ? 3 : 2;
   return (
     <span
       role="img"
@@ -45,17 +48,17 @@ export function Face({ id, name, size = 44, ratio, badges = [] }: { id: string; 
     >
       <span
         aria-hidden
-        className="inline-flex items-center justify-center rounded-full font-bold text-white shadow-card"
+        className="inline-flex items-center justify-center overflow-hidden rounded-full font-bold text-white shadow-card"
         style={{
           width: size,
           height: size,
           background: faceColor(id),
           fontSize: Math.round(size * 0.34),
-          border: `${size >= 56 ? 4 : size >= 32 ? 3 : 2}px solid var(--rim)`,
+          border: `${rim}px solid var(--rim)`,
           transform: `rotate(${faceTilt(id)}deg)`,
         }}
       >
-        {initials(name)}
+        <FaceArt id={id} size={size - 2 * rim} initials={initials(name)} />
       </span>
       {badges.length > 0 && (
         <span className="absolute -right-1.5 -bottom-1.5 flex gap-0.5">
