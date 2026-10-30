@@ -118,7 +118,7 @@ export const copy = {
   voiceSend: "Sprachnachricht senden",
   voiceCancel: "Aufnahme verwerfen",
   voiceRecording: "Aufnahme läuft",
-  voiceTranscribing: "Wird transkribiert …",
+  voiceTranscribing: "Sprachnachricht wird transkribiert …",
   voiceFailed: "Die Sprachnachricht konnte nicht transkribiert werden. Versuch es noch mal oder schreib.",
   voiceTooLong: "Die Sprachnachricht ist zu lang: sprich sie in kürzeren Teilen.",
   voiceNoMic: "freundebuch darf das Mikrofon nicht nutzen: erlaub es in den Einstellungen des Browsers.",

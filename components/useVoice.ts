@@ -9,12 +9,30 @@ export type VoiceState = "idle" | "recording" | "transcribing";
 const TYPES = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus", "audio/webm"];
 const typeOf = () => (typeof MediaRecorder === "undefined" ? undefined : TYPES.find((t) => MediaRecorder.isTypeSupported(t)));
 
+// Words that came back after the sheet was closed: kept for this tab, for the next sheet to put into its field.
+const UNSENT = "freundebuch.voice.unsent";
+/** The words of a message spoken before the sheet was closed and not sent yet; null when there are none. */
+export function unsent(): string | null {
+  try {
+    return sessionStorage.getItem(UNSENT);
+  } catch {
+    return null;
+  }
+}
+/** They are in a field now. */
+export function clearUnsent(): void {
+  try {
+    sessionStorage.removeItem(UNSENT);
+  } catch {}
+}
+
 /** Whether this browser can record a message at all. */
 export const canRecord = () => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
 
 // A message spoken into Erzählen, as on WhatsApp: start records, send hands the recording to POST /api/chat/voice, which turns
 // it into its words with the household's own Whisper; `onText` gets them, to send as the user's message. Cancel throws the
-// recording away. The recording stays in this tab's memory only and is never stored anywhere.
+// recording away. The recording stays in this tab's memory only and is never stored anywhere. Words that come back after the
+// sheet was closed are kept for this tab (takeUnsent), never dropped.
 export function useVoice(onText: (text: string) => void, onError: (message: string) => void) {
   const [state, setState] = useState<VoiceState>("idle");
   const [seconds, setSeconds] = useState(0);
@@ -26,14 +44,19 @@ export function useVoice(onText: (text: string) => void, onError: (message: stri
     handlers.current = { onText, onError };
   });
 
-  // A sheet closed while recording throws the recording away and lets go of the microphone.
-  useEffect(
-    () => () => {
-      keep.current = false;
-      if (recorder.current?.state === "recording") recorder.current.stop();
-    },
-    [],
-  );
+  const mounted = useRef(true);
+  // A sheet closed while recording throws the recording away and lets go of the microphone; one closed while transcribing
+  // still gets the words (onstop below).
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (recorder.current?.state === "recording") {
+        keep.current = false;
+        recorder.current.stop();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (state !== "recording") return;
@@ -62,6 +85,13 @@ export function useVoice(onText: (text: string) => void, onError: (message: stri
       const blob = new Blob(chunks, { type: (rec.mimeType || type || "audio/webm").split(";")[0] });
       const res = await fetch("/api/chat/voice", { method: "POST", body: blob, headers: { "Content-Type": blob.type } }).catch(() => null);
       const body = res ? ((await res.json().catch(() => null)) as { text?: string; code?: string } | null) : null;
+      if (!mounted.current) {
+        if (res?.ok && body?.text)
+          try {
+            sessionStorage.setItem(UNSENT, body.text);
+          } catch {}
+        return;
+      }
       setState("idle");
       if (res?.ok && body?.text) handlers.current.onText(body.text);
       else handlers.current.onError(body?.code === "voice_too_long" ? copy.voiceTooLong : copy.voiceFailed);
