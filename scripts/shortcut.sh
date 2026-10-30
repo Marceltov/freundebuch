@@ -5,7 +5,8 @@
 set -e
 cd "$(dirname "$0")/.."
 
-UPDATE_SHORTCUT=1 npx vitest run shortcut/source.test.ts --silent >/dev/null
+# Only the build test runs here: the "is it signed?" test can't pass before signing.
+UPDATE_SHORTCUT=1 npx vitest run shortcut/source.test.ts -t "builds into a property list" --silent >/dev/null
 [ "$1" = "sign" ] || exit 0
 
 if [ "$(uname)" != "Darwin" ] || ! command -v shortcuts >/dev/null; then
@@ -14,5 +15,7 @@ if [ "$(uname)" != "Darwin" ] || ! command -v shortcuts >/dev/null; then
 fi
 plutil -convert binary1 -o .shortcut-build/an-freundebuch.unsigned.shortcut .shortcut-build/an-freundebuch.plist
 shortcuts sign --mode anyone --input .shortcut-build/an-freundebuch.unsigned.shortcut --output public/shortcuts/an-freundebuch.shortcut
-SIGNED_SHORTCUT=1 npx vitest run shortcut/source.test.ts --silent >/dev/null
+SIGNED_SHORTCUT=1 npx vitest run shortcut/source.test.ts -t "builds into a property list" --silent >/dev/null
+# Now the whole file must pass, the signature check included.
+npx vitest run shortcut/source.test.ts --silent >/dev/null
 echo "Signed: public/shortcuts/an-freundebuch.shortcut. Commit public/shortcuts/."
