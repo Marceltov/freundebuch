@@ -461,10 +461,56 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
   await expect(page.getByRole("dialog", { name: "Erzählen" }).getByText("Hallo von vorher")).toBeVisible();
 });
 
+test("Prüfen: files shared together come pre-selected and are worked through together; a selection is thrown away at once", async ({ page, baseURL }) => {
+  const sharp = (await import("sharp")).default;
+  const up = async (n: number, batch?: string) => {
+    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 10, b: 10 } } }).png().toBuffer();
+    const r = await page.request.post("/api/share", { headers: { origin: baseURL!, ...(batch ? { "x-freundebuch-batch": batch } : {}) }, multipart: { file: { name: `s${n}.png`, mimeType: "image/png", buffer } } });
+    expect(r.status()).toBe(202);
+    return ((await r.json()) as { id: string }).id;
+  };
+  const batch = `e2e-batch-${Date.now()}`;
+  const [one, two, three] = [await up(1, batch), await up(2, batch), await up(3, batch)];
+  const alone = await up(4);
+  const box = (id: string) => page.locator(`[id="${id}"]`).getByRole("checkbox", { name: "Auswählen" });
+
+  // Opened on one of them (as the Shortcut does), the whole share is selected.
+  await page.goto(`/pruefen#${two}`);
+  await expect(page.locator(`[data-batch="${batch}"]`).getByText("Zusammen geteilt")).toBeVisible();
+  for (const id of [one, two, three]) await expect(box(id)).toBeChecked();
+  await expect(box(alone)).not.toBeChecked();
+  await expectNoSideScroll(page);
+  // A file shared on its own can join them.
+  await box(alone).check();
+  await page.getByRole("button", { name: "Zusammen prüfen (4)" }).click();
+  const chat = page.getByRole("dialog", { name: "Erzählen" });
+  await expect(chat.getByText("Zu diesen 4 Dateien")).toBeVisible();
+  await expect(chat.locator("[data-shown-file]")).toHaveCount(4);
+  // A missing screenshot added with the paperclip joins them, it doesn't replace them.
+  const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: 10 } } }).png().toBuffer();
+  await chat.locator('input[type="file"]').setInputFiles({ name: "s5.png", mimeType: "image/png", buffer: fifth });
+  await expect(chat.getByText("Zu diesen 5 Dateien")).toBeVisible();
+  await expect(chat.locator("[data-shown-file]")).toHaveCount(5);
+  await chat.getByRole("button", { name: "Schließen" }).click();
+
+  // Opened on a file shared alone, only it is selected; two selected go at once after one question.
+  await page.goto(`/pruefen#${alone}`);
+  await expect(box(alone)).toBeChecked();
+  await expect(box(one)).not.toBeChecked();
+  await box(one).check();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Auswahl verwerfen (2)" }).click();
+  await expect(page.locator(`[id="${alone}"]`)).toHaveCount(0);
+  await expect(page.locator(`[id="${one}"]`)).toHaveCount(0);
+  await expect(page.locator(`[id="${two}"]`)).toHaveCount(1);
+});
+
 test("settings make a share key, and the key hands in a screenshot", async ({ page, baseURL }) => {
   await page.goto("/einstellungen");
   await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();
   await expect(page.getByText(/\/api\/share$/)).toBeVisible();
+  // The ready-made iPhone Shortcut, signed (public/shortcuts/).
+  await expect(page.getByRole("link", { name: "Kurzbefehl laden" })).toHaveAttribute("href", "/shortcuts/an-freundebuch.shortcut");
   await page.getByRole("button", { name: /Schlüssel erzeugen/ }).click();
   const key = (await page.getByText(/^fbs_/).textContent())!;
   await expectNoSideScroll(page);

@@ -1,5 +1,5 @@
 import { today } from "./dates";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -92,6 +92,7 @@ test("an image is shrunk to 1080 px WebP and pre-read into a suggestion that wai
       transcript: "Anna: Urlaub in Lissabon!",
       people: [{ name: "Anna", person: { id: s.anna, name: "Anna", url: `/p/${s.anna}` }, candidates: [] }],
       error: null,
+      batchId: null,
     },
   ]);
   expect(sent).toEqual([expect.objectContaining({ title: "📎 Neu unter „Prüfen“", body: "Anna war in Lissabon im Urlaub", click: `https://f.example/pruefen#${shot.id}` })]);
@@ -239,11 +240,44 @@ test("a text file over 1 MB is refused: too long to hand to Claude whole", async
   expect(await (await db()).selectFrom("files").selectAll().execute()).toEqual([]);
 });
 
-test("an iPhone photo in HEIC is refused with what to do instead", async () => {
+const heicFixture = (name: string) => new Uint8Array(readFileSync(join(__dirname, "testing", "heic", `${name}.heic`)));
+const storedSize = async (id: string) => {
+  const c = await fileContent(s.a, id);
+  expect(c?.type).toBe("image/webp");
+  const m = await sharp(Buffer.from(c!.bytes)).metadata();
+  return { width: m.width, height: m.height };
+};
+
+test("an iPhone photo in HEIC is read on the server and kept as WebP, by its type or by its first bytes", async () => {
+  const shot = await shareFile(s.a, heicFixture("small"), "image/heic");
+  expect(shot.status).toBe("reading");
+  expect(await storedSize(shot.id)).toEqual({ width: 120, height: 60 });
+  const untyped = await shareFile(s.b, heicFixture("small"), "");
+  expect(untyped.status).toBe("reading");
+});
+
+test("a turned iPhone photo is kept the right way up", async () => {
+  expect(await storedSize((await shareFile(s.a, heicFixture("rotated"), "image/heic")).id)).toEqual({ width: 60, height: 120 });
+});
+
+test("a HEIC holding several images (a burst, a Live Photo) keeps its main one", async () => {
+  expect(await storedSize((await shareFile(s.a, heicFixture("multi"), "image/heic")).id)).toEqual({ width: 80, height: 40 });
+});
+
+test("a HEIC whose main image isn't its first keeps the main one", async () => {
+  expect(await storedSize((await shareFile(s.a, heicFixture("primary-second"), "image/heic")).id)).toEqual({ width: 40, height: 80 });
+});
+
+test("a HEIC over 25 megapixels is refused before it is decoded, saying what to do", async () => {
+  await expect(shareFile(s.a, heicFixture("huge"), "image/heic")).rejects.toThrow(
+    "This photo is too large (over 25 megapixels): share a smaller one, or a screenshot of it",
+  );
+});
+
+test("a broken HEIC is refused as an image freundebuch can't read", async () => {
   const heic = new Uint8Array([0, 0, 0, 24, ...new TextEncoder().encode("ftypheic"), 0, 0, 0, 0, ...new TextEncoder().encode("mif1heic")]);
-  const hint = "iPhone photos in HEIC can't be read yet: share them as JPEG (in the Shortcut: Bild konvertieren, JPEG)";
-  await expect(shareFile(s.a, heic, "image/heic")).rejects.toThrow(hint);
-  await expect(shareFile(s.a, heic, "")).rejects.toThrow(hint);
+  await expect(shareFile(s.a, heic, "image/heic")).rejects.toThrow("That is not an image freundebuch can read");
+  await expect(shareFile(s.a, heic, "")).rejects.toThrow("That is not an image freundebuch can read");
 });
 
 test("a file filed by the screenshot reading before files can be shared again: it is stored afresh", async () => {

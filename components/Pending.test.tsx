@@ -16,6 +16,7 @@ const file = (over: Partial<PendingFile>): PendingFile => ({
   transcript: "[19:20] Patrick: Freitag Spieleabend",
   people: [{ name: "Patrick", person: null, candidates: [] }],
   error: null,
+  batchId: null,
   ...over,
 });
 
@@ -36,4 +37,14 @@ test("a PDF shows as a file, and a failed one says why and offers to read it aga
   expect(html).toContain("400 image too large");
   expect(html).toContain("Nochmal lesen");
   expect(html).not.toContain("In Erzählen öffnen");
+});
+
+test("files shared together sit in one group, marked as shared together; every card can be selected", () => {
+  const html = renderToStaticMarkup(
+    <PendingList items={[file({ id: "a", batchId: "run-12345678" }), file({ id: "b", batchId: "run-12345678" }), file({ id: "c" })]} />,
+  );
+  expect(html.match(/data-batch="run-12345678"/g)).toHaveLength(1);
+  expect(html).toContain("Zusammen geteilt");
+  expect(html.match(/type="checkbox"/g)).toHaveLength(3);
+  expect(html).toContain('aria-label="Auswählen"');
 });

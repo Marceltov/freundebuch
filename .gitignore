@@ -33,3 +33,6 @@ next-env.d.ts
 
 # mkdocs build output
 /site/
+
+# The unsigned iPhone Shortcut (npm run shortcut:build)
+.shortcut-build/

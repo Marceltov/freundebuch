@@ -614,6 +614,12 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  // Files shared in one go carry the client's batch id: a hint that groups and pre-selects them under Prüfen, nothing more.
+  "017_file_batches": {
+    async up(db) {
+      await db.schema.alterTable("files").addColumn("batch_id", "text").execute();
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

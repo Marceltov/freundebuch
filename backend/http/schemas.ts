@@ -660,6 +660,7 @@ export const PendingFileJson = z
     transcript: z.string().nullable().describe("What the file says, word for word (or what a photo shows): all that is kept of it once filed"),
     people: z.array(z.object({ name: z.string(), person: Candidate.nullable(), candidates: z.array(Candidate) })).describe("Who is in it: the person when certain, else candidates"),
     error: z.string().nullable().describe("Why the pre-read failed, when it did"),
+    batchId: z.string().nullable().describe("The id of the share it came in with: files with the same one were shared together; null when shared alone"),
   })
   .meta({ id: "PendingFile" });
 export const PendingFileListJson = z.array(PendingFileJson.extend({})).meta({ id: "PendingFileList" });

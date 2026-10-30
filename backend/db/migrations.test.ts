@@ -430,3 +430,12 @@ test("015 turns each recorder's free-text places into place records and links th
   const cols = (await sql<{ name: string }>`pragma table_info(conversations)`.execute(d)).rows.map((r) => r.name);
   expect(cols).not.toContain("place");
 });
+
+test("017 gives files a batch hint, empty for the files already waiting", async () => {
+  const d = fresh();
+  await migrateTo(d, "016_experiences");
+  await d.insertInto("users").values({ id: "u", oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: 1 }).execute();
+  await d.insertInto("files").values({ id: "f1", user_id: "u", sha256: "h", status: "pending", reading: null, created_at: 1, media_type: "text/plain", blob_key: "files/f1.txt" }).execute();
+  await migrateTo(d, "017_file_batches");
+  expect(await d.selectFrom("files").select(["id", "batch_id"]).execute()).toEqual([{ id: "f1", batch_id: null }]);
+});

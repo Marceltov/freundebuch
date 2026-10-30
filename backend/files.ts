@@ -12,6 +12,7 @@ import { today } from "./dates";
 import type { Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
+import { decodeHeic } from "./heic";
 import { logger } from "./log";
 import { copy } from "./notify/copy";
 import { sendWebhook } from "./notify/webhook";
@@ -32,12 +33,17 @@ export const MAX_UPLOAD = 15 * 1024 * 1024;
 const WIDTH = 1080;
 /** Images are stored shrunk, as WebP; PDFs and text as they came. */
 const EXT: Record<string, string> = { "image/webp": "webp", "application/pdf": "pdf", "text/plain": "txt" };
-const NOT_TAKEN = "freundebuch takes images, PDFs and text files";
+export const NOT_TAKEN = "freundebuch takes images, PDFs and text files";
 /** The longest text file taken: about 250,000 tokens, which Claude reads whole in one request. */
 export const MAX_TEXT = 1024 * 1024;
 export const PENDING_PATH = "/pruefen";
 
 export type FileStatus = "reading" | "pending" | "filed" | "failed";
+
+/** The header (and the share page's form field) a client sends the same id in with every file of one share. */
+export const BATCH_HEADER = "x-freundebuch-batch";
+/** A batch id as sent, or null when there is none or it isn't one (8–64 of A–Z, a–z, 0–9, _ and -): a hint is never an error. */
+export const batchOf = (value: string | null | undefined): string | null => (value && /^[A-Za-z0-9_-]{8,64}$/.test(value) ? value : null);
 
 // The model in use: a test's stand-in, Claude with the API key, the e2e stand-in, or none (sharing is off).
 const state = processState("files", () => ({ override: null as FileModel | null, queue: Promise.resolve() as Promise<unknown> }));
@@ -67,13 +73,14 @@ function kindOf(bytes: Uint8Array, sent: string): "pdf" | "text" | "image" | nul
   return "image";
 }
 
-/** An iPhone photo in HEIC/HEIF, by its type or its `ftyp` box; the bundled image library doesn't decode it. */
+/** An iPhone photo in HEIC/HEIF, by its type or its `ftyp` box; sharp's bundled libvips doesn't decode it, heic.ts does. */
 const isHeic = (bytes: Uint8Array, type: string) =>
   /^image\/hei[cf]/.test(type) || /^ftyp(heic|heix|hevc|mif1|msf1)$/.test(new TextDecoder().decode(bytes.subarray(4, 12)));
 
-/** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`). `type` is
- * what it was sent as ("" when unknown). Reading it is queued (`queueRead`); the caller doesn't wait for it. */
-export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
+/** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`, which keeps its
+ * own batch). `type` is what it was sent as ("" when unknown); `batch` the id of the share it came in with (batchOf).
+ * Reading it is queued (`queueRead`); the caller doesn't wait for it. */
+export async function shareFile(v: Viewer, bytes: Uint8Array, type = "", batch: string | null = null): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
   if (bytes.byteLength === 0) throw new InvalidInputError("The file is empty");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const d = await db();
@@ -96,11 +103,18 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promis
     if (bytes.byteLength > MAX_TEXT) throw new InvalidInputError("The text file is too long (at most 1 MB): share a shorter part");
     [stored, mediaType] = [bytes, "text/plain"];
   } else if (kind === "image") {
+    const shrink = (img: ReturnType<typeof sharp>) => img.resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer();
     try {
-      stored = new Uint8Array(await sharp(bytes).rotate().resize({ width: WIDTH, withoutEnlargement: true }).webp({ quality: 80 }).toBuffer());
+      stored = new Uint8Array(await shrink(sharp(bytes).rotate()));
     } catch {
-      if (isHeic(bytes, type)) throw new InvalidInputError("iPhone photos in HEIC can't be read yet: share them as JPEG (in the Shortcut: Bild konvertieren, JPEG)");
-      throw new InvalidInputError(type.startsWith("image/") ? "That is not an image freundebuch can read" : NOT_TAKEN);
+      if (!isHeic(bytes, type)) throw new InvalidInputError(type.startsWith("image/") ? "That is not an image freundebuch can read" : NOT_TAKEN);
+      try {
+        const { width, height, rgba } = await decodeHeic(bytes);
+        stored = new Uint8Array(await shrink(sharp(Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength), { raw: { width, height, channels: 4 } })));
+      } catch (e) {
+        if (e instanceof InvalidInputError) throw e;
+        throw new InvalidInputError("That is not an image freundebuch can read");
+      }
     }
     mediaType = "image/webp";
   } else throw new InvalidInputError(NOT_TAKEN);
@@ -108,7 +122,7 @@ export async function shareFile(v: Viewer, bytes: Uint8Array, type = ""): Promis
   const key = `files/${id}.${EXT[mediaType]}`;
   await store().put(key, stored, mediaType);
   try {
-    await d.insertInto("files").values({ id, user_id: v.userId, sha256, status: "reading", reading: null, created_at: now(), media_type: mediaType, blob_key: key }).execute();
+    await d.insertInto("files").values({ id, user_id: v.userId, sha256, status: "reading", reading: null, created_at: now(), media_type: mediaType, blob_key: key, batch_id: batchOf(batch) }).execute();
   } catch (e) {
     await store().delete(key);
     throw e;
@@ -210,12 +224,20 @@ export type PendingFile = {
   people: Array<{ name: string; person: PendingCandidate | null; candidates: PendingCandidate[] }>;
   /** Why the pre-read failed, when it did. */
   error: string | null;
+  /** The id of the share it came in with: files with the same one were shared together (null when shared alone). */
+  batchId: string | null;
 };
 
-/** The viewer's own files that wait for them, newest first. The partner's never show. */
+/** The viewer's own files that wait for them, newest first; files shared together sit side by side, in the order they came,
+ * where the batch's newest one would be. The partner's never show. */
 export async function listPending(v: Viewer): Promise<PendingFile[]> {
   const d = await db();
-  const rows = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").execute();
+  const all = await d.selectFrom("files").selectAll().where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).orderBy("created_at", "desc").orderBy("id", "desc").execute();
+  const rows: typeof all = [];
+  for (const r of all) {
+    if (!r.batch_id) rows.push(r);
+    else if (!rows.some((x) => x.batch_id === r.batch_id)) rows.push(...all.filter((x) => x.batch_id === r.batch_id).reverse());
+  }
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const cand = (id: string): PendingCandidate | null => (names.has(id) ? { id, name: names.get(id)! , url: personPath(id) } : null);
   return rows.map((r) => {
@@ -236,6 +258,7 @@ export async function listPending(v: Viewer): Promise<PendingFile[]> {
         candidates: (p.candidates ?? []).map(cand).filter((c): c is PendingCandidate => c !== null),
       })),
       error: r.status === "failed" ? (read?.error ?? null) : null,
+      batchId: r.batch_id,
     };
   });
 }
@@ -246,14 +269,23 @@ export async function pendingCount(v: Viewer): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-/** The viewer's own waiting file for a chat on it, with its content and suggestion; NotFoundError for any other (someone
- * else's, or gone: filed, closed or thrown away). */
-export async function chatFile(v: Viewer, id: string): Promise<{ id: string; bytes: Uint8Array; type: string; summary: string | null; sharedOn: string }> {
-  const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
-  const bytes = row && row.status !== "nothing" ? await store().get(row.blob_key) : null;
-  if (!row || !bytes) throw new NotFoundError("No such file");
-  const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
-  return { id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null, sharedOn: today(row.created_at) };
+export type ChatFile = { id: string; bytes: Uint8Array; type: string; summary: string | null; sharedOn: string };
+
+/** The viewer's own waiting files among `ids`, for a chat on them, in the order given, each with its content and suggestion.
+ * Any other (someone else's, or gone: filed, closed or thrown away) is left out without a word. */
+export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return [];
+  const rows = await (await db()).selectFrom("files").selectAll().where("id", "in", unique).where("user_id", "=", v.userId).where("status", "in", ["reading", "pending", "failed"]).execute();
+  const out: ChatFile[] = [];
+  for (const id of unique) {
+    const row = rows.find((r) => r.id === id);
+    const bytes = row ? await store().get(row.blob_key) : null;
+    if (!row || !bytes) continue;
+    const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string } | null;
+    out.push({ id, bytes, type: row.media_type, summary: read?.summary ?? read?.text ?? null, sharedOn: today(row.created_at) });
+  }
+  return out;
 }
 
 /**
@@ -310,9 +342,14 @@ export async function retryFile(v: Viewer, id: string, model: FileModel): Promis
 
 /** Closes a waiting file: worked through with nothing to file, or thrown away. Row and blob go. */
 export async function discardFile(v: Viewer, id: string): Promise<void> {
-  const row = await ownPending(v, id);
-  await (await db()).deleteFrom("files").where("id", "=", id).execute();
-  await store().delete(row.blob_key);
+  await discardFiles(v, [id]);
+}
+
+/** Closes several waiting files at once; none when any isn't the viewer's own waiting file (NotFoundError). */
+export async function discardFiles(v: Viewer, ids: string[]): Promise<void> {
+  const rows = await Promise.all([...new Set(ids)].map((id) => ownPending(v, id)));
+  await (await db()).deleteFrom("files").where("id", "in", rows.map((r) => r.id)).execute();
+  await dropBlobs(rows.map((r) => r.blob_key));
 }
 
 /** The file, for the user who shared it, or for a viewer who may see a fact filed from it; null otherwise. */

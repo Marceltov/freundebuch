@@ -20,13 +20,15 @@ export function ShareInbox({ again }: { again: boolean }) {
       if (!keys.length) return setState("empty");
       let result: State = "received";
       let last: string | null = null;
+      // Several files shared in one go carry one batch id, so Prüfen shows them together and pre-selected.
+      const batch = keys.length > 1 ? `share-${crypto.randomUUID()}` : null;
       for (const req of keys) {
         const res = await cache.match(req);
         if (!res) continue;
         const blob = await res.blob();
         const form = new FormData();
         form.set("file", blob, "geteilt");
-        const up = await fetch("/api/share", { method: "POST", body: form }).catch(() => null);
+        const up = await fetch("/api/share", { method: "POST", body: form, headers: batch ? { "x-freundebuch-batch": batch } : undefined }).catch(() => null);
         if (!up || up.status !== 202) {
           result = "failed";
           continue;
