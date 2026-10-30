@@ -13,6 +13,8 @@ if [ "$(uname)" != "Darwin" ] || ! command -v shortcuts >/dev/null; then
   echo "Signing needs a Mac with the shortcuts command (macOS 12 or later)." >&2
   exit 1
 fi
+# git keeps no empty folder: after the signed file was removed, public/shortcuts/ may not exist.
+mkdir -p public/shortcuts
 plutil -convert binary1 -o .shortcut-build/an-freundebuch.unsigned.shortcut .shortcut-build/an-freundebuch.plist
 shortcuts sign --mode anyone --input .shortcut-build/an-freundebuch.unsigned.shortcut --output "public/shortcuts/An freundebuch.shortcut"
 SIGNED_SHORTCUT=1 npx vitest run shortcut/source.test.ts -t "builds into a property list" --silent >/dev/null
