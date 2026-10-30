@@ -33,6 +33,7 @@ import {
   PersonId,
   PersonJson,
   RecordedRambleJson,
+  SearchJson,
   PendingFileJson,
   TraitsJson,
   HOUSEHOLD_TARGET,
@@ -40,6 +41,7 @@ import {
 } from "./http/schemas";
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
+import { search } from "./search";
 import { traitsFor, type PersonTraits } from "./traits";
 import { journalEntries } from "./journal";
 import { deleteRamble, rambleTranscript } from "./rambles";
@@ -732,6 +734,27 @@ export const TOOLS: readonly Tool[] = [
               "Interpret these entries for the user: the themes that come back, what changed over the period, and how the people and conversations they name tie in, quoting entries by their date. Reflect patterns; never diagnose or give health advice, and on heavy themes point gently to real help.",
             ]
           : ["No journal entries in this period: say so, and offer to look at another one."],
+      );
+    },
+  }),
+  tool({
+    name: "search",
+    description:
+      'Find what was told by a word the user remembers rather than by who or when ("Wann war das mit dem Spiegel?", "Hellengerst", "Toffi"): ramble transcripts, conversations, experiences, journal entries, facts, promises, exchanges, dates and places that hold every word of query, newest first. Pass the telling words only ("Spiegel", not "das mit dem Spiegel"); it matches words, not meaning. For a person by name use find_person; for how the user has been, journal.',
+    input: z.object({
+      query: z.string().describe("One or a few words; every one must occur"),
+      limit: z.number().int().min(1).max(50).optional().describe("At most this many hits; 20 when left out"),
+    }),
+    output: SearchJson,
+    annotations: { readOnlyHint: true },
+    handler: async (v, { query, limit }) => {
+      const hits = await search(v, query, limit);
+      return ok(
+        SearchJson,
+        { hits },
+        hits.length
+          ? [`Answer from the hits with their days and links. When a transcript matched, call get_transcript (rambleId) for the whole of what was told if the snippet doesn't answer it.`]
+          : [`Nothing holds "${query}": say so, and try once with another word or a shorter one (a stem: "Spiegel" for "Spiegeln") before giving up.`],
       );
     },
   }),

@@ -19,6 +19,7 @@ The MCP endpoint is `POST ${PUBLIC_URL}/mcp`: stateless, protocol version 2026-0
 | `experiences` | read | What you lived through (concerts, trips, courses and their sessions), newest first: in a period, of a kind, at a place, in a series or with a person; with the kinds and series in use. See [Experiences](../using/experiences.md). |
 | `places` | read | Finds a place by its name or another name it goes by, tolerant of spelling; lists the places of a person ("where were we with Anna?", with how often and when last) or the places inside a place. Each comes with where it sits, its address and whose home it is. |
 | `journal` | read | Your journal entries (and the ones your partner shared) in a period, the last 30 days by default, optionally only those naming a person; each with its day, text, people and ramble. |
+| `search` | read | Finds what was told by a word you remember rather than by who or when ("Spiegel", "Hellengerst"): ramble transcripts, conversations, experiences, journal entries, facts, promises, exchanges, dates and places that hold every word of `query`, newest first, each with a snippet, the people, the day and a link. Plain word matching, case and umlauts folded, not meaning; only what you may see matches, never the other user's private items, and a transcript only when you may read it. |
 | `get_transcript` | read | The verbatim ramble, by the ramble's id (`rambleId`, as `record` and `journal` return it) or one of its conversations' (`conversationId`). |
 | `calendar_feed` | destructive | Gives you the secret URL of your [calendar feed](../using/calendar.md), making one when you have none; replaces or revokes it, which ends the old URL. Not in the in-app chat. |
 
@@ -38,6 +39,7 @@ Every tool result carries `next`: short instructions, built by the server from w
 | `experiences` | Answer from them with dates and links; for a series, how it went over its sessions. |
 | `journal` | Interpret the entries: themes, changes, the people and conversations around them, quoting entries by date; reflect, never diagnose. None in the period: say so and offer another one. |
 | `calendar_feed` | Give the URL only to you; an existing feed can't be shown again, so offer `replace`; a replaced or revoked URL has stopped working. |
+| `search` | Answer from the hits with their days and links, reading the whole transcript when a snippet isn't enough; nothing found: try once with another or shorter word. |
 | `get_transcript` | A transcript private to whoever recorded it: answer from the summary. |
 | `set_interval`, `groups` | Nothing. |
 

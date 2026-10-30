@@ -375,6 +375,67 @@
         }
       }
     },
+    "/api/v1/search": {
+      "get": {
+        "operationId": "search",
+        "summary": "Find what was told by a word",
+        "description": "Transcripts, conversations, experiences, journal entries, items and places that hold every word of `q`, newest first. Only what the caller may see can match: another user's private items never do, and a transcript only when the caller may read it.",
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "The words to find; every one must occur, in any case, umlauts folded. At most 20 hits",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The hits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Search"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/journal": {
       "get": {
         "operationId": "getJournal",
@@ -2896,6 +2957,87 @@
           "beard"
         ],
         "description": "A stylized avatar put together from parts, not a portrait: choose for each part the value closest to how the user described the person, and the usual value (none, oval) for what they didn't say"
+      },
+      "SearchHit": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "transcript",
+              "conversation",
+              "experience",
+              "journal",
+              "fact",
+              "promise",
+              "exchange",
+              "date",
+              "place"
+            ],
+            "description": "What matched: a ramble's `transcript`, a `conversation`, an `experience`, a `journal` entry, an item about a person (`fact`, `promise`, `exchange`, `date`) or a `place`"
+          },
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "A day, `YYYY-MM-DD`"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The day it was told or happened; null for a place"
+          },
+          "text": {
+            "type": "string",
+            "description": "The matching text, cut around the first match when it is long"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Who it is about or who was there, by name"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where it opens in the web app, as an absolute URL"
+          },
+          "rambleId": {
+            "description": "The ramble it was told in, when there is one",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "date",
+          "text",
+          "people",
+          "url",
+          "rambleId"
+        ]
+      },
+      "Search": {
+        "type": "object",
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "description": "Newest first"
+          }
+        },
+        "required": [
+          "hits"
+        ]
       },
       "PlaceRef": {
         "anyOf": [

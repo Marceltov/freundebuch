@@ -17,7 +17,7 @@ beforeEach(async () => {
 });
 
 test("one table holds every tool the MCP endpoint offers", () => {
-  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "experiences", "find_person", "get_transcript", "groups", "inbox", "journal", "people", "places", "record", "relate", "remember", "set_interval", "traits", "whats_due"]);
+  expect(TOOLS.map((t) => t.name).sort()).toEqual(["briefing", "calendar_feed", "correct", "experiences", "find_person", "get_transcript", "groups", "inbox", "journal", "people", "places", "record", "relate", "remember", "search", "set_interval", "traits", "whats_due"]);
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
@@ -172,6 +172,15 @@ describe("next: what Claude does after a call", () => {
     const cleared = await run(s.a, "remember", { visibility: "shared", looks: [{ person: s.lena, look: null }] });
     expect(cleared.next).toEqual(["Lena's avatar is cleared: their initials show again."]);
     expect((await run(s.a, "briefing", { personId: s.lena })).person.look).toBeNull();
+  });
+
+  test("search answers from the hits, or tries another word when nothing matched", async () => {
+    const r = await run(s.a, "search", { query: "hiking" });
+    expect(r.hits.map((h: { kind: string }) => h.kind).sort()).toEqual(["fact", "transcript"]);
+    expect(r.next[0]).toMatch(/^Answer from the hits/);
+    const none = await run(s.b, "search", { query: "divorce" });
+    expect(none.hits).toEqual([]);
+    expect(none.next).toEqual([`Nothing holds "divorce": say so, and try once with another word or a shorter one (a stem: "Spiegel" for "Spiegeln") before giving up.`]);
   });
 
   test("genders for both ends list their relationship once, with a line for each end's word", async () => {

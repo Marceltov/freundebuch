@@ -55,6 +55,15 @@ describe("people", () => {
     expect((await call(s.a, "GET", "/people/nope")).status).toBe(404);
   });
 
+  test("search finds only what the caller may see", async () => {
+    const res = await call(s.a, "GET", "/search?q=divorce");
+    expect(res.status).toBe(200);
+    expect(res.json.hits.map((h: { kind: string }) => h.kind).sort()).toEqual(["fact", "transcript"]);
+    expect((await call(s.b, "GET", "/search?q=divorce")).json).toEqual({ hits: [] });
+    expect((await call(s.a, "GET", "/search?q=%20")).status).toBe(400);
+    expect((await call(s.a, "GET", "/search")).status).toBe(400);
+  });
+
   test("rename a person", async () => {
     expect((await call(s.a, "PATCH", `/people/${s.lena}`, { name: "Lena Hoffmann" })).status).toBe(204);
     expect((await call(s.b, "GET", `/people/${s.lena}`)).json.name).toBe("Lena Hoffmann");

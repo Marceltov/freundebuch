@@ -14,6 +14,7 @@ import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
 import { journalEntries } from "../journal";
+import { search } from "../search";
 import { experienceKinds, getPlace, getSeries, listExperiences, listSeries } from "../experiences";
 import { findPlaces, placesInside, placesOf } from "../places";
 import { setLook } from "../looks";
@@ -45,6 +46,8 @@ import {
   OrbitJson,
   PendingFileListJson,
   PeopleQuery,
+  SearchJson,
+  SearchQuery,
   PersonJson,
   PersonPatchJson,
   FactRelationshipJson,
@@ -149,6 +152,21 @@ const OPS: AnyOp[] = [
     query: TraitsQuery,
     responses: { 200: { description: "The traits", schema: TraitsJson }, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, query }) => ({ status: 200, body: { people: await traitsFor(viewer, { people: ids(query.people), groups: ids(query.groups) }) } })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/search`,
+    operationId: "search",
+    summary: "Find what was told by a word",
+    description:
+      "Transcripts, conversations, experiences, journal entries, items and places that hold every word of `q`, newest first. " +
+      "Only what the caller may see can match: another user's private items never do, and a transcript only when the caller may read it.",
+    tags: ["Conversations"],
+    auth: true,
+    params: {},
+    query: SearchQuery,
+    responses: { 200: { description: "The hits", schema: SearchJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, query }) => ({ status: 200, body: { hits: await search(viewer, query.q) } })),
 
   op({
     method: "GET",

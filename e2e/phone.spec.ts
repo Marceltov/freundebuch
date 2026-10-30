@@ -336,6 +336,40 @@ test("Aussehen: an avatar put together in the person menu shows on the friend pa
   await expectNoSideScroll(page);
 });
 
+test("Verlauf: a word finds what was told, its match marked; the partner's private part never shows", async ({ page, baseURL }) => {
+  await page.request.post("/api/v1/rambles", {
+    headers: { origin: baseURL! },
+    data: asRamble({
+      date: today,
+      kind: "in_person",
+      summary: "Bei Jana, der alte Spiegel hängt jetzt im Flur.",
+      transcript: "Bei Jana Wolf gewesen. Der alte Spiegel aus Hellengerst hängt jetzt im Flur. Unter uns: sie bewirbt sich bei Zeissler.",
+      visibility: "shared",
+      people: [{ name: "Jana Wolf", present: true }],
+      facts: [{ person: 0, text: "Bewirbt sich bei Zeissler", category: "work", private: true }],
+    }),
+  });
+  await page.goto("/verlauf");
+  await page.getByLabel("Im Verlauf suchen").fill("spiegel");
+  const hits = page.getByRole("list", { name: "Gefunden" });
+  await expect(hits.getByRole("link", { name: /Gespräch · Jana Wolf/ })).toBeVisible();
+  await expect(hits.locator("mark", { hasText: "Spiegel" }).first()).toBeVisible();
+  await expect(page).toHaveURL(/\/verlauf\?q=spiegel$/);
+  await expectNoSideScroll(page);
+
+  await page.getByLabel("Im Verlauf suchen").fill("nirgendwo");
+  await expect(page.getByText("Nichts mit „nirgendwo“.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Suche leeren" }).click();
+  await expect(page).toHaveURL(/\/verlauf$/);
+
+  // The other user finds the shared conversation, but neither the private fact nor the transcript that holds it.
+  await page.goto("/api/e2e/login?name=Bodo Gast");
+  await page.goto("/verlauf?q=zeissler");
+  await expect(page.getByText("Nichts mit „zeissler“.", { exact: false })).toBeVisible();
+  await page.goto("/verlauf?q=spiegel");
+  await expect(page.getByRole("list", { name: "Gefunden" }).getByRole("link")).toHaveCount(1);
+});
+
 test("Erzählen files from a friend's page and keeps the chat across pages", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },

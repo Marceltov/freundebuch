@@ -19,6 +19,9 @@ export type FactKind = (typeof FACT_KINDS)[number];
 export const TRAIT_KINDS = ["need", "personality"] as const;
 export type TraitKind = (typeof TRAIT_KINDS)[number];
 export const isTrait = (kind: string): kind is TraitKind => (TRAIT_KINDS as readonly string[]).includes(kind);
+/** What a search hit is (backend/search.ts). */
+export const SEARCH_KINDS = ["transcript", "conversation", "experience", "journal", "fact", "promise", "exchange", "date", "place"] as const;
+export type SearchKind = (typeof SEARCH_KINDS)[number];
 /** A person's gender, which the words of their relationships are written in; null when it isn't known. */
 export const GENDERS = ["female", "male", "nonbinary"] as const;
 export type Gender = (typeof GENDERS)[number];

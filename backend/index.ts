@@ -23,6 +23,7 @@ export { getConversation, hasRecorded, listConversations, type ConversationSumma
 export { whatsDue, type DueItem } from "./due";
 export { looks } from "./looks";
 export { getPerson, peopleOverview, type PersonOverview } from "./people";
+export { markMatches, search, type SearchHit } from "./search";
 export { traitsFor, type PersonTraits, type Traits } from "./traits";
 export { getGroup, listGroups, type GroupMember, type GroupView } from "./groups";
 export { daysBetween, today } from "./dates";
