@@ -144,3 +144,24 @@ test("without PUBLIC_URL the answer's url is still a whole address, from the req
   const r = await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png" });
   expect(((await r.json()) as { url: string }).url).toMatch(/^http:\/\/localhost:3000\/pruefen#/);
 });
+
+test("a file shared again with a new share joins it, so Prüfen opens on the share that was just sent", async () => {
+  const key = await createShareKey(s.a);
+  const bytes = await png();
+  const send = async (b: Uint8Array, batch: string) =>
+    (await (await share(b as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", "x-freundebuch-batch": batch })).json()) as { id: string; duplicate: boolean };
+  const old = await send(bytes, "share-old-1234");
+  const fresh = await send(await png(), "share-new-1234");
+  const again = await send(bytes, "share-new-1234");
+  expect(again).toMatchObject({ id: old.id, duplicate: true });
+  const list = await listPending(s.a);
+  expect(list.filter((f) => f.batchId === "share-new-1234").map((f) => f.id).sort()).toEqual([fresh.id, old.id].sort());
+});
+
+test("files of one share that came in the same millisecond keep the order they came in", async () => {
+  const key = await createShareKey(s.a);
+  const ids: string[] = [];
+  for (let i = 0; i < 6; i++) ids.push(((await (await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png", "x-freundebuch-batch": "same-ms-1234" })).json()) as { id: string }).id);
+  await (await db()).updateTable("files").set({ created_at: 5 }).where("id", "in", ids).execute();
+  expect((await listPending(s.a)).map((f) => f.id)).toEqual(ids);
+});

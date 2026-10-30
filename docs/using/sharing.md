@@ -47,7 +47,7 @@ Prefer your own? Make a Shortcut that shows in the share sheet (input: images, P
 
 ### Signing a new version (for developers)
 
-The Shortcut is generated from `shortcut/source.ts`. iOS only imports signed Shortcuts, and signing needs a Mac: `npm run shortcut:sign` builds it, signs it into `public/shortcuts/an-freundebuch.shortcut` and records the source's hash next to it. A test fails when the source changes without a new signature.
+The Shortcut is generated from `shortcut/source.ts`. iOS only imports signed Shortcuts, and signing needs a Mac: `npm run shortcut:sign` builds it, signs it into `public/shortcuts/An freundebuch.shortcut` and records the source's hash next to it. A test fails when the source changes without a new signature.
 
 ## Why screenshots
 

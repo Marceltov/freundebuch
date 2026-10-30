@@ -70,3 +70,8 @@ test("an unknown file is no error: the chat goes on without it", async () => {
   const res = await post({ turns: [{ role: "user", content: "?" }], context: { fileId: "nope" } });
   expect(res.status).toBe(200);
 });
+
+test("a chat on more than 50 files goes on with the first 50, not refused", async () => {
+  const res = await post({ turns: [{ role: "user", content: "?" }], context: { fileIds: Array.from({ length: 60 }, (_, i) => `f${i}`) } });
+  expect(res.status).toBe(200);
+});

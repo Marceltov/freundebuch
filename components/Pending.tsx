@@ -18,7 +18,7 @@ export function PendingList({ items }: { items: PendingFile[] }) {
   // What the user ticked; until they tick anything, the file the page was opened on (#id) and the files shared with it.
   // Opened again on another file (a new #id), what was ticked before no longer counts.
   const [ticked, setTicked] = useState<{ hash: string; ids: Set<string> } | null>(null);
-  const hash = useSyncExternalStore(onHashChange, () => decodeURIComponent(window.location.hash.slice(1)), () => "");
+  const hash = useSyncExternalStore(onHashChange, () => idOfHash(window.location.hash), () => "");
   const target = items.find((i) => i.id === hash);
   const selected = ticked?.hash === hash ? ticked.ids : new Set(target ? (target.batchId ? items.filter((i) => i.batchId === target.batchId).map((i) => i.id) : [target.id]) : []);
   const [busy, setBusy] = useState(false);
@@ -98,6 +98,9 @@ export function PendingList({ items }: { items: PendingFile[] }) {
     </div>
   );
 }
+
+/** The file id in a link to Prüfen (#id); ids need no decoding, and a broken one opens on nothing rather than failing. */
+export const idOfHash = (hash: string): string => (/^#[A-Za-z0-9_-]+$/.test(hash) ? hash.slice(1) : "");
 
 const onHashChange = (then: () => void) => {
   window.addEventListener("hashchange", then);

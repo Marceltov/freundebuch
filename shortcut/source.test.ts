@@ -7,7 +7,7 @@ import { shortcutPlist, shortcutSourceHash, shortcutXml } from "./source";
 type Action = { WFWorkflowActionIdentifier: string; WFWorkflowActionParameters: Record<string, unknown> };
 const sc = shortcutPlist() as { WFWorkflowActions: Action[]; WFWorkflowImportQuestions: Array<{ ActionIndex: number; ParameterKey: string; Text: string }>; WFWorkflowTypes: string[] };
 const actions = sc.WFWorkflowActions;
-const SIGNED_FILE = join(__dirname, "..", "public", "shortcuts", "an-freundebuch.shortcut");
+const SIGNED_FILE = join(__dirname, "..", "public", "shortcuts", "An freundebuch.shortcut");
 const HASH_FILE = `${SIGNED_FILE}.sha256`;
 
 // `npm run shortcut:build` runs this with UPDATE_SHORTCUT=1: it writes the unsigned property list to .shortcut-build/. Only
@@ -24,6 +24,12 @@ test("it shows in the share sheet for images, PDFs, files and text", () => {
   expect((sc as unknown as { WFWorkflowInputContentItemClasses: string[] }).WFWorkflowInputContentItemClasses).toEqual(
     expect.arrayContaining(["WFImageContentItem", "WFPDFContentItem", "WFGenericFileContentItem", "WFStringContentItem"]),
   );
+});
+
+test("it is called \"An freundebuch\" (iOS names it after its file), with an open book in pink, made for a current Shortcuts", () => {
+  expect(SIGNED_FILE.endsWith("/An freundebuch.shortcut")).toBe(true);
+  expect((sc as unknown as { WFWorkflowIcon: unknown }).WFWorkflowIcon).toEqual({ WFWorkflowIconStartColor: 3980825855, WFWorkflowIconGlyphNumber: 59465 });
+  expect((sc as unknown as { WFWorkflowClientVersion: string }).WFWorkflowClientVersion).toBe("4033.0.4.3");
 });
 
 test("importing it asks for the share address and the share key, in German, on the text actions holding them", () => {
