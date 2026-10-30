@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Paperclip, SendHorizontal, SquarePen, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChatContext, ChatLink, PendingFile } from "@/backend";
 import { copy } from "@/components/copy";
 import { recentTurns } from "@/components/chatTurns";
@@ -99,6 +99,15 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
   }, [turns, busy]);
+
+  // The field is one line to start with and grows with the text up to max-h-40; it follows the text however it changes, so
+  // sending (which empties it) takes it back to one line.
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft]);
 
   // The keyboard starts in the field, and comes back to it once a reply is in.
   useEffect(() => {
@@ -379,9 +388,6 @@ export function ChatSheet({ userId, sharing = false, file = null, onClose }: { u
             value={draft}
             onChange={(e) => {
               setDraft(e.target.value);
-              // One line to start with, growing with the text up to max-h-40.
-              e.target.style.height = "auto";
-              e.target.style.height = `${e.target.scrollHeight}px`;
             }}
             onKeyDown={(e) => {
               // Enter starts a new line, as on a phone it has to; Ctrl+Enter or ⌘+Enter sends from a keyboard.
