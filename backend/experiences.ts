@@ -20,7 +20,7 @@ export const MAX_EXPERIENCE = 4_000;
 export type SeriesRef = string | { name: string; kind?: string; rhythmDays?: number; startsOn?: string; endsOn?: string };
 export type NewExperience = {
   date?: string;
-  /** A German word ("Konzert", "Kurs", "Reise"); reuse the kinds already in use. */
+  /** A word in the user's language ("Konzert", "Kurs", "Reise"); reuse the kinds already in use. */
   kind: string;
   title: string;
   summary?: string;

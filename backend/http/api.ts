@@ -19,7 +19,7 @@ import { experienceKinds, getPlace, getSeries, listExperiences, listSeries } fro
 import { findPlaces, placesInside, placesOf } from "../places";
 import { setLook } from "../looks";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
-import { getSettings, putSettings, testWebhook } from "../settings";
+import { getSettings, putSettings, setLanguage, testWebhook } from "../settings";
 import { getReflection, putReflection } from "../reflection";
 import { deleteRamble } from "../rambles";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
@@ -56,6 +56,7 @@ import {
   RecordedRambleJson,
   SentJson,
   SettingsJson,
+  LanguageJson,
   ReflectionJson,
   ShareKeyJson,
   TableParam,
@@ -584,6 +585,22 @@ const OPS: AnyOp[] = [
     responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
   }).handle(async ({ viewer, body }) => {
     await putSettings(viewer, body);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/me/language`,
+    operationId: "putLanguage",
+    summary: "Change the language the caller sees the app in",
+    description: "The web app and the caller's notifications (reminders, the calendar feed, the Shortcut's answers) follow it. What is filed keeps the words it was filed in.",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    body: LanguageJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => {
+    await setLanguage(viewer, body.language);
     return { status: 204, body: undefined };
   }),
 

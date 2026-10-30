@@ -27,7 +27,7 @@ freundebuch: a personal CRM for one household, AI-first (capture happens through
 - What freundebuch stands for is `docs/values.md`: changes are judged against it, and a review names the point it touches ("this breaks V2").
 - The roadmap is data: `docs/roadmap.yml`, rendered as a timeline by `docs_hooks/roadmap.py`. The pull request that finishes or changes a step updates it (`status: done`, a `date`, the PR link).
 - AI-native: MCP is the main interface. Every feature works over MCP first (tools, their descriptions, what the briefing returns); the REST API and the web UI follow.
-- Code, identifiers, API, tool names/descriptions, logs and docs are English. Every UI string is German: `components/copy.ts` for the web UI, `backend/notify/copy.ts` for the notifications.
+- Code, identifiers, API, tool names/descriptions, logs and docs are English. Every UI string is in `components/copy.ts` (web UI) or `backend/notify/copy.ts` (notifications), in German and English with the same keys; German is the default. Server components read it with `getCopy()` after `pageViewer()`, client components with `useCopy()` (ADR 0021).
 - Never commit superpowers artifacts (`.superpowers/`, specs, plans). Architectural decisions go to `docs/adr/NNNN-*.md` (MADR).
 - `next dev` writes a "nextjs-agent-rules" block (into `AGENTS.md`). Don't commit it.
 - `backend/` is framework-free and the frontend imports it only through `backend/index.ts` (enforced by eslint).

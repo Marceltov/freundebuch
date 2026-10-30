@@ -3,7 +3,7 @@
 import { Merge, Pencil, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 /** `household`: Haushalt, the group of everyone who signs in; it can be renamed but not deleted or merged away. */
 type Group = { id: string; name: string; aliases: string[]; count: number; household: boolean };
@@ -22,6 +22,7 @@ export function GroupSettings({ groups }: { groups: Group[] }) {
 }
 
 function GroupCard({ g, others }: { g: Group; others: Group[] }) {
+  const copy = useCopy();
   const router = useRouter();
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(g.name);

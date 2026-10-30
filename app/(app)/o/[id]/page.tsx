@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { MapPin, MessagesSquare, Repeat, Ticket } from "lucide-react";
 import { getPlace } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { shortDay } from "@/components/format";
 import { ExperienceItem } from "@/components/Experiences";
 import { PlaceFacts } from "@/components/Place";
 import { Section } from "@/components/Tiles";
-import { orNotFound, pageViewer } from "../../viewer";
+import { orNotFound, pageViewer, pageCopy } from "../../viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: copy.place };
+export const generateMetadata = async () => ({ title: (await pageCopy()).place });
 
 // A place: its other names, where it sits, its address and whose home it is, the places inside it, and everything at it or inside
 // it the viewer may see: series, experiences and conversations, newest first.
 export default async function PlacePage({ params }: PageProps<"/o/[id]">) {
   const v = await pageViewer();
+  const copy = getCopy();
   const p = await orNotFound(getPlace(v, (await params).id));
   return (
     <div>
@@ -50,7 +51,7 @@ export default async function PlacePage({ params }: PageProps<"/o/[id]">) {
           {p.conversations.map((c) => (
             <li key={c.id} className="py-1 text-sm">
               <Link href={c.url}>
-                <b>{shortDay(c.date)}</b> {c.summary}
+                <b>{shortDay(copy, c.date)}</b> {c.summary}
               </Link>
             </li>
           ))}

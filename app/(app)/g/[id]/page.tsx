@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { HeartHandshake, Lock } from "lucide-react";
 import { daysBetween, getGroup, today, traitsFor } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { Face } from "@/components/Face";
 import { ShareButton } from "@/components/ShareButton";
 import { ago } from "@/components/format";
@@ -18,6 +18,7 @@ export async function generateMetadata({ params }: PageProps<"/g/[id]">) {
 // orbit's freshness ring and when the viewer last saw them; then what those of them with traits need and how they are.
 export default async function GroupPage({ params }: PageProps<"/g/[id]">) {
   const viewer = await pageViewer();
+  const copy = getCopy();
   const g = await orNotFound(getGroup(viewer, (await params).id));
   // Who to keep in mind when planning something with the group: only the members with a trait, needs first.
   // The group may be gone or private by now: that is not found, as above.
@@ -48,7 +49,7 @@ export default async function GroupPage({ params }: PageProps<"/g/[id]">) {
                     {m.name}
                     {m.private && <Lock aria-label={copy.privateItem} className="ml-1 inline h-3.5 w-3.5 text-muted" />}
                     <span className="block text-xs text-muted">
-                      {copy.lastSeen}: {m.lastSeen ? ago(daysBetween(m.lastSeen, now)) : copy.neverSeen}
+                      {copy.lastSeen}: {m.lastSeen ? ago(copy, daysBetween(m.lastSeen, now)) : copy.neverSeen}
                     </span>
                   </span>
                 </Link>

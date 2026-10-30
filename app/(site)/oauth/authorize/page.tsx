@@ -1,17 +1,18 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { checkAuthorize } from "@/backend";
-import { copy } from "@/components/copy";
+import { siteCopy } from "@/app/language";
 import { SignInError } from "@/components/SignInError";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: copy.connectTitle };
+export const generateMetadata = async () => ({ title: (await siteCopy()).connectTitle });
 
 // The OAuth authorize step: an MCP client (the Claude app) wants in. Signing in through authentik is the consent: the form
 // posts the checked fields to /api/oidc/start, and the callback sends the browser back to the client with a code, or back
 // here with ?error=. A form POST, not a link: a cross-site GET must never start an MCP sign-in.
 export default async function AuthorizePage({ searchParams }: PageProps<"/oauth/authorize">) {
+  const copy = await siteCopy();
   const { error, retry, ...rest } = await searchParams;
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(rest)) for (const one of [v ?? []].flat()) params.append(k, one);

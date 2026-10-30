@@ -1,5 +1,5 @@
 // Pre-reading a shared file: Claude looks at it (an image, a PDF or text), writes down what it says (the transcript, all that is
-// kept of it once filed) and suggests, in a few German lines, what could be filed about whom, and who is in it. It files nothing: the user works the file through with Claude in Erzählen or over MCP,
+// kept of it once filed) and suggests, in a few lines in the user's language, what could be filed about whom, and who is in it. It files nothing: the user works the file through with Claude in Erzählen or over MCP,
 // where this suggestion is the starting point. Claude gets the names (and other names) of everyone in freundebuch, which both
 // users share anyway, and picks a person id only when the file leaves no doubt. Behind FileModel, so tests and e2e stand in
 // for Claude (fakeFileModel).
@@ -7,13 +7,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Logger } from "pino";
 import * as z from "zod";
 import { logger } from "./log";
+import { LANGUAGE_NAMES, type Language } from "./types";
 
 export type SuggestedPerson = { name: string; personId?: string; candidates?: string[] };
-/** What Claude saw: `summary` is a few German lines on what could be filed for whom; `transcript` is what the file says, word for
+/** What Claude saw: `summary` is a few lines in the user's language on what could be filed for whom; `transcript` is what the file says, word for
  * word (or what a photo shows), the only thing of it freundebuch keeps once it is filed. */
 export type Suggestion = { summary: string; transcript: string; people: SuggestedPerson[] };
 export type KnownPerson = { id: string; name: string; aliases: string[] };
-export type FileInput = { bytes: Uint8Array; type: string; people: KnownPerson[]; today: string };
+/** `language`: the sharing user's, which the summary and what a photo shows are written in. */
+export type FileInput = { bytes: Uint8Array; type: string; people: KnownPerson[]; today: string; language: Language };
 
 export interface FileModel {
   /** The suggestion, or `error` (why not, as logged) when Claude couldn't be reached or gave no usable answer. */
@@ -25,13 +27,13 @@ const SuggestionJson = z.object({
     .string()
     .min(1)
     .describe(
-      "A few short German lines: what the file is (a post, a chat, a photo, a letter, ...) and what could be filed about whom: news, plans, dates, promises, gift ideas. \"WhatsApp-Gruppe Sunshine: Patrick hatte am Wochenende Geburtstag; Freitag Spieleabend bei Olivier\"",
+      "A few short lines in the user's language: what the file is (a post, a chat, a photo, a letter, ...) and what could be filed about whom: news, plans, dates, promises, gift ideas. \"WhatsApp-Gruppe Sunshine: Patrick hatte am Wochenende Geburtstag; Freitag Spieleabend bei Olivier\"",
     ),
   transcript: z
     .string()
     .min(1)
     .describe(
-      "What the file says, word for word: every message of a chat with its sender and time, the text of a post or a letter. For a photo, what it shows, in German. This is all that is kept of the file once it is filed",
+      "What the file says, word for word: every message of a chat with its sender and time, the text of a post or a letter. For a photo, what it shows, in the user's language. This is all that is kept of the file once it is filed",
     ),
   people: z
     .array(
@@ -64,7 +66,7 @@ export function anthropicFileModel(apiKey: string, model: string, deps: { client
   const client = deps.client ?? new Anthropic({ apiKey, maxRetries: 1, timeout: 120_000 });
   const log = deps.log ?? logger("file-model");
   return {
-    async read({ bytes, type, people, today }) {
+    async read({ bytes, type, people, today, language }) {
       const list = people.map((p) => `- ${p.id}: ${[p.name, ...p.aliases].join(" / ")}`).join("\n");
       let res: Anthropic.Message;
       try {
@@ -77,7 +79,7 @@ export function anthropicFileModel(apiKey: string, model: string, deps: { client
           messages: [
             {
               role: "user",
-              content: [fileBlock(bytes, type), { type: "text", text: `Today is ${today}. The people in freundebuch (id: name / other names):\n${list || "(nobody yet)"}` }],
+              content: [fileBlock(bytes, type), { type: "text", text: `Today is ${today}. The user's language is ${LANGUAGE_NAMES[language]}. The people in freundebuch (id: name / other names):\n${list || "(nobody yet)"}` }],
             },
           ],
         });

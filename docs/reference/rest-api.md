@@ -21,6 +21,10 @@ curl -H "Authorization: Bearer $TOKEN" https://freundebuch.example.com/api/v1/pe
 
 The same privacy rules apply as everywhere else: a request sees what the token's person may see.
 
+## Language
+
+`GET /api/v1/me/settings` carries the caller's `language` (`de`, the default, or `en`); `PUT /api/v1/me/language` with `{ language }` changes it. The web app, the reminders, the calendar feed, the Shortcut's answers, the weekly reflection and the pre-read of a shared file follow it. What is filed keeps the words it was filed in ([ADR 0021](../adr/0021-a-language-per-user.md)).
+
 ## Calendar feed
 
 `POST /api/v1/me/calendar-feed` makes the caller's [calendar feed](../using/calendar.md) URL (and replaces an older one), `DELETE` turns it off, `GET` says whether there is one. The feed itself is served at `${PUBLIC_URL}/api/calendar/{key}.ics` without a sign-in: the key in the URL is the credential ([ADR 0008](../adr/0008-calendar-feed-through-a-secret-url.md)).

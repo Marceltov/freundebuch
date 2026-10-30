@@ -1,25 +1,29 @@
 import { headers } from "next/headers";
 import { CalendarDays, ImageUp, LogOut, Plug, Sparkles, Users } from "lucide-react";
 import { getReflection, getSettings, hasCalendarKey, hasShareKey, listGroups, mcpResource, publicUrl, sharingEnabled } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupSettings } from "@/components/GroupSettings";
-import { CalendarSettings, ReflectionSettings, ShareSettings, WebhookSettings } from "@/components/Settings";
-import { pageViewer } from "../viewer";
+import { CalendarSettings, LanguageSettings, ReflectionSettings, ShareSettings, WebhookSettings } from "@/components/Settings";
+import { pageCopy, pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: copy.settings };
+export const generateMetadata = async () => ({ title: (await pageCopy()).settings });
 
 // The viewer's own settings: the webhook for reminders, the weekly reflection, sharing files (when the instance can read them), the calendar
 // feed, the groups with their other names, and the address to connect Claude with. The time of day the reminders go out is the
 // instance's (FREUNDEBUCH_NOTIFY_AT), not a setting here.
 export default async function SettingsPage() {
   const v = await pageViewer();
+  const copy = getCopy();
   const { webhookUrl } = await getSettings(v);
   return (
     <div className="space-y-4">
       <h1 className="font-display text-3xl font-bold">{copy.settings}</h1>
+      <section className="rounded-2xl bg-surface p-5 shadow-card">
+        <LanguageSettings />
+      </section>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <WebhookSettings webhookUrl={webhookUrl} />
       </section>

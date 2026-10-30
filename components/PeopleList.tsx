@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 import { Face } from "@/components/Face";
 import { groupTint } from "@/components/Tiles";
 
@@ -27,6 +27,7 @@ const fold = (s: string) =>
 // Leute: everyone, A to Z under their first letter, with a search over names and nicknames and the group chips to narrow it,
 // the last of them for the people in no group yet.
 export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { id: string; name: string; count: number }[] }) {
+  const copy = useCopy();
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<string | null>(null);
   const n = fold(q.trim());

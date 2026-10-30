@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { Look, LookPart, LookParts } from "@/backend";
 import { Avatar } from "@/components/Avatar";
-import { copy } from "@/components/copy";
+import type { Copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
-const GENDERS: { value: "female" | "male" | "nonbinary" | null; label: string }[] = [
+const genders = (copy: Copy): { value: "female" | "male" | "nonbinary" | null; label: string }[] => [
   { value: "female", label: copy.genderF },
   { value: "male", label: copy.genderM },
   { value: "nonbinary", label: copy.genderX },
   { value: null, label: copy.genderNone },
 ];
 
-const INTERVALS: { days: number | null; label: string }[] = [
+const intervals = (copy: Copy): { days: number | null; label: string }[] => [
   { days: 14, label: copy.twoWeeks },
   { days: 30, label: copy.month },
   { days: 90, label: copy.quarter },
@@ -38,6 +39,7 @@ export function PersonMenu({
   intervalDays: number | null;
   others: { id: string; name: string }[];
 }) {
+  const copy = useCopy();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState(name);
@@ -90,7 +92,7 @@ export function PersonMenu({
 
             <Part title={copy.howOften}>
               <div role="radiogroup" aria-label={copy.howOften} className="grid grid-cols-4 gap-1 rounded-2xl bg-surface-2 p-1">
-                {INTERVALS.map((i) => (
+                {intervals(copy).map((i) => (
                   <label key={i.label} className="cursor-pointer">
                     <input
                       type="radio"
@@ -120,7 +122,7 @@ export function PersonMenu({
 
             <Part title={copy.gender}>
               <div role="radiogroup" aria-label={copy.gender} className="grid grid-cols-4 gap-1 rounded-2xl bg-surface-2 p-1">
-                {GENDERS.map((g) => (
+                {genders(copy).map((g) => (
                   <label key={g.label} className="cursor-pointer">
                     <input type="radio" name="gender" className="peer sr-only" checked={gender === g.value} onChange={() => send("PATCH", "", { gender: g.value })} />
                     <span className="block rounded-xl py-2 text-center text-sm peer-checked:bg-carbon peer-checked:font-bold peer-checked:text-on-carbon peer-focus-visible:outline-2 peer-focus-visible:outline-carbon">
@@ -188,10 +190,10 @@ function Part({ title, hint, children }: { title: string; hint?: string; childre
 
 // What a look put together by hand starts from.
 const START: LookParts = { face: "oval", skin: "medium", hair: "short", hairColor: "brown", glasses: "none", beard: "none" };
-const PARTS = Object.keys(copy.lookValue) as LookPart[];
 
 // One select per part beside the avatar; every change is saved at once. The user's words for the look stay with it.
 function LookEditor({ look: saved, onChange }: { look: Look | null; onChange: (look: Look | null) => void }) {
+  const copy = useCopy();
   // Shown at once; the page reloads with the saved look behind it.
   const [look, setLook] = useState(saved);
   const change = (next: Look | null) => {
@@ -214,7 +216,7 @@ function LookEditor({ look: saved, onChange }: { look: Look | null; onChange: (l
           <Avatar look={parts} size={88} />
         </span>
         <div className="grid flex-1 grid-cols-2 gap-2">
-          {PARTS.map((part) => (
+          {(Object.keys(copy.lookValue) as LookPart[]).map((part) => (
             <label key={part} className="text-sm">
               <span className="block text-muted">{copy.lookPart[part]}</span>
               <select

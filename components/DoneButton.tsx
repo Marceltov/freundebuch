@@ -3,10 +3,11 @@
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 // A box to tick a promise off where it is listed: PATCH done, then the page reloads without it.
 export function DoneButton({ id, text }: { id: string; text: string }) {
+  const copy = useCopy();
   const router = useRouter();
   const [state, setState] = useState<"idle" | "busy" | "failed">("idle");
   return (

@@ -1,13 +1,14 @@
 import { safeNext } from "@/backend";
-import { copy } from "@/components/copy";
+import { siteCopy } from "@/app/language";
 import { SignInError } from "@/components/SignInError";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: copy.signInTitle };
+export const generateMetadata = async () => ({ title: (await siteCopy()).signInTitle });
 
 // One way in: authentik. The link starts the sign-in (GET /api/oidc/start), which comes back to `next`, or here with ?error=.
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+  const copy = await siteCopy();
   const { next, error, retry } = await searchParams;
   const to = safeNext(next);
   return (

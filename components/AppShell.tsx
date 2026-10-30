@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ImageUp, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 import { chatEnabled, sharingEnabled, voiceEnabled } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ShareWorker } from "@/components/ShareWorker";
 import { TabBar } from "@/components/TabBar";
@@ -11,6 +11,7 @@ import { TabBar } from "@/components/TabBar";
 // width first and at most max-w-2xl on a desktop, and the tab bar floating at the bottom. Pulling down at the top reloads. `userId` keeps the chat apart per user.
 // `pending`: how many shared files wait for the viewer; a badge next to the cog leads there.
 export function AppShell({ userId, pending = 0, children }: { userId: string; pending?: number; children: ReactNode }) {
+  const copy = getCopy();
   return (
     <div className="mx-auto min-h-dvh max-w-2xl pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
       <div className="sticky top-0 z-30 flex items-center justify-between bg-paper/70 backdrop-blur-md px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">

@@ -1,12 +1,56 @@
 "use client";
 
-import { Bell, CalendarPlus, Check, Download, KeyRound, Send, Trash2 } from "lucide-react";
+import { Bell, CalendarPlus, Check, Download, KeyRound, Languages, Send, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { Language } from "@/backend";
 import { CopyField } from "@/components/CopyButton";
-import { copy } from "@/components/copy";
+import { useCopy, useLanguage } from "@/components/i18n";
+
+// The viewer's language: saved with PUT /api/v1/me/language, the page then reloads in it.
+export function LanguageSettings() {
+  const copy = useCopy();
+  const language = useLanguage();
+  const router = useRouter();
+  const [failed, setFailed] = useState(false);
+  async function choose(next: Language) {
+    const res = await fetch("/api/v1/me/language", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: next }),
+    }).catch(() => null);
+    setFailed(!res?.ok);
+    if (res?.ok) router.refresh();
+  }
+  return (
+    <div>
+      <h2 className="flex items-center gap-2 font-bold">
+        <Languages aria-hidden className="h-4 w-4" />
+        {copy.language}
+      </h2>
+      <p className="mt-1 mb-2 text-sm text-muted">{copy.languageHint}</p>
+      <div role="radiogroup" aria-label={copy.language} className="grid grid-cols-2 gap-1 rounded-2xl bg-surface-2 p-1">
+        {(Object.keys(copy.languageName) as Language[]).map((l) => (
+          <label key={l} className="cursor-pointer">
+            <input type="radio" name="language" className="peer sr-only" checked={language === l} onChange={() => choose(l)} />
+            <span lang={l} className="block rounded-xl py-2 text-center text-sm peer-checked:bg-carbon peer-checked:font-bold peer-checked:text-on-carbon peer-focus-visible:outline-2 peer-focus-visible:outline-carbon">
+              {copy.languageName[l]}
+            </span>
+          </label>
+        ))}
+      </div>
+      {failed && (
+        <p role="alert" className="mt-2 text-sm text-error">
+          {copy.actionFailed}
+        </p>
+      )}
+    </div>
+  );
+}
 
 // The viewer's webhook for the daily reminders: saved with PUT /api/v1/me/settings, tried with POST /api/v1/me/settings/test.
 export function WebhookSettings({ webhookUrl }: { webhookUrl: string | null }) {
+  const copy = useCopy();
   const [url, setUrl] = useState(webhookUrl ?? "");
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,6 +122,7 @@ export function WebhookSettings({ webhookUrl }: { webhookUrl: string | null }) {
 // Sharing files: how on Android, and the iPhone's Zugang: the share address and the share key the Shortcut sends
 // (POST/DELETE /api/v1/me/share-key), as one value. A new key is shown once, right after it was made.
 export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl: string }) {
+  const copy = useCopy();
   const [key, setKey] = useState<string | null>(null);
   const [active, setActive] = useState(hasKey);
   const [failed, setFailed] = useState(false);
@@ -153,6 +198,7 @@ export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl:
 // The calendar feed (POST/DELETE /api/v1/me/calendar-feed): a secret URL to subscribe to. A new one is shown once, right after
 // it was made, with a webcal:// link that opens the phone's calendar app.
 export function CalendarSettings({ hasFeed }: { hasFeed: boolean }) {
+  const copy = useCopy();
   const [url, setUrl] = useState<string | null>(null);
   const [active, setActive] = useState(hasFeed);
   const [failed, setFailed] = useState(false);
@@ -210,6 +256,7 @@ export function CalendarSettings({ hasFeed }: { hasFeed: boolean }) {
 
 // The weekly reflection (GET/PUT /api/v1/me/reflection): off, or a weekday and an hour. Saved on every change.
 export function ReflectionSettings({ reflection, hasWebhook }: { reflection: { day: number; hour: number } | null; hasWebhook: boolean }) {
+  const copy = useCopy();
   const [value, setValue] = useState(reflection);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
 

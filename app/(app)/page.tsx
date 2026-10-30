@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { getPerson, hasRecorded, listGroups, mcpResource, orbit, whatsDue } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupFilter } from "@/components/GroupFilter";
 import { Nudges } from "@/components/Nudges";
@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 // one is chosen (?gruppe=<id>), with that group's due people below, then the situations to ask about; before anything is recorded, how to connect Claude.
 export default async function OrbitPage({ searchParams }: PageProps<"/">) {
   const v = await pageViewer();
+  const copy = getCopy();
   const groups = (await listGroups(v)).filter((g) => g.count > 0);
   const wanted = (await searchParams).gruppe;
   const group = groups.find((g) => g.id === wanted) ?? null;

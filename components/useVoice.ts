@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 export type VoiceState = "idle" | "recording" | "transcribing";
 
@@ -34,6 +34,7 @@ export const canRecord = () => typeof navigator !== "undefined" && !!navigator.m
 // recording away. The recording stays in this tab's memory only and is never stored anywhere. Words that come back after the
 // sheet was closed are kept for this tab (takeUnsent), never dropped.
 export function useVoice(onText: (text: string) => void, onError: (message: string) => void) {
+  const copy = useCopy();
   const [state, setState] = useState<VoiceState>("idle");
   const [seconds, setSeconds] = useState(0);
   const recorder = useRef<MediaRecorder | null>(null);

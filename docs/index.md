@@ -30,7 +30,7 @@ You meet a friend and can't remember whether her new job started yet, what her k
 ![A friend's page: news, promises, gift ideas, dates and the people around them](assets/friend.png)
 </div>
 
-The web app is in German and meant for looking things up on the phone. Everything you add goes through Claude.
+The web app is in German or English, each of you choosing, and meant for looking things up on the phone. Everything you add goes through Claude.
 
 ## What it is not
 

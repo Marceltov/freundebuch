@@ -3,7 +3,7 @@
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 /** How far (px) the indicator must come down before letting go reloads; and the most it ever comes down. */
 export const PULL_TRIGGER = 64;
@@ -20,6 +20,7 @@ export function pulled(dy: number): { distance: number; ready: boolean } {
 // spinning until it is there. The page itself doesn't bounce (overscroll-behavior in globals.css), so the top bar stays put.
 // Inside a sheet or dialog, a pull scrolls that instead.
 export function PullToRefresh() {
+  const copy = useCopy();
   const router = useRouter();
   const [distance, setDistance] = useState(0);
   const [refreshing, startRefresh] = useTransition();

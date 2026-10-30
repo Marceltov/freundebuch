@@ -335,12 +335,19 @@ describe("groups", () => {
 
 describe("settings", () => {
   test("a user reads and sets their own webhook; another scheme is rejected; signed out is 401", async () => {
-    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: null });
+    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: null, language: "de" });
     expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: "https://ntfy.example/a" })).status).toBe(204);
-    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: "https://ntfy.example/a" });
-    expect((await call(s.b, "GET", "/me/settings")).json).toEqual({ webhookUrl: null });
+    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: "https://ntfy.example/a", language: "de" });
+    expect((await call(s.b, "GET", "/me/settings")).json).toEqual({ webhookUrl: null, language: "de" });
     expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: "ftp://x.example/" })).status).toBe(400);
     expect((await call(null, "GET", "/me/settings")).status).toBe(401);
+  });
+
+  test("a user sets their own language", async () => {
+    expect((await call(s.a, "PUT", "/me/language", { language: "en" })).status).toBe(204);
+    expect((await call(s.a, "GET", "/me/settings")).json.language).toBe("en");
+    expect((await call(s.b, "GET", "/me/settings")).json.language).toBe("de");
+    expect((await call(s.a, "PUT", "/me/language", { language: "fr" })).status).toBe(400);
   });
 
   test("testing without a webhook sends nothing", async () => {

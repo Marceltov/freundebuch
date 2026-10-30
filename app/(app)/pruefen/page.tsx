@@ -1,15 +1,16 @@
 import { listPending } from "@/backend";
-import { copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { PendingList } from "@/components/Pending";
-import { pageViewer } from "../viewer";
+import { pageCopy, pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: copy.pending };
+export const generateMetadata = async () => ({ title: (await pageCopy()).pending });
 
 // The viewer's own shared files that wait for them (backend/files.ts). The partner's never show here.
 export default async function PendingPage() {
   const pending = await listPending(await pageViewer());
+  const copy = getCopy();
   return (
     <div className="space-y-4">
       <h1 className="font-display text-3xl font-bold">{copy.pending}</h1>

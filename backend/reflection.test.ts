@@ -1,6 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { record } from "./conversations";
-import { getReflection, putReflection, runReflection, runReflectionsDue, type ReflectionModel } from "./reflection";
+import { setLanguage } from "./settings";
+import { getReflection, putReflection, runReflection, runReflectionsDue, type ReflectionInput, type ReflectionModel } from "./reflection";
 import { putSettings } from "./settings";
 import { seed, type Seed } from "./testing/fixtures";
 
@@ -20,7 +21,7 @@ beforeEach(async () => {
   await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
 });
 
-const seen: unknown[] = [];
+const seen: ReflectionInput[] = [];
 const model: ReflectionModel = { reflect: async (i) => (seen.push(i), "Diese Woche ging es oft um deinen Job.") };
 // Thursday 2026-10-29, 19:00 in Berlin.
 const THU_19 = Date.parse("2026-10-29T18:00:00Z");
@@ -39,6 +40,15 @@ test("a week with journal entries gets a push with Claude's reflection, linking 
   expect(await runReflection(s.a, THU_19, model, fetchFn)).toBe(true);
   expect(sent).toEqual([{ url: "https://ntfy.example/a", title: "🪞 Deine Woche", body: "Diese Woche ging es oft um deinen Job.", click: "https://f.example/tagebuch" }]);
   expect(JSON.stringify(seen)).toContain("Viel Stress im Job.");
+  expect(seen.at(-1)?.language).toBe("de");
+});
+
+test("the reflection and its push come in the user's language", async () => {
+  await setLanguage(s.a, "en");
+  await record(s.a, { date: "2026-10-27", transcript: "t", visibility: "shared", people: [], journal: [{ text: "A lot of stress at work." }] });
+  expect(await runReflection(s.a, THU_19, model, fetchFn)).toBe(true);
+  expect(seen.at(-1)?.language).toBe("en");
+  expect(sent.at(-1)?.title).toBe("🪞 Your week");
 });
 
 test("a week without entries: no call to Claude, no push", async () => {

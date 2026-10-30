@@ -471,6 +471,24 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await expect(sheet.getByText("Erfasst.")).toHaveCount(0);
 });
 
+test("Sprache: in English the app, server and client parts alike, speaks English; back in German", async ({ page }) => {
+  await page.goto("/einstellungen");
+  await page.getByRole("radiogroup", { name: "Sprache" }).getByText("English").click();
+  await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  const nav = page.getByRole("navigation", { name: "Main menu" });
+  await nav.getByRole("link", { name: "People" }).click();
+  await expect(page.getByPlaceholder("Name or nickname …")).toBeVisible();
+  await nav.getByRole("link", { name: "History" }).click();
+  await expect(page).toHaveTitle(/^History/);
+  await expectNoSideScroll(page);
+
+  await page.goto("/einstellungen");
+  await page.getByRole("radiogroup", { name: "Language" }).getByText("Deutsch").click();
+  await expect(page.getByRole("heading", { name: "Einstellungen", level: 1 })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "de");
+});
+
 test("settings fit the screen and offer the MCP address", async ({ page }) => {
   await page.getByRole("link", { name: "Einstellungen" }).click();
   await expect(page.getByLabel("Webhook für Erinnerungen")).toBeVisible();

@@ -450,3 +450,12 @@ test("019 gives persons an optional look, kept as JSON", async () => {
   await d.updateTable("persons").set({ look: '{"hair":"long"}' }).execute();
   await expect(d.updateTable("persons").set({ look: "long hair" }).execute()).rejects.toThrow(/CHECK constraint failed/);
 });
+
+test("020 gives every user a language, German for those there already", async () => {
+  const d = fresh();
+  await migrateTo(d, "019_person_looks");
+  await d.insertInto("users").values({ id: "u", oidc_sub: "s", name: "Me", email: null, person_id: null, created_at: 1 }).execute();
+  await migrateTo(d, "020_user_language");
+  expect(await d.selectFrom("users").select("language").execute()).toEqual([{ language: "de" }]);
+  await expect(d.updateTable("users").set({ language: "fr" }).execute()).rejects.toThrow(/CHECK constraint failed/);
+});

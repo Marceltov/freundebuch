@@ -1,24 +1,26 @@
 import Link from "next/link";
 import { Cake, CalendarDays, HandHeart, Handshake } from "lucide-react";
 import { daysBetween, today, whatsDue } from "@/backend";
-import { copy, dateKindName } from "@/components/copy";
+import type { Copy } from "@/components/copy";
+import { getCopy } from "@/components/serverCopy";
 import { DoneButton } from "@/components/DoneButton";
 import { Face } from "@/components/Face";
 import { Nudges } from "@/components/Nudges";
 import { ago, every, longDay, shortDay } from "@/components/format";
 import { Section } from "@/components/Tiles";
-import { pageViewer } from "../viewer";
+import { pageCopy, pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: copy.tabSoon };
+export const generateMetadata = async () => ({ title: (await pageCopy()).tabSoon });
 
-const inDays = (n: number) => (n === 0 ? copy.today : n === 1 ? copy.tomorrow : copy.inDays.replace("{n}", String(n)));
+const inDays = (copy: Copy, n: number) => (n === 0 ? copy.today : n === 1 ? copy.tomorrow : copy.inDays.replace("{n}", String(n)));
 
 // The next two weeks: birthdays and other dates, the viewer's own promises with a due day (ticked off right here), and who
 // would be glad to hear from them, and the situations to ask about, as the reminder sends it.
 export default async function SoonPage() {
   const v = await pageViewer();
+  const copy = getCopy();
   const now = today();
   const items = await whatsDue(v);
   const dates = items.filter((i) => i.kind === "date");
@@ -44,10 +46,10 @@ export default async function SoonPage() {
                     <span className="min-w-0 flex-1">
                       <span className="block font-display text-lg leading-tight font-bold">
                         {birthday && <Cake aria-hidden className="mr-1 inline h-4 w-4 align-[-2px]" />}
-                        {d.name}: {birthday ? dateKindName.birthday : d.text}
+                        {d.name}: {birthday ? copy.dateKindName.birthday : d.text}
                       </span>
                       <span className="block text-sm">
-                        {longDay(d.date!)} · {inDays(daysBetween(now, d.date!))}
+                        {longDay(copy, d.date!)} · {inDays(copy, daysBetween(now, d.date!))}
                       </span>
                     </span>
                   </Link>
@@ -70,7 +72,7 @@ export default async function SoonPage() {
                     <Link href={p.url} className="underline decoration-carbon/40 underline-offset-2">
                       {p.name}
                     </Link>{" "}
-                    · {copy.until.replace("{day}", shortDay(p.date!))}
+                    · {copy.until.replace("{day}", shortDay(copy, p.date!))}
                   </span>
                 </span>
               </li>
@@ -89,7 +91,7 @@ export default async function SoonPage() {
                   <span className="min-w-0 flex-1">
                     <span className="block font-display text-lg leading-tight font-semibold">{o.name}</span>
                     <span className="block text-sm text-muted">
-                      {copy.sinceWanted.replace("{since}", o.lastSeen ? ago(daysBetween(o.lastSeen, now)) : copy.neverMet).replace("{every}", o.intervalDays ? every(o.intervalDays) : "")}
+                      {copy.sinceWanted.replace("{since}", o.lastSeen ? ago(copy, daysBetween(o.lastSeen, now)) : copy.neverMet).replace("{every}", o.intervalDays ? every(copy, o.intervalDays) : "")}
                     </span>
                   </span>
                 </Link>

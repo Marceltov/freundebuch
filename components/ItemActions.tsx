@@ -4,7 +4,8 @@ import { Accessibility, Archive, BookOpen, CalendarClock, CalendarDays, Check, E
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FactKind } from "@/backend";
-import { copy } from "@/components/copy";
+import type { Copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 import { linkTo, shareLink } from "@/components/ShareButton";
 
 type Table = "facts" | "promises" | "exchanges" | "relationships" | "conversations" | "journal_entries" | "experiences" | "series";
@@ -30,17 +31,17 @@ export function canEdit(table: Table, mine: boolean, visibility: "shared" | "pri
 }
 
 // Every kind a fact can have, in menu order: a kind the backend adds doesn't compile until it has its entry here.
-const KIND_ACTIONS: Record<FactKind, { label: string; icon: LucideIcon }> = {
+const kindActions = (copy: Copy): Record<FactKind, { label: string; icon: LucideIcon }> => ({
   lasting: { label: copy.makeLasting, icon: BookOpen },
   situation: { label: copy.makeSituation, icon: Sparkles },
   need: { label: copy.makeNeed, icon: Accessibility },
   personality: { label: copy.makePersonality, icon: Smile },
-};
+});
 
 /** The kind entries of a fact's menu, for whoever may edit it: every kind but its own. */
-export function factKindActions(kind: FactKind | undefined, editable: boolean): Array<{ kind: FactKind; label: string }> {
+export function factKindActions(copy: Copy, kind: FactKind | undefined, editable: boolean): Array<{ kind: FactKind; label: string }> {
   if (!editable || !kind) return [];
-  return (Object.keys(KIND_ACTIONS) as FactKind[]).filter((k) => k !== kind).map((k) => ({ kind: k, label: KIND_ACTIONS[k].label }));
+  return (Object.keys(kindActions(copy)) as FactKind[]).filter((k) => k !== kind).map((k) => ({ kind: k, label: kindActions(copy)[k].label }));
 }
 
 export function ItemActions({
@@ -68,6 +69,7 @@ export function ItemActions({
   kind?: FactKind;
   checkAfter?: string;
 }) {
+  const copy = useCopy();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -146,10 +148,10 @@ export function ItemActions({
             {editable && (
               <>
                 <Item icon={Pencil} label={copy.edit} onClick={() => edit("text")} />
-                {factKindActions(kind, editable).map((a) => (
+                {factKindActions(copy, kind, editable).map((a) => (
                   <Item
                     key={a.kind}
-                    icon={KIND_ACTIONS[a.kind].icon}
+                    icon={kindActions(copy)[a.kind].icon}
                     label={a.label}
                     disabled={busy}
                     onClick={() => send("PATCH", { patch: { kind: a.kind } })}

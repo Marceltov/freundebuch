@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { CalendarHeart, History, House, MessageCirclePlus, Users, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatSheet } from "@/components/ChatSheet";
-import { copy } from "@/components/copy";
+import type { Copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 // The four places, floating at the bottom on a phone: the current one in the accent. A friend's page counts as Leute, a
 // conversation as Verlauf, a group as Start (where groups filter the orbit). With `chat` (an API key is set), a raised
 // "Erzählen" button in the middle opens the chat over the current page.
-const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] = [
+const tabs = (copy: Copy): { href: string; label: string; icon: LucideIcon; also: string[] }[] => [
   { href: "/", label: copy.tabStart, icon: House, also: ["/g/"] },
   { href: "/verlauf", label: copy.tabHistory, icon: History, also: ["/c/"] },
   { href: "/leute", label: copy.tabPeople, icon: Users, also: ["/p/"] },
@@ -24,6 +25,7 @@ export const tellAbout = (fileIds: string[]) => window.dispatchEvent(new CustomE
 export const openChat = () => tellAbout([]);
 
 export function TabBar({ chat = null }: { chat?: { userId: string; sharing: boolean; voice?: boolean } | null }) {
+  const copy = useCopy();
   const path = usePathname();
   const [talking, setTalking] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
@@ -43,14 +45,14 @@ export function TabBar({ chat = null }: { chat?: { userId: string; sharing: bool
     window.addEventListener(TELL_FILE, open);
     return () => window.removeEventListener(TELL_FILE, open);
   }, []);
-  const current = (t: (typeof TABS)[number]) => (t.href === "/" ? path === "/" : path.startsWith(t.href)) || t.also.some((p) => path.startsWith(p));
+  const current = (t: ReturnType<typeof tabs>[number]) => (t.href === "/" ? path === "/" : path.startsWith(t.href)) || t.also.some((p) => path.startsWith(p));
   return (
     <nav
       aria-label={copy.mainMenu}
       className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-2xl px-3 pr-[max(0.75rem,env(safe-area-inset-right))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))]"
     >
       <ul className={`grid ${chat ? "grid-cols-5" : "grid-cols-4"} rounded-3xl bg-surface p-1.5 shadow-float`}>
-        {TABS.flatMap((t, i) => {
+        {tabs(copy).flatMap((t, i) => {
           const on = current(t);
           const tab = (
             <li key={t.href}>

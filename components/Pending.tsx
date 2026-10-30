@@ -4,7 +4,7 @@ import { AudioLines, FileText, MessageCirclePlus, RotateCw, Trash2 } from "lucid
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PendingFile } from "@/backend";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 import { tellAbout } from "@/components/TabBar";
 
 // The "Prüfen" list: each waiting file with what Claude suggests to file and who is in it. Filing happens with Claude: "In
@@ -13,6 +13,7 @@ import { tellAbout } from "@/components/TabBar";
 // shared together (same batchId) sit in one group, and opening the page on one of them (#id, as the Shortcut does) selects
 // the whole group.
 export function PendingList({ items }: { items: PendingFile[] }) {
+  const copy = useCopy();
   const router = useRouter();
   const reading = items.some((i) => i.status === "reading");
   // What the user ticked; until they tick anything, the file the page was opened on (#id) and the files shared with it.
@@ -111,6 +112,7 @@ const button = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-s
 
 /** The file at a glance: an image's preview, else an icon with its kind. */
 export function FilePreview({ item }: { item: Pick<PendingFile, "url" | "type"> }) {
+  const copy = useCopy();
   if (item.type.startsWith("image/"))
     return (
       <a href={item.url} target="_blank" rel="noreferrer" className="shrink-0">
@@ -127,6 +129,7 @@ export function FilePreview({ item }: { item: Pick<PendingFile, "url" | "type"> 
 }
 
 function PendingCard({ item, selected, onSelect, onDone }: { item: PendingFile; selected: boolean; onSelect: (on: boolean) => void; onDone: () => void }) {
+  const copy = useCopy();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Briefing } from "@/backend";
-import { copy } from "@/components/copy";
-import { faceColor, initials } from "@/components/Face";
+import { getCopy } from "@/components/serverCopy";
+import { faceColor, initials } from "@/components/faceStyle";
 
 // Who a person belongs with, drawn in three rows: the household on top (only those of us with a visible relationship to them),
 // the person in the middle, their own people below. Every line carries what it is, on a pill the line doesn't run through: to
@@ -37,6 +37,7 @@ function edgeText(e: Net["edges"][number], selfId: string, above: boolean): stri
 
 /** The diagram's geometry, or null when it can't be drawn legibly (too many people, or labels that would overlap). */
 export function layoutNetwork(network: Net, viewerPersonId: string): Layout | null {
+  const copy = getCopy();
   const self = network.nodes.find((n) => n.role === "self");
   if (!self) return null;
   const household = network.nodes.filter((n) => n.role === "household");
@@ -97,6 +98,7 @@ export function layoutNetwork(network: Net, viewerPersonId: string): Layout | nu
 }
 
 export function Network({ network, viewerPersonId }: { network: Net; viewerPersonId: string }) {
+  const copy = getCopy();
   const l = layoutNetwork(network, viewerPersonId);
   if (!l) return null;
   const [self, ...rest] = l.nodes;

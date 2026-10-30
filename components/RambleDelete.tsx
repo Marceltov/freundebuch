@@ -3,11 +3,12 @@
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { copy } from "@/components/copy";
+import { useCopy } from "@/components/i18n";
 
 // Deletes a ramble with everything told in it (DELETE /api/v1/rambles/{id}), for its recorder; asks once more first, then
 // goes back to Verlauf.
 export function RambleDelete({ id }: { id: string }) {
+  const copy = useCopy();
   const router = useRouter();
   const [asking, setAsking] = useState(false);
   const [failed, setFailed] = useState(false);
