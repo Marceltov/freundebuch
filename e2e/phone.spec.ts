@@ -504,6 +504,8 @@ test("settings make a share key, and the key hands in a screenshot", async ({ pa
   await page.goto("/einstellungen");
   await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();
   await expect(page.getByText(/\/api\/share$/)).toBeVisible();
+  // The ready-made iPhone Shortcut, signed (public/shortcuts/).
+  await expect(page.getByRole("link", { name: "Kurzbefehl laden" })).toHaveAttribute("href", "/shortcuts/an-freundebuch.shortcut");
   await page.getByRole("button", { name: /Schlüssel erzeugen/ }).click();
   const key = (await page.getByText(/^fbs_/).textContent())!;
   await expectNoSideScroll(page);

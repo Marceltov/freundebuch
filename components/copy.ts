@@ -286,13 +286,9 @@ export const copy = {
   shareTitle: "Dateien teilen",
   shareHint: "Teile einen Screenshot, ein Foto, ein PDF oder einen exportierten Chat mit freundebuch, oder füg ihn unter „Erzählen“ mit dem Büroklammer-Knopf hinzu. Er wartet unter „Prüfen“, bis du ihn mit Claude durchgehst.",
   shareAndroid: "Android: freundebuch über das Browser-Menü zum Startbildschirm hinzufügen. Danach steht freundebuch beim Teilen zur Auswahl.",
-  shareIphone: "iPhone: Lege einen Kurzbefehl an, der das Geteilte an diese Adresse schickt, mit deinem Teilen-Schlüssel.",
-  shareSteps: [
-    "Kurzbefehle-App öffnen, neuen Kurzbefehl „An freundebuch“ anlegen.",
-    "In den Details „Im Share-Sheet anzeigen“ einschalten, Eingabe: Bilder, PDFs, Text und Dateien.",
-    "Aktion „Inhalte von URL abrufen“: die Adresse unten, Methode POST, Header „Authorization“ mit „Bearer “ und dem Schlüssel, Hauptteil: Datei, Kurzbefehleingabe.",
-    "Aktion „URL öffnen“ mit „url“ aus der Antwort: dann landest du direkt unter „Prüfen“.",
-  ],
+  shareIphone:
+    "iPhone: Kurzbefehl laden und beim Hinzufügen die Adresse zum Teilen und deinen Teilen-Schlüssel (beide hier) eintragen. Danach steht „An freundebuch“ beim Teilen zur Auswahl, auch für mehrere Bilder auf einmal; iPhone-Fotos gehen so, wie sie sind.",
+  shareShortcut: "Kurzbefehl laden",
   shareUrl: "Adresse zum Teilen",
   shareKey: "Teilen-Schlüssel",
   shareKeyNew: "Schlüssel erzeugen",

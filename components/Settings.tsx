@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarPlus, Check, KeyRound, Send, Trash2 } from "lucide-react";
+import { Bell, CalendarPlus, Check, Download, KeyRound, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { CopyField } from "@/components/CopyButton";
 import { copy } from "@/components/copy";
@@ -104,11 +104,11 @@ export function ShareSettings({ hasKey, shareUrl }: { hasKey: boolean; shareUrl:
       <p className="text-muted">{copy.shareHint}</p>
       <p>{copy.shareAndroid}</p>
       <p>{copy.shareIphone}</p>
-      <ol className="list-decimal space-y-1 pl-5 text-muted">
-        {copy.shareSteps.map((s) => (
-          <li key={s}>{s}</li>
-        ))}
-      </ol>
+      {/* The signed Shortcut (shortcut/source.ts): Safari on the iPhone hands it to the Kurzbefehle app, which asks for the two fields below. */}
+      <a href="/shortcuts/an-freundebuch.shortcut" download className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+        <Download aria-hidden className="h-4 w-4" />
+        {copy.shareShortcut}
+      </a>
       <CopyField label={copy.shareUrl} text={shareUrl} />
       {key && (
         <>

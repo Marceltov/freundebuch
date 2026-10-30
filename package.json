@@ -14,7 +14,9 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "generate": "sh scripts/generate.sh"
+    "generate": "sh scripts/generate.sh",
+    "shortcut:build": "sh scripts/shortcut.sh build",
+    "shortcut:sign": "sh scripts/shortcut.sh sign"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
@@ -37,10 +39,12 @@
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
+    "@types/plist": "^3.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "plist": "^5.0.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.11"

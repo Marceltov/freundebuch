@@ -10,11 +10,10 @@ You only talk; Claude sorts, links and keeps it up. A personal CRM fails when it
 
 ## Now
 
-- **A ready-made iPhone Shortcut, and iPhone photos read on the server** ([#68](https://github.com/Marceltov/freundebuch/issues/68)): one tap to install, one tap to share.
+- **Places with an address and a map** ([#78](https://github.com/Marceltov/freundebuch/issues/78)): where something happened, on a map, filled in from what you tell.
 
 ## Next
 
-- **Places with an address and a map** ([#78](https://github.com/Marceltov/freundebuch/issues/78)): where something happened, on a map, filled in from what you tell.
 - **Voice notes** ([#58](https://github.com/Marceltov/freundebuch/issues/58)): transcribed on your own server, so a WhatsApp voice note can be worked through like any shared file ([V4](values.md#v4-only-words-are-kept)).
 - **Avatars** ([#49](https://github.com/Marceltov/freundebuch/issues/49)): a stylized avatar per person, put together from a description.
 
