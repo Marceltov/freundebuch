@@ -8,6 +8,7 @@ Corrections go through Claude too. Say what's wrong in plain words:
 | "We gave Tom the hiking book." | The gift idea is marked settled. |
 | "Sarah isn't at Siemens any more." | The fact is marked outdated; it leaves briefings but stays in the history. |
 | "Her birthday is the 13th, not the 12th." | The item is edited. |
+| "Anna was there too." / "Tom wasn't there after all." | Anna is added to the conversation; Tom is taken out of it. |
 | "Make the thing about her father private." | Its visibility changes. |
 | "Delete what I said about Lukas yesterday." | The item, or the whole conversation with its items, is deleted. |
 | "Lu is Lukas Hoffmann." | "Lu" is added as an alias. |

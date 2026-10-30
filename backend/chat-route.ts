@@ -20,7 +20,7 @@ const Body = z.object({
     .max(MAX_TURNS)
     .refine((t) => t[t.length - 1].role === "user", "the last turn must be the user's")
     .refine((t) => t.reduce((n, x) => n + x.content.length, 0) <= MAX_TOTAL_CHARS, `at most ${MAX_TOTAL_CHARS} characters in all`),
-  context: z.object({ personId: z.string().optional(), conversationId: z.string().optional(), fileId: z.string().optional(), fileIds: z
+  context: z.object({ personId: z.string().optional(), conversationId: z.string().optional(), rambleId: z.string().optional(), fileId: z.string().optional(), fileIds: z
         .array(z.string())
         .transform((ids) => ids.slice(0, 50))
         .optional()

@@ -20,6 +20,8 @@ const TABS: { href: string; label: string; icon: LucideIcon; also: string[] }[] 
 const TELL_FILE = "freundebuch:tell-file";
 /** Opens Erzählen on shared files waiting under Prüfen, to work them through together (in this order). */
 export const tellAbout = (fileIds: string[]) => window.dispatchEvent(new CustomEvent(TELL_FILE, { detail: fileIds }));
+/** Opens Erzählen over the current page, which it then is about (a ramble's: "Weitererzählen"). */
+export const openChat = () => tellAbout([]);
 
 export function TabBar({ chat = null }: { chat?: { userId: string; sharing: boolean; voice?: boolean } | null }) {
   const path = usePathname();

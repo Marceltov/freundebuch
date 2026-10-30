@@ -89,6 +89,7 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
   const personName = loaded && loaded.id === path.match(/^\/p\/([^/]+)$/)?.[1] ? loaded.name : null;
   const person = path.match(/^\/p\/([^/]+)$/)?.[1];
   const conversation = path.match(/^\/c\/([^/]+)$/)?.[1];
+  const ramble = path.match(/^\/r\/([^/]+)$/)?.[1];
   // The page goes along at once; the chip shows the person's name once it has loaded.
   const about: { context: ChatContext; label: string } | null = dismissed
     ? null
@@ -98,7 +99,9 @@ export function ChatSheet({ userId, sharing = false, voice = false, files = [], 
       ? { context: { personId: person }, label: personName ? copy.aboutPerson.replace("{name}", personName) : copy.aboutThisPerson }
       : conversation
         ? { context: { conversationId: conversation }, label: copy.aboutConversation }
-        : null;
+        : ramble
+          ? { context: { rambleId: ramble }, label: copy.aboutRamble }
+          : null;
 
   useEffect(() => {
     if (!person) return;

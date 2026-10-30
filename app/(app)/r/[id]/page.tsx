@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BookOpen, Coffee, Lock, Mic, NotebookPen, Ticket } from "lucide-react";
-import { getRamble } from "@/backend";
+import { chatEnabled, getRamble } from "@/backend";
 import { copy, kindName } from "@/components/copy";
 import { shortDay } from "@/components/format";
 import { KIND_ICON } from "@/components/icons";
@@ -8,6 +8,7 @@ import { ExperienceItem } from "@/components/Experiences";
 import { JournalItem } from "@/components/Journal";
 import { RambleDelete } from "@/components/RambleDelete";
 import { Section } from "@/components/Tiles";
+import { TellMore } from "@/components/TellMore";
 import { orNotFound, pageViewer } from "../../viewer";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,12 @@ export default async function RamblePage({ params }: PageProps<"/r/[id]">) {
     <div>
       <h1 className="font-display text-3xl font-bold">{copy.ramble}</h1>
       <p className="mt-1 text-muted">{shortDay(r.date)}</p>
+      {/* Add to it or correct it, with Claude: Erzählen opens on this ramble. */}
+      {chatEnabled() && (
+        <div className="mt-3">
+          <TellMore />
+        </div>
+      )}
       {r.conversations.length > 0 && (
         <Section title={copy.conversations} icon={Coffee} list>
           {r.conversations.map((c) => {

@@ -126,6 +126,8 @@ export const copy = {
   closeChat: "Schließen",
   aboutPerson: "Es geht um {name}",
   aboutConversation: "Es geht um dieses Gespräch",
+  aboutRamble: "Es geht um diese Erzählung",
+  tellMore: "Weitererzählen",
   aboutThisPerson: "Es geht um diese Person",
   removeContext: "Nicht darum",
   chatHello: "Erzähl mir, was passiert ist, oder frag nach jemandem.",

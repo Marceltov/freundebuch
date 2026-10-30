@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { deleteItem, editItem, factToRelationship, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
+import { addParticipant, deleteItem, removeParticipant, editItem, factToRelationship, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript } from "./corrections";
 import { briefing } from "./briefing";
 import { getConversation, recordConversation, remember } from "./conversations";
 import { db } from "./db/testing";
@@ -429,4 +429,24 @@ test("edit turns a fact into a trait, which has no day to ask", async () => {
   expect(await row()).toEqual({ kind: "need", check_after: null, text: "zieht um", category: "home" });
   await expect(editItem(s.a, "facts", id, { kind: "need", checkAfter: "2026-12-01" })).rejects.toBeInstanceOf(InvalidInputError);
   await expect(editItem(s.a, "facts", id, { checkAfter: "2026-12-01" })).rejects.toBeInstanceOf(InvalidInputError);
+});
+
+test("someone who was there too is added to a conversation, and taken out again; only by its recorder, never to one they can't see", async () => {
+  const who = async () => (await getConversation(s.a, s.dinner)).participants.map((p) => p.id).sort();
+  const before = await who();
+  expect(before).not.toContain(s.lena);
+  await addParticipant(s.a, s.dinner, s.lena);
+  expect(await who()).toEqual([...before, s.lena].sort());
+  // Twice is once.
+  await addParticipant(s.a, s.dinner, s.lena);
+  expect(await who()).toHaveLength(before.length + 1);
+  await removeParticipant(s.a, s.dinner, s.lena);
+  expect(await who()).toEqual(before);
+  // The last one stays: a conversation is with someone.
+  for (const p of before.slice(1)) await removeParticipant(s.a, s.dinner, p);
+  await expect(removeParticipant(s.a, s.dinner, before[0])).rejects.toThrow(InvalidInputError);
+  // B sees the shared dinner but didn't record it; A's private coffee B can't see at all.
+  await expect(addParticipant(s.b, s.dinner, s.tom)).rejects.toThrow(ForbiddenError);
+  await expect(addParticipant(s.b, s.coffee, s.tom)).rejects.toThrow(NotFoundError);
+  await expect(addParticipant(s.a, s.dinner, "nobody")).rejects.toThrow(NotFoundError);
 });
