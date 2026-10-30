@@ -31,16 +31,6 @@ items:
       - { label: "#70", url: "https://github.com/Marceltov/freundebuch/issues/70" }
       - { label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it" }
 
-  - id: birthday-messages
-    status: later
-    when: Later
-    icon: cake-variant-outline
-    title: Birthday messages you send
-    summary: Drafted by freundebuch, seen and sent by you through an integration, never on its own.
-    links:
-      - { label: "#71", url: "https://github.com/Marceltov/freundebuch/issues/71" }
-      - { label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it" }
-
   - id: map
     status: later
     when: Later
@@ -52,6 +42,18 @@ items:
       - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
 
   # ---- done, newest first ------------------------------------------------------------------------------------------------
+  - id: birthday-messages
+    status: done
+    date: 2026-10-31
+    icon: cake-variant-outline
+    title: Birthday messages you send
+    summary: Claude drafts the wishes from what is shared about them; you send them from your own messenger, through a link that only fills the text in.
+    links:
+      - { label: "#71", url: "https://github.com/Marceltov/freundebuch/issues/71" }
+      - { label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it" }
+      - { label: "ADR 0023", url: "https://marceltov.github.io/freundebuch/adr/0023-birthday-wishes-the-user-sends/" }
+      - { label: "PR #110", url: "https://github.com/Marceltov/freundebuch/pull/110" }
+
   - id: i18n
     status: done
     date: 2026-10-30
