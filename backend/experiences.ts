@@ -7,7 +7,7 @@ import { missedSessions } from "./sessions";
 import { db, newId, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { norm } from "./names";
-import { describePlace, placeAndInsideIds, resolvePlace, type PlaceCandidate, type PlaceRef } from "./places";
+import { describePlace, fileOwners, ownersOf, placeAndInsideIds, resolvePlace, type PlaceCandidate, type PlaceRef } from "./places";
 import type { Viewer, Visibility } from "./types";
 import { conversationPath, personPath, placePath, ramblePath, seriesPath } from "./urls";
 import { visible } from "./visibility";
@@ -24,7 +24,7 @@ export type NewExperience = {
   kind: string;
   title: string;
   summary?: string;
-  place?: PlaceRef;
+  place?: PlaceRef<number>;
   /** The people who were there, as refs into the ramble's people; the user always is. */
   present?: number[];
   series?: SeriesRef;
@@ -104,6 +104,9 @@ export async function insertExperiences(
     // A new series started by a private experience is private too, or its name and place would reach the other user.
     const series = x.series === undefined ? null : await resolveSeries(tx, v, x.series, x, day, x.private ? "private" : r.visibility, t, placeId);
     const visibility: Visibility = r.visibility === "private" || x.private || series?.visibility === "private" ? "private" : "shared";
+    const owners = ownersOf(x.place);
+    if (placeId && owners.length)
+      await fileOwners(tx, v, placeId, owners.map((o) => (o === "me" || o === "us" ? o : personIds[o])), visibility === "private" || (x.place as { ownersPrivate?: boolean }).ownersPrivate ? "private" : "shared");
     const id = newId();
     await tx
       .insertInto("experiences")

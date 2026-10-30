@@ -4,6 +4,7 @@
 // which answer a bad value with `invalid_input`.
 import * as z from "zod";
 import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, VISIBILITIES } from "../types";
+import type { PlaceRef } from "../places";
 import { ERROR_CODES } from "./errors";
 
 export const ErrorJson = z
@@ -15,14 +16,27 @@ export const ErrorJson = z
 
 export const Visibility = z.enum(VISIBILITIES).describe("`private` items are visible only to whoever recorded them");
 export const Day = z.string().describe("A day, `YYYY-MM-DD`");
-/** How a part names where it happened. */
-export const PlaceRefJson = z
+/** How a part names where it happened: also where that place sits, its address, and whose home it is. */
+const placeExtras = {
+  in: z
+    .lazy(() => PlaceRefJson)
+    .optional()
+    .describe("The place it sits inside, as far as the user said (the Olympiahalle in München): same forms, and may say where that sits"),
+  address: z.string().optional().describe("Its address in words, as the user told it"),
+  owners: z
+    .array(z.union([z.number().int().min(0), z.enum(["me", "us"])]))
+    .optional()
+    .describe('Whose home it is ("at Anna\'s"): people by index, or "me"/"us"'),
+  ownersPrivate: z.boolean().optional().describe("Whose home it is was told in confidence"),
+};
+export const PlaceRefJson: z.ZodType<PlaceRef<number>> = z
   .union([
     z.string().describe("The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"),
-    z.object({ id: z.string().describe("An existing place's id") }),
-    z.object({ name: z.string(), confirmedNew: z.boolean().optional().describe("The user confirmed it is a new place, not the close one") }),
+    z.object({ id: z.string().describe("An existing place's id"), ...placeExtras }),
+    z.object({ name: z.string(), confirmedNew: z.boolean().optional().describe("The user confirmed it is a new place, not the close one"), ...placeExtras }),
   ])
-  .describe("Where it happened: a place's name, { id }, or { name, confirmedNew: true }");
+  .describe("Where it happened: a place's name, { id }, or { name, confirmedNew: true }, each optionally with in, address and owners")
+  .meta({ id: "PlaceRef" });
 export const PersonId = z.string().describe("A person's id");
 const Url = z.string().describe("Where it opens in the web app, as an absolute URL");
 // An item links to its row on the page that shows it, which scrolls to the row and highlights it.
@@ -688,7 +702,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [PlaceRefJson, PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

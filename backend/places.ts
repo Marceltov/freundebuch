@@ -7,15 +7,24 @@ import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { norm, rank } from "./names";
 import type { Viewer } from "./types";
 import { personPath, placePath } from "./urls";
+import { resolveTarget } from "./household";
+import type { Visibility } from "./types";
 import { visible } from "./visibility";
 
-/** How a part names its place: by name (an exact name or other name is reused), by id, or as a new one the user confirmed. */
-export type PlaceRef = string | { id: string } | { name: string; confirmedNew?: boolean };
+/**
+ * How a part names its place: by name (an exact name or other name is reused), by id, or as a new one the user confirmed. It may
+ * say where it sits (`in`, resolved the same way), its address, and whose home it is (`owners`: persons as the caller refers to
+ * them, or "me"/"us"; private with `ownersPrivate` or when the part is).
+ */
+export type PlaceRef<P = string> =
+  | string
+  | (({ id: string } | { name: string; confirmedNew?: boolean }) & { in?: PlaceRef<P>; address?: string; owners?: Array<P | "me" | "us">; ownersPrivate?: boolean });
 type Link = { id: string; name: string; url: string };
 /** A place as found: `parents` nearest first, `owners` whose home it is, as far as the viewer may see. */
 export type PlaceCandidate = { id: string; name: string; aliases: string[]; parents: Link[]; address: string | null; owners: Link[]; url: string };
 
 export const MAX_PLACE = 120;
+export const MAX_ADDRESS = 200;
 
 /** The places with something at them the viewer may see, or a home of someone they may see is theirs. */
 function seenDirectly(d: Kysely<Schema>, v: Viewer) {
@@ -110,8 +119,22 @@ export async function findPlaces(v: Viewer, q: string, limit = 5): Promise<Place
 /**
  * The place a part names, in `tx`: an id the viewer may see; a name that is exactly the name or another name of a place they may
  * see; else a new place, unless one comes close (AmbiguousError naming the candidates, so Claude asks) and it isn't confirmedNew.
+ * Where it sits (`in`) is set only when it sits nowhere yet; an address given replaces the one it had. Owners are filed apart
+ * (fileOwners), once the caller knows who they are.
  */
-export async function resolvePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef): Promise<string> {
+export async function resolvePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef<unknown>): Promise<string> {
+  const id = await findOrMakePlace(tx, v, ref);
+  if (typeof ref === "string") return id;
+  if (ref.address !== undefined) await tx.updateTable("places").set({ address: checkAddress(ref.address) }).where("id", "=", id).execute();
+  if (ref.in !== undefined) {
+    const parent = await resolvePlace(tx, v, ref.in);
+    const row = await tx.selectFrom("places").select("parent_id").where("id", "=", id).executeTakeFirstOrThrow();
+    if (!row.parent_id && !(await wouldLoop(tx, id, parent))) await tx.updateTable("places").set({ parent_id: parent }).where("id", "=", id).execute();
+  }
+  return id;
+}
+
+async function findOrMakePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef<unknown>): Promise<string> {
   const places = await visiblePlaces(tx, v);
   if (typeof ref === "object" && "id" in ref) {
     if (!places.some((p) => p.id === ref.id)) throw new NotFoundError("No such place");
@@ -130,6 +153,78 @@ export async function resolvePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef)
   const id = newId();
   await tx.insertInto("places").values({ id, name, created_by: v.userId, created_at: now() }).execute();
   return id;
+}
+
+/** The owners a place reference names, as the caller refers to them. */
+export const ownersOf = <P>(ref: PlaceRef<P> | undefined): Array<P | "me" | "us"> => (ref && typeof ref === "object" ? (ref.owners ?? []) : []);
+
+function checkAddress(address: string | null): string | null {
+  if (address === null) return null;
+  const a = typeof address === "string" ? address.trim() : "";
+  if (!a || a.length > MAX_ADDRESS) throw new InvalidInputError(`An address needs 1 to ${MAX_ADDRESS} characters, or null to clear it`);
+  return a;
+}
+
+/** Whether `parent` is `id` or sits inside it, at any depth. */
+async function wouldLoop(tx: Kysely<Schema>, id: string, parent: string): Promise<boolean> {
+  const seen = new Set<string>();
+  for (let p: string | null = parent; p && !seen.has(p); ) {
+    if (p === id) return true;
+    seen.add(p);
+    p = (await tx.selectFrom("places").select("parent_id").where("id", "=", p).executeTakeFirst())?.parent_id ?? null;
+  }
+  return false;
+}
+
+/** Files `owners` (person ids, "me" or "us") as whose home the place is, each the viewer's own ownership with `visibility`. */
+export async function fileOwners(tx: Kysely<Schema>, v: Viewer, placeId: string, owners: string[], visibility: Visibility): Promise<void> {
+  const ids = [...new Set((await Promise.all(owners.map((o) => resolveTarget(tx, v, o)))).flat())];
+  if (!ids.length) return;
+  const found = await tx.selectFrom("persons").select("id").where("id", "in", ids).execute();
+  if (found.length !== ids.length) throw new NotFoundError("No such person");
+  for (const personId of ids)
+    await tx
+      .insertInto("place_owners")
+      .values({ place_id: placeId, person_id: personId, visibility, recorded_by: v.userId, created_at: now() })
+      .onConflict((oc) => oc.columns(["place_id", "person_id", "recorded_by"]).doUpdateSet({ visibility }))
+      .execute();
+}
+
+/** Sets (null: clears) the place a place sits inside; refused when that would make it sit inside itself. */
+export async function setPlaceParent(v: Viewer, id: string, parentId: string | null): Promise<void> {
+  const d = await db();
+  await d.transaction().execute(async (tx) => {
+    await loadPlace(tx, v, id);
+    if (parentId !== null) {
+      await loadPlace(tx, v, parentId);
+      if (await wouldLoop(tx, id, parentId)) throw new InvalidInputError("A place can't sit inside itself or a place inside it");
+    }
+    await tx.updateTable("places").set({ parent_id: parentId }).where("id", "=", id).execute();
+  });
+}
+
+/** Sets (null: clears) a place's address in words. */
+export async function setPlaceAddress(v: Viewer, id: string, address: string | null): Promise<void> {
+  const d = await db();
+  await loadPlace(d, v, id);
+  await d.updateTable("places").set({ address: checkAddress(address) }).where("id", "=", id).execute();
+}
+
+/** Adds whose home a place is: a person id, "me" or "us". */
+export async function addPlaceOwner(v: Viewer, id: string, person: string, visibility: Visibility): Promise<void> {
+  if (visibility !== "shared" && visibility !== "private") throw new InvalidInputError("visibility is shared or private");
+  const d = await db();
+  await d.transaction().execute(async (tx) => {
+    await loadPlace(tx, v, id);
+    await fileOwners(tx, v, id, [person], visibility);
+  });
+}
+
+/** Drops a person as owner of a place: the viewer's own ownership and a shared one of the partner's. */
+export async function removePlaceOwner(v: Viewer, id: string, personId: string): Promise<void> {
+  const d = await db();
+  await loadPlace(d, v, id);
+  await d.deleteFrom("place_owners").where("place_id", "=", id).where("person_id", "=", personId).$call((qb) => visible(qb, v, "place_owners")).execute();
 }
 
 async function loadPlace(d: Kysely<Schema>, v: Viewer, id: string): Promise<{ id: string; name: string }> {
@@ -184,6 +279,14 @@ export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Pr
         throw new InvalidInputError(`Merge the other way round: keep "${drop.name}" (${dropId}) and drop "${keep.name}" (${keepId}), so the household doesn't learn a name only you can see`);
     }
     for (const t of ["conversations", "experiences", "series"] as const) await tx.updateTable(t as "conversations").set({ place_id: keepId }).where("place_id", "=", dropId).execute();
+    // The kept place keeps where it sits and its address, and takes the dropped one's where it has none; what sat inside the
+    // dropped place sits inside the kept one, and its owners move, each recorder's once.
+    const [k, dr] = await Promise.all([keepId, dropId].map((id) => tx.selectFrom("places").select(["parent_id", "address"]).where("id", "=", id).executeTakeFirstOrThrow()));
+    const parent = k.parent_id && k.parent_id !== dropId ? k.parent_id : dr.parent_id && !(await wouldLoop(tx, keepId, dr.parent_id)) ? dr.parent_id : null;
+    await tx.updateTable("places").set({ parent_id: parent, address: k.address ?? dr.address }).where("id", "=", keepId).execute();
+    await tx.updateTable("places").set({ parent_id: keepId }).where("parent_id", "=", dropId).where("id", "!=", keepId).execute();
+    for (const o of await tx.selectFrom("place_owners").selectAll().where("place_id", "=", dropId).execute())
+      await tx.insertInto("place_owners").values({ ...o, place_id: keepId }).onConflict((oc) => oc.doNothing()).execute();
     const aliases = await tx.selectFrom("place_aliases").select("alias").where("place_id", "=", dropId).execute();
     for (const a of [drop.name, ...aliases.map((x) => x.alias)]) if (norm(a) !== norm(keep.name)) await insertAlias(tx, keepId, a);
     await tx.deleteFrom("places").where("id", "=", dropId).execute();

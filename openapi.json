@@ -2780,6 +2780,106 @@
   },
   "components": {
     "schemas": {
+      "PlaceRef": {
+        "anyOf": [
+          {
+            "type": "string",
+            "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "An existing place's id"
+              },
+              "in": {
+                "description": "The place it sits inside, as far as the user said (the Olympiahalle in München): same forms, and may say where that sits",
+                "$ref": "#/components/schemas/PlaceRef"
+              },
+              "address": {
+                "description": "Its address in words, as the user told it",
+                "type": "string"
+              },
+              "owners": {
+                "description": "Whose home it is (\"at Anna's\"): people by index, or \"me\"/\"us\"",
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "me",
+                        "us"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "ownersPrivate": {
+                "description": "Whose home it is was told in confidence",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "confirmedNew": {
+                "description": "The user confirmed it is a new place, not the close one",
+                "type": "boolean"
+              },
+              "in": {
+                "description": "The place it sits inside, as far as the user said (the Olympiahalle in München): same forms, and may say where that sits",
+                "$ref": "#/components/schemas/PlaceRef"
+              },
+              "address": {
+                "description": "Its address in words, as the user told it",
+                "type": "string"
+              },
+              "owners": {
+                "description": "Whose home it is (\"at Anna's\"): people by index, or \"me\"/\"us\"",
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "me",
+                        "us"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "ownersPrivate": {
+                "description": "Whose home it is was told in confidence",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          }
+        ],
+        "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }, each optionally with in, address and owners"
+      },
       "PendingFile": {
         "type": "object",
         "properties": {
@@ -6327,40 +6427,7 @@
                   ]
                 },
                 "place": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "description": "An existing place's id"
-                        }
-                      },
-                      "required": [
-                        "id"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "confirmedNew": {
-                          "description": "The user confirmed it is a new place, not the close one",
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ]
-                    }
-                  ],
-                  "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }"
+                  "$ref": "#/components/schemas/PlaceRef"
                 },
                 "summary": {
                   "type": "string"
@@ -6412,40 +6479,7 @@
                   "type": "string"
                 },
                 "place": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "description": "An existing place's id"
-                        }
-                      },
-                      "required": [
-                        "id"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string"
-                        },
-                        "confirmedNew": {
-                          "description": "The user confirmed it is a new place, not the close one",
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ]
-                    }
-                  ],
-                  "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }"
+                  "$ref": "#/components/schemas/PlaceRef"
                 },
                 "present": {
                   "description": "Who else was there, by index into people; the user always is",
@@ -7623,40 +7657,7 @@
             ]
           },
           "place": {
-            "anyOf": [
-              {
-                "type": "string",
-                "description": "The place's name or another name it goes by: an exact match is reused, a close one is refused as ambiguous"
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "An existing place's id"
-                  }
-                },
-                "required": [
-                  "id"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "confirmedNew": {
-                    "description": "The user confirmed it is a new place, not the close one",
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "name"
-                ]
-              }
-            ],
-            "description": "Where it happened: a place's name, { id }, or { name, confirmedNew: true }"
+            "$ref": "#/components/schemas/PlaceRef"
           },
           "summary": {
             "type": "string"

@@ -4,7 +4,7 @@ import { db } from "./db/testing";
 import { deleteItem, editItem } from "./corrections";
 import { AmbiguousError, InvalidInputError } from "./errors";
 import { getPlace, listExperiences } from "./experiences";
-import { addPlaceAlias, findPlaces, mergePlaces, renamePlace } from "./places";
+import { addPlaceAlias, addPlaceOwner, findPlaces, mergePlaces, removePlaceOwner, renamePlace, setPlaceAddress, setPlaceParent } from "./places";
 import { seed, type Seed } from "./testing/fixtures";
 
 let s: Seed;
@@ -143,4 +143,77 @@ test("a private place inside a shared one stays invisible downward, and a privat
   await (await db()).insertInto("place_owners").values({ place_id: muc, person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 }).execute();
   expect((await getPlace(s.b, muc)).owners).toEqual([]);
   expect((await getPlace(s.a, muc)).owners.map((o) => o.id)).toEqual([s.anna]);
+});
+
+const find = async (v: Seed["a"], name: string) => (await findPlaces(v, name)).find((p) => p.name === name);
+
+test("'at the Olympiahalle in München' files both, nested; a later other parent doesn't overwrite it", async () => {
+  await at(s.a, { name: "Olympiahalle", in: "München" });
+  expect((await find(s.a, "Olympiahalle"))!.parents.map((p) => p.name)).toEqual(["München"]);
+  await at(s.a, { name: "Olympiahalle", in: { name: "Bayern" } });
+  expect((await find(s.a, "Olympiahalle"))!.parents.map((p) => p.name)).toEqual(["München"]);
+  await at(s.a, { name: "München", in: "Bayern" });
+  expect((await find(s.a, "Olympiahalle"))!.parents.map((p) => p.name)).toEqual(["München", "Bayern"]);
+});
+
+test("a home is a place with owners and an address, private when told in confidence", async () => {
+  await at(s.a, { name: "Annas Wohnung", address: "Hauptstraße 5, 90402 Nürnberg", owners: [0] }, "private");
+  expect(await find(s.a, "Annas Wohnung")).toMatchObject({ address: "Hauptstraße 5, 90402 Nürnberg", owners: [{ id: s.anna }] });
+  expect(await find(s.b, "Annas Wohnung")).toBeUndefined();
+});
+
+test("an experience's place takes owners by index, and 'us' is the household", async () => {
+  const r = await record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [{ id: s.anna }], experiences: [{ kind: "Feier", title: "Einweihung", place: { name: "Unser Haus", owners: ["us"] }, present: [0] } as never] });
+  expect(r.experiences).toHaveLength(1);
+  expect((await find(s.b, "Unser Haus"))!.owners.map((o) => o.id).sort()).toEqual([s.a.personId, s.b.personId].sort());
+});
+
+test("a loop is refused, even through a chain", async () => {
+  await at(s.a, { name: "A", in: { name: "B", in: "C" } });
+  const id = async (n: string) => (await find(s.a, n))!.id;
+  await expect(setPlaceParent(s.a, await id("C"), await id("A"))).rejects.toThrow(InvalidInputError);
+  await expect(setPlaceParent(s.a, await id("A"), await id("A"))).rejects.toThrow(InvalidInputError);
+  await setPlaceParent(s.a, await id("A"), null);
+  expect((await find(s.a, "A"))!.parents).toEqual([]);
+});
+
+test("an address is 1 to 200 characters; null clears it", async () => {
+  await at(s.a, "Café Lisa");
+  const { id } = (await find(s.a, "Café Lisa"))!;
+  await expect(setPlaceAddress(s.a, id, "x".repeat(201))).rejects.toThrow(InvalidInputError);
+  await setPlaceAddress(s.a, id, " Marktplatz 1 ");
+  expect((await find(s.a, "Café Lisa"))!.address).toBe("Marktplatz 1");
+  await setPlaceAddress(s.a, id, null);
+  expect((await find(s.a, "Café Lisa"))!.address).toBeNull();
+});
+
+test("owners are added and dropped; a private one stays the recorder's", async () => {
+  await at(s.a, "Annas Wohnung");
+  const { id } = (await find(s.a, "Annas Wohnung"))!;
+  await addPlaceOwner(s.a, id, s.anna, "private");
+  expect((await find(s.b, "Annas Wohnung"))!.owners).toEqual([]);
+  expect((await find(s.a, "Annas Wohnung"))!.owners.map((o) => o.id)).toEqual([s.anna]);
+  await removePlaceOwner(s.a, id, s.anna);
+  expect((await find(s.a, "Annas Wohnung"))!.owners).toEqual([]);
+});
+
+test("merging moves children and owners and keeps the kept place's parent and address", async () => {
+  await at(s.a, { name: "Olympiahalle", in: "München", address: "Spiridon-Louis-Ring 21" });
+  await at(s.a, { name: "Olympia-Halle", confirmedNew: true, in: "Bayern", address: "anders", owners: [0] });
+  await at(s.a, { name: "Foyer", in: { name: "Olympia-Halle" } });
+  const keep = (await find(s.a, "Olympiahalle"))!.id;
+  const drop = (await find(s.a, "Olympia-Halle"))!.id;
+  await addPlaceOwner(s.a, keep, s.anna, "shared");
+  await mergePlaces(s.a, keep, drop);
+  expect(await find(s.a, "Olympiahalle")).toMatchObject({ address: "Spiridon-Louis-Ring 21", parents: [{ name: "München" }], owners: [{ id: s.anna }] });
+  expect((await find(s.a, "Foyer"))!.parents.map((p) => p.name)).toEqual(["Olympiahalle", "München"]);
+});
+
+test("'in' naming the partner's private place makes a new one", async () => {
+  await at(s.a, "Klinik Nord", "private");
+  const hers = (await find(s.a, "Klinik Nord"))!.id;
+  await at(s.b, { name: "Cafeteria", in: "Klinik Nord" });
+  const [parent] = (await find(s.b, "Cafeteria"))!.parents;
+  expect(parent.name).toBe("Klinik Nord");
+  expect(parent.id).not.toBe(hers);
 });
