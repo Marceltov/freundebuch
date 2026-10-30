@@ -732,6 +732,10 @@ test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, priv
   await entry.getByRole("link", { name: "Erzählung" }).click();
   await expect(page.getByRole("heading", { name: "Erzählung" })).toBeVisible();
   await expect(page.getByText("Tagebuch: Ich frage mich").first()).toBeVisible();
+  // Weitererzählen opens Erzählen on this ramble, to add to it or correct it.
+  await page.getByRole("button", { name: "Weitererzählen" }).click();
+  await expect(page.getByRole("dialog", { name: "Erzählen" }).getByText("Es geht um diese Erzählung")).toBeVisible();
+  await page.getByRole("dialog", { name: "Erzählen" }).getByRole("button", { name: "Schließen" }).click();
   await page.goto("/verlauf");
   await expect(page.getByText("öfter laufen gehen")).toBeVisible();
 

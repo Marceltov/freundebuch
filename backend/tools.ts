@@ -7,7 +7,7 @@ import * as z from "zod";
 import { briefing, type Briefing } from "./briefing";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "./calendar";
 import { getConversation, record, remember, type FiledFact, type FiledRelationship } from "./conversations";
-import { deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, renamePerson, setVisibility, shareTranscript, skipSession, type Moved } from "./corrections";
+import { addParticipant, deleteItem, editItem, factToRelationship, ITEM_TABLES, markDone, markOutdated, mergePeople, removeParticipant, renamePerson, setVisibility, shareTranscript, skipSession, type Moved } from "./corrections";
 import { whatsDue } from "./due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "./groups";
 import { InvalidInputError } from "./errors";
@@ -351,6 +351,8 @@ const CORRECT_ACTIONS = [
   "place_address",
   "place_owner",
   "place_unowner",
+  "participant_add",
+  "participant_remove",
   "series_skip",
   "ungroup",
   "group_rename",
@@ -365,7 +367,7 @@ const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). place_rename: rename a place; its old name keeps finding it (id = the place's, name). place_alias: add another name a place goes by (id, alias). place_merge: merge the duplicate place drop into the place id (id, drop). place_parent: set the place a place sits inside, or null when it sits in none (id, parent). place_address: set a place's address in words, or null to clear it (id, address). place_owner: file whose home a place is (id, person: a person id, \"me\" or \"us\"; private when told in confidence). place_unowner: drop someone as owner of a place, e.g. after they moved (id, person). series_skip: mark a session day of a series as skipped, so it is not asked about (id = the series', date). A series ends with edit, table series, patch { endsOn }; it is deleted (delete, table series) only when the user explicitly asks, and its sessions stay as single experiences. An experience or series only its recorder changes. delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). place_rename: rename a place; its old name keeps finding it (id = the place's, name). place_alias: add another name a place goes by (id, alias). place_merge: merge the duplicate place drop into the place id (id, drop). place_parent: set the place a place sits inside, or null when it sits in none (id, parent). place_address: set a place's address in words, or null to clear it (id, address). place_owner: file whose home a place is (id, person: a person id, \"me\" or \"us\"; private when told in confidence). place_unowner: drop someone as owner of a place, e.g. after they moved (id, person). participant_add: someone was at a conversation the user recorded too, told afterwards (\"Anna was there too\") (id = the conversation's, person); participant_remove: someone wasn't there after all (id, person). series_skip: mark a session day of a series as skipped, so it is not asked about (id = the series', date). A series ends with edit, table series, patch { endsOn }; it is deleted (delete, table series) only when the user explicitly asks, and its sessions stay as single experiences. An experience or series only its recorder changes. delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
   id: z
@@ -373,7 +375,7 @@ const CorrectInput = z.object({
     .describe(
       "The item's id as a briefing shows it; for rename, alias and merge, a person's id (merge: the person to keep); for share_transcript, a ramble's or conversation's id; for delete_ramble, a ramble's id; for the group actions, the group's id (group_merge: the group to keep)",
     ),
-  person: PersonId.optional().describe('ungroup: the person to take out; place_owner, place_unowner: whose home it is (place_owner also "me" or "us")'),
+  person: PersonId.optional().describe('ungroup: the person to take out; place_owner, place_unowner: whose home it is (place_owner also "me" or "us"); participant_add, participant_remove: who was or wasn\'t there'),
   parent: z.string().nullable().optional().describe("place_parent: the place it sits inside, null for none"),
   address: z.string().nullable().optional().describe("place_address: the address in words, null to clear it"),
   private: z.boolean().optional().describe("place_owner: whose home it is was told in confidence"),
@@ -443,6 +445,8 @@ const CorrectArgs = z.discriminatedUnion("action", [
   z.object({ action: z.literal("place_address"), id: PlaceId, address: z.string().nullable() }).describe("Set or clear a place's address"),
   z.object({ action: z.literal("place_owner"), id: PlaceId, person: Target, private: z.boolean().optional() }).describe("File whose home a place is"),
   z.object({ action: z.literal("place_unowner"), id: PlaceId, person: PersonId }).describe("Drop someone as owner of a place"),
+  z.object({ action: z.literal("participant_add"), id: ItemId, person: PersonId }).describe("Add someone who was at a conversation too"),
+  z.object({ action: z.literal("participant_remove"), id: ItemId, person: PersonId }).describe("Take someone out of a conversation they weren't at"),
   z.object({ action: z.literal("ungroup"), id: GroupId, person: PersonId }).describe("Take a person out of a group"),
   z
     .object({
@@ -926,6 +930,12 @@ export const TOOLS: readonly Tool[] = [
           break;
         case "place_unowner":
           await removePlaceOwner(v, a.id, a.person);
+          break;
+        case "participant_add":
+          await addParticipant(v, a.id, a.person);
+          break;
+        case "participant_remove":
+          await removeParticipant(v, a.id, a.person);
           break;
         case "ungroup":
           await removeFromGroup(v, a.id, a.person);

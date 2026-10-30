@@ -314,3 +314,21 @@ test("opened on no page, the chat tells Claude about a missed session so it asks
   await chat(s.a, [{ role: "user", content: "Hallo" }], {}, model, Date.parse("2026-09-10T09:00:00Z"));
   expect(JSON.stringify(calls[0].system)).toContain("Hundeschule mit Toffee on 2026-09-09");
 });
+
+test("opened on a ramble, Claude gets what was filed from it and its transcript, to add or correct; never the partner's private one", async () => {
+  const d = await db();
+  const ramble = async (conv: string) => (await d.selectFrom("conversations").select("ramble_id").where("id", "=", conv).executeTakeFirstOrThrow()).ramble_id;
+  const { model, calls } = fake([text("Wer war noch da?")]);
+  await chat(s.a, [{ role: "user", content: "Anna war nicht allein da" }], { rambleId: await ramble(s.dinner) }, model);
+  const situation = (calls[0].system as Anthropic.Beta.BetaTextBlockParam[])[1].text;
+  expect(situation).toContain(`conversation ${s.dinner}`);
+  expect(situation).toContain(`Anna (${s.anna})`);
+  expect(situation).toContain("participant_add");
+  expect(situation).toContain("<ramble_transcript>");
+  // B's chat on A's private coffee: the ramble isn't B's to see, so nothing of it goes along.
+  const other = fake([text("Hallo")]);
+  await chat(s.b, [{ role: "user", content: "Hallo" }], { rambleId: await ramble(s.coffee) }, other.model);
+  const theirs = (other.calls[0].system as Anthropic.Beta.BetaTextBlockParam[])[1].text;
+  expect(theirs).not.toContain(s.coffee);
+  expect(theirs).not.toContain("ramble_transcript");
+});

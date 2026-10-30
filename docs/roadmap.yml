@@ -61,6 +61,16 @@ items:
       - {label: "#72", url: "https://github.com/Marceltov/freundebuch/issues/72"}
       - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
 
+  - id: chat-across-devices
+    status: later
+    when: Later
+    icon: devices
+    title: An Erzählen chat that goes on at another device
+    summary: Started on the phone, continued at the laptop. Until then, Weitererzählen on a ramble's page picks up where you left off.
+    links:
+      - {label: "#100", url: "https://github.com/Marceltov/freundebuch/issues/100"}
+      - {label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household"}
+
   - id: map
     status: later
     when: Later

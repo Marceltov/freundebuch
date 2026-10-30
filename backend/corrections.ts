@@ -472,6 +472,30 @@ export async function factToRelationship(
   return { ids: relationships.map((x) => x.id), relationships };
 }
 
+/**
+ * Adds someone to a conversation the viewer recorded, told afterwards ("Anna was there too"). The conversation keeps its
+ * visibility: who sees it sees who was there. NotFoundError for no such person or a conversation the viewer can't see.
+ */
+export async function addParticipant(v: Viewer, conversationId: string, personId: string): Promise<void> {
+  const d = await db();
+  await d.transaction().execute(async (tx) => {
+    await load(tx, v, "conversations", conversationId, "recorder");
+    if (!(await tx.selectFrom("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
+    await tx.insertInto("participants").values({ conversation_id: conversationId, person_id: personId }).onConflict((oc) => oc.doNothing()).execute();
+  });
+}
+
+/** Takes someone out of a conversation the viewer recorded, who wasn't there after all; a conversation keeps at least one person. */
+export async function removeParticipant(v: Viewer, conversationId: string, personId: string): Promise<void> {
+  const d = await db();
+  await d.transaction().execute(async (tx) => {
+    await load(tx, v, "conversations", conversationId, "recorder");
+    const others = await tx.selectFrom("participants").select("person_id").where("conversation_id", "=", conversationId).where("person_id", "!=", personId).execute();
+    if (!others.length) throw new InvalidInputError("A conversation needs at least one person: delete it instead, or add who was there first");
+    await tx.deleteFrom("participants").where("conversation_id", "=", conversationId).where("person_id", "=", personId).execute();
+  });
+}
+
 export async function renamePerson(v: Viewer, id: string, name: string): Promise<void> {
   void v;
   const n = name.trim();
