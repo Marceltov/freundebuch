@@ -1,8 +1,8 @@
 // The iPhone Shortcut "An freundebuch", as source. It shows in the share sheet; importing it asks for the share address and the
 // share key (both in Einstellungen → Dateien teilen). Shared items go one by one to POST /api/share with the key and one batch id
-// for the whole share (so Prüfen shows them together, pre-selected), and at the end freundebuch opens under Prüfen on what was
-// sent. iOS imports only signed Shortcuts: `npm run shortcut:sign` on a Mac builds this, signs it into
-// public/shortcuts/an-freundebuch.shortcut and records this source's hash next to it (checked by source.test.ts).
+// for the whole share (so Prüfen shows them together, pre-selected). What didn't arrive is shown with the server's German reason,
+// then freundebuch opens under Prüfen on what was sent. iOS imports only signed Shortcuts: `npm run shortcut:sign` on a Mac
+// signs this into public/shortcuts/an-freundebuch.shortcut and records the source's hash next to it (checked by source.test.ts).
 // Apple doesn't document the format; the keys below are the ones Shortcuts itself writes.
 import { createHash } from "node:crypto";
 import { build, type PlistValue } from "plist";
@@ -14,7 +14,12 @@ const BATCH = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C04";
 const LOOP = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C05";
 const POST = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C06";
 const URL_OF = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C07";
+const ERROR_OF = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C08";
+const ARRIVED = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C09";
+const ANY_ERROR = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C0A";
+const ANY_ANSWER = "4B5B1D0E-6A7C-4F1B-9C0D-2E3F4A5B6C0B";
 const ANSWER = "Antwort";
+const ERRORS = "Fehler";
 
 type Attachment = Record<string, unknown>;
 const output = (uuid: string, name: string): Attachment => ({ Type: "ActionOutput", OutputUUID: uuid, OutputName: name });
@@ -33,6 +38,10 @@ function text(template: string, ...parts: Attachment[]) {
   return { Value: { string: template, attachmentsByRange }, WFSerializationType: "WFTextTokenString" };
 }
 const action = (id: string, params: Record<string, unknown>) => ({ WFWorkflowActionIdentifier: `is.workflow.actions.${id}`, WFWorkflowActionParameters: params });
+/** "If `a` has any value" (mode 0), "Otherwise" (1) and "End If" (2) of one block. */
+const ifHasValue = (group: string, a: Attachment) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 100, WFInput: { Type: "Variable", Variable: value(a) } });
+const otherwise = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 1 });
+const endIf = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 2 });
 
 /** The Shortcut as the dictionary its file holds. */
 export function shortcutPlist(): Record<string, unknown> {
@@ -79,10 +88,21 @@ export function shortcutPlist(): Record<string, unknown> {
           WFSerializationType: "WFDictionaryFieldValue",
         },
       }),
-      action("setvariable", { WFVariableName: ANSWER, WFInput: value(output(POST, "Inhalte von URL")) }),
+      // An answer with a url arrived (the last one is opened); one without says why not (a wrong key, a file too large).
+      action("getvalueforkey", { UUID: URL_OF, WFInput: value(output(POST, "Inhalte von URL")), WFDictionaryKey: "url" }),
+      ifHasValue(ARRIVED, output(URL_OF, "Wörterbuchwert")),
+      action("setvariable", { WFVariableName: ANSWER, WFInput: value(output(URL_OF, "Wörterbuchwert")) }),
+      otherwise(ARRIVED),
+      action("getvalueforkey", { UUID: ERROR_OF, WFInput: value(output(POST, "Inhalte von URL")), WFDictionaryKey: "message" }),
+      action("appendvariable", { WFVariableName: ERRORS, WFInput: value(output(ERROR_OF, "Wörterbuchwert")) }),
+      endIf(ARRIVED),
       action("repeat.each", { GroupingIdentifier: LOOP, WFControlFlowMode: 2 }),
-      action("getvalueforkey", { UUID: URL_OF, WFInput: value(variable(ANSWER)), WFDictionaryKey: "url" }),
-      action("openurl", { WFInput: value(output(URL_OF, "Wörterbuchwert")) }),
+      ifHasValue(ANY_ERROR, variable(ERRORS)),
+      action("showresult", { Text: text("Nicht angekommen: \uFFFC", variable(ERRORS)) }),
+      endIf(ANY_ERROR),
+      ifHasValue(ANY_ANSWER, variable(ANSWER)),
+      action("openurl", { WFInput: value(variable(ANSWER)) }),
+      endIf(ANY_ANSWER),
     ],
   };
 }

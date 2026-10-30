@@ -81,12 +81,6 @@ test("not an image, PDF or text, or too large: refused, nothing stored", async (
   expect(await (await db()).selectFrom("files").selectAll().execute()).toEqual([]);
 });
 
-test("without PUBLIC_URL the link to Prüfen is the path", async () => {
-  const key = await createShareKey(s.a);
-  const { id, url } = await (await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png" })).json();
-  expect(url).toBe(`/pruefen#${id}`);
-});
-
 test("without an API key there is no sharing", async () => {
   setFileModelForTests(null);
   vi.stubEnv("FREUNDEBUCH_ANTHROPIC_API_KEY", "");
@@ -128,4 +122,25 @@ test("files sent with one batch id wait side by side, in the order they came; a 
   expect(list.map((f) => f.id)).toEqual([short.id, odd.id, first.id, second.id, third.id, alone.id]);
   expect(list.map((f) => f.batchId)).toEqual([null, null, "run-20261030-1", "run-20261030-1", "run-20261030-1", null]);
   expect(await listPending(s.b)).toEqual([]);
+});
+
+test("what the Shortcut shows when a file doesn't arrive is German, and says why", async () => {
+  const msg = async (r: Response) => ((await r.json()) as { message: string }).message;
+  const img = await png();
+  expect(await msg(await share(img as BodyInit, { authorization: "Bearer fbs_nope", "content-type": "image/png" }))).toBe(
+    "Der Teilen-Schlüssel stimmt nicht: erzeug in den freundebuch-Einstellungen einen neuen und trag ihn im Kurzbefehl ein.",
+  );
+  const auth = { authorization: `Bearer ${await createShareKey(s.a)}` };
+  expect(await msg(await share(new Uint8Array(16 * 1024 * 1024) as BodyInit, { ...auth, "content-type": "image/png" }))).toBe("Die Datei ist größer als 15 MB.");
+  expect(await msg(await share(new Uint8Array([0x50, 0x4b, 3, 4, 0, 0]) as BodyInit, { ...auth, "content-type": "application/zip" }))).toBe(
+    "freundebuch nimmt Bilder, PDFs und Textdateien.",
+  );
+  expect(await msg(await share("hello", { ...auth, "content-type": "image/png" }))).toBe("Diese Datei kann freundebuch nicht lesen.");
+});
+
+test("without PUBLIC_URL the answer's url is still a whole address, from the request", async () => {
+  vi.stubEnv("PUBLIC_URL", "");
+  const key = await createShareKey(s.a);
+  const r = await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png" });
+  expect(((await r.json()) as { url: string }).url).toMatch(/^http:\/\/localhost:3000\/pruefen#/);
 });

@@ -55,9 +55,9 @@ export function ChatSheet({ userId, sharing = false, files = [], onClose }: { us
   const own = files.length > 0;
   const [turns, setTurns] = useState<Turn[]>(() => (own ? [] : load(userId)));
   const [fileIds, setFileIds] = useState<string[]>(files);
-  // Opened from Prüfen: the files and what a first read of each suggested, shown at the top, so there is something to answer to.
+  // The files and what a first read of each suggested, shown at the top, so there is something to answer to.
   const [shown, setShown] = useState<PendingFile[]>([]);
-  const opened = files.join();
+  const opened = fileIds.join();
   useEffect(() => {
     if (!opened) return;
     const ids = opened.split(",");
@@ -241,7 +241,8 @@ export function ChatSheet({ userId, sharing = false, files = [], onClose }: { us
       if (!body.duplicate && result !== "failed") result = "received";
     }
     if (ids.length && result !== "failed") {
-      setFileIds(ids);
+      // Added to what the chat is about, not instead of it: a missing screenshot joins the others.
+      setFileIds((before) => [...new Set([...before, ...ids])]);
       setDismissed(false);
       setShot("attached");
     } else setShot(result);
