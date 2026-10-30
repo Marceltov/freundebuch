@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { db, newId, now, resetDbForTests } from "./db/testing";
+import { testDb, newId, now, resetDbForTests } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { addAlias, createPerson, findPeople, getPerson, listPeople, setGender } from "./people";
 import { userFromOidc } from "./users";
@@ -67,7 +67,7 @@ test("limit caps the result", async () => {
 test("context shows relationships and when the viewer last saw the person", async () => {
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
-  const d = await db();
+  const d = await testDb();
   await d
     .insertInto("relationships")
     .values({
@@ -130,7 +130,7 @@ test("context shows relationships and when the viewer last saw the person", asyn
 test("context never contains anything from a private item of the other user", async () => {
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
-  const d = await db();
+  const d = await testDb();
   await d
     .insertInto("relationships")
     .values({
@@ -180,7 +180,7 @@ test("addAlias adds, dedupes by norm and is found", async () => {
 });
 
 test("getPerson hides createdFrom when the conversation is not visible", async () => {
-  const d = await db();
+  const d = await testDb();
   const cid = newId();
   await d
     .insertInto("conversations")
@@ -229,7 +229,7 @@ test("relationship hints read naturally in both directions", async () => {
   const tom = await createPerson(a, { name: "Tom" });
   const anna = await createPerson(a, { name: "Anna" });
   const rel = async (from: string, to: string, label: string, inverse: string) =>
-    (await db())
+    (await testDb())
       .insertInto("relationships")
       .values({
         id: newId(),
@@ -272,7 +272,7 @@ test("a gender change returns the person's relationships the viewer may edit: th
   const rel = async (by: Viewer, from: string, to: string, label: string, inverse: string, visibility = "shared") => {
     const id = newId();
     await (
-      await db()
+      await testDb()
     )
       .insertInto("relationships")
       .values({ id, from_id: from, to_id: to, label, inverse, note: null, visibility, recorded_by: by.userId, conversation_id: null, created_at: now() })
@@ -299,7 +299,7 @@ test("a first gender asks only for the person's words still in a neutral form; a
   const rel = async (from: string, to: string, label: string, inverse: string) => {
     const id = newId();
     await (
-      await db()
+      await testDb()
     )
       .insertInto("relationships")
       .values({

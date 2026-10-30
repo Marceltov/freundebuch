@@ -32,7 +32,7 @@ export async function journalEntries(
 ): Promise<JournalEntry[]> {
   const to = q.to ?? today();
   const from = q.from ?? addDays(to, -JOURNAL_DAYS);
-  const d = await db();
+  const d = await db(v);
   let query = d
     .selectFrom("journal_entries")
     .selectAll()

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { record } from "../conversations";
-import { db } from "../db";
+import { testDb } from "../db/testing";
 import { logsOf } from "../log";
 import { seed, type Seed } from "../testing/fixtures";
 import { getSettings, putSettings, setLanguage, testWebhook } from "../settings";
@@ -65,7 +65,7 @@ describe("runDaily", () => {
 
   test("overdue people and promises are announced", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    const d = await db();
+    const d = await testDb();
     await d.updateTable("persons").set({ name: "Anna" }).where("id", "=", s.anna).execute();
     await d
       .insertInto("promises")
@@ -89,7 +89,7 @@ describe("runDaily", () => {
 
   test("a promise the person made reads as theirs; the partner's promises are never announced", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    const d = await db();
+    const d = await testDb();
     const promise = (id: string, text: string, by_me: number, recorded_by: string) =>
       d
         .insertInto("promises")
@@ -105,7 +105,7 @@ describe("runDaily", () => {
   test("a situation past its day nudges to ask", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     await (
-      await db()
+      await testDb()
     )
       .insertInto("facts")
       .values({
@@ -127,7 +127,7 @@ describe("runDaily", () => {
 
   test("more than 10 items: nine singles and a '+N weitere' summary", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    const d = await db();
+    const d = await testDb();
     for (let i = 0; i < 12; i++)
       await d
         .insertInto("promises")
@@ -159,7 +159,7 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     // B has something due too (A's private birthday is not B's).
     await (
-      await db()
+      await testDb()
     )
       .insertInto("promises")
       .values({
@@ -226,7 +226,7 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
 
   test("a restart after A was served sends only to B", async () => {
     await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
-    const d = await db();
+    const d = await testDb();
     await d
       .insertInto("meta")
       .values({ key: `last_notify_date:${s.a.userId}`, value: "2026-10-23" })
@@ -276,7 +276,7 @@ describe("missed sessions", () => {
       experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
     });
     await (
-      await db()
+      await testDb()
     )
       .updateTable("series")
       .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })

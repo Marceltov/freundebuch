@@ -2,7 +2,8 @@
 // the backend and the schemas of the surfaces check them at run time.
 export const VISIBILITIES = ["shared", "private"] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
-export type Viewer = { userId: string; personId: string };
+/** Who is looking: a user, their own person, and the household whose book they are in (ADR 0022). */
+export type Viewer = { userId: string; personId: string; householdId: string };
 export const CONVERSATION_KINDS = ["in_person", "call", "message", "video", "event"] as const;
 export type ConversationKind = (typeof CONVERSATION_KINDS)[number];
 export const FACT_CATEGORIES = ["work", "home", "family", "health", "hobby", "travel", "other"] as const;

@@ -2,12 +2,14 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE, viewerFromRequest } from "../auth/session";
 import { resetTokensForTests, sign, verify } from "../auth/tokens";
-import { db, resetDbForTests } from "../db/testing";
+import { testDb, resetDbForTests } from "../db/testing";
 import { resetRateLimitsForTests } from "../limits";
 import { logTo } from "../log";
 import { registerRoute } from "../oauth/routes";
 import { resetSecretForTests } from "../secret";
 import { resetDiscoveryForTests } from "./flow";
+import { accountOf, createInvite } from "../instance";
+import { userFromOidc } from "../users";
 import { oidcCallbackRoute, oidcStartRoute } from "./routes";
 
 const BASE = "http://localhost:3000";
@@ -114,7 +116,7 @@ const failed = (res: Response) => {
   expect(setCookie(res, IDENTITY_COOKIE)).toBeUndefined();
   expect(setCookie(res, "fb_oidc")).toMatch(/^fb_oidc=; Path=\/api\/oidc; Max-Age=0; HttpOnly; SameSite=Lax/);
 };
-const users = async () => (await db()).selectFrom("users").select(["id", "oidc_sub", "name", "email"]).execute();
+const users = async () => (await testDb()).selectFrom("users").select(["id", "oidc_sub", "name", "email"]).execute();
 
 describe("not configured", () => {
   test("start goes back to the login page, naming the missing variables in the log; nothing is fetched", async () => {
@@ -241,6 +243,28 @@ describe("callback", () => {
     expect(all).toHaveLength(1);
     expect(all[0].name).toBe("Ann B.");
     expect(verify("identity", valueOf(setCookie(res, IDENTITY_COOKIE))!)!.uid).toBe(all[0].id);
+  });
+
+  test("an invitation rides from the start to the callback; a spent one goes back to the login page", async () => {
+    process.env.FREUNDEBUCH_HOUSEHOLDS = "many";
+    try {
+      const host = await userFromOidc({ sub: "host", name: "Host" });
+      const { code } = await createInvite(host);
+      let s = await start(`invite=${code}`);
+      expect(verify("oidc", s.cookie)!.invite).toBe(code);
+      await callback(`code=c&state=${s.state}`, s.cookie);
+      expect((await accountOf("ann-sub"))?.householdId).toBe(host.householdId);
+      // Spent: the next newcomer with it is sent back, and no one is created.
+      person = { ...person, sub: "bea-sub", name: "Bea" };
+      s = await start(`invite=${code}`);
+      const res = await callback(`code=c&state=${s.state}`, s.cookie);
+      expect(res.headers.get("location")).toBe("/login?error=invite_spent");
+      expect(await accountOf("bea-sub")).toBeNull();
+      // Something not shaped like an invitation isn't carried at all.
+      expect(verify("oidc", (await start("invite=../x")).cookie)!.invite).toBeUndefined();
+    } finally {
+      delete process.env.FREUNDEBUCH_HOUSEHOLDS;
+    }
   });
 
   test("the identity cookie is Secure on https", async () => {

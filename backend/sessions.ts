@@ -13,7 +13,7 @@ export type MissedSession = { seriesId: string; name: string; date: string; url:
 
 /** The latest session day of each series the viewer is part of that passed before `today` untold. */
 export async function missedSessions(v: Viewer, today: string): Promise<MissedSession[]> {
-  const d = await db();
+  const d = await db(v);
   const series = await d
     .selectFrom("series")
     .selectAll()

@@ -1,10 +1,10 @@
 import { headers } from "next/headers";
-import { CalendarDays, ImageUp, LogOut, Plug, Sparkles, Users } from "lucide-react";
-import { getReflection, getSettings, hasCalendarKey, hasShareKey, listGroups, mcpResource, publicUrl, sharingEnabled } from "@/backend";
+import { CalendarDays, Home, ImageUp, LogOut, Plug, Sparkles, Users } from "lucide-react";
+import { getReflection, getSettings, hasCalendarKey, hasShareKey, invitesEnabled, listGroups, mcpResource, publicUrl, sharingEnabled } from "@/backend";
 import { getCopy } from "@/components/serverCopy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupSettings } from "@/components/GroupSettings";
-import { CalendarSettings, LanguageSettings, ReflectionSettings, ShareSettings, WebhookSettings } from "@/components/Settings";
+import { CalendarSettings, HouseholdSettings, LanguageSettings, ReflectionSettings, ShareSettings, WebhookSettings } from "@/components/Settings";
 import { pageCopy, pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +50,15 @@ export default async function SettingsPage() {
         </h2>
         <CalendarSettings hasFeed={await hasCalendarKey(v)} />
       </section>
+      {invitesEnabled() && (
+        <section id="haushalt" className="rounded-2xl bg-surface p-5 shadow-card">
+          <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
+            <Home aria-hidden className="h-4 w-4" />
+            {copy.householdTitle}
+          </h2>
+          <HouseholdSettings />
+        </section>
+      )}
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
           <Users aria-hidden className="h-4 w-4" />

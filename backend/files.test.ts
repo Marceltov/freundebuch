@@ -6,7 +6,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeEach, expect, test } from "vitest";
 import { briefing } from "./briefing";
 import { deleteItem } from "./corrections";
-import { db } from "./db";
+import { testDb } from "./db/testing";
 import { putSettings } from "./settings";
 import type { FileInput, FileModel, Suggestion } from "./file-model";
 import { setTranscriberForTests, type Transcriber } from "./transcribe";
@@ -28,6 +28,9 @@ import {
   viewerFromShareKey,
 } from "./files";
 import { seed, type Seed } from "./testing/fixtures";
+
+/** The book the seeded users are in. */
+const HOME_BOOK = { householdId: "home" };
 
 const dir = mkdtempSync(join(tmpdir(), "fb-shots-"));
 let s: Seed;
@@ -71,12 +74,12 @@ const answering = (r: Suggestion | { error: string }): FileModel & { seen: FileI
   const seen: FileInput[] = [];
   return { seen, read: async (i) => (seen.push(i), r) };
 };
-const status = async (id: string) => (await (await db()).selectFrom("files").select("status").where("id", "=", id).executeTakeFirstOrThrow()).status;
+const status = async (id: string) => (await (await testDb()).selectFrom("files").select("status").where("id", "=", id).executeTakeFirstOrThrow()).status;
 // A fact filed from a file, as remember with fileId files it.
 async function factFrom(fileId: string, visibility: "shared" | "private" = "shared") {
   const id = `f-${fileId}`;
   await (
-    await db()
+    await testDb()
   )
     .insertInto("facts")
     .values({
@@ -94,7 +97,7 @@ async function factFrom(fileId: string, visibility: "shared" | "private" = "shar
       file_id: fileId,
     })
     .execute();
-  await (await db()).updateTable("files").set({ status: "filed" }).where("id", "=", fileId).execute();
+  await (await testDb()).updateTable("files").set({ status: "filed" }).where("id", "=", fileId).execute();
   return id;
 }
 
@@ -102,12 +105,12 @@ test("an image is shrunk to 1080 px WebP and pre-read into a suggestion that wai
   const shot = await shareFile(s.a, await image());
   expect(shot).toMatchObject({ status: "reading", duplicate: false });
   const model = answering(suggestion([{ name: "Anna", personId: s.anna }]));
-  expect(await readFile(shot.id, model)).toBe("pending");
+  expect(await readFile(HOME_BOOK, shot.id, model)).toBe("pending");
   expect(model.seen[0].type).toBe("image/webp");
   expect((await sharp(Buffer.from(model.seen[0].bytes)).metadata()).width).toBe(1080);
   expect(model.seen[0].people.map((p) => p.name)).toContain("Anna");
   // Even a sure suggestion only waits.
-  expect(await (await db()).selectFrom("facts").selectAll().where("file_id", "=", shot.id).execute()).toEqual([]);
+  expect(await (await testDb()).selectFrom("facts").selectAll().where("file_id", "=", shot.id).execute()).toEqual([]);
   expect(await listPending(s.a)).toEqual([
     {
       id: shot.id,
@@ -130,7 +133,7 @@ test("an image is shrunk to 1080 px WebP and pre-read into a suggestion that wai
 
 test("a person id that doesn't exist becomes candidates of those that do", async () => {
   const shot = await shareFile(s.a, await image());
-  await readFile(shot.id, answering(suggestion([{ name: "Anna B.", personId: "nope", candidates: [s.anna, "gone"] }])));
+  await readFile(HOME_BOOK, shot.id, answering(suggestion([{ name: "Anna B.", personId: "nope", candidates: [s.anna, "gone"] }])));
   expect((await listPending(s.a))[0].people).toEqual([{ name: "Anna B.", person: null, candidates: [{ id: s.anna, name: "Anna", url: `/p/${s.anna}` }] }]);
 });
 
@@ -143,12 +146,12 @@ test("the same file shared twice is read once", async () => {
 test("not an image is refused before anything is stored", async () => {
   await expect(shareFile(s.a, new TextEncoder().encode("hello"), "image/png")).rejects.toThrow(/not an image/);
   await expect(shareFile(s.a, new Uint8Array())).rejects.toThrow(/empty/);
-  expect(await (await db()).selectFrom("files").selectAll().execute()).toEqual([]);
+  expect(await (await testDb()).selectFrom("files").selectAll().execute()).toEqual([]);
 });
 
 test("a failed pre-read keeps its reason and pushes; retry reads it again", async () => {
   const shot = await shareFile(s.a, await image());
-  expect(await readFile(shot.id, answering({ error: "400 tool_choice not supported" }))).toBe("failed");
+  expect(await readFile(HOME_BOOK, shot.id, answering({ error: "400 tool_choice not supported" }))).toBe("failed");
   expect((await listPending(s.a))[0]).toMatchObject({ status: "failed", summary: null, error: "400 tool_choice not supported" });
   expect(sent.map((m) => m.title)).toEqual(["📎 Die Datei konnte nicht gelesen werden"]);
   await retryFile(s.a, shot.id, answering(suggestion([{ name: "Anna", personId: s.anna }])));
@@ -169,7 +172,7 @@ test("a pre-read from before files lists its text as the summary", async () => {
     people: [{ name: "Anna", candidates: [s.anna] }],
   };
   await (
-    await db()
+    await testDb()
   )
     .updateTable("files")
     .set({ status: "pending", reading: JSON.stringify(old) })
@@ -180,7 +183,7 @@ test("a pre-read from before files lists its text as the summary", async () => {
 
 test("the partner sees neither the waiting file, its content, nor can act on it", async () => {
   const shot = await shareFile(s.a, await image());
-  await readFile(shot.id, answering(suggestion([{ name: "Anna B.", candidates: [s.anna] }])));
+  await readFile(HOME_BOOK, shot.id, answering(suggestion([{ name: "Anna B.", candidates: [s.anna] }])));
   expect(await listPending(s.b)).toEqual([]);
   expect(await pendingCount(s.b)).toBe(0);
   expect(await fileContent(s.b, shot.id)).toBeNull();
@@ -201,14 +204,14 @@ test("the file of a shared fact is visible to the partner, of a private one it i
 
 test("discarding drops row and blob; deleting the fact prunes a filed file", async () => {
   const one = await shareFile(s.a, await image());
-  await readFile(one.id, answering(suggestion([{ name: "X" }])));
+  await readFile(HOME_BOOK, one.id, answering(suggestion([{ name: "X" }])));
   await discardFile(s.a, one.id);
   expect(await fileContent(s.a, one.id)).toBeNull();
   const two = await shareFile(s.a, await image());
   const fact = await factFrom(two.id);
   await deleteItem(s.a, "facts", fact);
   expect(await fileContent(s.a, two.id)).toBeNull();
-  expect(await pruneFiles()).toBe(0);
+  expect(await pruneFiles(HOME_BOOK)).toBe(0);
 });
 
 test("after a restart, what was still being read is read again", async () => {
@@ -221,7 +224,7 @@ test("after a restart, what was still being read is read again", async () => {
 test("a file a pre-read once found nothing in is stored afresh when shared again", async () => {
   const bytes = await image();
   const first = await shareFile(s.a, bytes);
-  await (await db()).updateTable("files").set({ status: "nothing" }).where("id", "=", first.id).execute();
+  await (await testDb()).updateTable("files").set({ status: "nothing" }).where("id", "=", first.id).execute();
   const again = await shareFile(s.a, bytes);
   expect(again).toMatchObject({ status: "reading", duplicate: false });
   expect(again.id).not.toBe(first.id);
@@ -241,9 +244,9 @@ test("a share key names its user until it is replaced or revoked", async () => {
   // the webhook survives a new key
   await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
   await createShareKey(s.b);
-  expect((await (await db()).selectFrom("user_settings").select("webhook_url").where("user_id", "=", s.b.userId).executeTakeFirstOrThrow()).webhook_url).toBe(
-    "https://ntfy.example/b",
-  );
+  expect(
+    (await (await testDb()).selectFrom("user_settings").select("webhook_url").where("user_id", "=", s.b.userId).executeTakeFirstOrThrow()).webhook_url,
+  ).toBe("https://ntfy.example/b");
 });
 
 test("a PDF and a text file are stored as they are, with their type; anything else is refused", async () => {
@@ -260,7 +263,7 @@ test("a PDF and a text file are stored as they are, with their type; anything el
     "freundebuch takes images, PDFs, text files and voice notes",
   );
   await expect(shareFile(s.a, new Uint8Array([0, 1, 2, 0xff, 0xfe]), "")).rejects.toThrow("freundebuch takes images, PDFs, text files and voice notes");
-  const keys = await (await db()).selectFrom("files").select(["id", "blob_key"]).execute();
+  const keys = await (await testDb()).selectFrom("files").select(["id", "blob_key"]).execute();
   expect(keys.find((k) => k.id === a.id)!.blob_key).toBe(`files/${a.id}.pdf`);
   expect(keys.find((k) => k.id === b.id)!.blob_key).toBe(`files/${b.id}.txt`);
 });
@@ -269,7 +272,7 @@ test("a file a private fact was filed from too stays its recorder's: the shared 
   const shot = await shareFile(s.a, await image());
   await factFrom(shot.id);
   await (
-    await db()
+    await testDb()
   )
     .insertInto("facts")
     .values({
@@ -292,7 +295,7 @@ test("a file a private fact was filed from too stays its recorder's: the shared 
 
 test("a pre-read keeps the file's transcript, which the listing shows", async () => {
   const shot = await shareFile(s.a, await image());
-  await readFile(shot.id, answering({ summary: "s", transcript: "[19:20] Patrick: Freitag Spieleabend", people: [] }));
+  await readFile(HOME_BOOK, shot.id, answering({ summary: "s", transcript: "[19:20] Patrick: Freitag Spieleabend", people: [] }));
   expect((await listPending(s.a))[0].transcript).toBe("[19:20] Patrick: Freitag Spieleabend");
 });
 
@@ -300,7 +303,7 @@ test("a text file over 1 MB is refused: too long to hand to Claude whole", async
   await expect(shareFile(s.a, new TextEncoder().encode("a".repeat(1024 * 1024 + 1)), "text/plain")).rejects.toThrow(
     "The text file is too long (at most 1 MB): share a shorter part",
   );
-  expect(await (await db()).selectFrom("files").selectAll().execute()).toEqual([]);
+  expect(await (await testDb()).selectFrom("files").selectAll().execute()).toEqual([]);
 });
 
 const heicFixture = (name: string) => new Uint8Array(readFileSync(join(__dirname, "testing", "heic", `${name}.heic`)));
@@ -346,12 +349,12 @@ test("a broken HEIC is refused as an image freundebuch can't read", async () => 
 test("a file filed by the screenshot reading before files can be shared again: it is stored afresh", async () => {
   const bytes = await image();
   const first = await shareFile(s.a, bytes);
-  await (await db()).updateTable("files").set({ status: "filed" }).where("id", "=", first.id).execute();
+  await (await testDb()).updateTable("files").set({ status: "filed" }).where("id", "=", first.id).execute();
   const again = await shareFile(s.a, bytes);
   expect(again).toMatchObject({ status: "reading", duplicate: false });
   expect(again.id).not.toBe(first.id);
   // The old row stays for the fact that may still show it.
-  expect(await (await db()).selectFrom("files").select("id").where("id", "=", first.id).execute()).toHaveLength(1);
+  expect(await (await testDb()).selectFrom("files").select("id").where("id", "=", first.id).execute()).toHaveLength(1);
 });
 
 // A voice note as WhatsApp shares it: Ogg (Opus). Only its first bytes matter here; Whisper is a stand-in.
@@ -369,7 +372,7 @@ test("a voice note is stored as it came, transcribed, and Claude pre-reads the t
     const shot = await shareFile(s.a, bytes, "audio/ogg; codecs=opus");
     expect(await fileContent(s.a, shot.id)).toEqual({ bytes, type: "audio/ogg" });
     const model = answering(suggestion([{ name: "Anna", personId: s.anna }]));
-    expect(await readFile(shot.id, model, whisper)).toBe("pending");
+    expect(await readFile(HOME_BOOK, shot.id, model, whisper)).toBe("pending");
     expect(whisper.heard).toEqual(["audio/ogg"]);
     expect(model.seen[0].type).toBe("text/plain");
     expect(new TextDecoder().decode(model.seen[0].bytes)).toContain("Wir sind gut in Lissabon angekommen!");
@@ -405,17 +408,17 @@ test("a voice note that can't be transcribed fails saying so; one Claude couldn'
   setTranscriberForTests(hearing({ text: "x" }));
   try {
     const a = await shareFile(s.a, voiceNote());
-    expect(await readFile(a.id, answering(suggestion([])), hearing({ error: "transcription failed (HTTP 500)" }))).toBe("failed");
+    expect(await readFile(HOME_BOOK, a.id, answering(suggestion([])), hearing({ error: "transcription failed (HTTP 500)" }))).toBe("failed");
     expect((await listPending(s.a))[0]).toMatchObject({ status: "failed", transcript: null, error: "transcription failed (HTTP 500)" });
     expect(sent.map((m) => m.title)).toEqual(["🎙️ Die Sprachnachricht konnte nicht transkribiert werden"]);
 
     const b = await shareFile(s.a, voiceNote());
     const first = hearing({ text: "Anna kommt Freitag" });
-    expect(await readFile(b.id, answering({ error: "overloaded" }), first)).toBe("failed");
+    expect(await readFile(HOME_BOOK, b.id, answering({ error: "overloaded" }), first)).toBe("failed");
     expect((await listPending(s.a)).find((f) => f.id === b.id)).toMatchObject({ status: "failed", transcript: "Anna kommt Freitag", error: "overloaded" });
-    await (await db()).updateTable("files").set({ status: "reading" }).where("id", "=", b.id).execute();
+    await (await testDb()).updateTable("files").set({ status: "reading" }).where("id", "=", b.id).execute();
     const again = hearing({ text: "never asked" });
-    expect(await readFile(b.id, answering(suggestion([])), again)).toBe("pending");
+    expect(await readFile(HOME_BOOK, b.id, answering(suggestion([])), again)).toBe("pending");
     expect(again.heard).toEqual([]);
     expect((await listPending(s.a)).find((f) => f.id === b.id)!.transcript).toBe("Anna kommt Freitag");
   } finally {

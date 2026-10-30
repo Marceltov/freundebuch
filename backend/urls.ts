@@ -30,6 +30,8 @@ export const groupPath = (id: string) => `/g/${id}`;
 /** A journal entry, highlighted on the Tagebuch page. */
 export const journalPath = (id: string) => `/tagebuch#journal-${id}`;
 export const filePath = (id: string) => `/api/files/${id}`;
+/** Where an invitation into a household is followed: the sign-in page, which takes it along. */
+export const invitePath = (code: string) => `/login?invite=${code}`;
 /** The element id of an item's row on a page; a link ending in `#` + this scrolls to the row and highlights it. */
 export const anchorId = (table: AnchoredTable, id: string) => `${table}-${id}`;
 export const itemPath = (page: string, table: AnchoredTable, id: string) => `${page}#${anchorId(table, id)}`;

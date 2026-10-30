@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { db } from "./db/testing";
+import { testDb } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { addRelationship, addToGroup } from "./relationships";
 import { seed, type Seed } from "./testing/fixtures";
@@ -14,7 +14,7 @@ test("a relationship without a conversation keeps what each end is, in words", a
   const {
     ids: [id],
   } = await addRelationship(s.a, { from: s.lena, to: s.anna, label: " Kollegin ", inverse: "Kollegin", note: "same office", visibility: "shared" });
-  const row = await (await db()).selectFrom("relationships").selectAll().where("id", "=", id).executeTakeFirstOrThrow();
+  const row = await (await testDb()).selectFrom("relationships").selectAll().where("id", "=", id).executeTakeFirstOrThrow();
   expect(row).toMatchObject({
     from_id: s.lena,
     to_id: s.anna,
@@ -55,7 +55,7 @@ test("group memberships without a conversation; adding the same one again is a n
   expect(await addToGroup(s.b, { name: "Uni", members: [s.anna], visibility: "shared" })).toMatchObject({ added: 1 });
   // Haushalt, the household's own group, holds Alice and Bob from the start; this is about Uni.
   const rows = await (
-    await db()
+    await testDb()
   )
     .selectFrom("group_members")
     .innerJoin("groups", "groups.id", "group_members.group_id")
@@ -89,7 +89,7 @@ test("the same relationship again is not recorded twice, either way round and in
   expect(await add(s.lena, s.tom, "Kolleg:in", "Kolleg:in")).toEqual(colleague);
   // the note it lacked is taken over
   expect(await add(s.tom, s.anna, "Sohn", "Mutter", "der Ältere")).toEqual(parent);
-  expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", parent[0]).executeTakeFirstOrThrow()).note).toBe("der Ältere");
+  expect((await (await testDb()).selectFrom("relationships").select("note").where("id", "=", parent[0]).executeTakeFirstOrThrow()).note).toBe("der Ältere");
 });
 
 test("a shared relationship of the partner counts; a private one doesn't, and isn't touched", async () => {
@@ -97,7 +97,7 @@ test("a shared relationship of the partner counts; a private one doesn't, and is
   const again = await addRelationship(s.a, { from: s.lena, to: s.anna, label: "Geschwister", inverse: "Geschwister", note: "Zwilling", visibility: "shared" });
   expect(again.ids).toEqual(shared.ids);
   expect(again.relationships).toMatchObject([{ fromName: "Anna", toName: "Lena", created: false }]);
-  expect((await (await db()).selectFrom("relationships").select("note").where("id", "=", shared.ids[0]).executeTakeFirstOrThrow()).note).toBeNull();
+  expect((await (await testDb()).selectFrom("relationships").select("note").where("id", "=", shared.ids[0]).executeTakeFirstOrThrow()).note).toBeNull();
 
   const secret = await addRelationship(s.b, { from: s.anna, to: s.tom, label: "Partner:in", inverse: "Partner:in", visibility: "private" });
   const beside = await addRelationship(s.a, { from: s.anna, to: s.tom, label: "Partner:in", inverse: "Partner:in", visibility: "shared" });
@@ -107,14 +107,14 @@ test("a shared relationship of the partner counts; a private one doesn't, and is
 });
 
 const towards = async (id: string) =>
-  await (await db()).selectFrom("relationships").select(["from_id", "to_id", "label"]).where("to_id", "=", id).orderBy("created_at").execute();
+  await (await testDb()).selectFrom("relationships").select(["from_id", "to_id", "label"]).where("to_id", "=", id).orderBy("created_at").execute();
 
 test("us files the role to both household persons, once each", async () => {
   const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
   expect(ids).toHaveLength(2);
-  const rows = await (await db()).selectFrom("relationships").select(["id", "to_id"]).where("id", "in", ids).execute();
+  const rows = await (await testDb()).selectFrom("relationships").select(["id", "to_id"]).where("id", "in", ids).execute();
   expect(rows.map((r) => r.to_id).sort()).toEqual([s.a.personId, s.b.personId].sort());
-  const count = async () => (await (await db()).selectFrom("relationships").select("id").execute()).length;
+  const count = async () => (await (await testDb()).selectFrom("relationships").select("id").execute()).length;
   const before = await count();
   expect((await addRelationship(s.a, { from: s.anna, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" })).ids.sort()).toEqual(
     [...ids].sort(),
@@ -126,10 +126,10 @@ test("us adds only the half that is missing", async () => {
   const {
     ids: [mine],
   } = await addRelationship(s.a, { from: s.lena, to: s.a.personId, label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
-  const before = (await (await db()).selectFrom("relationships").select("id").execute()).length;
+  const before = (await (await testDb()).selectFrom("relationships").select("id").execute()).length;
   const { ids } = await addRelationship(s.a, { from: s.lena, to: "us", label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
   expect(ids).toContain(mine);
-  expect((await (await db()).selectFrom("relationships").select("id").execute()).length).toBe(before + 1);
+  expect((await (await testDb()).selectFrom("relationships").select("id").execute()).length).toBe(before + 1);
 });
 
 test("me is the viewer's own person", async () => {
@@ -141,7 +141,7 @@ test("me is the viewer's own person", async () => {
 });
 
 test("a household of one", async () => {
-  await (await db()).updateTable("users").set({ person_id: null }).where("id", "=", s.b.userId).execute();
+  await (await testDb()).updateTable("users").set({ person_id: null }).where("id", "=", s.b.userId).execute();
   const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
   expect(ids).toHaveLength(1);
   expect(await towards(s.a.personId)).toEqual([{ from_id: s.anna, to_id: s.a.personId, label: "Vermieter:in" }]);

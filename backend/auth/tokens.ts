@@ -13,7 +13,7 @@ export type Payloads = {
   access: { aud: string; uid: string };
   refresh: { cid: string; aud: string; jti: string; uid: string; until: number };
   identity: { uid: string }; // the fb_identity session cookie
-  oidc: { state: string; nonce: string; verifier: string; next?: string; authorize?: Record<string, string> }; // a sign-in in flight
+  oidc: { state: string; nonce: string; verifier: string; next?: string; authorize?: Record<string, string>; invite?: string }; // a sign-in in flight
 };
 export const TTL = { code: 300, access: 3600, refresh: 2592000, identity: 604800, oidc: 600 } as const;
 

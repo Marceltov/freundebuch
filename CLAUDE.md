@@ -18,6 +18,7 @@ freundebuch: a personal CRM for one household, AI-first (capture happens through
 ## Architecture
 
 - Three surfaces call the same domain layer in `backend/`: `/mcp` (`backend/mcp.ts`), `/api/v1` (route table in `backend/http/api.ts`) and the pages in `app/(app)`. Tokens are bound to one surface; an MCP token fails on REST and vice versa. See `docs/internals/how-it-works.md` and `docs/adr/`.
+- Each household's book is its own SQLite file; `db(v)` opens the viewer's, `instance.db` says who signs in to which (`backend/instance.ts`, ADR 0022). Code that runs for everyone (reminders, clean-up) loops over `households()`.
 - Privacy is one function: `visible()` in `backend/visibility.ts`. Every read of a table with `visibility`/`recorded_by` goes through it. Privacy tests use the household seed in `backend/testing/fixtures.ts`.
 - Migrations live in code (`backend/db/migrations.ts`). Never edit one that has shipped; add the next.
 - Next.js is 16.x with breaking changes; check `node_modules/next/dist/docs/` before relying on remembered APIs.

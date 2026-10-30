@@ -78,7 +78,7 @@ export async function traitsFor(v: Viewer, q: { people?: string[]; groups?: stri
   const people = q.people ?? [];
   const groups = q.groups ?? [];
   if (!people.length && !groups.length) throw new InvalidInputError("Name at least one person or group");
-  const d = await db();
+  const d = await db(v);
   const named = people.length ? await d.selectFrom("persons").select(["id", "name"]).where("id", "in", people).execute() : [];
   const order = new Map<string, string>();
   for (const id of people) {

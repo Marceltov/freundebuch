@@ -177,7 +177,7 @@ export type ExperienceQuery = {
 
 /** The experiences the viewer may see, newest first, narrowed by period, kind (any case), place, series or a person who was there. */
 export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promise<ExperienceView[]> {
-  const d = await db();
+  const d = await db(v);
   let query = d
     .selectFrom("experiences")
     .selectAll()
@@ -241,7 +241,7 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
 /** The kinds the viewer's visible experiences use, most used first, so Claude keeps "Konzert" "Konzert". */
 export async function experienceKinds(v: Viewer): Promise<string[]> {
   const rows = await (
-    await db()
+    await db(v)
   )
     .selectFrom("experiences")
     .select(["kind", (eb) => eb.fn.countAll<number>().as("n")])
@@ -256,7 +256,7 @@ export async function experienceKinds(v: Viewer): Promise<string[]> {
 /** The series the viewer may see, by name. */
 export async function listSeries(v: Viewer): Promise<SeriesSummary[]> {
   const rows = await (
-    await db()
+    await db(v)
   )
     .selectFrom("series")
     .selectAll()
@@ -287,7 +287,7 @@ export type SeriesView = SeriesSummary & {
 
 /** One series the viewer may see, with its sessions by date and the days skipped. */
 export async function getSeries(v: Viewer, id: string, today = todayOf()): Promise<SeriesView> {
-  const d = await db();
+  const d = await db(v);
   const s = await d
     .selectFrom("series")
     .selectAll()
@@ -327,7 +327,7 @@ export type PlaceView = PlaceCandidate & {
 
 /** One place the viewer may see, with everything at it or inside it they may see, newest first. */
 export async function getPlace(v: Viewer, id: string): Promise<PlaceView> {
-  const d = await db();
+  const d = await db(v);
   const p = await describePlace(d, v, id);
   const at = placeAndInsideIds(d, v, id);
   const [experiences, conversations, series] = await Promise.all([

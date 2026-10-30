@@ -81,7 +81,7 @@ const DONE_COLUMN = { promises: "done", exchanges: "settled" } as const;
 /** Marks a promise done or an exchange settled. A shared one may be marked by either user; a private one is invisible to the other. */
 export async function markDone(v: Viewer, table: "promises" | "exchanges", id: string): Promise<void> {
   if (!(table in DONE_COLUMN)) throw new InvalidInputError(`Only promises and exchanges can be marked done, not "${table}"`);
-  const d = await db();
+  const d = await db(v);
   await load(d, v, table, id, "viewer");
   await d
     .updateTable(table as "promises")
@@ -113,7 +113,7 @@ async function factState(d: Kysely<Schema>, id: string): Promise<FactState> {
 
 /** Marks a fact outdated. A shared fact may be marked by either user. */
 export async function markOutdated(v: Viewer, factId: string): Promise<FactState> {
-  const d = await db();
+  const d = await db(v);
   await load(d, v, "facts", factId, "viewer");
   await d.updateTable("facts").set({ status: "outdated" }).where("id", "=", factId).execute();
   return factState(d, factId);
@@ -261,7 +261,7 @@ export async function editItem(
   patch: Record<string, unknown>,
 ): Promise<{ fact?: FactState & { defaultCheckAfter: boolean } }> {
   assertTable(table);
-  const d = await db();
+  const d = await db(v);
   const row = await load(d, v, table, id, "editor");
   const keys = Object.keys(patch);
   if (!keys.length) throw new InvalidInputError("Nothing to change");
@@ -367,7 +367,7 @@ async function rambleOfRow(d: Kysely<Schema>, table: ItemTable, row: Row): Promi
  * recorder's word that it holds nothing private any more. Refused while the ramble or any part of it is private.
  */
 export async function shareTranscript(v: Viewer, id: string): Promise<void> {
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     const own = await tx
       .selectFrom("rambles")
@@ -393,7 +393,7 @@ export async function shareTranscript(v: Viewer, id: string): Promise<void> {
 export async function setVisibility(v: Viewer, table: ItemTable, id: string, visibility: Visibility): Promise<void> {
   assertTable(table);
   if (!VISIBILITIES.includes(visibility)) throw new InvalidInputError(`Visibility must be one of ${VISIBILITIES.join(", ")}`);
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     const row = await load(tx, v, table, id, "recorder");
     if (visibility === "private") await assertReplacesNothingShared(tx, table, id);
@@ -462,7 +462,7 @@ async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, 
 
 /** Marks a session day of a series the viewer may see as skipped, so it isn't asked about as missing. */
 export async function skipSession(v: Viewer, seriesId: string, date: string): Promise<void> {
-  const d = await db();
+  const d = await db(v);
   await load(d, v, "series", seriesId, "viewer");
   await d
     .insertInto("series_skips")
@@ -491,7 +491,7 @@ async function holdsAnything(d: Kysely<Schema>, rambleId: string): Promise<boole
  */
 export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promise<void> {
   assertTable(table);
-  const d = await db();
+  const d = await db(v);
   const row = await load(d, v, table, id, "editor");
   const ramble = table === "conversations" || table === "journal_entries" || table === "experiences" ? await rambleOfRow(d, table, row) : null;
   await d
@@ -501,7 +501,7 @@ export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promi
   // A ramble goes with the last part told in it.
   if (ramble && !(await holdsAnything(d, ramble))) await d.deleteFrom("rambles").where("id", "=", ramble).execute();
   // A fact filed from a shared file takes the file with it once nothing else names it.
-  if (table === "facts") await pruneFiles();
+  if (table === "facts") await pruneFiles(v);
 }
 
 /**
@@ -514,7 +514,7 @@ export async function factToRelationship(
   r: { from: Target; to: Target; label: string; inverse: string; note?: string },
 ): Promise<{ ids: string[]; relationships: FiledRelationship[] }> {
   checkRelationship(r, () => {});
-  const d = await db();
+  const d = await db(v);
   const relationships = await d.transaction().execute(async (tx) => {
     const fact = (await load(tx, v, "facts", factId, "editor")) as Row & { person_id: string };
     const [froms, tos] = await Promise.all([resolveTarget(tx, v, r.from), resolveTarget(tx, v, r.to)]);
@@ -529,7 +529,7 @@ export async function factToRelationship(
     await tx.deleteFrom("facts").where("id", "=", factId).execute();
     return filed;
   });
-  await pruneFiles();
+  await pruneFiles(v);
   return { ids: relationships.map((x) => x.id), relationships };
 }
 
@@ -538,7 +538,7 @@ export async function factToRelationship(
  * visibility: who sees it sees who was there. NotFoundError for no such person or a conversation the viewer can't see.
  */
 export async function addParticipant(v: Viewer, conversationId: string, personId: string): Promise<void> {
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     await load(tx, v, "conversations", conversationId, "recorder");
     if (!(await tx.selectFrom("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
@@ -552,7 +552,7 @@ export async function addParticipant(v: Viewer, conversationId: string, personId
 
 /** Takes someone out of a conversation the viewer recorded, who wasn't there after all; a conversation keeps at least one person. */
 export async function removeParticipant(v: Viewer, conversationId: string, personId: string): Promise<void> {
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     await load(tx, v, "conversations", conversationId, "recorder");
     const others = await tx
@@ -570,7 +570,7 @@ export async function renamePerson(v: Viewer, id: string, name: string): Promise
   void v;
   const n = name.trim();
   if (!n) throw new InvalidInputError("A person needs a name");
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     if (!(await tx.selectFrom("persons").select("id").where("id", "=", id).executeTakeFirst())) throw new NotFoundError("No such person");
     await tx.updateTable("persons").set({ name: n }).where("id", "=", id).execute();
@@ -589,7 +589,7 @@ export type Moved = { facts: number; promises: number; dates: number; exchanges:
  */
 export async function mergePeople(v: Viewer, keepId: string, dropId: string): Promise<{ kept: string; dropped: string; moved: Moved }> {
   if (keepId === dropId) throw new InvalidInputError("Can't merge a person into themselves");
-  const d = await db();
+  const d = await db(v);
   return d.transaction().execute(async (tx) => {
     const keep = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", keepId).executeTakeFirst();
     const drop = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", dropId).executeTakeFirst();

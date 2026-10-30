@@ -95,7 +95,7 @@ export type Briefing = {
 
 export async function briefing(v: Viewer, personId: string, from = today()): Promise<Briefing> {
   const person = await getPerson(v, personId);
-  const d = await db();
+  const d = await db(v);
   const [fresh, nextDates, facts, promises, exchanges, rels, convs, setting, birthdays, groups] = await Promise.all([
     freshness(v, personId, from),
     upcomingDates(v, from, NEXT_DATES_DAYS, personId),

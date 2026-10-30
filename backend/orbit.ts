@@ -45,7 +45,7 @@ function ringOf(ratio: number | null, intervalDays: number | null, daysSince: nu
  */
 export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Promise<OrbitFace[]> {
   const from = today(now);
-  const d = await db();
+  const d = await db(v);
   const members = groupId ? new Set((await getGroup(v, groupId)).members.map((m) => m.personId)) : null;
   const [persons, birthdays, promised, gifts] = await Promise.all([
     d.selectFrom("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),

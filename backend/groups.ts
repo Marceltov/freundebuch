@@ -41,7 +41,7 @@ async function views(d: Kysely<Schema>, v: Viewer, rows: { id: string; name: str
 
 /** Every group the viewer sees, by name. */
 export async function listGroups(v: Viewer): Promise<GroupView[]> {
-  const d = await db();
+  const d = await db(v);
   const rows = await d
     .selectFrom("groups")
     .select(["id", "name", "household"])
@@ -57,7 +57,7 @@ export async function listGroups(v: Viewer): Promise<GroupView[]> {
 
 /** One group with its members, never seen first, then the most overdue, then by name. */
 export async function getGroup(v: Viewer, id: string): Promise<GroupView & { members: GroupMember[] }> {
-  const d = await db();
+  const d = await db(v);
   const row = await d
     .selectFrom("groups")
     .select(["id", "name", "household"])
@@ -95,7 +95,7 @@ async function visibleMembers(d: Kysely<Schema>, v: Viewer, groupId: string): Pr
 
 /** The people of a group the viewer sees, by name; NotFoundError when the viewer can't see the group. */
 export async function groupMembers(v: Viewer, groupId: string): Promise<Array<{ id: string; name: string }>> {
-  const d = await db();
+  const d = await db(v);
   const row = await d
     .selectFrom("groups")
     .select("id")
@@ -225,18 +225,18 @@ async function addAlias(tx: Kysely<Schema>, id: string, alias: string): Promise<
     .execute();
 }
 
-const tx = async <T>(f: (tx: Kysely<Schema>) => Promise<T>): Promise<T> => (await db()).transaction().execute(f);
+const tx = async <T>(v: Viewer, f: (tx: Kysely<Schema>) => Promise<T>): Promise<T> => (await db(v)).transaction().execute(f);
 
 /** The group `name` already means for the viewer, or a new one of theirs. */
 export async function createGroup(v: Viewer, name: string): Promise<GroupView> {
   if (!norm(name)) throw new InvalidInputError("A group's name can't be empty");
-  const id = await tx((t) => resolveOrCreateGroup(t, v, name));
+  const id = await tx(v, (t) => resolveOrCreateGroup(t, v, name));
   return (await listGroups(v)).find((g) => g.id === id)!;
 }
 
 /** Renames a group; the old name becomes another name, so it still finds the group. */
 export async function renameGroup(v: Viewer, id: string, name: string): Promise<void> {
-  await tx(async (t) => {
+  await tx(v, async (t) => {
     const g = await seen(t, v, id);
     await assertFree(t, v, id, name);
     await t.updateTable("groups").set({ name: name.trim() }).where("id", "=", id).execute();
@@ -246,7 +246,7 @@ export async function renameGroup(v: Viewer, id: string, name: string): Promise<
 }
 
 export async function addGroupAlias(v: Viewer, id: string, alias: string): Promise<void> {
-  await tx(async (t) => {
+  await tx(v, async (t) => {
     await seen(t, v, id);
     await assertFree(t, v, id, alias);
     await addAlias(t, id, alias);
@@ -254,7 +254,7 @@ export async function addGroupAlias(v: Viewer, id: string, alias: string): Promi
 }
 
 export async function removeGroupAlias(v: Viewer, id: string, alias: string): Promise<void> {
-  await tx(async (t) => {
+  await tx(v, async (t) => {
     await seen(t, v, id);
     await t.deleteFrom("group_aliases").where("group_id", "=", id).where("norm", "=", norm(alias)).execute();
   });
@@ -269,7 +269,7 @@ async function blindTo(t: Kysely<Schema>, v: Viewer, id: string): Promise<string
       .selectFrom("groups")
       .select("id")
       .where("id", "=", id)
-      .$call((qb) => visibleGroups(qb, { userId: u.id, personId: "" }))
+      .$call((qb) => visibleGroups(qb, { userId: u.id, personId: "", householdId: v.householdId }))
       .executeTakeFirst();
     if (!sees) blind.push(u.id);
   }
@@ -283,7 +283,7 @@ async function blindTo(t: Kysely<Schema>, v: Viewer, id: string): Promise<string
  */
 export async function mergeGroups(v: Viewer, keepId: string, dropId: string): Promise<void> {
   if (keepId === dropId) throw new InvalidInputError("A group can't be merged into itself");
-  await tx(async (t) => {
+  await tx(v, async (t) => {
     await seen(t, v, keepId);
     const drop = await seen(t, v, dropId);
     if (drop.household) throw new InvalidInputError(`${drop.name} is the household's own group: merge the other group into it instead`);
@@ -304,7 +304,7 @@ export async function mergeGroups(v: Viewer, keepId: string, dropId: string): Pr
  * no longer seeded or the viewer's own; once none are left, it goes with its other names.
  */
 export async function deleteGroup(v: Viewer, id: string): Promise<void> {
-  await tx(async (t) => {
+  await tx(v, async (t) => {
     const g = await seen(t, v, id);
     if (g.household) throw new InvalidInputError(`${g.name} is the household's own group and can't be deleted; it can be renamed`);
     await t.deleteFrom("group_members").where("group_id", "=", id).where("recorded_by", "=", v.userId).execute();
@@ -316,7 +316,7 @@ export async function deleteGroup(v: Viewer, id: string): Promise<void> {
 
 /** Puts a person in a group as the viewer; true when the membership is new. */
 export async function addToGroupById(v: Viewer, id: string, personId: string, visibility: Visibility): Promise<boolean> {
-  return tx(async (t) => {
+  return tx(v, async (t) => {
     await seen(t, v, id);
     if (!(await t.selectFrom("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
     const r = await t
@@ -333,7 +333,7 @@ export async function addToGroupById(v: Viewer, id: string, personId: string, vi
  * left with no members that nobody made or started with (one the partner deleted) can't be seen by anyone any more and goes.
  */
 export async function removeFromGroup(v: Viewer, id: string, personId: string): Promise<void> {
-  await tx(async (t) => {
+  await tx(v, async (t) => {
     const g = await seen(t, v, id);
     if (g.household && (await householdPersons(t)).includes(personId))
       throw new InvalidInputError(`Everyone who signs in stays in ${g.name}, the household's own group`);

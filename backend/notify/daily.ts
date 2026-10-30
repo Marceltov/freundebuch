@@ -4,6 +4,7 @@ import { notifyCopy, type NotifyCopy } from "./copy";
 import { userLanguage } from "../settings";
 import { config } from "../config";
 import { db } from "../db";
+import { households } from "../instance";
 import { addDays, today } from "../dates";
 import { lastSeen } from "../intervals";
 import { errorFields, logger } from "../log";
@@ -66,34 +67,37 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
   // A background job has no request to take the address from.
   const base = config.publicUrl();
   const click = (id: string) => (base ? `${base}/p/${id}` : undefined);
-  const d = await db();
-  const rows = await d.selectFrom("user_settings").select(["user_id", "webhook_url"]).where("webhook_url", "is not", null).execute();
   let sent = 0;
   let users = 0;
-  for (const row of rows) {
-    try {
-      if (onlyNew) {
-        const mark = await d.selectFrom("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
-        if (mark?.value === from) continue;
+  for (const householdId of await households()) {
+    const book = { householdId };
+    const d = await db(book);
+    const rows = await d.selectFrom("user_settings").select(["user_id", "webhook_url"]).where("webhook_url", "is not", null).execute();
+    for (const row of rows) {
+      try {
+        if (onlyNew) {
+          const mark = await d.selectFrom("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
+          if (mark?.value === from) continue;
+        }
+        const v = await viewerById(row.user_id);
+        if (!v) continue;
+        users++;
+        // A missed session goes out once, the morning after its day.
+        const items = (await whatsDue(v, from, 1)).filter((i) => i.kind !== "session" || i.date === addDays(from, -1));
+        const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
+        const copy = notifyCopy(await userLanguage(v));
+        const messages = await Promise.all(shown.map((i) => message(v, copy, i, from, click)));
+        if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });
+        for (const m of messages) if (await sendWebhook(row.webhook_url!, m, fetchFn)) sent++;
+        if (onlyNew)
+          await d
+            .insertInto("meta")
+            .values({ key: doneKey(row.user_id), value: from })
+            .onConflict((oc) => oc.column("key").doUpdateSet({ value: from }))
+            .execute();
+      } catch (e) {
+        log.error({ err: errorFields(e) }, "daily reminders failed for a user");
       }
-      const v = await viewerById(row.user_id);
-      if (!v) continue;
-      users++;
-      // A missed session goes out once, the morning after its day.
-      const items = (await whatsDue(v, from, 1)).filter((i) => i.kind !== "session" || i.date === addDays(from, -1));
-      const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
-      const copy = notifyCopy(await userLanguage(v));
-      const messages = await Promise.all(shown.map((i) => message(v, copy, i, from, click)));
-      if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });
-      for (const m of messages) if (await sendWebhook(row.webhook_url!, m, fetchFn)) sent++;
-      if (onlyNew)
-        await d
-          .insertInto("meta")
-          .values({ key: doneKey(row.user_id), value: from })
-          .onConflict((oc) => oc.column("key").doUpdateSet({ value: from }))
-          .execute();
-    } catch (e) {
-      log.error({ err: errorFields(e) }, "daily reminders failed for a user");
     }
   }
   // The scheduler ticks every minute: a tick that served nobody says nothing.

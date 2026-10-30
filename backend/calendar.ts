@@ -2,9 +2,10 @@
 // any other calendar app subscribes to. Calendar apps fetch a subscribed feed without signing in, so the feed is reached by a
 // secret URL per user (ADR 0008). Only the key's hash is stored; the feed is read as its user, through `visible`, so the partner's
 // private items are never in it, not even as a busy slot.
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { ageOn, nextOccurrence, today } from "./dates";
 import { db } from "./db";
+import { householdKey, householdOfKey } from "./instance";
 import { notifyCopy } from "./notify/copy";
 import { userLanguage } from "./settings";
 import type { Viewer } from "./types";
@@ -21,10 +22,10 @@ export const feedPath = (key: string) => `/api/calendar/${key}.ics`;
 
 /** A new calendar key for the viewer; the previous one stops working. Shown once: only its hash is kept. */
 export async function createCalendarKey(v: Viewer): Promise<string> {
-  const key = KEY_PREFIX + randomBytes(32).toString("base64url");
+  const key = householdKey(KEY_PREFIX, v.householdId);
   const hash = hashKey(key);
   await (
-    await db()
+    await db(v)
   )
     .insertInto("user_settings")
     .values({ user_id: v.userId, webhook_url: null, calendar_key_hash: hash })
@@ -34,18 +35,19 @@ export async function createCalendarKey(v: Viewer): Promise<string> {
 }
 
 export async function hasCalendarKey(v: Viewer): Promise<boolean> {
-  const r = await (await db()).selectFrom("user_settings").select("calendar_key_hash").where("user_id", "=", v.userId).executeTakeFirst();
+  const r = await (await db(v)).selectFrom("user_settings").select("calendar_key_hash").where("user_id", "=", v.userId).executeTakeFirst();
   return !!r?.calendar_key_hash;
 }
 
 export async function revokeCalendarKey(v: Viewer): Promise<void> {
-  await (await db()).updateTable("user_settings").set({ calendar_key_hash: null }).where("user_id", "=", v.userId).execute();
+  await (await db(v)).updateTable("user_settings").set({ calendar_key_hash: null }).where("user_id", "=", v.userId).execute();
 }
 
 /** The user a calendar key belongs to, or null. */
 export async function viewerFromCalendarKey(key: string): Promise<Viewer | null> {
-  if (!key.startsWith(KEY_PREFIX)) return null;
-  const r = await (await db()).selectFrom("user_settings").select("user_id").where("calendar_key_hash", "=", hashKey(key)).executeTakeFirst();
+  const householdId = householdOfKey(KEY_PREFIX, key);
+  if (!householdId) return null;
+  const r = await (await db({ householdId })).selectFrom("user_settings").select("user_id").where("calendar_key_hash", "=", hashKey(key)).executeTakeFirst();
   return r ? viewerById(r.user_id) : null;
 }
 
@@ -60,7 +62,7 @@ const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{(\w
 
 /** The viewer's feed as iCalendar text, its links absolute against `base`. */
 export async function calendarFeed(v: Viewer, base: string, now = Date.now()): Promise<string> {
-  const d = await db();
+  const d = await db(v);
   const copy = notifyCopy(await userLanguage(v));
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const name = (id: string) => names.get(id) ?? "";

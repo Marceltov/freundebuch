@@ -27,7 +27,7 @@ async function assertPeople(tx: Kysely<Schema>, ids: string[]): Promise<void> {
 export async function addRelationship(v: Viewer, r: NewRelationship): Promise<{ ids: string[]; relationships: FiledRelationship[] }> {
   checkRelationship(r, () => {});
   checkVisibility(r.visibility);
-  return (await db()).transaction().execute(async (tx) => {
+  return (await db(v)).transaction().execute(async (tx) => {
     await assertPeople(
       tx,
       [r.from, r.to].filter((t) => !isHouseholdWord(t)),
@@ -45,7 +45,7 @@ export async function addToGroup(v: Viewer, g: NewMembership): Promise<{ added: 
   checkGroup(g, () => {});
   checkVisibility(g.visibility);
   if (!g.members.length) throw new InvalidInputError("A group membership needs at least one person");
-  return (await db()).transaction().execute(async (tx) => {
+  return (await db(v)).transaction().execute(async (tx) => {
     await assertPeople(tx, g.members);
     const { added, groupId: id } = await insertMemberships(tx, v, baseOf(v), g.name, g.members, g.visibility);
     const { name } = await tx.selectFrom("groups").select("name").where("id", "=", id).executeTakeFirstOrThrow();

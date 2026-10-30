@@ -130,14 +130,14 @@ export async function describePlace(d: Kysely<Schema>, v: Viewer, id: string): P
 
 /** Every place the viewer may see, by name. */
 export async function listPlaces(v: Viewer): Promise<PlaceCandidate[]> {
-  return visiblePlaces(await db(), v);
+  return visiblePlaces(await db(v), v);
 }
 
 /** The places the viewer may see whose name or other name matches `q`, tolerant of spelling, best first. */
 export async function findPlaces(v: Viewer, q: string, limit = 5): Promise<PlaceCandidate[]> {
   const nq = norm(q);
   if (!nq) return [];
-  return (await visiblePlaces(await db(), v))
+  return (await visiblePlaces(await db(v), v))
     .map((p) => ({ p, r: rank(nq, [p.name, ...p.aliases]) }))
     .filter((h): h is { p: PlaceCandidate; r: number } => h.r !== null)
     .sort((x, y) => x.r - y.r || x.p.name.localeCompare(y.p.name))
@@ -213,6 +213,7 @@ async function others(tx: Kysely<Schema>, v: Viewer): Promise<Viewer[]> {
   return (await tx.selectFrom("users").select(["id", "person_id"]).where("id", "!=", v.userId).execute()).map((u) => ({
     userId: u.id,
     personId: u.person_id ?? "",
+    householdId: v.householdId,
   }));
 }
 
@@ -296,7 +297,7 @@ export async function fileOwners(
 
 /** Sets (null: clears) the place a place sits inside; refused when that would make it sit inside itself. */
 export async function setPlaceParent(v: Viewer, id: string, parentId: string | null): Promise<void> {
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     await loadPlace(tx, v, id);
     if (parentId !== null) {
@@ -314,7 +315,7 @@ export async function setPlaceParent(v: Viewer, id: string, parentId: string | n
 
 /** Sets (null: clears) a place's address in words. */
 export async function setPlaceAddress(v: Viewer, id: string, address: string | null): Promise<void> {
-  const d = await db();
+  const d = await db(v);
   await loadPlace(d, v, id);
   await d
     .updateTable("places")
@@ -326,7 +327,7 @@ export async function setPlaceAddress(v: Viewer, id: string, address: string | n
 /** Adds whose home a place is: a person id, "me" or "us". */
 export async function addPlaceOwner(v: Viewer, id: string, person: string, visibility: Visibility): Promise<void> {
   if (visibility !== "shared" && visibility !== "private") throw new InvalidInputError("visibility is shared or private");
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     await loadPlace(tx, v, id);
     await fileOwners(tx, v, id, [person], visibility);
@@ -335,7 +336,7 @@ export async function addPlaceOwner(v: Viewer, id: string, person: string, visib
 
 /** Drops a person as owner of a place: the viewer's own ownership and a shared one of the partner's. */
 export async function removePlaceOwner(v: Viewer, id: string, personId: string): Promise<void> {
-  const d = await db();
+  const d = await db(v);
   await loadPlace(d, v, id);
   await d
     .deleteFrom("place_owners")
@@ -363,7 +364,7 @@ async function insertAlias(d: Kysely<Schema>, placeId: string, alias: string): P
 export async function addPlaceAlias(v: Viewer, id: string, alias: string): Promise<void> {
   const a = alias.trim();
   if (!a || a.length > MAX_PLACE) throw new InvalidInputError(`Another name needs 1 to ${MAX_PLACE} characters`);
-  const d = await db();
+  const d = await db(v);
   const p = await loadPlace(d, v, id);
   if (norm(a) !== norm(p.name)) await insertAlias(d, id, a);
 }
@@ -372,7 +373,7 @@ export async function addPlaceAlias(v: Viewer, id: string, alias: string): Promi
 export async function renamePlace(v: Viewer, id: string, name: string): Promise<void> {
   const n = name.trim();
   if (!n || n.length > MAX_PLACE) throw new InvalidInputError(`A place needs a name of 1 to ${MAX_PLACE} characters`);
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     const p = await loadPlace(tx, v, id);
     if (norm(p.name) !== norm(n)) await insertAlias(tx, id, p.name);
@@ -384,7 +385,7 @@ export async function renamePlace(v: Viewer, id: string, name: string): Promise<
 /** Merges the duplicate `dropId` into `keepId`: everything at it moves, its names stay as other names, and it is deleted. */
 export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Promise<void> {
   if (keepId === dropId) throw new InvalidInputError("Can't merge a place into itself");
-  const d = await db();
+  const d = await db(v);
   await d.transaction().execute(async (tx) => {
     const keep = await loadPlace(tx, v, keepId);
     const drop = await loadPlace(tx, v, dropId);
@@ -429,7 +430,7 @@ export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Pr
 
 /** The places the viewer may see of the conversations and experiences a person was part of: how often and when last, newest first. */
 export async function placesOf(v: Viewer, personId: string): Promise<Array<PlaceCandidate & { times: number; last: string }>> {
-  const d = await db();
+  const d = await db(v);
   const [conversations, experiences] = await Promise.all([
     d
       .selectFrom("conversations")
@@ -460,12 +461,12 @@ export async function placesOf(v: Viewer, personId: string): Promise<Array<Place
 
 /** The places directly inside a place, as far as the viewer may see. */
 export async function placesInside(v: Viewer, id: string): Promise<PlaceCandidate[]> {
-  return (await describePlace(await db(), v, id)).inside;
+  return (await describePlace(await db(v), v, id)).inside;
 }
 
 /** The homes of a person the viewer may see: the places with an ownership of theirs the viewer may see. */
 export async function homesOf(v: Viewer, personId: string): Promise<PlaceCandidate[]> {
-  const d = await db();
+  const d = await db(v);
   const owned = await d
     .selectFrom("place_owners")
     .select("place_id")

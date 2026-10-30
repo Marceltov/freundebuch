@@ -5,7 +5,7 @@ import { beforeEach, expect, test } from "vitest";
 import { getConversation, record } from "./conversations";
 import { deleteItem, editItem, mergePeople, setVisibility, shareTranscript } from "./corrections";
 import { deleteRamble, getRamble, listRambles, rambleTranscript } from "./rambles";
-import { db } from "./db/testing";
+import { testDb } from "./db/testing";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
 import { journalEntries } from "./journal";
 import { shareFile } from "./files";
@@ -33,7 +33,7 @@ test("one ramble, split into a conversation, a journal entry and a fact, all tol
   const r = await dogSchool();
   expect(r.conversations).toHaveLength(1);
   expect(r.journal).toEqual([expect.objectContaining({ visibility: "private" })]);
-  const d = await db();
+  const d = await testDb();
   const ramble = await d.selectFrom("rambles").selectAll().where("id", "=", r.rambleId).executeTakeFirstOrThrow();
   expect(ramble).toMatchObject({ transcript: RAMBLE, transcript_private: 1, date: "2026-10-29", recorded_by: s.a.userId });
   const conv = await d.selectFrom("conversations").select(["ramble_id", "date"]).where("id", "=", r.conversations[0].id).executeTakeFirstOrThrow();
@@ -62,7 +62,7 @@ test("a journal entry the user shares is shared; one in a private ramble stays p
 });
 
 test("a part that names a conversation or a person that isn't there is refused, and nothing is filed", async () => {
-  const before = await (await db()).selectFrom("rambles").select("id").execute();
+  const before = await (await testDb()).selectFrom("rambles").select("id").execute();
   await expect(
     record(s.a, {
       date: "2026-10-29",
@@ -76,14 +76,14 @@ test("a part that names a conversation or a person that isn't there is refused, 
     InvalidInputError,
   );
   await expect(record(s.a, { date: "2026-10-29", transcript: "t", visibility: "shared", people: [] })).rejects.toThrow("Nothing to file");
-  expect(await (await db()).selectFrom("rambles").select("id").execute()).toEqual(before);
+  expect(await (await testDb()).selectFrom("rambles").select("id").execute()).toEqual(before);
 });
 
 test("a shared file's transcript joins the ramble's", async () => {
   process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "fb-ramble-"));
   const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend"), "text/plain");
   await (
-    await db()
+    await testDb()
   )
     .updateTable("files")
     .set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript: "Patrick: Freitag Spieleabend", people: [] }) })
@@ -97,7 +97,7 @@ test("a shared file's transcript joins the ramble's", async () => {
     people: [],
     journal: [{ text: "Gruppe plant Spieleabend.", shared: true }],
   });
-  const ramble = await (await db()).selectFrom("rambles").select("transcript").where("id", "=", r.rambleId).executeTakeFirstOrThrow();
+  const ramble = await (await testDb()).selectFrom("rambles").select("transcript").where("id", "=", r.rambleId).executeTakeFirstOrThrow();
   expect(ramble.transcript).toBe("Schau mal.\n\n--- Aus einer geteilten Datei ---\nPatrick: Freitag Spieleabend");
 });
 
@@ -105,8 +105,8 @@ test("deleting a ramble's last conversation keeps the ramble while a journal ent
   const { deleteItem } = await import("./corrections");
   const r = await dogSchool();
   await deleteItem(s.a, "conversations", r.conversations[0].id);
-  expect(await (await db()).selectFrom("rambles").select("id").where("id", "=", r.rambleId).execute()).toHaveLength(1);
-  expect(await (await db()).selectFrom("journal_entries").select("id").where("ramble_id", "=", r.rambleId).execute()).toHaveLength(1);
+  expect(await (await testDb()).selectFrom("rambles").select("id").where("id", "=", r.rambleId).execute()).toHaveLength(1);
+  expect(await (await testDb()).selectFrom("journal_entries").select("id").where("ramble_id", "=", r.rambleId).execute()).toHaveLength(1);
 });
 
 test("listRambles: the recorder sees the ramble with its conversation and its entry; the partner only the conversation", async () => {
@@ -144,7 +144,7 @@ test("getRamble: the partner gets the shared conversation, no transcript while i
 });
 
 const transcriptPrivate = async (rambleId: string) =>
-  (await (await db()).selectFrom("rambles").select("transcript_private").where("id", "=", rambleId).executeTakeFirstOrThrow()).transcript_private;
+  (await (await testDb()).selectFrom("rambles").select("transcript_private").where("id", "=", rambleId).executeTakeFirstOrThrow()).transcript_private;
 
 test("review C1: share_transcript on a conversation is refused while another part of its ramble is private", async () => {
   const r = await dogSchool();
@@ -204,7 +204,7 @@ test("review I4: items filed with the ramble alone belong to it; deleting the ra
     people: [{ id: s.anna }],
     facts: [{ person: 0, text: "mag Tee", category: "other" }],
   });
-  const d = await db();
+  const d = await testDb();
   expect((await d.selectFrom("facts").select("ramble_id").where("id", "=", extra.filed.facts[0].id).executeTakeFirstOrThrow()).ramble_id).toBe(extra.rambleId);
   expect((await listRambles(s.a)).map((x) => x.id)).toContain(extra.rambleId);
   await expect(deleteRamble(s.b, r.rambleId)).rejects.toThrow(ForbiddenError);
@@ -225,7 +225,7 @@ test("review I4: deleting a ramble's last conversation keeps the ramble while it
     facts: [{ person: 0, text: "mag Kaffee", category: "other" }],
   });
   await deleteItem(s.a, "conversations", r.conversations[0].id);
-  expect(await (await db()).selectFrom("rambles").select("id").where("id", "=", r.rambleId).execute()).toHaveLength(1);
+  expect(await (await testDb()).selectFrom("rambles").select("id").where("id", "=", r.rambleId).execute()).toHaveLength(1);
 });
 
 test("review I5: a conversation shared after it was filed privately shows in the partner's Verlauf", async () => {

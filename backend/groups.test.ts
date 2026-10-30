@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { db } from "./db/testing";
+import { testDb } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
 import {
   addGroupAlias,
@@ -26,7 +26,7 @@ beforeEach(async () => {
   s = await seed();
 });
 
-const idOf = async (name: string) => (await (await db()).selectFrom("groups").select("id").where("name", "=", name).executeTakeFirstOrThrow()).id;
+const idOf = async (name: string) => (await (await testDb()).selectFrom("groups").select("id").where("name", "=", name).executeTakeFirstOrThrow()).id;
 
 test("everyone sees the seeded groups, with counts of the people they may see", async () => {
   await addToGroup(s.a, { name: "Familie", members: [s.anna], visibility: "shared" });
@@ -40,12 +40,12 @@ test("everyone sees the seeded groups, with counts of the people they may see", 
 
 test("a name resolves through case, spaces and other names", async () => {
   const arbeit = await idOf("Arbeit");
-  for (const n of ["arbeit", "  ARBEIT ", "Kollegen", "job"]) expect(await findGroup(await db(), s.a, n), n).toBe(arbeit);
-  expect(await findGroup(await db(), s.a, "Chor")).toBeNull();
+  for (const n of ["arbeit", "  ARBEIT ", "Kollegen", "job"]) expect(await findGroup(await testDb(), s.a, n), n).toBe(arbeit);
+  expect(await findGroup(await testDb(), s.a, "Chor")).toBeNull();
 });
 
 test("resolveOrCreateGroup reuses a match and otherwise makes the viewer's own group", async () => {
-  const d = await db();
+  const d = await testDb();
   expect(await resolveOrCreateGroup(d, s.a, "kollegen")).toBe(await idOf("Arbeit"));
   const chor = await resolveOrCreateGroup(d, s.a, " Chor ");
   expect(await d.selectFrom("groups").select(["name", "created_by"]).where("id", "=", chor).executeTakeFirst()).toEqual({
@@ -56,7 +56,7 @@ test("resolveOrCreateGroup reuses a match and otherwise makes the viewer's own g
 });
 
 test("a group the viewer made is theirs to see even while it is empty; the partner sees it once it has a shared member", async () => {
-  await resolveOrCreateGroup(await db(), s.a, "Chor");
+  await resolveOrCreateGroup(await testDb(), s.a, "Chor");
   expect((await listGroups(s.a)).map((g) => g.name)).toContain("Chor");
   expect((await listGroups(s.b)).map((g) => g.name)).not.toContain("Chor");
   await addToGroup(s.a, { name: "Chor", members: [s.lena], visibility: "shared" });
@@ -80,20 +80,20 @@ test("rename keeps the old name as another name", async () => {
   const g = (await listGroups(s.b)).find((x) => x.id === id)!;
   expect(g.name).toBe("Job & Kollegen");
   expect(g.aliases).toEqual(["Arbeit", "Job", "Kollegen"]);
-  expect(await findGroup(await db(), s.b, "arbeit")).toBe(id);
+  expect(await findGroup(await testDb(), s.b, "arbeit")).toBe(id);
 });
 
 test("an other name or a new name that names another group is refused, so merging is the way", async () => {
   await expect(addGroupAlias(s.a, await idOf("Freunde"), "kollegen")).rejects.toThrow(InvalidInputError);
   await expect(renameGroup(s.a, await idOf("Freunde"), "Familie")).rejects.toThrow(InvalidInputError);
   await addGroupAlias(s.a, await idOf("Freunde"), "Kumpels");
-  expect(await findGroup(await db(), s.b, "kumpels")).toBe(await idOf("Freunde"));
+  expect(await findGroup(await testDb(), s.b, "kumpels")).toBe(await idOf("Freunde"));
   await removeGroupAlias(s.a, await idOf("Freunde"), "KUMPELS");
-  expect(await findGroup(await db(), s.b, "kumpels")).toBeNull();
+  expect(await findGroup(await testDb(), s.b, "kumpels")).toBeNull();
 });
 
 test("merge moves memberships, keeps one row per person and recorder, and turns the dropped names into other names", async () => {
-  const [freunde, chor] = [await idOf("Freunde"), await resolveOrCreateGroup(await db(), s.a, "Chor")];
+  const [freunde, chor] = [await idOf("Freunde"), await resolveOrCreateGroup(await testDb(), s.a, "Chor")];
   await addGroupAlias(s.a, chor, "Singen");
   await addToGroupById(s.a, freunde, s.anna, "shared");
   await addToGroupById(s.a, chor, s.anna, "shared");
@@ -103,7 +103,7 @@ test("merge moves memberships, keeps one row per person and recorder, and turns 
   expect(g.members.map((m) => m.name).sort()).toEqual(["Anna", "Lena"]);
   expect(g.aliases).toEqual(["Chor", "Freundeskreis", "Singen"]);
   expect(
-    await (await db()).selectFrom("group_members").select("person_id").where("group_id", "=", freunde).where("person_id", "=", s.anna).execute(),
+    await (await testDb()).selectFrom("group_members").select("person_id").where("group_id", "=", freunde).where("person_id", "=", s.anna).execute(),
   ).toHaveLength(1);
   await expect(getGroup(s.a, chor)).rejects.toThrow(NotFoundError);
 });
@@ -120,7 +120,7 @@ test("delete removes only the viewer's memberships; the group stays while the pa
   await deleteGroup(s.a, familie);
   expect((await getGroup(s.b, familie)).members.map((m) => m.name)).toEqual(["Lena"]);
   await deleteGroup(s.b, familie);
-  expect(await (await db()).selectFrom("groups").select("id").where("id", "=", familie).execute()).toEqual([]);
+  expect(await (await testDb()).selectFrom("groups").select("id").where("id", "=", familie).execute()).toEqual([]);
   expect((await listGroups(s.a)).map((g) => g.name)).not.toContain("Familie");
 });
 
@@ -142,9 +142,9 @@ test("with two groups of one name in sight, a name finds the viewer's own first,
   await addToGroup(s.a, { name: "Uni", members: [s.anna], visibility: "private" });
   await addToGroup(s.b, { name: "Uni", members: [s.lena], visibility: "shared" });
   const own = async (v: typeof s.a) =>
-    (await (await db()).selectFrom("groups").select("id").where("name", "=", "Uni").where("created_by", "=", v.userId).executeTakeFirstOrThrow()).id;
-  for (let i = 0; i < 3; i++) expect(await findGroup(await db(), s.a, "uni")).toBe(await own(s.a));
-  expect(await findGroup(await db(), s.b, "uni")).toBe(await own(s.b));
+    (await (await testDb()).selectFrom("groups").select("id").where("name", "=", "Uni").where("created_by", "=", v.userId).executeTakeFirstOrThrow()).id;
+  for (let i = 0; i < 3; i++) expect(await findGroup(await testDb(), s.a, "uni")).toBe(await own(s.a));
+  expect(await findGroup(await testDb(), s.b, "uni")).toBe(await own(s.b));
 });
 
 test("a group nobody sees any more and nobody made or started with is removed once its last member goes", async () => {
@@ -153,7 +153,7 @@ test("a group nobody sees any more and nobody made or started with is removed on
   await addToGroupById(s.b, familie, s.lena, "shared");
   await deleteGroup(s.a, familie); // stays for B, no longer seeded or anyone's own
   await removeFromGroup(s.b, familie, s.lena);
-  expect(await (await db()).selectFrom("groups").select("id").where("id", "=", familie).execute()).toEqual([]);
+  expect(await (await testDb()).selectFrom("groups").select("id").where("id", "=", familie).execute()).toEqual([]);
 });
 
 test("Haushalt holds everyone who signs in, and can't be deleted, merged away or emptied of them", async () => {

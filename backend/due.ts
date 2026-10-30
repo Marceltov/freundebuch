@@ -44,7 +44,7 @@ export type UpcomingDate = {
 
 /** The viewer's visible dates that fall within `horizonDays` of `from`, soonest first; a yearly date recurs, a one-off date only counts once. */
 export async function upcomingDates(v: Viewer, from: string, horizonDays: number, personId?: string): Promise<UpcomingDate[]> {
-  let q = (await db())
+  let q = (await db(v))
     .selectFrom("dates")
     .selectAll()
     .$call((qb) => visible(qb, v, "dates"));
@@ -74,7 +74,7 @@ export async function upcomingDates(v: Viewer, from: string, horizonDays: number
  * between them and the person, even when it is shared. A shared situation nudges both users, a private one only its recorder.
  */
 export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Promise<DueItem[]> {
-  const d = await db();
+  const d = await db(v);
   const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const name = (id: string) => names.get(id) ?? "";
 

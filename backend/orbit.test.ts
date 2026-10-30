@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { recordConversation } from "./conversations";
 import { markDone } from "./corrections";
-import { db, resetDbForTests } from "./db/testing";
+import { testDb, resetDbForTests } from "./db/testing";
 import { addToGroupById, listGroups } from "./groups";
 import { setCheckInInterval } from "./intervals";
 import { orbit, type OrbitFace } from "./orbit";
@@ -61,7 +61,7 @@ test("the subset: overdue, nearly due, seen within 14 days, a birthday within 14
   await met("laterBirthday", null, { dates: [{ person: 0, kind: "birthday", date: "--11-07", yearly: true }] });
   await met("promised", null, { promises: [{ person: 0, text: "send the photos", byMe: false }] });
   await met("donePromise", null, { promises: [{ person: 0, text: "done already", byMe: true }] });
-  await markDone(me, "promises", (await (await db()).selectFrom("promises").select("id").where("text", "=", "done already").executeTakeFirstOrThrow()).id);
+  await markDone(me, "promises", (await (await testDb()).selectFrom("promises").select("id").where("text", "=", "done already").executeTakeFirstOrThrow()).id);
   await met("giftOnly", null, { exchanges: [{ person: 0, kind: "gift_idea", direction: "to_them", text: "a book" }] });
   const faces = await orbit(me, NOW);
   expect(

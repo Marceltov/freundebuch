@@ -884,6 +884,13 @@ export const ShareKeyJson = z
   .object({ key: z.string().describe("The share key; shown only now. Send it as `Authorization: Bearer <key>` to /api/share") })
   .meta({ id: "ShareKey" });
 
+export const InviteJson = z
+  .object({
+    url: z.string().describe("The invitation link, as an absolute URL: whoever signs in through it joins the household. Shown once"),
+    expiresAt: z.string().describe("When the link stops working (ISO 8601), a week from now; it also stops once used"),
+  })
+  .meta({ id: "Invite" });
+
 export const CalendarFeedJson = z
   .object({
     active: z.boolean().describe("Whether the user has a calendar feed now"),
@@ -905,6 +912,7 @@ export const COMPONENTS = [
   PendingFileListJson,
   ShareKeyJson,
   CalendarFeedJson,
+  InviteJson,
   PersonPatchJson,
   FactRelationshipJson,
   RelationshipIdsJson,

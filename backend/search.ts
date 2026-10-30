@@ -51,7 +51,7 @@ export async function search(v: Viewer, query: string, limit = 20): Promise<Sear
   const words = searchWords(query);
   if (!words.length) throw new InvalidInputError("Give a word to search for");
   if (!Number.isInteger(limit) || limit < 1) throw new InvalidInputError("limit must be a positive whole number");
-  const d = await db();
+  const d = await db(v);
   const hits: SearchHit[] = [];
 
   // Rambles the viewer may see a part of, and what was told in them.

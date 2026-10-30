@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SITUATION_DAYS } from "./conversations";
 import { fileContent, shareFile } from "./files";
 import { addDays, today } from "./dates";
-import { db } from "./db/testing";
+import { testDb } from "./db/testing";
 import { seed, type Seed } from "./testing/fixtures";
 import { asRamble } from "./testing/fixtures";
 import { TOOLS, toolByName } from "./tools";
@@ -26,6 +26,7 @@ test("one table holds every tool the MCP endpoint offers", () => {
     "get_transcript",
     "groups",
     "inbox",
+    "invite",
     "journal",
     "people",
     "places",
@@ -59,7 +60,7 @@ test("the descriptions tell Claude to file roles in words, to agree a situation'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the tests read tool results by shape, which the output schemas check
 type Json = any;
 const run = async (v: Seed["a"], name: string, args: object): Promise<Json> => toolByName(name)!.run(v, args);
-const factId = async (text: string) => (await (await db()).selectFrom("facts").select("id").where("text", "=", text).executeTakeFirstOrThrow()).id;
+const factId = async (text: string) => (await (await testDb()).selectFrom("facts").select("id").where("text", "=", text).executeTakeFirstOrThrow()).id;
 const SIX_WEEKS = () => addDays(today(), SITUATION_DAYS);
 const lunch = (over: object = {}) => ({
   date: "2026-10-22",
@@ -707,7 +708,7 @@ describe("missed sessions over MCP", () => {
       experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
     });
     await (
-      await db()
+      await testDb()
     )
       .updateTable("series")
       .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })

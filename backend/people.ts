@@ -19,7 +19,7 @@ const MAX_CONTEXT = 3;
 type NewPerson = { name: string; aliases?: string[]; createdFrom?: string; gender?: Gender };
 
 export async function createPerson(v: Viewer, p: NewPerson): Promise<string> {
-  return (await db()).transaction().execute((tx) => insertPerson(tx, v, p));
+  return (await db(v)).transaction().execute((tx) => insertPerson(tx, v, p));
 }
 
 /** `createPerson` inside the caller's transaction, for writes that create persons along with other rows. */
@@ -51,7 +51,7 @@ export type Relabel = { id: string; fromId: string; fromName: string; toId: stri
  */
 export async function setGender(v: Viewer, personId: string, gender: Gender | null): Promise<{ relabel: Relabel[] }> {
   checkGender(gender);
-  const d = await db();
+  const d = await db(v);
   const before = await d.selectFrom("persons").select("gender").where("id", "=", personId).executeTakeFirst();
   if (!before) throw new NotFoundError("No such person");
   await d.updateTable("persons").set({ gender }).where("id", "=", personId).execute();
@@ -105,14 +105,14 @@ export async function insertAlias(d: Kysely<Schema>, personId: string, name: str
 
 export async function addAlias(v: Viewer, id: string, alias: string): Promise<void> {
   void v;
-  const d = await db();
+  const d = await db(v);
   const person = await d.selectFrom("persons").select("name").where("id", "=", id).executeTakeFirst();
   if (!person) throw new NotFoundError("No such person");
   await insertAlias(d, id, person.name, alias);
 }
 
-async function aliasesByPerson(): Promise<Map<string, string[]>> {
-  const rows = await (await db()).selectFrom("aliases").select(["person_id", "alias"]).orderBy("alias").execute();
+async function aliasesByPerson(v: Viewer): Promise<Map<string, string[]>> {
+  const rows = await (await db(v)).selectFrom("aliases").select(["person_id", "alias"]).orderBy("alias").execute();
   const m = new Map<string, string[]>();
   for (const r of rows) m.set(r.person_id, [...(m.get(r.person_id) ?? []), r.alias]);
   return m;
@@ -122,7 +122,7 @@ async function aliasesByPerson(): Promise<Map<string, string[]>> {
 export async function findPeople(v: Viewer, q: string, limit = 5): Promise<Candidate[]> {
   const nq = norm(q);
   if (!nq) return [];
-  const [people, aliases] = await Promise.all([(await db()).selectFrom("persons").select(["id", "name"]).execute(), aliasesByPerson()]);
+  const [people, aliases] = await Promise.all([(await db(v)).selectFrom("persons").select(["id", "name"]).execute(), aliasesByPerson(v)]);
   const hits = people
     .map((p) => ({ p, r: rank(nq, [p.name, ...(aliases.get(p.id) ?? [])]) }))
     .filter((h): h is { p: (typeof people)[number]; r: number } => h.r !== null)
@@ -136,7 +136,7 @@ export async function findPeople(v: Viewer, q: string, limit = 5): Promise<Candi
 /** The people whose name or one of whose aliases is `name` once normalised; names and aliases are shared, the context is the viewer's. */
 export async function namedLike(v: Viewer, name: string): Promise<Candidate[]> {
   const n = norm(name);
-  const [people, aliases] = await Promise.all([(await db()).selectFrom("persons").select(["id", "name"]).orderBy("name").execute(), aliasesByPerson()]);
+  const [people, aliases] = await Promise.all([(await db(v)).selectFrom("persons").select(["id", "name"]).orderBy("name").execute(), aliasesByPerson(v)]);
   const hits = people.filter((p) => norm(p.name) === n || (aliases.get(p.id) ?? []).some((a) => norm(a) === n));
   return Promise.all(
     hits.map(async (p) => ({ id: p.id, name: p.name, aliases: aliases.get(p.id) ?? [], url: personPath(p.id), context: await contextFor(v, p.id) })),
@@ -145,7 +145,7 @@ export async function namedLike(v: Viewer, name: string): Promise<Candidate[]> {
 
 /** Hints that help tell two people with the same name apart, built only from what the viewer can see. */
 async function contextFor(v: Viewer, personId: string): Promise<string[]> {
-  const d = await db();
+  const d = await db(v);
   const hints: string[] = [];
   const rels = await d
     .selectFrom("relationships")
@@ -176,7 +176,7 @@ async function contextFor(v: Viewer, personId: string): Promise<string[]> {
  * link hidden, because the link alone would tell the partner where that person came up.
  */
 async function createdFromFor(v: Viewer, personId: string, conversationId: string): Promise<string | null> {
-  const d = await db();
+  const d = await db(v);
   const c = await d
     .selectFrom("conversations")
     .select("recorded_by")
@@ -210,7 +210,7 @@ async function toViews(
   v: Viewer,
   rows: { id: string; name: string; created_from: string | null; gender: Gender | null; look: string | null }[],
 ): Promise<PersonView[]> {
-  const aliases = await aliasesByPerson();
+  const aliases = await aliasesByPerson(v);
   return Promise.all(
     rows.map(async (r) => ({
       id: r.id,
@@ -225,13 +225,13 @@ async function toViews(
 }
 
 export async function getPerson(v: Viewer, id: string): Promise<PersonView> {
-  const row = await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender", "look"]).where("id", "=", id).executeTakeFirst();
+  const row = await (await db(v)).selectFrom("persons").select(["id", "name", "created_from", "gender", "look"]).where("id", "=", id).executeTakeFirst();
   if (!row) throw new NotFoundError("No such person");
   return (await toViews(v, [row]))[0];
 }
 
 export async function listPeople(v: Viewer): Promise<PersonView[]> {
-  return toViews(v, await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender", "look"]).orderBy("name").execute());
+  return toViews(v, await (await db(v)).selectFrom("persons").select(["id", "name", "created_from", "gender", "look"]).orderBy("name").execute());
 }
 
 /** Someone in the people list: last seen and groups as the viewer sees them. */
@@ -239,10 +239,10 @@ export type PersonOverview = { id: string; name: string; aliases: string[]; url:
 
 /** Everyone but the viewer, by name, with when the viewer last saw them and the ids of the groups the viewer sees them in. */
 export async function peopleOverview(v: Viewer): Promise<PersonOverview[]> {
-  const d = await db();
+  const d = await db(v);
   const [people, aliases, memberships] = await Promise.all([
     d.selectFrom("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),
-    aliasesByPerson(),
+    aliasesByPerson(v),
     d
       .selectFrom("group_members")
       .select(["person_id", "group_id"])

@@ -45,7 +45,8 @@ import { getSettings, putSettings, setLanguage, testWebhook } from "../settings"
 import { getReflection, putReflection } from "../reflection";
 import { deleteRamble } from "../rambles";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
-import { API_PREFIX, publicUrl } from "../urls";
+import { createInvite } from "../instance";
+import { API_PREFIX, invitePath, publicUrl } from "../urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
   AliasJson,
@@ -91,6 +92,7 @@ import {
   PlaceListJson,
   SeriesJson,
   PlaceViewJson,
+  InviteJson,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -761,6 +763,22 @@ const OPS: AnyOp[] = [
   }),
 
   op({
+    method: "POST",
+    path: `${API_PREFIX}/household/invites`,
+    operationId: "createInvite",
+    summary: "An invitation link into the caller's household",
+    description:
+      "Whoever signs in through the link joins the caller's household and shares its book. Good once, for a week; shown once. Only on an instance with several households (FREUNDEBUCH_HOUSEHOLDS=many): otherwise 400.",
+    tags: ["Household"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The new invitation", schema: InviteJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer }) => {
+    const { code, expiresAt } = await createInvite(viewer);
+    return { status: 200, body: { url: invitePath(code), expiresAt: new Date(expiresAt).toISOString() } };
+  }),
+
+  op({
     method: "GET",
     path: `${API_PREFIX}/me/calendar-feed`,
     operationId: "getCalendarFeed",
@@ -889,6 +907,7 @@ export function openApiDocument(serverUrl: string): Json {
       { name: "Conversations", description: "Recording what was said, and reading it back." },
       { name: "Groups", description: "Groups of people, with other names that find them." },
       { name: "Items", description: "Corrections after the fact: facts, promises, dates, exchanges, relationships and conversations." },
+      { name: "Household", description: "Invitations into the caller's household, on an instance with several." },
       { name: "Calendar", description: "The secret URL of the caller's calendar feed (ICS), served at /api/calendar/{key}.ics." },
       { name: "Meta", description: "About the API itself." },
     ],

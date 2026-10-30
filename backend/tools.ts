@@ -53,6 +53,7 @@ import {
   TraitsJson,
   HOUSEHOLD_TARGET,
   Visibility,
+  InviteJson,
 } from "./http/schemas";
 import { isHouseholdWord } from "./household";
 import { setCheckInInterval } from "./intervals";
@@ -77,7 +78,8 @@ import { discardFiles, fileContent, isAudio, listPending } from "./files";
 import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "./people";
 import { addRelationship, addToGroup } from "./relationships";
 import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "./types";
-import { conversationPath, personPath } from "./urls";
+import { createInvite } from "./instance";
+import { conversationPath, invitePath, personPath } from "./urls";
 
 export type Tool = {
   name: string;
@@ -1001,6 +1003,20 @@ export const TOOLS: readonly Tool[] = [
       return ok(CalendarFeed, { active: true, created: true, url: feedPath(await createCalendarKey(v)) }, [
         ...(replaced ? ["The old URL has stopped working: calendars subscribed to it need the new one."] : []),
         'Give the URL only to the user: anyone who has it can read these dates. In Google Calendar it goes under "From URL", which refreshes every few hours.',
+      ]);
+    },
+  }),
+  tool({
+    name: "invite",
+    description:
+      "An invitation link into the user's household: whoever signs in through it shares the user's book, as the user's partner or someone they live with does. Only for the people who live with the user, never for the people in the book: they never learn they are in it. Good once, for a week. Only on an instance with several households; on one with a single household everyone who signs in is in it already.",
+    input: z.object({}),
+    output: InviteJson,
+    annotations: { destructiveHint: false },
+    handler: async (v) => {
+      const { code, expiresAt } = await createInvite(v);
+      return ok(InviteJson, { url: invitePath(code), expiresAt: new Date(expiresAt).toISOString() }, [
+        "Give the link only to the user, for the person they live with: whoever signs in through it sees everything shared in the book. It works once.",
       ]);
     },
   }),

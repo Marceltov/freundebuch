@@ -9,20 +9,20 @@ import { LANGUAGES, type Language, type Viewer } from "./types";
 export type Settings = { webhookUrl: string | null; language: Language };
 
 export async function getSettings(v: Viewer): Promise<Settings> {
-  const row = await (await db()).selectFrom("user_settings").select("webhook_url").where("user_id", "=", v.userId).executeTakeFirst();
+  const row = await (await db(v)).selectFrom("user_settings").select("webhook_url").where("user_id", "=", v.userId).executeTakeFirst();
   return { webhookUrl: row?.webhook_url ?? null, language: await userLanguage(v) };
 }
 
 /** The language the viewer sees the app in; German when they never chose. */
 export async function userLanguage(v: Viewer): Promise<Language> {
-  const row = await (await db()).selectFrom("users").select("language").where("id", "=", v.userId).executeTakeFirst();
+  const row = await (await db(v)).selectFrom("users").select("language").where("id", "=", v.userId).executeTakeFirst();
   return row?.language ?? "de";
 }
 
 export async function setLanguage(v: Viewer, language: string): Promise<void> {
   if (!LANGUAGES.includes(language as Language)) throw new InvalidInputError(`language must be one of ${LANGUAGES.join(", ")}`);
   await (
-    await db()
+    await db(v)
   )
     .updateTable("users")
     .set({ language: language as Language })
@@ -43,7 +43,7 @@ export async function putSettings(v: Viewer, s: { webhookUrl: string | null }): 
     url = parsed.href;
   }
   await (
-    await db()
+    await db(v)
   )
     .insertInto("user_settings")
     .values({ user_id: v.userId, webhook_url: url })

@@ -32,6 +32,10 @@
       "description": "Corrections after the fact: facts, promises, dates, exchanges, relationships and conversations."
     },
     {
+      "name": "Household",
+      "description": "Invitations into the caller's household, on an instance with several."
+    },
+    {
       "name": "Calendar",
       "description": "The secret URL of the caller's calendar feed (ICS), served at /api/calendar/{key}.ics."
     },
@@ -2767,6 +2771,56 @@
         }
       }
     },
+    "/api/v1/household/invites": {
+      "post": {
+        "operationId": "createInvite",
+        "summary": "An invitation link into the caller's household",
+        "description": "Whoever signs in through the link joins the caller's household and shares its book. Good once, for a week; shown once. Only on an instance with several households (FREUNDEBUCH_HOUSEHOLDS=many): otherwise 400.",
+        "tags": [
+          "Household"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invite"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/calendar-feed": {
       "get": {
         "operationId": "getCalendarFeed",
@@ -3536,6 +3590,23 @@
           "active",
           "created",
           "url"
+        ]
+      },
+      "Invite": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The invitation link, as an absolute URL: whoever signs in through it joins the household. Shown once"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "When the link stops working (ISO 8601), a week from now; it also stops once used"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
         ]
       },
       "PersonPatch": {

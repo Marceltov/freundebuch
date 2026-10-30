@@ -75,8 +75,8 @@ test("promises: open ones due within the horizon, past due included; done, undat
     ],
   });
   expect(r.counts.promises).toBe(5);
-  const { db } = await import("./db/testing");
-  await (await db()).updateTable("promises").set({ done: 1 }).where("text", "=", "already done").execute();
+  const { testDb } = await import("./db/testing");
+  await (await testDb()).updateTable("promises").set({ done: 1 }).where("text", "=", "already done").execute();
   expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "promise").map((i) => `${i.date} ${i.text}`)).toEqual([
     "2026-10-01 return the book",
     "2026-10-25 send photos",

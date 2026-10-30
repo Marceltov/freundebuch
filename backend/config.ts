@@ -72,6 +72,13 @@ export const config = {
       allow: allow.length ? allow : ["*"],
     };
   },
+  // How many households sign in here (instance.ts, ADR 0022): one (the default), which everyone who signs in joins, or many,
+  // where a first sign-in joins the household that invited it or starts one of its own.
+  households: (): "one" | "many" => {
+    const v = env("FREUNDEBUCH_HOUSEHOLDS").trim().toLowerCase() || "one";
+    if (v !== "one" && v !== "many") throw new Error(`FREUNDEBUCH_HOUSEHOLDS must be one or many, got "${v}"`);
+    return v;
+  },
   // X-Forwarded-For/-Proto/-Host are believed only behind a proxy that sets them (see limits.ts and urls.ts).
   trustProxy: () => env("FREUNDEBUCH_TRUST_PROXY") === "1",
   // Failed sign-ins per minute and IP; 0 or below turns the limit off. Unset or not a number → 60.

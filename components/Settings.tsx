@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarPlus, Check, Download, KeyRound, Languages, Send, Trash2 } from "lucide-react";
+import { Bell, CalendarPlus, Check, Download, KeyRound, Languages, Send, Trash2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Language } from "@/backend";
@@ -260,6 +260,42 @@ export function CalendarSettings({ hasFeed }: { hasFeed: boolean }) {
             {copy.calendarRevoke}
           </button>
         )}
+        {failed && (
+          <span role="status" className="text-error">
+            {copy.actionFailed}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// An invitation into the household (POST /api/v1/household/invites), shown once; only on an instance with several households.
+export function HouseholdSettings() {
+  const copy = useCopy();
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  async function create() {
+    const res = await fetch("/api/v1/household/invites", { method: "POST" }).catch(() => null);
+    setFailed(!res?.ok);
+    if (res?.ok) setUrl(((await res.json()) as { url: string }).url);
+  }
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-muted">{copy.householdHint}</p>
+      {url && (
+        <>
+          <CopyField label={copy.inviteUrl} text={url} />
+          <p className="text-muted">{copy.inviteOnce}</p>
+        </>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={create} className="inline-flex items-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+          <UserPlus aria-hidden className="h-4 w-4" />
+          {copy.inviteNew}
+        </button>
         {failed && (
           <span role="status" className="text-error">
             {copy.actionFailed}

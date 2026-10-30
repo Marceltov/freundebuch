@@ -8,7 +8,9 @@
 
 Everything lives in `DATA_DIR` (`/data` in the container):
 
-- `freundebuch.db`: the SQLite database, with every person, conversation and transcript.
+- `freundebuch.db`: the SQLite database, with every person, conversation and transcript: the first household's book.
+- `households/<id>.db`: the book of every other household, with `FREUNDEBUCH_HOUSEHOLDS=many`. A household's whole book is its one file.
+- `instance.db`: which households there are, who signs in to which, and the open invitations. Nothing about the people in a book.
 - `secret`: the signing secret, unless `FREUNDEBUCH_SECRET` is set.
 - `files/` and, from before 0.4, `screenshots/`: the [shared files](../using/sharing.md), unless `FREUNDEBUCH_STORAGE=s3`.
 

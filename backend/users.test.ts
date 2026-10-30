@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { db, resetDbForTests } from "./db/testing";
+import { testDb, resetDbForTests } from "./db/testing";
 import { renamePerson } from "./corrections";
 import { findPeople } from "./people";
 import { userFromOidc, viewerById } from "./users";
@@ -10,7 +10,7 @@ test("the same sub gives the same viewer and one person", async () => {
   const a = await userFromOidc({ sub: "s1", name: "Marcel", email: "m@x.de" });
   const b = await userFromOidc({ sub: "s1", name: "Marcel B." });
   expect(b).toEqual(a);
-  const d = await db();
+  const d = await testDb();
   expect(await d.selectFrom("users").selectAll().execute()).toHaveLength(1);
   const persons = await d.selectFrom("persons").selectAll().execute();
   expect(persons).toHaveLength(1);
@@ -37,7 +37,7 @@ test("a person renamed in freundebuch keeps that name when the user signs in aga
   const v = await userFromOidc({ sub: "bille", name: "Bille" });
   await renamePerson(v, v.personId, "Sybille");
   await userFromOidc({ sub: "bille", name: "Bille" });
-  const d = await db();
+  const d = await testDb();
   expect((await d.selectFrom("persons").select("name").where("id", "=", v.personId).executeTakeFirstOrThrow()).name).toBe("Sybille");
   expect((await d.selectFrom("users").select("name").where("id", "=", v.userId).executeTakeFirstOrThrow()).name).toBe("Bille");
   expect((await findPeople(v, "Bille"))[0]?.id).toBe(v.personId);

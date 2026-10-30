@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { db, resetDbForTests } from "../db/testing";
+import { testDb, resetDbForTests } from "../db/testing";
 import { AuthError } from "../errors";
 import { resetSecretForTests } from "../secret";
 import { userFromOidc } from "../users";
@@ -63,7 +63,7 @@ describe("viewerFromRequest", () => {
 
   test("an access token for a uid whose user row is gone gives null; so does the cookie", async () => {
     const token = access(MCP, a.userId);
-    const d = await db();
+    const d = await testDb();
     await d.deleteFrom("persons").where("created_by", "=", a.userId).execute();
     await d.deleteFrom("users").where("id", "=", a.userId).execute();
     expect(await viewerFromRequest(bearer(token), "mcp")).toBeNull();

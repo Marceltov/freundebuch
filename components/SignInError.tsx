@@ -14,7 +14,9 @@ export function SignInError({ error, retry }: { error: Param; retry: Param }) {
         ? seconds
           ? copy.tooManyAttempts.replace("{seconds}", seconds)
           : copy.tooManyAttemptsSoon
-        : copy.signInFailed;
+        : error === "invite_spent"
+          ? copy.inviteSpent
+          : copy.signInFailed;
   return (
     <p id="login-error" role="alert" className="mt-3 text-sm text-error">
       {message}

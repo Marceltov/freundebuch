@@ -6,6 +6,9 @@ import { asRamble, seed, type Seed } from "../testing/fixtures";
 import type { Viewer } from "../types";
 import { dispatch } from "./api";
 
+/** The book the seeded users are in. */
+const HOME_BOOK = { householdId: "home" };
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the tests read response bodies by shape, which the API tests check
 type Json = any;
 
@@ -401,8 +404,8 @@ describe("files", () => {
     };
     const one = await shareFile(s.a, await img(1));
     const two = await shareFile(s.a, await img(2));
-    await readFile(one.id, unsure);
-    await readFile(two.id, unsure);
+    await readFile(HOME_BOOK, one.id, unsure);
+    await readFile(HOME_BOOK, two.id, unsure);
 
     const list = await call(s.a, "GET", "/files");
     expect(list.status).toBe(200);

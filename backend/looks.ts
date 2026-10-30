@@ -38,7 +38,7 @@ export const lookJson = (look: Look | null): string | null => (look ? JSON.strin
 export async function setLook(v: Viewer, personId: string, look: unknown): Promise<Look | null> {
   void v;
   const checked = look === null ? null : checkLook(look);
-  const d = await db();
+  const d = await db(v);
   const res = await d
     .updateTable("persons")
     .set({ look: lookJson(checked) })
@@ -51,7 +51,7 @@ export async function setLook(v: Viewer, personId: string, look: unknown): Promi
 /** The parts of everyone who has a look, by person id: what every page draws a face from. */
 export async function looks(v: Viewer): Promise<Record<string, LookParts>> {
   void v;
-  const rows = await (await db()).selectFrom("persons").select(["id", "look"]).where("look", "is not", null).execute();
+  const rows = await (await db(v)).selectFrom("persons").select(["id", "look"]).where("look", "is not", null).execute();
   const out: Record<string, LookParts> = {};
   for (const r of rows) {
     const look = parseLook(r.look);

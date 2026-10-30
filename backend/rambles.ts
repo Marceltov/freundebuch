@@ -28,7 +28,7 @@ const EVER = "0000-01-01";
 
 /** The items the viewer may see that were filed with a ramble but with none of its conversations. */
 async function rambleItems(v: Viewer): Promise<Array<RambleItem & { rambleId: string }>> {
-  const d = await db();
+  const d = await db(v);
   const out: Array<RambleItem & { rambleId: string }> = [];
   for (const table of ["facts", "promises", "dates", "exchanges"] as const) {
     const rows = await d
@@ -65,7 +65,7 @@ export async function listRambles(v: Viewer): Promise<RambleSummary[]> {
     ]),
   ];
   if (!ids.length) return [];
-  const d = await db();
+  const d = await db(v);
   const rows = await d
     .selectFrom("rambles")
     .select(["id", "date"])
@@ -90,7 +90,7 @@ export async function listRambles(v: Viewer): Promise<RambleSummary[]> {
 export async function getRamble(v: Viewer, id: string): Promise<RambleView> {
   const summary = (await listRambles(v)).find((r) => r.id === id);
   if (!summary) throw new NotFoundError("No such ramble");
-  const d = await db();
+  const d = await db(v);
   const r = await d.selectFrom("rambles").select(["transcript", "transcript_private", "recorded_by"]).where("id", "=", id).executeTakeFirstOrThrow();
   return { ...summary, transcript: r.recorded_by === v.userId || !r.transcript_private ? r.transcript : null, recordedBy: r.recorded_by };
 }
@@ -105,7 +105,7 @@ export async function rambleTranscript(v: Viewer, id: string): Promise<{ rambleI
 export async function deleteRamble(v: Viewer, id: string): Promise<void> {
   const r = await getRamble(v, id);
   if (r.recordedBy !== v.userId) throw new ForbiddenError("Only the person who recorded a ramble may delete it");
-  await (await db()).deleteFrom("rambles").where("id", "=", id).execute();
+  await (await db(v)).deleteFrom("rambles").where("id", "=", id).execute();
   // A fact filed from a shared file takes the file with it once nothing else names it.
-  await pruneFiles();
+  await pruneFiles(v);
 }

@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { db } from "./db/testing";
+import { testDb } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { checkLook, looks, parseLook, setLook } from "./looks";
 import { getPerson } from "./people";
@@ -48,7 +48,7 @@ test("remember sets looks with the rest and checks them before writing anything"
       looks: [{ person: s.lena, look: { ...parts, skin: "green" } }],
     }),
   ).rejects.toThrow(InvalidInputError);
-  expect(await (await db()).selectFrom("facts").select("id").where("text", "=", "mag Jazz").execute()).toEqual([]);
+  expect(await (await testDb()).selectFrom("facts").select("id").where("text", "=", "mag Jazz").execute()).toEqual([]);
   const r = await remember(s.a, { visibility: "shared", looks: [{ person: s.lena, look: parts }] });
   expect(r.counts.looks).toBe(1);
   expect((await getPerson(s.b, s.lena)).look).toMatchObject(parts);

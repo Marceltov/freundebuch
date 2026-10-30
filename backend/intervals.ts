@@ -14,7 +14,7 @@ const MAX_INTERVAL_DAYS = 3650;
 /** Dates (newest first) of the visible conversations with the person that the viewer's own person also took part in. */
 async function datesSeen(v: Viewer, personId: string, limit: number): Promise<string[]> {
   const rows = await (
-    await db()
+    await db(v)
   )
     .selectFrom("conversations")
     .innerJoin("participants as them", "them.conversation_id", "conversations.id")
@@ -50,7 +50,7 @@ export async function suggestInterval(v: Viewer, personId: string): Promise<numb
 export async function setCheckInInterval(v: Viewer, personId: string, days: number | null, confirmed: boolean): Promise<void> {
   if (days !== null && (!Number.isInteger(days) || days < 1 || days > MAX_INTERVAL_DAYS))
     throw new InvalidInputError(`The interval must be a whole number of days from 1 to ${MAX_INTERVAL_DAYS}`);
-  const d = await db();
+  const d = await db(v);
   if (!(await d.selectFrom("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
   const values = { interval_days: days, interval_confirmed: confirmed ? 1 : 0 };
   await d
@@ -66,7 +66,7 @@ export type Freshness = { lastSeen: string | null; intervalDays: number | null; 
 export async function freshness(v: Viewer, personId: string, from = today()): Promise<Freshness> {
   const [seen, setting] = await Promise.all([
     lastSeen(v, personId),
-    (await db()).selectFrom("person_settings").select("interval_days").where("user_id", "=", v.userId).where("person_id", "=", personId).executeTakeFirst(),
+    (await db(v)).selectFrom("person_settings").select("interval_days").where("user_id", "=", v.userId).where("person_id", "=", personId).executeTakeFirst(),
   ]);
   const intervalDays = setting?.interval_days ?? null;
   return { lastSeen: seen, intervalDays, ratio: seen && intervalDays ? daysBetween(seen, from) / intervalDays : null };

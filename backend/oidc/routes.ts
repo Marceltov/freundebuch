@@ -5,7 +5,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { IDENTITY_COOKIE, safeEqual } from "../auth/session";
 import { type Payloads, sign, TTL, verify } from "../auth/tokens";
-import { AuthError } from "../errors";
+import { AuthError, NotFoundError } from "../errors";
 import { cookie, readFields, sameOrigin, seeOther } from "../http/request";
 import { authFailed, authWait, clientIp } from "../limits";
 import { logger } from "../log";
@@ -41,17 +41,21 @@ const failed = (from: Parameters<typeof failedPage>[0], error: string, h: Header
 const configured = (): Provider => provider() ?? fail("sign-in is not configured", { missing: missingVars().join(",") });
 
 // Any of these on the GET means an MCP authorize request, which must come as the POST.
+const INVITE = /^fbi_[A-Za-z0-9_-]{16,64}$/;
+
 const MCP_FIELDS = ["client_id", "redirect_uri", "response_type", "code_challenge", "code_challenge_method", "state", "resource"];
 
 // GET: the login page's plain link (?next=). POST: the MCP authorize page's form, from this instance's own pages
 // only. There is no other consent step, so a cross-site navigation must never get a code issued for a client the
 // person never saw (open registration lets anyone register one); only checkAuthorize's fields are kept.
-async function startRequest(req: Request): Promise<{ next: string; authorize?: Record<string, string> } | Response> {
+async function startRequest(req: Request): Promise<{ next: string; authorize?: Record<string, string>; invite?: string } | Response> {
   const h = req.headers;
   if (req.method !== "POST") {
     const params = new URL(req.url).searchParams;
     if (MCP_FIELDS.some((k) => params.has(k))) return new Response("An MCP sign-in starts from the authorize page's form.", { status: 400 });
-    return { next: safeNext(params.get("next")) };
+    // An invitation into a household (instance.ts) rides along to the callback; only its shape is checked here.
+    const invite = params.get("invite") ?? "";
+    return { next: safeNext(params.get("next")), ...(INVITE.test(invite) ? { invite } : {}) };
   }
   if (!sameOrigin(h)) return new Response("forbidden", { status: 403 });
   const params = new URLSearchParams();
@@ -66,7 +70,7 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
   const h = req.headers;
   const start = await startRequest(req);
   if (start instanceof Response) return start;
-  const { next, authorize } = start;
+  const { next, authorize, invite } = start;
   // Not configured or the provider unreachable: back where the sign-in started, with no flight.
   let p, meta;
   try {
@@ -76,7 +80,7 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
     if (!(e instanceof AuthError)) throw e;
     return seeOther(failedPage({ next, authorize }, "sign_in_failed"));
   }
-  const flight = { state: random(16), nonce: random(16), verifier: random(32), next, ...(authorize ? { authorize } : {}) };
+  const flight = { state: random(16), nonce: random(16), verifier: random(32), next, ...(authorize ? { authorize } : {}), ...(invite ? { invite } : {}) };
   // ponytail: an MCP client that registered many long redirect URIs makes this cookie exceed the browser's
   // 4 KB; the browser drops it and the callback refuses (fails closed). Keep only the client's hash if that bites.
   const to = authorizeUrl(p, meta, {
@@ -114,7 +118,14 @@ export async function oidcCallbackRoute(req: Request): Promise<Response> {
     authFailed(ip);
     return failed(flight, "sign_in_failed", h);
   }
-  const { userId } = await userFromOidc(person); // the first sign-in creates the user
+  let userId: string;
+  try {
+    ({ userId } = await userFromOidc(person, flight!.invite)); // the first sign-in creates the user
+  } catch (e) {
+    if (!(e instanceof NotFoundError)) throw e;
+    log.info("sign-in with a spent invitation");
+    return failed(flight, "invite_spent", h);
+  }
   log.info("sign-in succeeded"); // never who
   if (flight!.authorize) logger("oauth").info("authorization granted"); // never the client's self-chosen name
   const res = flight!.authorize

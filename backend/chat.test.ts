@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConversation, record, recordConversation } from "./conversations";
-import { db } from "./db";
+import { testDb } from "./db/testing";
 import { discardFile, shareFile } from "./files";
 import { asRamble, seed, type Seed } from "./testing/fixtures";
 
@@ -144,6 +144,7 @@ test("the system prompt has a cached stable block, and names today, the user and
   expect(p.tools!.map((t) => (t as { name: string }).name)).toContain("record");
   // The feed URL is a credential that has to be absolute to paste into a calendar; in the app, Einstellungen shows it.
   expect(p.tools!.map((t) => (t as { name: string }).name)).not.toContain("calendar_feed");
+  expect(p.tools!.map((t) => (t as { name: string }).name)).not.toContain("invite");
 });
 
 test("the transcript is the user's own words since the last filing, never Claude's retelling", async () => {
@@ -240,7 +241,7 @@ test("opened on a shared file, Claude gets the file and its suggestion as data i
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
   const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend bei Olivier"), "text/plain");
   await (
-    await db()
+    await testDb()
   )
     .updateTable("files")
     .set({ status: "pending", reading: JSON.stringify({ summary: "Freitag Spieleabend bei Olivier", people: [] }) })
@@ -291,7 +292,7 @@ test("opened on a shared file, Claude learns the day it was shared and dates wha
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
   const file = await shareFile(s.a, new TextEncoder().encode("Anna: bin wieder da"), "text/plain");
   await (
-    await db()
+    await testDb()
   )
     .updateTable("files")
     .set({ status: "pending", created_at: Date.parse("2026-10-20T10:00:00Z") })
@@ -311,7 +312,7 @@ test("opened on several files, Claude gets them all in order as data, hears they
   const parts = [];
   for (const t of ["Teil 1: Patrick fragt", "Teil 2: Sybille antwortet", "Teil 3: Marcel sagt zu"])
     parts.push(await shareFile(s.a, new TextEncoder().encode(t), "text/plain"));
-  const d = await db();
+  const d = await testDb();
   await d
     .updateTable("files")
     .set({ created_at: Date.parse("2026-10-21T10:00:00Z") })
@@ -383,7 +384,7 @@ test("opened on no page, the chat tells Claude about a missed session so it asks
     experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
   });
   await (
-    await db()
+    await testDb()
   )
     .updateTable("series")
     .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })
@@ -395,7 +396,7 @@ test("opened on no page, the chat tells Claude about a missed session so it asks
 });
 
 test("opened on a ramble, Claude gets what was filed from it and its transcript, to add or correct; never the partner's private one", async () => {
-  const d = await db();
+  const d = await testDb();
   const ramble = async (conv: string) => (await d.selectFrom("conversations").select("ramble_id").where("id", "=", conv).executeTakeFirstOrThrow()).ramble_id;
   const { model, calls } = fake([text("Wer war noch da?")]);
   await chat(s.a, [{ role: "user", content: "Anna war nicht allein da" }], { rambleId: await ramble(s.dinner) }, model);

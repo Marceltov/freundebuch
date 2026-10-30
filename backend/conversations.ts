@@ -356,7 +356,7 @@ export async function remember(
   }
   const vis = (item: { private?: boolean }): Visibility => (r.visibility === "private" || item.private ? "private" : "shared");
   const base: ItemBase = { recorded_by: v.userId, conversation_id: null, created_at: now() };
-  return (await db()).transaction().execute(async (tx) => {
+  return (await db(v)).transaction().execute(async (tx) => {
     const ids = [
       ...new Set(
         [...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? []), ...looks, ...(r.homes ?? [])].map(
@@ -670,7 +670,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
 
   // The shared files it was told from: their transcripts join the ramble's, and the files go once it has committed.
   let blobs: string[] = [];
-  const recorded = await (await db()).transaction().execute(async (tx) => {
+  const recorded = await (await db(v)).transaction().execute(async (tx) => {
     const taken = await takeFiles(tx, v, r.fileIds ?? []);
     blobs = taken.blobs;
     const transcript = [r.transcript, ...taken.transcripts.map((x) => `${FROM_FILE}\n${x}`)].join("\n\n");
@@ -848,7 +848,7 @@ async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, newId: str
 
 /** Whether the viewer has filed anything yet; until then the start page says how to begin. */
 export async function hasRecorded(v: Viewer): Promise<boolean> {
-  return !!(await (await db()).selectFrom("conversations").select("id").where("recorded_by", "=", v.userId).limit(1).executeTakeFirst());
+  return !!(await (await db(v)).selectFrom("conversations").select("id").where("recorded_by", "=", v.userId).limit(1).executeTakeFirst());
 }
 
 /** A conversation in the history: when, how, the summary, and who was there. */
@@ -864,7 +864,7 @@ export type ConversationSummary = {
 
 /** Every conversation the viewer may see, newest first. */
 export async function listConversations(v: Viewer): Promise<ConversationSummary[]> {
-  const d = await db();
+  const d = await db(v);
   const convs = await d
     .selectFrom("conversations")
     .select(["id", "ramble_id", "date", "kind", "summary"])
@@ -897,7 +897,7 @@ export async function listConversations(v: Viewer): Promise<ConversationSummary[
 }
 
 export async function getConversation(v: Viewer, id: string): Promise<ConversationView> {
-  const d = await db();
+  const d = await db(v);
   const c = await d
     .selectFrom("conversations")
     .selectAll()

@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import { recordConversation } from "./conversations";
-import { db } from "./db/testing";
+import { testDb } from "./db/testing";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { freshness, lastSeen, setCheckInInterval, suggestInterval } from "./intervals";
 import { seed, type Seed } from "./testing/fixtures";
@@ -71,7 +71,7 @@ test("the interval is stored per user and can be changed", async () => {
   expect((await freshness(s.b, s.anna, "2026-10-30")).intervalDays).toBeNull();
   await setCheckInInterval(s.a, s.anna, 14, false);
   expect((await freshness(s.a, s.anna, "2026-10-30")).intervalDays).toBe(14);
-  const rows = await (await db()).selectFrom("person_settings").selectAll().where("user_id", "=", s.a.userId).execute();
+  const rows = await (await testDb()).selectFrom("person_settings").selectAll().where("user_id", "=", s.a.userId).execute();
   expect(rows).toHaveLength(1);
   expect(rows[0].interval_confirmed).toBe(0);
 });

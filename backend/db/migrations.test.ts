@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import { beforeEach, expect, test } from "vitest";
 import { MIGRATION_NAMES, NEWER, migrate, migrateTo } from "./migrations";
 import { CONVERSATION_KINDS, EXCHANGE_KINDS } from "../types";
-import { db, newId, now, resetDbForTests } from "./index";
+import { newId, now, resetDbForTests, testDb } from "./index";
 
 // A ramble for a conversation inserted by hand, returning its id.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,13 +42,13 @@ test("a database with an unknown migration throws NEWER", async () => {
 beforeEach(() => resetDbForTests());
 
 test("foreign keys are on", async () => {
-  const d = await db();
+  const d = await testDb();
   const { rows } = await sql<{ foreign_keys: number }>`pragma foreign_keys`.execute(d);
   expect(rows[0].foreign_keys).toBe(1);
 });
 
 test("deleting a person cascades to its facts", async () => {
-  const d = await db();
+  const d = await testDb();
   const t = now();
   const user = newId();
   const person = newId();
@@ -73,7 +73,7 @@ test("deleting a person cascades to its facts", async () => {
 });
 
 test("items may have no conversation, and deleting a conversation cascades to its items", async () => {
-  const d = await db();
+  const d = await testDb();
   const t = now();
   const user = newId();
   const person = newId();
@@ -107,7 +107,7 @@ test("items may have no conversation, and deleting a conversation cascades to it
 
 // The vocabularies are checked by the database too, so a write path that forgets oneOf() still can't store a bad value.
 test("CHECK constraints refuse values outside the vocabularies", async () => {
-  const d = await db();
+  const d = await testDb();
   const t = now();
   const user = newId();
   const person = newId();
@@ -332,7 +332,7 @@ test("002 folds groups whose names differ only in case or spacing into one, keep
 });
 
 test("a fact keeps its source, day and file; deleting the file leaves the fact without one (004, 010)", async () => {
-  const d = await db();
+  const d = await testDb();
   const t = now();
   const user = newId();
   const person = newId();
