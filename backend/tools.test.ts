@@ -163,6 +163,17 @@ describe("next: what Claude does after a call", () => {
     expect(gender.next).toEqual([`Put Lena's word in "Lena is Nachbar:in of Alice" in her new gender: correct (edit, table relationships, id ${id}, patch { label }).`]);
   });
 
+  test("looks set the avatar and tell Claude to hand over the person's page; null clears it", async () => {
+    const look = { face: "oval", skin: "light", hair: "curly", hairColor: "brown", glasses: "round", beard: "full", description: "kurze Locken, Brille, Vollbart" };
+    const r = await run(s.a, "remember", { visibility: "shared", looks: [{ person: s.lena, look }] });
+    expect(r.counts.looks).toBe(1);
+    expect(r.next).toEqual(["Say in a few words which parts you chose for Lena's avatar, and give the link to their page (in people) so the user can check it and change a part there."]);
+    expect((await run(s.b, "briefing", { personId: s.lena })).person.look).toEqual(look);
+    const cleared = await run(s.a, "remember", { visibility: "shared", looks: [{ person: s.lena, look: null }] });
+    expect(cleared.next).toEqual(["Lena's avatar is cleared: their initials show again."]);
+    expect((await run(s.a, "briefing", { personId: s.lena })).person.look).toBeNull();
+  });
+
   test("genders for both ends list their relationship once, with a line for each end's word", async () => {
     const { id } = await run(s.a, "relate", { kind: "relationship", from: s.anna, to: s.lena, label: "Elternteil", inverse: "Kind", visibility: "shared" });
     const r = await run(s.a, "remember", { visibility: "shared", genders: [{ person: s.anna, gender: "female" }, { person: s.lena, gender: "female" }] });

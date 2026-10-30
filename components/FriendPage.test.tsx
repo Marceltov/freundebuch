@@ -7,7 +7,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} 
 
 const own = { visibility: "shared" as const, mine: false };
 const b: Briefing = {
-  person: { id: "p1", name: "Sarah", aliases: [], url: "/p/p1", birthday: { id: "d1", date: "1990-03-15", next: "2027-03-15", age: 37 }, gender: null },
+  person: { id: "p1", name: "Sarah", aliases: [], url: "/p/p1", birthday: { id: "d1", date: "1990-03-15", next: "2027-03-15", age: 37 }, gender: null, look: null },
   roles: [],
   groups: [
     { id: "g1", name: "Choir", url: "/g/g1", private: true },

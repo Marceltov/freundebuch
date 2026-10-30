@@ -4,14 +4,15 @@ import { sql, type Kysely } from "kysely";
 import { db, newId, now, type Schema } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { lastSeen } from "./intervals";
+import { parseLook } from "./looks";
 import { norm, rank } from "./names";
-import { GENDERS, type Gender, type Viewer } from "./types";
+import { GENDERS, type Gender, type Look, type Viewer } from "./types";
 import { personPath } from "./urls";
 import { visible } from "./visibility";
 
 export type Candidate = { id: string; name: string; aliases: string[]; url: string; context: string[] };
-/** `gender` is shared like the name; null when it isn't known. */
-export type PersonView = { id: string; name: string; aliases: string[]; url: string; createdFrom: string | null; gender: Gender | null };
+/** `gender` and `look` are shared like the name; null when they aren't known. */
+export type PersonView = { id: string; name: string; aliases: string[]; url: string; createdFrom: string | null; gender: Gender | null; look: Look | null };
 
 const MAX_CONTEXT = 3;
 
@@ -176,7 +177,7 @@ async function createdFromFor(v: Viewer, personId: string, conversationId: strin
   return null;
 }
 
-async function toViews(v: Viewer, rows: { id: string; name: string; created_from: string | null; gender: Gender | null }[]): Promise<PersonView[]> {
+async function toViews(v: Viewer, rows: { id: string; name: string; created_from: string | null; gender: Gender | null; look: string | null }[]): Promise<PersonView[]> {
   const aliases = await aliasesByPerson();
   return Promise.all(
     rows.map(async (r) => ({
@@ -186,18 +187,19 @@ async function toViews(v: Viewer, rows: { id: string; name: string; created_from
       url: personPath(r.id),
       createdFrom: r.created_from ? await createdFromFor(v, r.id, r.created_from) : null,
       gender: r.gender,
+      look: parseLook(r.look),
     })),
   );
 }
 
 export async function getPerson(v: Viewer, id: string): Promise<PersonView> {
-  const row = await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender"]).where("id", "=", id).executeTakeFirst();
+  const row = await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender", "look"]).where("id", "=", id).executeTakeFirst();
   if (!row) throw new NotFoundError("No such person");
   return (await toViews(v, [row]))[0];
 }
 
 export async function listPeople(v: Viewer): Promise<PersonView[]> {
-  return toViews(v, await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender"]).orderBy("name").execute());
+  return toViews(v, await (await db()).selectFrom("persons").select(["id", "name", "created_from", "gender", "look"]).orderBy("name").execute());
 }
 
 /** Someone in the people list: last seen and groups as the viewer sees them. */

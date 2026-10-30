@@ -61,6 +61,15 @@ describe("people", () => {
     expect((await call(s.a, "PATCH", `/people/${s.lena}`, { name: " " })).status).toBe(400);
   });
 
+  test("set a person's look, which the other user sees too", async () => {
+    const look = { face: "round", skin: "fair", hair: "curly", hairColor: "red", glasses: "round", beard: "none" };
+    expect((await call(s.a, "PATCH", `/people/${s.lena}`, { look })).status).toBe(204);
+    expect((await call(s.b, "GET", `/people/${s.lena}`)).json.look).toEqual({ ...look, description: null });
+    expect((await call(s.a, "PATCH", `/people/${s.lena}`, { look: { ...look, hair: "mohawk" } })).status).toBe(400);
+    expect((await call(s.a, "PATCH", `/people/${s.lena}`, { look: null })).status).toBe(204);
+    expect((await call(s.b, "GET", `/people/${s.lena}`)).json.look).toBeNull();
+  });
+
   test("briefing", async () => {
     const res = await call(s.a, "GET", `/people/${s.anna}/briefing`);
     expect(res.status).toBe(200);

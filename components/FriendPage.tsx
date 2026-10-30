@@ -147,6 +147,7 @@ export function FriendPage({
             id={b.person.id}
             name={b.person.name}
             gender={b.person.gender}
+            look={b.person.look}
             intervalDays={b.freshness.intervalDays}
             others={others}
           />

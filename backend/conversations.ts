@@ -6,6 +6,7 @@ import { addDays, assertDay, isDay, isYearless, notFuture, today } from "./dates
 import { db, newId, now, type Schema } from "./db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "./errors";
 import { insertExperiences, validateExperiences, type NewExperience, type RecordedExperience } from "./experiences";
+import { checkLook, lookJson } from "./looks";
 import { fileOwners, fileOwnersOf, ownersOf, resolvePlace, type PlaceRef } from "./places";
 import { checkGender, insertPerson, namedLike, relabelFor, type Relabel } from "./people";
 import {
@@ -250,15 +251,16 @@ async function insertItems<P>(
 /**
  * Facts, promises, dates and exchanges about people the book already has, filed without a conversation: "Malou's birthday is 7
  * February". `genders` sets (null: clears) a person's gender, shared like the name; like setGender, each comes back with the
- * person's relationships the viewer recorded, to put in it.
+ * person's relationships the viewer recorded, to put in it. `looks` sets (null: clears) the parts of a person's avatar.
  */
 export type Remembered = {
   visibility: Visibility;
   genders?: Array<{ person: string; gender: Gender | null }>;
+  looks?: Array<{ person: string; look: unknown }>;
   /** Where someone lives: a place (as record names one) that is their home. */
   homes?: Array<{ person: string; place: PlaceRef<unknown>; private?: boolean }>;
 } & Items<string>;
-type RememberCounts = { facts: number; promises: number; dates: number; exchanges: number; genders: number; homes: number };
+type RememberCounts = { facts: number; promises: number; dates: number; exchanges: number; genders: number; looks: number; homes: number };
 
 export async function remember(v: Viewer, r: Remembered): Promise<{
   counts: RememberCounts;
@@ -267,8 +269,8 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
   genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }>;
 }> {
   checkVisibility(r.visibility);
-  const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0) + (r.genders?.length ?? 0) + (r.homes?.length ?? 0);
-  if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date, exchange, gender or home");
+  const count = (r.facts?.length ?? 0) + (r.promises?.length ?? 0) + (r.dates?.length ?? 0) + (r.exchanges?.length ?? 0) + (r.genders?.length ?? 0) + (r.looks?.length ?? 0) + (r.homes?.length ?? 0);
+  if (!count) throw new InvalidInputError("Nothing to remember: give at least one fact, promise, date, exchange, gender, look or home");
   const person = (p: unknown) => {
     if (typeof p !== "string" || !p) throw new InvalidInputError("Each item needs the id of an existing person");
   };
@@ -277,6 +279,10 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
     person(g.person);
     checkGender(g.gender);
   }
+  const looks = (r.looks ?? []).map((l) => {
+    person(l.person);
+    return { person: l.person, look: l.look === null ? null : checkLook(l.look) };
+  });
   for (const h of r.homes ?? []) {
     person(h.person);
     if (!h.place) throw new InvalidInputError("A home needs a place");
@@ -285,7 +291,7 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
   const vis = (item: { private?: boolean }): Visibility => (r.visibility === "private" || item.private ? "private" : "shared");
   const base: ItemBase = { recorded_by: v.userId, conversation_id: null, created_at: now() };
   return (await db()).transaction().execute(async (tx) => {
-    const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? []), ...(r.homes ?? [])].map((i) => i.person))];
+    const ids = [...new Set([...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? []), ...looks, ...(r.homes ?? [])].map((i) => i.person))];
     const people = await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute();
     if (people.length !== ids.length) throw new NotFoundError("No such person");
     const genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }> = [];
@@ -294,13 +300,14 @@ export async function remember(v: Viewer, r: Remembered): Promise<{
       await tx.updateTable("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
       genders.push({ ...g, relabel: await relabelFor(tx, v, g.person, before.gender, g.gender) });
     }
+    for (const l of looks) await tx.updateTable("persons").set({ look: lookJson(l.look) }).where("id", "=", l.person).execute();
     const names = new Map(people.map((p) => [p.id, p.name]));
     const filed = await insertItems(tx, v, base, r, (p) => p, vis, (p) => names.get(p) ?? "", personPath);
     for (const h of r.homes ?? []) await fileOwners(tx, v, await resolvePlace(tx, v, h.place, vis(h)), [h.person], vis(h));
     return {
       filed,
       genders,
-      counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0, genders: r.genders?.length ?? 0, homes: r.homes?.length ?? 0 },
+      counts: { facts: r.facts?.length ?? 0, promises: r.promises?.length ?? 0, dates: r.dates?.length ?? 0, exchanges: r.exchanges?.length ?? 0, genders: r.genders?.length ?? 0, looks: looks.length, homes: r.homes?.length ?? 0 },
       people: people.map((p) => ({ id: p.id, name: p.name, url: personPath(p.id) })),
     };
   });

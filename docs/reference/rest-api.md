@@ -27,7 +27,7 @@ The same privacy rules apply as everywhere else: a request sees what the token's
 
 ## Roles, situations, traits and gender
 
-- `PATCH /api/v1/people/{id}` takes `{ name?, gender? }`; `gender` is `female`, `male`, `nonbinary` or `null`.
+- `PATCH /api/v1/people/{id}` takes `{ name?, gender?, look? }`; `gender` is `female`, `male`, `nonbinary` or `null`; `look` is every part of the avatar (see the `Look` schema) or `null`. A person and the briefing carry `look`.
 - `POST /api/v1/items/facts/{id}/relationship` with `{ from, to, label, inverse, note? }` turns a fact into a relationship and deletes the fact; `from` and `to` take a person id, `"me"` or `"us"`. It answers `201 { ids }`.
 - `PATCH /api/v1/items/facts/{id}` with `{ patch: { kind, checkAfter } }` moves a fact between lasting, situation, need and personality.
 - `GET /api/v1/traits?people=<ids>&groups=<ids>` (comma-separated) gives what each person needs and how they are, each once; a group stands for the members the caller sees.

@@ -3,7 +3,7 @@
 // vocabularies come from backend/types.ts; the rules on the values stay in the domain functions,
 // which answer a bad value with `invalid_input`.
 import * as z from "zod";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, VISIBILITIES } from "../types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, LOOK_PARTS, VISIBILITIES } from "../types";
 import type { PlaceRef } from "../places";
 import { ERROR_CODES } from "./errors";
 
@@ -43,6 +43,18 @@ const Url = z.string().describe("Where it opens in the web app, as an absolute U
 const ItemUrl = Url.describe("Where it opens in the web app, as an absolute URL to its highlighted row");
 
 export const Gender = z.enum(GENDERS).describe("The person's gender, which the role labels follow; set only when the user states it or uses a pronoun for the person, never from the name");
+export const LookJson = z
+  .object({
+    face: z.enum(LOOK_PARTS.face).describe("The shape of the face"),
+    skin: z.enum(LOOK_PARTS.skin).describe("Skin tone, lightest to darkest"),
+    hair: z.enum(LOOK_PARTS.hair).describe("Hair style: none is bald, buzz a very short cut, wavy reaches the chin, long the shoulders"),
+    hairColor: z.enum(LOOK_PARTS.hairColor).describe("Hair color; also the color of the brows and beard"),
+    glasses: z.enum(LOOK_PARTS.glasses),
+    beard: z.enum(LOOK_PARTS.beard),
+    description: z.string().nullable().optional().describe("How the user described them, in their words (\"kurze lockige braune Haare, Brille\"), kept so the look can be chosen again; null when put together by hand"),
+  })
+  .describe("A stylized avatar put together from parts, not a portrait: choose for each part the value closest to how the user described the person, and the usual value (none, oval) for what they didn't say")
+  .meta({ id: "Look" });
 /** A relationship's end: a person, or the household. */
 /** The words of a relationship, written by Claude in each end's gender: there is no fixed list of types. */
 export const LABEL = z.string().describe("What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)");
@@ -57,6 +69,7 @@ export const PersonJson = z
     createdFrom: z.string().nullable().optional().describe("The conversation the person was first mentioned in, when the viewer may see it; absent in a search"),
     context: z.array(z.string()).optional().describe("Only in a search: short hints that tell people with the same name apart"),
     gender: Gender.nullable().optional().describe("null when it isn't known; absent in a search"),
+    look: LookJson.nullable().optional().describe("The parts of their avatar; null while nobody described them; absent in a search"),
   })
   .meta({ id: "Person" });
 
@@ -216,6 +229,7 @@ export const BriefingJson = z
         .nullable()
         .describe("The person's birthday as the caller may see it, however far away"),
       gender: Gender.nullable().describe("null when it isn't known"),
+      look: LookJson.nullable().describe("The parts of their avatar and the user's words for how they look; null while nobody described them"),
     }),
     roles: z
       .array(
@@ -335,8 +349,12 @@ export const IntervalJson = z
 export const MergeJson = z.object({ drop: PersonId.describe("The duplicate to merge into the person in the path; it is deleted") }).meta({ id: "Merge" });
 
 export const PersonPatchJson = z
-  .object({ name: z.string().optional().describe("The person's new name"), gender: Gender.nullable().optional().describe("The person's gender; null clears it") })
-  .refine((p) => p.name !== undefined || p.gender !== undefined, "Give a name, a gender, or both")
+  .object({
+    name: z.string().optional().describe("The person's new name"),
+    gender: Gender.nullable().optional().describe("The person's gender; null clears it"),
+    look: LookJson.nullable().optional().describe("The person's look, all parts; null clears it"),
+  })
+  .refine((p) => p.name !== undefined || p.gender !== undefined || p.look !== undefined, "Give a name, a gender, a look, or several")
   .meta({ id: "PersonPatch" });
 
 export const FactRelationshipJson = z
@@ -710,7 +728,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [PlaceRefJson, PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [LookJson, PlaceRefJson, PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

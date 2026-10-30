@@ -310,6 +310,32 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
   await expect(page.getByRole("link", { name: /Leah B\./ })).toHaveCount(0);
 });
 
+test("Aussehen: an avatar put together in the person menu shows on the friend page and the orbit", async ({ page, baseURL }) => {
+  const recorded = await page.request.post("/api/v1/rambles", {
+    headers: { origin: baseURL! },
+    data: asRamble({ date: today, kind: "in_person", summary: "Kaffee mit Mira.", transcript: "Kaffee mit Mira Kühn.", visibility: "shared", people: [{ name: "Mira Kühn", present: true }] }),
+  });
+  const { people } = await recorded.json();
+  await page.goto(`/p/${people[0].id}`);
+  const face = page.getByRole("img", { name: "Mira Kühn" }).first();
+  await expect(face).toHaveText("MK");
+
+  await page.getByRole("button", { name: "Mehr zu Mira Kühn" }).click();
+  const sheet = page.getByRole("dialog", { name: "Mehr zu Mira Kühn" });
+  await sheet.getByRole("button", { name: "Bild zusammenstellen" }).click();
+  await sheet.getByLabel("Frisur").selectOption({ label: "Locken" });
+  await sheet.getByLabel("Brille").selectOption({ label: "rund" });
+  await expect(sheet.getByLabel("Brille")).toHaveValue("round");
+  await sheet.getByRole("button", { name: "Fertig" }).click();
+  await page.reload();
+  await expect(face.locator("svg")).toBeVisible();
+  await expect(face).not.toHaveText("MK");
+
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Mira Kühn" }).locator("svg")).toHaveCount(1);
+  await expectNoSideScroll(page);
+});
+
 test("Erzählen files from a friend's page and keeps the chat across pages", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },

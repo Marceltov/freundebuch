@@ -1,3 +1,26 @@
+import type { LookPart, LookParts } from "@/backend";
+
+// Every value of every part of a look, in German and in the order the editor offers them.
+const LOOK_VALUES = {
+  face: { oval: "oval", round: "rund", long: "schmal" },
+  skin: { light: "sehr hell", fair: "hell", medium: "mittel", olive: "oliv", brown: "braun", dark: "dunkel" },
+  hair: {
+    none: "Glatze",
+    buzz: "raspelkurz",
+    short: "kurz",
+    "side-part": "Seitenscheitel",
+    curly: "Locken",
+    wavy: "kinnlang",
+    long: "lang",
+    bun: "Dutt",
+    ponytail: "Pferdeschwanz",
+    afro: "Afro",
+  },
+  hairColor: { black: "schwarz", "dark-brown": "dunkelbraun", brown: "braun", blond: "blond", red: "rot", grey: "grau", white: "weiß" },
+  glasses: { none: "keine", round: "rund", square: "eckig" },
+  beard: { none: "keiner", stubble: "Stoppeln", moustache: "Schnurrbart", short: "kurz", full: "Vollbart" },
+} satisfies { [P in LookPart]: Record<LookParts[P], string> };
+
 // Every string the UI shows, in German. `{name}` placeholders are filled by the component that shows the string.
 export const copy = {
   appName: "freundebuch",
@@ -64,6 +87,21 @@ export const copy = {
   genderM: "männlich",
   genderX: "divers",
   genderNone: "keine Angabe",
+  look: "Aussehen",
+  lookHint: "Ein gezeichnetes Bild aus Teilen, kein Porträt. Am einfachsten erzählst du Claude, wie die Person aussieht.",
+  lookDescribed: "Erzählt: „{description}“",
+  lookNone: "Ohne Bild, nur Initialen",
+  lookStart: "Bild zusammenstellen",
+  lookClear: "Bild entfernen",
+  lookPart: {
+    face: "Gesicht",
+    skin: "Haut",
+    hair: "Frisur",
+    hairColor: "Haarfarbe",
+    glasses: "Brille",
+    beard: "Bart",
+  },
+  lookValue: LOOK_VALUES,
   promised: "Versprochen",
   giftIdeas: "Ideen für Geschenke",
   stillOpen: "Noch offen",

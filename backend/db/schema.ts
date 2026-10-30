@@ -23,6 +23,9 @@ export interface Schema {
     created_from: string | null;
     created_at: number;
     gender: ColumnType<"female" | "male" | "nonbinary" | null, "female" | "male" | "nonbinary" | null | undefined, "female" | "male" | "nonbinary" | null>;
+
+    /** JSON of a Look (backend/looks.ts), or null. */
+    look: ColumnType<string | null, string | null | undefined, string | null>;
   };
   aliases: { person_id: string; alias: string; norm: string };
   person_settings: { user_id: string; person_id: string; interval_days: number | null; interval_confirmed: Flag };

@@ -16,6 +16,7 @@ import { traitsFor } from "../traits";
 import { journalEntries } from "../journal";
 import { experienceKinds, getPlace, getSeries, listExperiences, listSeries } from "../experiences";
 import { findPlaces, placesInside, placesOf } from "../places";
+import { setLook } from "../looks";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
 import { getSettings, putSettings, testWebhook } from "../settings";
 import { getReflection, putReflection } from "../reflection";
@@ -110,8 +111,8 @@ const OPS: AnyOp[] = [
     method: "PATCH",
     path: `${API_PREFIX}/people/{id}`,
     operationId: "updatePerson",
-    summary: "Rename a person, or set their gender",
-    description: "Names and gender are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
+    summary: "Rename a person, or set their gender or look",
+    description: "Names, gender and look are shared: the other user sees them too. Set a gender only when the user states it or uses a pronoun for the person, never from the name.",
     tags: ["People"],
     auth: true,
     params: { id: IdParam },
@@ -120,6 +121,7 @@ const OPS: AnyOp[] = [
   }).handle(async ({ viewer, params, body }) => {
     if (body.name !== undefined) await renamePerson(viewer, params.id, body.name);
     if (body.gender !== undefined) await setGender(viewer, params.id, body.gender);
+    if (body.look !== undefined) await setLook(viewer, params.id, body.look);
     return { status: 204, body: undefined };
   }),
 
