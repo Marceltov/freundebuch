@@ -470,6 +470,52 @@ describe("experiences over MCP", () => {
   });
 });
 
+describe("nested places over MCP", () => {
+  let s: Seed;
+  beforeEach(async () => {
+    s = await seed();
+  });
+  const met = (v: Seed["a"], place: unknown) =>
+    run(v, "record", { date: today(), transcript: "t", visibility: "shared", people: [{ id: s.anna }], conversations: [{ kind: "in_person", summary: "Treffen", present: [0], place }] });
+
+  test("places answers where we were with someone, and what is inside a place", async () => {
+    const r = await met(s.a, { name: "Olympiahalle", in: "München" });
+    expect(r.next.join(" ")).toContain('Read back where "Olympiahalle" sits');
+    const [oly] = (await run(s.a, "places", { person: s.anna })).places;
+    expect(oly).toMatchObject({ name: "Olympiahalle", times: 1, last: today(), parents: [{ name: "München" }] });
+    const muc = oly.parents[0].id;
+    expect((await run(s.a, "places", { inside: muc })).places.map((p: Json) => p.name)).toEqual(["Olympiahalle"]);
+    await expect(run(s.a, "places", {})).rejects.toThrow();
+    await expect(run(s.a, "places", { name: "x", person: s.anna })).rejects.toThrow();
+    const places = TOOLS.find((t) => t.name === "places")!;
+    expect(places.description).toMatch(/where were we with/);
+  });
+
+  test("correct sets where a place sits, its address and whose home it is", async () => {
+    await met(s.a, "Annas Wohnung");
+    await met(s.a, { name: "Nürnberg", confirmedNew: true });
+    const id = async (n: string) => (await run(s.a, "places", { name: n })).places.find((p: Json) => p.name === n).id;
+    const home = await id("Annas Wohnung");
+    await run(s.a, "correct", { action: "place_parent", id: home, parent: await id("Nürnberg") });
+    await run(s.a, "correct", { action: "place_address", id: home, address: "Hauptstraße 5" });
+    await run(s.a, "correct", { action: "place_owner", id: home, person: s.anna, private: true });
+    expect((await run(s.a, "places", { name: "Annas Wohnung" })).places[0]).toMatchObject({ address: "Hauptstraße 5", parents: [{ name: "Nürnberg" }], owners: [{ id: s.anna }] });
+    expect((await run(s.b, "places", { name: "Annas Wohnung" })).places[0].owners).toEqual([]);
+    await run(s.a, "correct", { action: "place_unowner", id: home, person: s.anna });
+    await run(s.a, "correct", { action: "place_parent", id: home, parent: null });
+    await run(s.a, "correct", { action: "place_address", id: home, address: null });
+    expect((await run(s.a, "places", { name: "Annas Wohnung" })).places[0]).toMatchObject({ address: null, parents: [], owners: [] });
+  });
+
+  test("remember files a home, and the descriptions tell Claude how", async () => {
+    const r = await run(s.a, "remember", { visibility: "shared", homes: [{ person: s.anna, place: { name: "Annas Wohnung", address: "Hauptstraße 5" } }] });
+    expect(r.counts.homes).toBe(1);
+    expect(TOOLS.find((t) => t.name === "remember")!.description).toMatch(/homes/);
+    expect(TOOLS.find((t) => t.name === "record")!.description).toMatch(/\bin\b.*address.*owners/s);
+    expect(TOOLS.find((t) => t.name === "record")!.description).toMatch(/moved/);
+  });
+});
+
 describe("series over MCP", () => {
   let s: Seed;
   beforeEach(async () => {

@@ -256,7 +256,7 @@ export type Remembered = {
   visibility: Visibility;
   genders?: Array<{ person: string; gender: Gender | null }>;
   /** Where someone lives: a place (as record names one) that is their home. */
-  homes?: Array<{ person: string; place: PlaceRef; private?: boolean }>;
+  homes?: Array<{ person: string; place: PlaceRef<unknown>; private?: boolean }>;
 } & Items<string>;
 type RememberCounts = { facts: number; promises: number; dates: number; exchanges: number; genders: number; homes: number };
 

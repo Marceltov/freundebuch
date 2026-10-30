@@ -292,3 +292,41 @@ export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Pr
     await tx.deleteFrom("places").where("id", "=", dropId).execute();
   });
 }
+
+/** The places the viewer may see of the conversations and experiences a person was part of: how often and when last, newest first. */
+export async function placesOf(v: Viewer, personId: string): Promise<Array<PlaceCandidate & { times: number; last: string }>> {
+  const d = await db();
+  const [conversations, experiences, all] = await Promise.all([
+    d
+      .selectFrom("conversations")
+      .innerJoin("participants", "participants.conversation_id", "conversations.id")
+      .select(["conversations.place_id", "conversations.date"])
+      .where("participants.person_id", "=", personId)
+      .where("conversations.place_id", "is not", null)
+      .$call((qb) => visible(qb, v, "conversations"))
+      .execute(),
+    d
+      .selectFrom("experiences")
+      .innerJoin("experience_people", "experience_people.experience_id", "experiences.id")
+      .select(["experiences.place_id", "experiences.date"])
+      .where("experience_people.person_id", "=", personId)
+      .where("experiences.place_id", "is not", null)
+      .$call((qb) => visible(qb, v, "experiences"))
+      .execute(),
+    visiblePlaces(d, v),
+  ]);
+  const seen = new Map<string, { times: number; last: string }>();
+  for (const r of [...conversations, ...experiences]) {
+    const s = seen.get(r.place_id!) ?? { times: 0, last: "" };
+    seen.set(r.place_id!, { times: s.times + 1, last: r.date > s.last ? r.date : s.last });
+  }
+  return all
+    .filter((p) => seen.has(p.id))
+    .map((p) => ({ ...p, ...seen.get(p.id)! }))
+    .sort((a, b) => b.last.localeCompare(a.last) || b.times - a.times || a.name.localeCompare(b.name));
+}
+
+/** The places directly inside a place, as far as the viewer may see. */
+export async function placesInside(v: Viewer, id: string): Promise<PlaceCandidate[]> {
+  return (await describePlace(await db(), v, id)).inside;
+}

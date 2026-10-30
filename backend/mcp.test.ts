@@ -109,6 +109,12 @@ describe("protocol", () => {
       // The Anthropic API refuses a tool whose input schema combines schemas at its root.
       expect(t.inputSchema.type, t.name).toBe("object");
       for (const k of ["oneOf", "anyOf", "allOf"]) expect(t.inputSchema, t.name).not.toHaveProperty(k);
+      // A recursive schema (a place inside a place) is a $ref; it must point inside the tool's own schema.
+      for (const ref of JSON.stringify(t.inputSchema).match(/"\$ref":"[^"]*"/g) ?? []) {
+        const path = ref.slice(8, -1);
+        expect(path, t.name).toMatch(/^#\//);
+        expect(path.slice(2).split("/").reduce((o: Record<string, unknown> | undefined, k) => o?.[k] as Record<string, unknown> | undefined, t.inputSchema), `${t.name} ${path}`).toBeDefined();
+      }
     }
     const find = tools.find((t: { name: string }) => t.name === "find_person");
     expect(find.description).toContain("always call this before referring to a person by id");
