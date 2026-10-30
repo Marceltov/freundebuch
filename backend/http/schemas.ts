@@ -3,7 +3,7 @@
 // vocabularies come from backend/types.ts; the rules on the values stay in the domain functions,
 // which answer a bad value with `invalid_input`.
 import * as z from "zod";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, LOOK_PARTS, VISIBILITIES } from "../types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, LOOK_PARTS, SEARCH_KINDS, VISIBILITIES } from "../types";
 import type { PlaceRef } from "../places";
 import { ERROR_CODES } from "./errors";
 
@@ -137,6 +137,21 @@ export const JournalEntryJson = z
   })
   .meta({ id: "JournalEntry" });
 export const JournalJson = z.object({ entries: z.array(JournalEntryJson.extend({})).describe("Newest first") }).meta({ id: "Journal" });
+export const SearchHitJson = z
+  .object({
+    kind: z.enum(SEARCH_KINDS).describe("What matched: a ramble's `transcript`, a `conversation`, an `experience`, a `journal` entry, an item about a person (`fact`, `promise`, `exchange`, `date`) or a `place`"),
+    id: z.string(),
+    date: Day.nullable().describe("The day it was told or happened; null for a place"),
+    text: z.string().describe("The matching text, cut around the first match when it is long"),
+    people: z.array(z.string()).describe("Who it is about or who was there, by name"),
+    url: Url,
+    rambleId: z.string().nullable().describe("The ramble it was told in, when there is one"),
+  })
+  .meta({ id: "SearchHit" });
+export const SearchJson = z.object({ hits: z.array(SearchHitJson).describe("Newest first") }).meta({ id: "Search" });
+export const SearchQuery = z.object({
+  q: z.string().describe("The words to find; every one must occur, in any case, umlauts folded. At most 20 hits"),
+});
 export const JournalQuery = z.object({
   from: Day.optional().describe("The first day; 30 days before `to` when left out"),
   to: Day.optional().describe("The last day; today when left out"),
@@ -728,7 +743,7 @@ export const CalendarFeedJson = z
   })
   .meta({ id: "CalendarFeed" });
 
-export const COMPONENTS = [LookJson, PlaceRefJson, PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
+export const COMPONENTS = [LookJson, SearchHitJson, SearchJson, PlaceRefJson, PendingFileJson, PendingFileListJson, ShareKeyJson, CalendarFeedJson, PersonPatchJson, FactRelationshipJson, RelationshipIdsJson, GroupJson, GroupListJson, GroupDetailJson, GroupNameJson, GroupMergeJson, SettingsJson, ReflectionJson, SentJson, ErrorJson, PersonJson, PersonListJson, BriefingJson, TraitsJson, JournalEntryJson, JournalJson, ExperienceJson, SeriesSummaryJson, ExperiencesJson, PlaceJson, PlaceListJson, SeriesJson, PlaceViewJson, NewRambleJson, RecordedRambleJson, DueItemJson, DueListJson, OrbitFaceJson, OrbitJson, IntervalJson, MergeJson, AliasJson, NewConversationJson, RecordedJson, ConversationJson, ItemPatchJson];
 
 export const IdParam = z.string().describe("The id");
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");

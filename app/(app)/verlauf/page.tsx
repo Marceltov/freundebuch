@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { BookOpen, Coffee, Lock, NotebookPen, Ticket } from "lucide-react";
-import { listRambles, today, type RambleSummary } from "@/backend";
+import { BookOpen, Cake, Coffee, Gift, Info, Lock, MapPin, MessageSquareText, NotebookPen, Pin, Ticket, type LucideIcon } from "lucide-react";
+import { listRambles, markMatches, search, today, type RambleSummary, type SearchHit } from "@/backend";
 import { copy, kindName } from "@/components/copy";
 import { shortDay } from "@/components/format";
+import { HistorySearch } from "@/components/HistorySearch";
 import { KIND_ICON } from "@/components/icons";
 import { pageViewer } from "../viewer";
 
@@ -24,9 +25,11 @@ const monthYear = (day: string) =>
 
 // Every ramble the viewer may see a part of, newest first: this week, last week, then by month. A ramble shows its conversations,
 // each linking to its page, where what Claude filed can be checked and fixed, and its journal entries the viewer may see; a
-// ramble told in parts links to its own page.
-export default async function HistoryPage() {
+// ramble told in parts links to its own page. With a search (?q=), what holds every word instead, the words marked.
+export default async function HistoryPage({ searchParams }: PageProps<"/verlauf">) {
   const v = await pageViewer();
+  const q = (await searchParams).q;
+  const query = typeof q === "string" ? q.trim() : "";
   const now = today();
   const rambles = await listRambles(v);
   const thisWeek = mondayOf(now);
@@ -45,71 +48,124 @@ export default async function HistoryPage() {
           {copy.journal}
         </Link>
       </div>
-      {rambles.length === 0 && <p className="mt-6 rounded-2xl bg-surface p-4 shadow-card">{copy.nothingFiled}</p>}
-      {[...groups].map(([title, rs]) => (
-        <section key={title} className="mt-6">
-          <h2 className="mb-2 font-display text-lg font-semibold">{title}</h2>
-          <ul className="space-y-2">
-            {rs.map((r) => (
-              <li key={r.id} data-ramble={r.id}>
-                <ul className={r.conversations.length + r.experiences.length + r.journal.length + (r.items.length ? 1 : 0) > 1 ? "space-y-1 rounded-3xl border border-rule p-1" : ""}>
-                  {r.experiences.map((e) => (
-                    <li key={e.id}>
-                      <Link href={e.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
-                        <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
-                          <Ticket aria-label={e.kind} className="h-[18px] w-[18px]" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1 font-semibold">
-                            {shortDay(e.date)} · {e.title}
-                            {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="h-3.5 w-3.5 text-muted" />}
-                          </span>
-                          <span className="line-clamp-2 block text-sm text-muted">{[e.kind, e.series?.name, e.place?.name].filter(Boolean).join(" · ")}</span>
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                  {r.conversations.map((c) => (
-                    <ConversationRow key={c.id} c={c} />
-                  ))}
-                  {r.journal.map((e) => (
-                    <li key={e.id}>
-                      <Link href={r.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
-                        <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
-                          <NotebookPen aria-label={copy.journal} className="h-[18px] w-[18px]" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1 font-semibold">
-                            {shortDay(e.date)} · {copy.journal}
-                            {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="h-3.5 w-3.5 text-muted" />}
-                          </span>
-                          <span className="line-clamp-2 block text-sm text-muted">{e.text}</span>
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                  {r.items.length > 0 && (
-                    <li>
-                      <Link href={r.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
-                        <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
-                          <BookOpen aria-label={copy.rambleItems} className="h-[18px] w-[18px]" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-semibold">
-                            {shortDay(r.date)} · {[...new Set(r.items.map((x) => x.person.name))].join(", ")}
-                          </span>
-                          <span className="line-clamp-2 block text-sm text-muted">{r.items.map((x) => x.text).join(" · ")}</span>
-                        </span>
-                      </Link>
-                    </li>
-                  )}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      {rambles.length > 0 && <HistorySearch query={query} />}
+      {query ? (
+        <Hits query={query} hits={await search(v, query)} />
+      ) : (
+        <>
+          {rambles.length === 0 && <p className="mt-6 rounded-2xl bg-surface p-4 shadow-card">{copy.nothingFiled}</p>}
+          {[...groups].map(([title, rs]) => (
+            <section key={title} className="mt-6">
+              <h2 className="mb-2 font-display text-lg font-semibold">{title}</h2>
+              <ul className="space-y-2">
+                {rs.map((r) => (
+                  <li key={r.id} data-ramble={r.id}>
+                    <ul className={r.conversations.length + r.experiences.length + r.journal.length + (r.items.length ? 1 : 0) > 1 ? "space-y-1 rounded-3xl border border-rule p-1" : ""}>
+                      {r.experiences.map((e) => (
+                        <li key={e.id}>
+                          <Link href={e.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
+                            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
+                              <Ticket aria-label={e.kind} className="h-[18px] w-[18px]" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center gap-1 font-semibold">
+                                {shortDay(e.date)} · {e.title}
+                                {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="h-3.5 w-3.5 text-muted" />}
+                              </span>
+                              <span className="line-clamp-2 block text-sm text-muted">{[e.kind, e.series?.name, e.place?.name].filter(Boolean).join(" · ")}</span>
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                      {r.conversations.map((c) => (
+                        <ConversationRow key={c.id} c={c} />
+                      ))}
+                      {r.journal.map((e) => (
+                        <li key={e.id}>
+                          <Link href={r.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
+                            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
+                              <NotebookPen aria-label={copy.journal} className="h-[18px] w-[18px]" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center gap-1 font-semibold">
+                                {shortDay(e.date)} · {copy.journal}
+                                {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="h-3.5 w-3.5 text-muted" />}
+                              </span>
+                              <span className="line-clamp-2 block text-sm text-muted">{e.text}</span>
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                      {r.items.length > 0 && (
+                        <li>
+                          <Link href={r.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
+                            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
+                              <BookOpen aria-label={copy.rambleItems} className="h-[18px] w-[18px]" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-semibold">
+                                {shortDay(r.date)} · {[...new Set(r.items.map((x) => x.person.name))].join(", ")}
+                              </span>
+                              <span className="line-clamp-2 block text-sm text-muted">{r.items.map((x) => x.text).join(" · ")}</span>
+                            </span>
+                          </Link>
+                        </li>
+                      )}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </>
+      )}
     </div>
+  );
+}
+
+const HIT_ICON: Record<SearchHit["kind"], LucideIcon> = {
+  transcript: MessageSquareText,
+  conversation: Coffee,
+  experience: Ticket,
+  journal: NotebookPen,
+  fact: Info,
+  promise: Pin,
+  exchange: Gift,
+  date: Cake,
+  place: MapPin,
+};
+
+function Hits({ query, hits }: { query: string; hits: SearchHit[] }) {
+  if (!hits.length) return <p className="mt-6 rounded-2xl bg-surface p-4 shadow-card">{copy.searchNothing.replace("{q}", query)}</p>;
+  return (
+    <ul aria-label={copy.searchFound} className="mt-4 space-y-2">
+      {hits.map((h) => {
+        const Icon = HIT_ICON[h.kind];
+        return (
+          <li key={`${h.kind}-${h.id}`}>
+            <Link href={h.url} className="flex gap-3 rounded-2xl bg-surface p-3 shadow-card hover:bg-surface-2/50">
+              <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-carbon">
+                <Icon aria-label={copy.searchKind[h.kind]} className="h-[18px] w-[18px]" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{[h.date && shortDay(h.date), copy.searchKind[h.kind], h.people.join(", ")].filter(Boolean).join(" · ")}</span>
+                <span className="line-clamp-3 block text-sm text-muted">
+                  {markMatches(h.text, query).map((piece, i) =>
+                    piece.mark ? (
+                      <mark key={i} className="rounded bg-drift/30 px-0.5 text-ink">
+                        {piece.text}
+                      </mark>
+                    ) : (
+                      piece.text
+                    ),
+                  )}
+                </span>
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

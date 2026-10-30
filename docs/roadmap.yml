@@ -10,20 +10,9 @@
 
 items:
   # ---- open --------------------------------------------------------------------------------------------------------------
-  - id: search
-    status: now
-    when: Now
-    icon: text-search
-    title: Search by a word you remember
-    summary: "\"Das mit dem Spiegel\", \"Hellengerst\": found over Claude first, then with a field on Verlauf; only what you may see, never the partner's private items."
-    links:
-      - {label: "#102", url: "https://github.com/Marceltov/freundebuch/issues/102"}
-      - {label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first"}
-      - {label: "V2", url: "https://marceltov.github.io/freundebuch/values/#v2-private-stays-private-through-every-door"}
-
   - id: households
-    status: later
-    when: Later
+    status: next
+    when: Next
     icon: home-group
     title: Several households per instance, and a hosted freundebuch
     summary: Each account a person, a household the people who share a book; the same on a hosted instance as on your own.
@@ -83,6 +72,18 @@ items:
       - {label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything"}
 
   # ---- done, newest first ------------------------------------------------------------------------------------------------
+  - id: search
+    status: done
+    date: 2026-10-30
+    icon: text-search
+    title: Search by a word you remember
+    summary: "\"Das mit dem Spiegel\", \"Hellengerst\": found over Claude with search, and with the field on Verlauf; only what you may see, never the partner's private items."
+    links:
+      - {label: "#102", url: "https://github.com/Marceltov/freundebuch/issues/102"}
+      - {label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first"}
+      - {label: "V2", url: "https://marceltov.github.io/freundebuch/values/#v2-private-stays-private-through-every-door"}
+      - {label: "PR #PRNUM", url: "https://github.com/Marceltov/freundebuch/pull/PRNUM"}
+
   - id: avatars
     status: done
     date: 2026-10-30

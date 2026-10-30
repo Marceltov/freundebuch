@@ -114,6 +114,11 @@ export async function describePlace(d: Kysely<Schema>, v: Viewer, id: string): P
   return { ...p, inside: all.filter((x) => x.parents[0]?.id === id) };
 }
 
+/** Every place the viewer may see, by name. */
+export async function listPlaces(v: Viewer): Promise<PlaceCandidate[]> {
+  return visiblePlaces(await db(), v);
+}
+
 /** The places the viewer may see whose name or other name matches `q`, tolerant of spelling, best first. */
 export async function findPlaces(v: Viewer, q: string, limit = 5): Promise<PlaceCandidate[]> {
   const nq = norm(q);
