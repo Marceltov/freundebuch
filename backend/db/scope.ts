@@ -44,7 +44,8 @@ const aliasOf = (table: string) => table.split(/\s+as\s+/i).pop()!;
 const inBooks = (table: string, books: readonly string[]) =>
   sql<boolean>`${sql.ref(`${aliasOf(table)}.book_id`)} in (${sql.join(books.map((b) => sql`${b}`))})`;
 
-function scopeOn(h: Handle, v: Viewer): Scope {
+/** A scope on a given handle; backend/db and its tests only. */
+export function scopeWith(h: Handle, v: Viewer): Scope {
   const s: Scope = {
     v,
     from: (table) => (h.selectFrom(table as any) as any).where(inBooks(table, v.books)),
@@ -54,7 +55,7 @@ function scopeOn(h: Handle, v: Viewer): Scope {
     },
     update: (table) => (h.updateTable(table as any) as any).where(inBooks(table, v.books)),
     delete: (table) => (h.deleteFrom(table as any) as any).where(inBooks(table, v.books)),
-    transaction: (fn) => (h.isTransaction ? fn(s) : (h as Kysely<Schema>).transaction().execute((tx) => fn(scopeOn(tx, v)))),
+    transaction: (fn) => (h.isTransaction ? fn(s) : (h as Kysely<Schema>).transaction().execute((tx) => fn(scopeWith(tx, v)))),
   };
   return s;
 }
@@ -66,7 +67,7 @@ function instanceOn(h: Handle): InstanceDb {
     update: (table) => h.updateTable(table as any) as any,
     delete: (table) => h.deleteFrom(table as any) as any,
     transaction: (fn) => (h.isTransaction ? fn(i) : (h as Kysely<Schema>).transaction().execute((tx) => fn(instanceOn(tx)))),
-    scope: (v) => scopeOn(h, v),
+    scope: (v) => scopeWith(h, v),
     ping: async () => void (await sql`select 1`.execute(h)),
   };
   return i;
@@ -74,12 +75,12 @@ function instanceOn(h: Handle): InstanceDb {
 
 /** The viewer's books. */
 export async function scope(v: Viewer): Promise<Scope> {
-  return scopeOn(await db(), v);
+  return scopeWith(await db(), v);
 }
 
 /** One book, for jobs that run without a user (refreshing cards): nobody's private rows, only the shared ones. */
 export async function systemScope(bookId: string): Promise<Scope> {
-  return scopeOn(await db(), { userId: "", personId: "", bookId, books: [bookId] });
+  return scopeWith(await db(), { userId: "", personId: "", bookId, books: [bookId] });
 }
 
 /** The instance tables: users and their settings, own cards, chat usage, books and who is in them. */

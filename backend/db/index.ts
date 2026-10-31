@@ -5,6 +5,7 @@ import type { Kysely } from "kysely";
 import { config } from "../core/config";
 import { processState } from "../core/state";
 import { connect } from "./connect";
+import { BookCheck } from "./check";
 import { migrate } from "./migrations";
 import type { Schema } from "./schema";
 
@@ -43,7 +44,7 @@ export const now = (): number => (last = Math.max(Date.now(), last + 1));
 /** Test only: replaces the database with a fresh, migrated, in-memory one. */
 export async function resetDbForTests(): Promise<void> {
   const old = state.db;
-  state.db = open(":memory:");
+  state.db = open(":memory:").then((d) => d.withPlugin(new BookCheck()));
   await state.db;
   if (old) await (await old.catch(() => undefined))?.destroy();
 }

@@ -365,6 +365,9 @@ const migrations: Record<string, Migration> = {
   },
 };
 
+/** The migrations themselves, for the Postgres compile test. */
+export const MIGRATIONS: Readonly<Record<string, Migration>> = migrations;
+
 /** Every migration's name, in order; the tests check the count the migrator recorded against it, so a new one changes no test. */
 export const MIGRATION_NAMES: readonly string[] = Object.keys(migrations);
 
