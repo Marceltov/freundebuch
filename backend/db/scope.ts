@@ -16,6 +16,8 @@ type Unbooked<T extends BookTable> = Omit<Insertable<Schema[T]>, "book_id">;
 
 export interface Scope {
   readonly v: Viewer;
+  /** The instance tables on the same connection (and transaction). */
+  readonly instance: InstanceDb;
   from<TE extends Ref<BookTable>>(table: TE): ReturnType<typeof handle.selectFrom<TE>>;
   insert<T extends BookTable>(table: T, values: Unbooked<T> | readonly Unbooked<T>[]): ReturnType<ReturnType<typeof handle.insertInto<T>>["values"]>;
   update<TE extends Ref<BookTable>>(table: TE): ReturnType<typeof handle.updateTable<TE>>;
@@ -48,6 +50,9 @@ const inBooks = (table: string, books: readonly string[]) =>
 export function scopeWith(h: Handle, v: Viewer): Scope {
   const s: Scope = {
     v,
+    get instance() {
+      return instanceOn(h);
+    },
     from: (table) => (h.selectFrom(table as any) as any).where(inBooks(table, v.books)),
     insert: (table, values) => {
       const rows = (Array.isArray(values) ? values : [values]).map((r) => ({ ...r, book_id: v.bookId }));

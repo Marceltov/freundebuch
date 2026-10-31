@@ -92,13 +92,12 @@ export async function relabelFor(d: Kysely<Schema>, v: Viewer, personId: string,
     }));
 }
 
-export async function insertAlias(d: Kysely<Schema>, personId: string, name: string, alias: string): Promise<void> {
+export async function insertAlias(s: Scope, personId: string, name: string, alias: string): Promise<void> {
   const a = alias.trim();
   if (!a) throw new InvalidInputError("An alias can't be empty");
   if (norm(a) === norm(name)) return; // the name already matches
-  await d
-    .insertInto("aliases")
-    .values({ person_id: personId, alias: a, norm: norm(a) })
+  await s
+    .insert("aliases", { person_id: personId, alias: a, norm: norm(a) })
     .onConflict((oc) => oc.doNothing())
     .execute();
 }
