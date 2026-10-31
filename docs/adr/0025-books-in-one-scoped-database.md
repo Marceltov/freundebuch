@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-31
 decision-makers: Marcel Bruckner
 ---
@@ -31,7 +31,7 @@ Chosen: one database with a scope, and a new baseline.
 * **Enforced, not remembered.** Outside `backend/db`, importing Kysely (other than its types) is a lint error. In tests, a plugin fails any query on a book table that names no `book_id`, and a schema test fails a table that is neither an instance table nor has `book_id`, or a reference between book tables without the book.
 * **One baseline**, written only with the schema builder, so it also compiles for Postgres (a test checks it with Kysely's Postgres compiler). Compiling isn't running: its check constraints (`json_valid`, `length(trim(…))`) and `json_each` in the places queries are SQLite's and get their Postgres forms with the move. No order relies on `rowid`: `now()` never repeats within the process.
 * **Migrations run when the server starts**; a failure stops the start.
-* **No upgrade path** from earlier versions. The only instance (162) is converted once by a script outside the app, which checks every table against the old one; the script is removed afterwards.
+* **No upgrade path** from earlier versions. The only instance (162) was converted on 31 October 2026 by a script outside the app, which checked every table against the old one; the script was removed afterwards.
 
 ### Consequences
 
