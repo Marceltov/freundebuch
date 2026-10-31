@@ -29,7 +29,7 @@ Chosen: one database with a scope, and a new baseline.
 * **Every book table carries `book_id`**, and every reference between book tables is a composite key `(book_id, x_id) → x(book_id, id)`, so a row can't point into another book. A `set null` reference keeps a single-column key for the action, because SQLite would null `book_id` too on a composite one.
 * **The scope** (`backend/db/scope.ts`) is the only way to book tables: `scope(v).from(table)` narrows to the viewer's books, `insert` puts rows in their book, `update` and `delete` narrow like `from`. Instance tables go through `instance()`; jobs without a user (refreshing cards, pruning files) run book by book in a system scope that sees only shared rows. Item privacy inside a book stays `visible()` ([ADR 0002](0002-privacy-model.md)).
 * **Enforced, not remembered.** Outside `backend/db`, importing Kysely (other than its types) is a lint error. In tests, a plugin fails any query on a book table that names no `book_id`, and a schema test fails a table that is neither an instance table nor has `book_id`, or a reference between book tables without the book.
-* **One baseline**, written only with the schema builder, so it also compiles for Postgres (a test checks it with Kysely's Postgres compiler). No order relies on `rowid`: `now()` never repeats within the process.
+* **One baseline**, written only with the schema builder, so it also compiles for Postgres (a test checks it with Kysely's Postgres compiler). Compiling isn't running: its check constraints (`json_valid`, `length(trim(…))`) and `json_each` in the places queries are SQLite's and get their Postgres forms with the move. No order relies on `rowid`: `now()` never repeats within the process.
 * **Migrations run when the server starts**; a failure stops the start.
 * **No upgrade path** from earlier versions. The only instance (162) is converted once by a script outside the app, which checks every table against the old one; the script is removed afterwards.
 
@@ -37,7 +37,7 @@ Chosen: one database with a scope, and a new baseline.
 
 * Good, because a query that forgets its book fails CI, and nothing in the schema can point across books even if one slipped through.
 * Good, because reading across a user's books is one query and moving between books one transaction, on one connection.
-* Good, because a move to Postgres keeps the queries; row-level security can be added there as a second guard.
+* Good, because a move to Postgres keeps the queries, but for the SQLite functions above; row-level security can be added there as a second guard.
 * Bad, because an instance older than this release can't upgrade by itself; there is only the one, and it is converted by hand.
 * Bad, because a correlated subquery has to name its book (`whereRef("facts.book_id", "=", "files.book_id")`) for the test check, though the composite keys would keep it in the book anyway.
 

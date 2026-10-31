@@ -1,7 +1,7 @@
 // Schema changes, in order. Never edit one that has shipped; add the next. Kept in code, not files, so the standalone build has
 // nothing extra to trace. Kysely's Migrator records what ran in `kysely_migration`.
 // The migrations run against whatever the schema was when they were written, so the database is untyped here. They use only the
-// schema builder, so the same migration runs on Postgres; the json_valid checks are SQLite's (Postgres would use jsonb columns).
+// schema builder, so the same migration compiles for Postgres; its checks (json_valid, length(trim())) are SQLite's and change with a move.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Kysely, sql, type CreateTableBuilder } from "kysely";
 import { Migrator, type Migration } from "kysely/migration";
