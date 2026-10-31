@@ -20,8 +20,8 @@ freundebuch knows when a birthday is near and what is going on in that person's 
 
 Chosen option: drafting by Claude and sending by links.
 
-* **`birthday_message`** (MCP, `GET /api/v1/people/{id}/birthday-message`) returns what wishes can be written from: when the birthday is, the age, the roles and what is shared about the person. Called again with the final `text`, it returns `wa.me`, `t.me/share`, `sms:` and `mailto:` links with the text filled in and no recipient. The user picks the person in their app and sends.
-* **What a message may draw on is narrower than a briefing.** It goes to the person, so it uses only shared items and nothing in the health category; the viewer's private notes stay out too. Needs and temperament (traits) are for planning around someone, not for saying to them, and are left out.
+* **`birthday_message`** (MCP, `GET /api/v1/people/{id}/birthday-message`) returns what wishes can be written from: when the birthday is, the age, the roles and what the user knows about the person. Called again with the final `text`, it returns `wa.me`, `t.me/share`, `sms:` and `mailto:` links with the text filled in and no recipient. The user picks the person in their app and sends.
+* **What a message may draw on is narrower than a briefing.** It goes to the person, so it uses nothing in the health category. It is the user's own message, so their own private notes go in; another member's private items never do. Needs and temperament (traits) are for planning around someone, not for saying to them, and are left out.
 * **In the web app** the person's page shows "Glückwunsch schreiben" from a week before the birthday, when the chat is on. It opens Erzählen with the request in the field, for the user to send, and the chat shows the links as buttons. The request waits in the field instead of being sent, so nothing happens that the user didn't start.
 * **Nothing is stored.** The draft lives in the conversation with Claude; once the user says it is sent, `next` offers to file it with `record` as a message, like any other contact.
 

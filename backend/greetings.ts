@@ -1,7 +1,8 @@
 // Birthday messages the user sends themself (ADR 0023). freundebuch never sends one: Claude drafts it from what the user may see,
 // the user reads and changes it, and sends it from their own messenger through a link that only fills the text in (V3).
-// What the draft may draw on is narrower than a briefing: the message goes to the person, so only what is shared in the book
-// about them and nothing about their health, needs or temperament, which is for planning around them, not for saying to them.
+// What the draft may draw on is narrower than a briefing: the message goes to the person, so nothing about their health, needs
+// or temperament, which is for planning around them, not for saying to them. It is the viewer's message, so what they may see
+// goes in, their own private notes included; another member's private items never reach it (visible(), through the briefing).
 import { briefing } from "./briefing";
 import { InvalidInputError } from "./errors";
 import { daysBetween, today } from "./dates";
@@ -15,7 +16,7 @@ export type SendLink = { app: SendApp; url: string };
 /**
  * What a birthday message can be written from. `birthday`: when it is next (`inDays` from today) and the age then, when the year
  * is known; null when none is filed. `roles`: who the person is to the household. `news` and `known`: what is going on and what
- * stays true, only shared items and nothing about health. `lastSeen`: the day the viewer last spoke to them.
+ * stays true, what the viewer may see and nothing about health. `lastSeen`: the day the viewer last spoke to them.
  */
 export type BirthdayMessage = {
   person: { id: string; name: string; url: string };
@@ -47,7 +48,7 @@ export async function birthdayMessage(v: Viewer, personId: string, text?: string
   if (text !== undefined && !message) throw new InvalidInputError("text is empty: leave it out while drafting");
   if (message && message.length > MAX_TEXT) throw new InvalidInputError(`text is longer than ${MAX_TEXT} characters`);
   const b = await briefing(v, personId, from);
-  const sayable = (f: { visibility: string; category: string }) => f.visibility === "shared" && f.category !== "health";
+  const sayable = (f: { category: string }) => f.category !== "health";
   const bd = b.person.birthday;
   return {
     person: { id: b.person.id, name: b.person.name, url: b.person.url },

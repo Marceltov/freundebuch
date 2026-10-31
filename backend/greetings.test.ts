@@ -19,12 +19,12 @@ beforeEach(async () => {
   });
 });
 
-test("a draft draws only on what is shared about the person, never their health", async () => {
+test("a draft draws on what the viewer may see, never the person's health", async () => {
   const m = await birthdayMessage(s.a, s.anna, undefined, "2026-10-31");
   expect(m.birthday).toEqual({ date: "2026-11-03", inDays: 3, age: 40 });
   expect(m.known).toEqual(expect.arrayContaining(["new job", "likes hiking"]));
-  // Alice's own private "divorce" is hers to know, not to put in a message; the health fact is shared but not for wishes.
-  expect([...m.known, ...m.news]).not.toContain("divorce");
+  // Alice's own private "divorce" is hers to draw on; the health fact is shared but not for wishes.
+  expect([...m.known, ...m.news]).toContain("divorce");
   expect([...m.known, ...m.news]).not.toContain("knee surgery");
   expect(m.send).toEqual([]);
   // Bob sees the same, and never Alice's private items.

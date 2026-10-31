@@ -177,7 +177,7 @@ const OPS: AnyOp[] = [
     operationId: "getBirthdayMessage",
     summary: "What birthday wishes to a person can be written from, and links to send them",
     description:
-      "When the birthday is and what is shared about the person, without anything about health, for drafting a message the caller sends themselves. With `text`, links that open WhatsApp, Telegram, SMS or email with it filled in. freundebuch sends nothing.",
+      "When the birthday is and what the caller knows about the person, without anything about health, for drafting a message the caller sends themselves. With `text`, links that open WhatsApp, Telegram, SMS or email with it filled in. freundebuch sends nothing.",
     tags: ["People"],
     auth: true,
     params: { id: IdParam },

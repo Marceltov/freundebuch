@@ -960,7 +960,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "birthday_message",
     description:
-      "Help the user write birthday wishes to someone, which they then send themselves: freundebuch never sends anything. First call it without text: it returns when the birthday is, the age, who the person is to the household and what is shared about them (never anything about health). Draft a short, warm message in the user's own voice from it, show it, and change it as the user asks. Then call it again with the final text: it returns links that open WhatsApp, Telegram, SMS or email with the text filled in, for the user to pick the person and send.",
+      "Help the user write birthday wishes to someone, which they then send themselves: freundebuch never sends anything. First call it without text: it returns when the birthday is, the age, who the person is to the household and what the user knows about them (never anything about health). Draft a short, warm message in the user's own voice from it, show it, and change it as the user asks. Then call it again with the final text: it returns links that open WhatsApp, Telegram, SMS or email with the text filled in, for the user to pick the person and send.",
     input: z.object({
       personId: PersonId,
       text: z.string().optional().describe("The final message, once the user is happy with it; leave it out while drafting"),
