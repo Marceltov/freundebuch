@@ -23,10 +23,10 @@ export async function createBook(i: InstanceDb, userId: string, userName: string
   await i.insert("books", { id: bookId, name, created_by: userId, created_at: t }).execute();
   const s = i.scope({ userId, personId: "", bookId, books: [bookId] });
   const householdId = newId();
-  await s.insert("groups", { id: householdId, name: HOUSEHOLD_GROUP, created_by: null, created_at: t, seeded: 1, household: 1 }).execute();
+  await s.insert("groups", { id: householdId, name: HOUSEHOLD_GROUP, created_by: null, created_at: now(), seeded: 1, household: 1 }).execute();
   for (const g of SEEDED_GROUPS) {
     const id = newId();
-    await s.insert("groups", { id, name: g.name, created_by: null, created_at: t, seeded: 1 }).execute();
+    await s.insert("groups", { id, name: g.name, created_by: null, created_at: now(), seeded: 1 }).execute();
     await s
       .insert(
         "group_aliases",

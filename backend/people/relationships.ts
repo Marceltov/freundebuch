@@ -9,8 +9,8 @@ import {
   insertRelationships,
   type FiledRelationship,
   type ItemBase,
+  itemBase,
 } from "../conversations/conversations";
-import { now } from "../db";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import type { Viewer, Visibility } from "../core/types";
 import { groupPath } from "../core/urls";
@@ -20,7 +20,7 @@ import { isHouseholdWord, type Target } from "./household";
 export type NewRelationship = { from: Target; to: Target; label: string; inverse: string; note?: string; visibility: Visibility };
 export type NewMembership = { name: string; members: string[]; visibility: Visibility };
 
-const baseOf = (v: Viewer): ItemBase => ({ recorded_by: v.userId, conversation_id: null, created_at: now() });
+const baseOf = (v: Viewer): ItemBase => itemBase({ recorded_by: v.userId, conversation_id: null });
 
 async function assertPeople(tx: Scope, ids: string[]): Promise<void> {
   const unique = [...new Set(ids)];

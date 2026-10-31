@@ -4,7 +4,7 @@
 import { scope, type Scope } from "../db/scope";
 import { assertDay, notFuture, today as todayOf } from "../people/dates";
 import { missedSessions } from "./sessions";
-import { sql, newId } from "../db";
+import { sql, newId, now } from "../db";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { norm } from "../people/names";
 import { describePlace, fileOwnersOf, ownersOf, placeAndInsideIds, resolvePlace, type PlaceCandidate, type PlaceRef } from "./places";
@@ -94,7 +94,7 @@ async function resolveSeries(
     place_id: placeId,
     visibility: rambleVisibility,
     recorded_by: v.userId,
-    created_at: t,
+    created_at: now(),
   };
   await tx.insert("series", row).execute();
   return row;
@@ -137,7 +137,7 @@ export async function insertExperiences(
         summary: x.summary?.trim() || null,
         visibility,
         recorded_by: v.userId,
-        created_at: t,
+        created_at: now(),
       })
       .execute();
     for (const personId of new Set([v.personId, ...(x.present ?? []).map((p) => personIds[p])]))

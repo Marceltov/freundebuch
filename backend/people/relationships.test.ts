@@ -152,3 +152,47 @@ test("a role to us from a household person skips that person", async () => {
   expect(ids).toHaveLength(1);
   expect(await towards(s.a.personId)).toEqual([{ from_id: s.b.personId, to_id: s.a.personId, label: "Nachbar:in" }]);
 });
+
+test("rows filed in one call keep the order they were filed in: no two share a time", async () => {
+  // A role to "us" is one relationship per household person, written together; the briefing lists them in that order.
+  for (let i = 0; i < 8; i++) {
+    const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", label: `Rolle${i}`, inverse: `Gegenrolle${i}`, visibility: "shared" });
+    const rows = await (await firstBook()).from("relationships").select(["id", "created_at"]).where("id", "in", ids).execute();
+    expect(new Set(rows.map((r) => r.created_at)).size).toBe(ids.length);
+    const ordered = await (await firstBook()).from("relationships").select("id").where("id", "in", ids).orderBy("created_at").orderBy("id").execute();
+    expect(ordered.map((r) => r.id)).toEqual(ids);
+  }
+});
+
+test("the people and items of one ramble each get their own time", async () => {
+  const { recordConversation } = await import("../conversations/conversations");
+  const r = await recordConversation(s.a, {
+    date: "2026-10-25",
+    kind: "call",
+    summary: "Call with three.",
+    transcript: "Call with Xaver, Yvonne and Zora.",
+    visibility: "shared",
+    people: [
+      { name: "Xaver", present: true },
+      { name: "Yvonne", present: true },
+      { name: "Zora", present: true },
+    ],
+    facts: [
+      { person: 0, text: "eins", category: "other" },
+      { person: 1, text: "zwei", category: "other" },
+    ],
+  });
+  const b = await firstBook();
+  const persons = await b
+    .from("persons")
+    .select("created_at")
+    .where(
+      "id",
+      "in",
+      r.people.map((p) => p.id),
+    )
+    .execute();
+  expect(new Set(persons.map((p) => p.created_at)).size).toBe(3);
+  const facts = await b.from("facts").select("created_at").where("conversation_id", "=", r.conversationId).execute();
+  expect(new Set(facts.map((f) => f.created_at)).size).toBe(2);
+});

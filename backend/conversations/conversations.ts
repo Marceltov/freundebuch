@@ -351,7 +351,7 @@ export async function remember(
     if (ownersOf(h.place).length) throw new InvalidInputError("A home is its person's: leave owners out of its place");
   }
   const vis = (item: { private?: boolean }): Visibility => (r.visibility === "private" || item.private ? "private" : "shared");
-  const base: ItemBase = { recorded_by: v.userId, conversation_id: null, created_at: now() };
+  const base = itemBase({ recorded_by: v.userId, conversation_id: null });
   return (await scope(v)).transaction(async (tx) => {
     const ids = [
       ...new Set(
@@ -435,7 +435,16 @@ export function checkGroup<P>(g: { name: string; members: P[] }, ref: (p: P) => 
 }
 
 /** Who recorded an item, when, and with which conversation and ramble (null for one set directly). */
-export type ItemBase = { recorded_by: string; conversation_id: string | null; ramble_id?: string | null; created_at: number };
+export type ItemBase = { recorded_by: string; conversation_id: string | null; ramble_id?: string | null; readonly created_at: number };
+
+/** What every item of one write shares; `created_at` is read anew for each row spread from it, so rows written together keep
+ * the order they were written in (`created_at, id`) without rowid. */
+export const itemBase = (b: Omit<ItemBase, "created_at">): ItemBase => ({
+  ...b,
+  get created_at() {
+    return now();
+  },
+});
 
 /**
  * A relationship's word with its gender endings taken off, so "Vermieterin", "Vermieter" and "Vermieter:in" are one word, and
@@ -676,7 +685,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
         transcript_private: transcriptPrivate,
         visibility: r.visibility,
         recorded_by: v.userId,
-        created_at: t,
+        created_at: now(),
       })
       .execute();
     const placeLevels: string[][] = [];
@@ -694,7 +703,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
           ramble_id: rambleId,
           visibility: r.visibility,
           recorded_by: v.userId,
-          created_at: t,
+          created_at: now(),
         })
         .execute();
     }
@@ -749,7 +758,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
           text: j.text.trim(),
           visibility,
           recorded_by: v.userId,
-          created_at: t,
+          created_at: now(),
         })
         .execute();
       for (const personId of new Set((j.mentions ?? []).map(id))) await tx.insert("journal_mentions", { entry_id: entryId, person_id: personId }).execute();
@@ -766,7 +775,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     for (const slot of slots) {
       const conversationId = slot === undefined ? null : conversationIds[slot];
       const mine = <T extends In>(xs: T[] | undefined) => (xs ?? []).filter((x) => x.in === slot);
-      const base: ItemBase = { recorded_by: v.userId, conversation_id: conversationId, ramble_id: rambleId, created_at: t };
+      const base = itemBase({ recorded_by: v.userId, conversation_id: conversationId, ramble_id: rambleId });
       const page = (personId: string) => (conversationId ? conversationPath(conversationId) : personPath(personId));
       const part = { facts: mine(r.facts), promises: mine(r.promises), dates: mine(r.dates), exchanges: mine(r.exchanges) };
       const got = await insertItems(tx, v, base, part, id, vis, (p) => names.get(p) ?? "", page);
