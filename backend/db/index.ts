@@ -1,4 +1,5 @@
-// The database: one Kysely per process, opened and migrated on first use. Tests swap in a fresh in-memory one.
+// The database: one Kysely per process, opened and migrated when the server starts (instrumentation.ts). Tests swap in a
+// fresh in-memory one.
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { Kysely } from "kysely";
@@ -26,16 +27,16 @@ async function open(file: string): Promise<Kysely<Schema>> {
   return d;
 }
 
-/** The database; the first call opens `${DATA_DIR}/freundebuch.db` and migrates it. A failed open is not remembered, so the next call retries. */
+/** Opens `${DATA_DIR}/freundebuch.db` (or `file`) and migrates it; the server does this once, before it takes a request. */
+export async function openDatabase(file = join(config.dataDir(), "freundebuch.db")): Promise<void> {
+  const d = await open(file);
+  state.raw = d;
+  state.db = Promise.resolve(d);
+}
+
+/** The database, once openDatabase() (or resetDbForTests()) has run. */
 export function db(): Promise<Kysely<Schema>> {
-  if (!state.db) {
-    const p = open(join(config.dataDir(), "freundebuch.db"));
-    state.db = p;
-    p.catch(() => {
-      if (state.db === p) state.db = undefined;
-    });
-  }
-  return state.db;
+  return state.db ?? Promise.reject(new Error("database not opened: the server opens it at start (instrumentation.ts)"));
 }
 
 export const newId = (): string => randomUUID();
@@ -50,6 +51,13 @@ export async function resetDbForTests(): Promise<void> {
   state.raw = raw;
   state.db = Promise.resolve(raw.withPlugin(new BookCheck()));
   await old?.destroy();
+}
+
+/** Test only: closes the database, so the next test starts with none open. */
+export async function closeDatabaseForTests(): Promise<void> {
+  await state.raw?.destroy();
+  state.raw = undefined;
+  state.db = undefined;
 }
 
 /** Test only: the test database without the book check, for a test that plants or inspects rows by hand. */

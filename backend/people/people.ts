@@ -118,7 +118,10 @@ async function aliasesByPerson(v: Viewer): Promise<Map<string, string[]>> {
 export async function findPeople(v: Viewer, q: string, limit = 5): Promise<Candidate[]> {
   const nq = norm(q);
   if (!nq) return [];
-  const [people, aliases] = await Promise.all([(await scope(v)).from("persons").select(["id", "name"]).orderBy("created_at").orderBy("id").execute(), aliasesByPerson(v)]);
+  const [people, aliases] = await Promise.all([
+    (await scope(v)).from("persons").select(["id", "name"]).orderBy("created_at").orderBy("id").execute(),
+    aliasesByPerson(v),
+  ]);
   const hits = people
     .map((p) => ({ p, r: rank(nq, [p.name, ...(aliases.get(p.id) ?? [])]) }))
     .filter((h): h is { p: (typeof people)[number]; r: number } => h.r !== null)

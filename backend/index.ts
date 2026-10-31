@@ -39,5 +39,5 @@ export { hasShareKey, listPending, pendingCount, type PendingFile } from "./conv
 
 export type { FactKind, Language, Look, LookPart, LookParts, Viewer } from "./core/types";
 
-// The health probe asks the database a trivial question; opening it (and migrating) is part of answering.
+// The health probe asks the database a trivial question; the server opened and migrated it at start.
 setDbProbe(async () => (await instance()).ping());
