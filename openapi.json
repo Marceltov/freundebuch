@@ -295,6 +295,86 @@
         }
       }
     },
+    "/api/v1/people/{id}/birthday-message": {
+      "get": {
+        "operationId": "getBirthdayMessage",
+        "summary": "What birthday wishes to a person can be written from, and links to send them",
+        "description": "When the birthday is and what the caller knows about the person, without anything about health, for drafting a message the caller sends themselves. With `text`, links that open WhatsApp, Telegram, SMS or email with it filled in. freundebuch sends nothing.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "text",
+            "in": "query",
+            "required": false,
+            "description": "The final message; with it, `send` holds the links to send it with",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The birthday message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BirthdayMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/traits": {
       "get": {
         "operationId": "getTraits",
@@ -3536,6 +3616,134 @@
           "active",
           "created",
           "url"
+        ]
+      },
+      "BirthdayMessage": {
+        "type": "object",
+        "properties": {
+          "person": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "description": "The person's page, as an absolute URL"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "url"
+            ]
+          },
+          "birthday": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "description": "The day the birthday falls on next (YYYY-MM-DD)"
+                  },
+                  "inDays": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Days from today; 0 is today"
+                  },
+                  "age": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The age reached then, when the year of birth is known"
+                  }
+                },
+                "required": [
+                  "date",
+                  "inDays",
+                  "age"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when no birthday is filed"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Who the person is to the household, in the words filed"
+          },
+          "news": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What is going on in their life: shared situations, nothing about health"
+          },
+          "known": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What stays true about them: shared facts, nothing about health"
+          },
+          "lastSeen": {
+            "description": "The day the caller last spoke to them",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "send": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "app": {
+                  "type": "string",
+                  "enum": [
+                    "whatsapp",
+                    "telegram",
+                    "sms",
+                    "email"
+                  ]
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "app",
+                "url"
+              ]
+            },
+            "description": "With a final text: links that open each app with it filled in and no one chosen; empty while drafting"
+          }
+        },
+        "required": [
+          "person",
+          "birthday",
+          "roles",
+          "news",
+          "known",
+          "lastSeen",
+          "send"
         ]
       },
       "PersonPatch": {

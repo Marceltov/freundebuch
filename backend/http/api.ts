@@ -35,6 +35,7 @@ import {
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
+import { birthdayMessage } from "../greetings";
 import { journalEntries } from "../journal";
 import { search } from "../search";
 import { experienceKinds, getPlace, getSeries, listExperiences, listSeries } from "../experiences";
@@ -91,6 +92,8 @@ import {
   PlaceListJson,
   SeriesJson,
   PlaceViewJson,
+  BirthdayMessageJson,
+  BirthdayMessageQuery,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -167,6 +170,20 @@ const OPS: AnyOp[] = [
     params: { id: IdParam },
     responses: { 200: { description: "The briefing", schema: BriefingJson }, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => ({ status: 200, body: await briefing(viewer, params.id) })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/people/{id}/birthday-message`,
+    operationId: "getBirthdayMessage",
+    summary: "What birthday wishes to a person can be written from, and links to send them",
+    description:
+      "When the birthday is and what the caller knows about the person, without anything about health, for drafting a message the caller sends themselves. With `text`, links that open WhatsApp, Telegram, SMS or email with it filled in. freundebuch sends nothing.",
+    tags: ["People"],
+    auth: true,
+    params: { id: IdParam },
+    query: BirthdayMessageQuery,
+    responses: { 200: { description: "The birthday message", schema: BirthdayMessageJson }, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, query }) => ({ status: 200, body: await birthdayMessage(viewer, params.id, query.text) })),
 
   op({
     method: "GET",

@@ -23,17 +23,22 @@ const TELL_FILE = "freundebuch:tell-file";
 export const tellAbout = (fileIds: string[]) => window.dispatchEvent(new CustomEvent(TELL_FILE, { detail: fileIds }));
 /** Opens Erzählen over the current page, which it then is about (a ramble's: "Weitererzählen"). */
 export const openChat = () => tellAbout([]);
+const ASK = "freundebuch:ask";
+/** Opens Erzählen over the current page with `text` in the field, for the user to send or change ("Glückwunsch schreiben"). */
+export const askChat = (text: string) => window.dispatchEvent(new CustomEvent(ASK, { detail: text }));
 
 export function TabBar({ chat = null }: { chat?: { userId: string; sharing: boolean; voice?: boolean } | null }) {
   const copy = useCopy();
   const path = usePathname();
   const [talking, setTalking] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
+  const [prompt, setPrompt] = useState<string | undefined>(undefined);
   const tellButton = useRef<HTMLButtonElement>(null);
   // Closing the chat hands the keyboard back to the button that opened it.
   const closeChat = useCallback(() => {
     setTalking(false);
     setFiles([]);
+    setPrompt(undefined);
     tellButton.current?.focus();
   }, []);
   // "In Erzählen öffnen" or "Zusammen prüfen" under Prüfen opens the chat on those files (tellAbout).
@@ -42,8 +47,16 @@ export function TabBar({ chat = null }: { chat?: { userId: string; sharing: bool
       setFiles((e as CustomEvent<string[]>).detail);
       setTalking(true);
     };
+    const ask = (e: Event) => {
+      setPrompt((e as CustomEvent<string>).detail);
+      setTalking(true);
+    };
     window.addEventListener(TELL_FILE, open);
-    return () => window.removeEventListener(TELL_FILE, open);
+    window.addEventListener(ASK, ask);
+    return () => {
+      window.removeEventListener(TELL_FILE, open);
+      window.removeEventListener(ASK, ask);
+    };
   }, []);
   const current = (t: ReturnType<typeof tabs>[number]) => (t.href === "/" ? path === "/" : path.startsWith(t.href)) || t.also.some((p) => path.startsWith(p));
   return (
@@ -86,7 +99,15 @@ export function TabBar({ chat = null }: { chat?: { userId: string; sharing: bool
         })}
       </ul>
       {talking && chat && (
-        <ChatSheet key={files.join() || "chat"} userId={chat.userId} sharing={chat.sharing} voice={chat.voice} files={files} onClose={closeChat} />
+        <ChatSheet
+          key={files.join() || "chat"}
+          userId={chat.userId}
+          sharing={chat.sharing}
+          voice={chat.voice}
+          files={files}
+          prompt={prompt}
+          onClose={closeChat}
+        />
       )}
     </nav>
   );
