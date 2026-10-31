@@ -1,3 +1,4 @@
+import { now } from "../db/testing";
 import { beforeEach, expect, test, vi } from "vitest";
 import { briefing } from "../reading/briefing";
 import {
@@ -117,6 +118,8 @@ test("a card is fetched only from https on the internet, never from this server 
 test("a subscribed card is in the briefing for both users, kept apart from what was told, and refreshed once a day", async () => {
   const vcf = toVCard({ name: "Anna Reise", phone: "+49 170 1", birthday: "1986-11-03" }, Date.now());
   const fetchFn = served(vcf);
+  // Many rows written in one millisecond put the clock rows get ahead of Date.now(); a day is counted from the card's own time.
+  for (let i = 0; i < 100; i++) now();
   const got = await subscribeCard(s.a, s.anna, "https://cards.example.org/anna.vcf", fetchFn, publicDns);
   expect(got).toMatchObject({ card: { name: "Anna Reise", phone: "+49 170 1" }, failed: null });
   expect(fetchFn).toHaveBeenCalledWith("https://cards.example.org/anna.vcf", expect.objectContaining({ headers: { accept: "text/vcard" } }));
@@ -126,7 +129,7 @@ test("a subscribed card is in the briefing for both users, kept apart from what 
   expect(await refreshCards(Date.now(), fetchFn, publicDns)).toBe(0);
   expect(fetchFn).toHaveBeenCalledTimes(1);
   const gone = served("", 404);
-  await refreshCards(Date.now() + 86_400_001, gone, publicDns);
+  await refreshCards(now() + 86_400_001, gone, publicDns);
   expect(await personCard(s.a, s.anna)).toMatchObject({ card: { phone: "+49 170 1" }, failed: "not_found" });
   // A page that is no card, and an unreachable host.
   expect((await subscribeCard(s.a, s.tom, "https://x.example/tom", served("<html/>"), publicDns)).failed).toBe("not_a_card");
