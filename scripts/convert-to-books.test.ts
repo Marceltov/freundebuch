@@ -86,3 +86,20 @@ test("an old database that isn't at the last migration before books is refused, 
   await expect(convert(oldFile, newFile)).rejects.toThrow(/not at the last migration before books/);
   expect(existsSync(newFile)).toBe(false);
 });
+
+test("rows moved apart to keep their order never land on a later row's time", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "fb-convert-"));
+  dirs.push(dir);
+  const [oldFile, newFile] = [join(dir, "old.db"), join(dir, "new.db")];
+  await oldDatabase(oldFile);
+  // One millisecond after the two at 20, whose second is moved to 21.
+  const d = new Database(oldFile);
+  d.prepare(
+    "insert into relationships (id, from_id, to_id, label, inverse, visibility, recorded_by, created_at) values ('0-rel', 'anna', 'pa', 'Nachbarin', 'Nachbarin', 'shared', 'ua', 21)",
+  ).run();
+  d.close();
+  expect((await convert(oldFile, newFile)).mismatches).toEqual([]);
+  const rows = new Database(newFile).prepare("select id, created_at from relationships order by created_at, id").all() as { id: string; created_at: number }[];
+  expect(rows.map((r) => r.id)).toEqual(["z-rel", "a-rel", "0-rel"]);
+  expect(new Set(rows.map((r) => r.created_at)).size).toBe(3);
+});

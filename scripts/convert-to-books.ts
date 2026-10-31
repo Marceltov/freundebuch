@@ -3,8 +3,8 @@
 //
 //   npx jiti scripts/convert-to-books.ts <old.db> <new.db>
 //
-// Ids, visibility and who recorded what stay as they were. Rows that share a created_at get 1 ms apart in their old order, so
-// `created_at, id` keeps the order rowid gave them. It checks every table against the old one and exits non-zero on a mismatch.
+// Ids, visibility and who recorded what stay as they were. A row whose created_at isn't later than the one before it (in the old
+// order, created_at then rowid) moves to 1 ms after it, so `created_at, id` keeps the order rowid gave them. It checks every table against the old one and exits non-zero on a mismatch.
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -48,12 +48,20 @@ export async function convert(oldFile: string, newFile: string, bookName = FIRST
   if (!owner) throw new Error("the old database has no users");
   const book = randomUUID();
 
+  d.exec("create temp table shift (r integer primary key, t integer not null)");
   d.transaction(() => {
     d.prepare("insert into books (id, name, created_by, created_at) values (?, ?, ?, ?)").run(book, bookName, owner.id, owner.created_at);
     for (const t of tables) {
       if (!oldTables.has(t)) continue;
       const shared = columns(d, "main", t).filter((c) => c !== "book_id" && columns(d, "old", t).includes(c));
-      const select = shared.map((c) => (c === "created_at" ? `created_at + (row_number() over (partition by created_at order by rowid) - 1)` : q(c)));
+      if (shared.includes("created_at")) {
+        d.exec("delete from temp.shift");
+        const put = d.prepare("insert into temp.shift (r, t) values (?, ?)");
+        let last = -Infinity;
+        for (const r of d.prepare(`select rowid as r, created_at as t from old.${q(t)} order by created_at, rowid`).all() as { r: number; t: number }[])
+          put.run(r.r, (last = Math.max(r.t, last + 1)));
+      }
+      const select = shared.map((c) => (c === "created_at" ? `(select t from temp.shift where r = old.${q(t)}.rowid)` : q(c)));
       const into = isBookTable(t) ? [...shared, "book_id"] : shared;
       const values = isBookTable(t) ? [...select, "?"] : select;
       d.prepare(`insert into main.${q(t)} (${into.map(q).join(", ")}) select ${values.join(", ")} from old.${q(t)} order by rowid`).run(
