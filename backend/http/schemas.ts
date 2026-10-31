@@ -259,6 +259,54 @@ export const PlaceViewJson = PlaceJson.extend({
   series: z.array(SeriesSummaryJson.extend({})),
 }).meta({ id: "PlaceView" });
 
+export const CardJson = z
+  .object({
+    name: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().optional(),
+    address: z.string().optional(),
+    birthday: z.string().optional().describe("`YYYY-MM-DD`, or `--MM-DD` without the year"),
+    note: z.string().optional(),
+  })
+  .meta({ id: "Card" });
+
+export const PersonCardJson = z
+  .object({
+    card: CardJson.nullable().describe("What the card said when last fetched; null until one was"),
+    fetchedAt: z.number().int().nullable().describe("When it was last fetched (epoch ms)"),
+    failed: z
+      .enum(["unreachable", "not_found", "not_a_card", "refused"])
+      .nullable()
+      .describe("Why the last fetch failed: the link may have been revoked (not_found); null when it worked"),
+  })
+  .meta({ id: "PersonCard" });
+
+export const OwnCardJson = z
+  .object({
+    label: z.string().describe('What the caller calls the card ("Privat", "Arbeit"); names it in every call'),
+    card: CardJson.describe("What the card says"),
+    published: z.boolean().describe("Whether a link to it works now"),
+  })
+  .meta({ id: "OwnCard" });
+
+export const OwnCardsJson = z.object({ cards: z.array(OwnCardJson).describe("The caller's own cards, by name") }).meta({ id: "OwnCards" });
+
+export const CardLinkJson = z
+  .object({ url: z.string().describe("The new link to the caller's card, as an absolute URL; shown once, and that card's previous one stopped working") })
+  .meta({ id: "CardLink" });
+
+export const CardSubscribeJson = z
+  .object({ url: z.string().describe("The link to the person's own card they gave the user (https)") })
+  .meta({ id: "CardSubscribe" });
+
+export const CardsJson = z
+  .object({
+    mine: z.array(OwnCardJson).optional().describe("The user's own cards, for mine, set_mine, delete_mine, publish and unpublish"),
+    link: z.string().optional().describe("For publish: the new link to the user's card, as an absolute URL, shown once"),
+    person: PersonCardJson.nullable().optional().describe("For subscribe: the person's card as fetched; null after unsubscribe"),
+  })
+  .meta({ id: "Cards" });
+
 export const BriefingJson = z
   .object({
     person: z.object({
@@ -317,6 +365,9 @@ export const BriefingJson = z
     journal: z.array(JournalEntryJson.extend({})).describe("The caller's own journal entries that name the person, the last few, newest first"),
     experiences: z.array(ExperienceJson.extend({})).describe("The experiences the caller may see that the person was at, the last few, newest first"),
     homes: z.array(PlaceJson.extend({})).describe("Where the person lives: the places that are their home"),
+    card: PersonCardJson.nullable().describe(
+      "What the person says about themselves, from the card the household subscribed to; their own words, kept apart from what was told about them. Null without one",
+    ),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
       exchanges: z.array(
@@ -921,6 +972,13 @@ export const CalendarFeedJson = z
 
 export const COMPONENTS = [
   LanguageJson,
+  CardJson,
+  PersonCardJson,
+  OwnCardJson,
+  OwnCardsJson,
+  CardLinkJson,
+  CardSubscribeJson,
+  CardsJson,
   LookJson,
   SearchHitJson,
   SearchJson,
@@ -971,6 +1029,7 @@ export const COMPONENTS = [
 ];
 
 export const IdParam = z.string().describe("The id");
+export const LabelParam = z.string().describe('The name of one of the caller\'s own cards ("Privat", "Arbeit")');
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");
 export const TraitsQuery = z.object({
   people: z.string().optional().describe("Person ids, comma-separated"),

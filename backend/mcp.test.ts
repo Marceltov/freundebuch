@@ -84,6 +84,7 @@ describe("protocol", () => {
       "birthday_message",
       "briefing",
       "calendar_feed",
+      "cards",
       "correct",
       "experiences",
       "find_person",
@@ -121,7 +122,7 @@ describe("protocol", () => {
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
       // calendar_feed, which can end a calendar's subscription.
       const writes = ["record", "relate", "remember", "set_interval"].includes(t.name);
-      expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed", "inbox"].includes(t.name) ? true : writes ? false : undefined);
+      expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed", "cards", "inbox"].includes(t.name) ? true : writes ? false : undefined);
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");
       // The Anthropic API refuses a tool whose input schema combines schemas at its root.

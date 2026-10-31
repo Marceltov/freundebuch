@@ -30,6 +30,7 @@ export function PersonMenu({
   gender = null,
   look = null,
   intervalDays,
+  hasCard = false,
   others,
 }: {
   id: string;
@@ -37,6 +38,7 @@ export function PersonMenu({
   gender?: "female" | "male" | "nonbinary" | null;
   look?: Look | null;
   intervalDays: number | null;
+  hasCard?: boolean;
   others: { id: string; name: string }[];
 }) {
   const copy = useCopy();
@@ -44,6 +46,7 @@ export function PersonMenu({
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState(name);
   const [alias, setAlias] = useState("");
+  const [cardUrl, setCardUrl] = useState("");
   const [drop, setDrop] = useState("");
   const [failed, setFailed] = useState(false);
   const label = copy.moreAbout.replace("{name}", name);
@@ -57,6 +60,7 @@ export function PersonMenu({
     if (!res?.ok) return setFailed(true);
     if (!stay) setOpen(false);
     setAlias("");
+    setCardUrl("");
     setDrop("");
     router.refresh();
   }
@@ -165,6 +169,26 @@ export function PersonMenu({
                 />
               </form>
             </Part>
+
+            {!hasCard && (
+              <Part title={copy.cardSubscribe} hint={copy.cardSubscribeHint}>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (cardUrl.trim()) send("PUT", "/card", { url: cardUrl.trim() });
+                  }}
+                >
+                  <input
+                    type="url"
+                    value={cardUrl}
+                    onChange={(e) => setCardUrl(e.target.value)}
+                    aria-label={copy.cardSubscribeLabel}
+                    placeholder={copy.cardSubscribeLabel}
+                    className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
+                  />
+                </form>
+              </Part>
+            )}
 
             {others.length > 0 && (
               <Part title={copy.mergeDuplicate} hint={copy.mergeDuplicateHint}>

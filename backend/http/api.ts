@@ -35,6 +35,7 @@ import {
 import { setCheckInInterval } from "../intervals";
 import { orbit } from "../orbit";
 import { traitsFor } from "../traits";
+import { cardPath, deleteOwnCard, ownCards, publishCard, setOwnCard, subscribeCard, unpublishCard, unsubscribeCard } from "../cards";
 import { birthdayMessage } from "../greetings";
 import { journalEntries } from "../journal";
 import { search } from "../search";
@@ -62,6 +63,7 @@ import {
   GroupMergeJson,
   GroupNameJson,
   IdParam,
+  LabelParam,
   IntervalJson,
   ItemPatchJson,
   MergeJson,
@@ -92,6 +94,12 @@ import {
   PlaceListJson,
   SeriesJson,
   PlaceViewJson,
+  CardJson,
+  CardLinkJson,
+  CardSubscribeJson,
+  OwnCardJson,
+  OwnCardsJson,
+  PersonCardJson,
   BirthdayMessageJson,
   BirthdayMessageQuery,
 } from "./schemas";
@@ -640,6 +648,104 @@ const OPS: AnyOp[] = [
   }),
 
   op({
+    method: "GET",
+    path: `${API_PREFIX}/me/cards`,
+    operationId: "getOwnCards",
+    summary: "The caller's own cards",
+    description:
+      'What the caller says about themselves (number, address, birthday), on as many cards as they keep ("Privat", "Arbeit"), each for the people they give its link to.',
+    tags: ["Cards"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The cards", schema: OwnCardsJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: { cards: await ownCards(viewer) } })),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/me/cards/{label}`,
+    operationId: "putOwnCard",
+    summary: "Write one of the caller's own cards",
+    description:
+      "Writes the card of that name, a new one when there is none (names match without regard to case). Empty fields are dropped. A published link serves the new card from now on; whoever subscribed to it gets it on their next fetch.",
+    tags: ["Cards"],
+    auth: true,
+    params: { label: LabelParam },
+    body: CardJson,
+    responses: { 200: { description: "The card", schema: OwnCardJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, params, body }) => ({ status: 200, body: await setOwnCard(viewer, params.label, body) })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/me/cards/{label}`,
+    operationId: "deleteOwnCard",
+    summary: "Delete one of the caller's own cards",
+    description: "Its link stops working; whoever subscribed keeps the card as they last fetched it.",
+    tags: ["Cards"],
+    auth: true,
+    params: { label: LabelParam },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await deleteOwnCard(viewer, params.label);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/me/cards/{label}/link`,
+    operationId: "publishOwnCard",
+    summary: "A new secret link to one of the caller's cards",
+    description:
+      "Served as a vCard at /api/card/{key}.vcf. Anyone with the link can read the card. A new link replaces that card's old one, which stops working; the other cards' links don't change.",
+    tags: ["Cards"],
+    auth: true,
+    params: { label: LabelParam },
+    responses: { 200: { description: "The new link", schema: CardLinkJson }, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => ({ status: 200, body: { url: cardPath(await publishCard(viewer, params.label)) } })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/me/cards/{label}/link`,
+    operationId: "unpublishOwnCard",
+    summary: "End the link to one of the caller's cards",
+    description: "Whoever subscribed keeps the card as they last fetched it and gets nothing new.",
+    tags: ["Cards"],
+    auth: true,
+    params: { label: LabelParam },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await unpublishCard(viewer, params.label);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/people/{id}/card`,
+    operationId: "subscribeCard",
+    summary: "Subscribe a person to the card they gave the user",
+    description:
+      "Fetches it now and again once a day, from https addresses on the internet only (no redirects). Replaces any card the person had. Shared like the name.",
+    tags: ["Cards"],
+    auth: true,
+    params: { id: IdParam },
+    body: CardSubscribeJson,
+    responses: { 200: { description: "The card as fetched", schema: PersonCardJson }, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => ({ status: 200, body: await subscribeCard(viewer, params.id, body.url) })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/people/{id}/card`,
+    operationId: "unsubscribeCard",
+    summary: "Drop a person's card",
+    tags: ["Cards"],
+    auth: true,
+    params: { id: IdParam },
+    responses: { 204: NO_CONTENT, 401: E401 },
+  }).handle(async ({ params }) => {
+    await unsubscribeCard(params.id);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
     method: "PUT",
     path: `${API_PREFIX}/me/language`,
     operationId: "putLanguage",
@@ -906,6 +1012,7 @@ export function openApiDocument(serverUrl: string): Json {
       { name: "Conversations", description: "Recording what was said, and reading it back." },
       { name: "Groups", description: "Groups of people, with other names that find them." },
       { name: "Items", description: "Corrections after the fact: facts, promises, dates, exchanges, relationships and conversations." },
+      { name: "Cards", description: "Own cards: what a person says about themselves, shared by a secret link and subscribed to for a person (ADR 0024)." },
       { name: "Calendar", description: "The secret URL of the caller's calendar feed (ICS), served at /api/calendar/{key}.ics." },
       { name: "Meta", description: "About the API itself." },
     ],

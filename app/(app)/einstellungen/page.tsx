@@ -1,9 +1,10 @@
 import { headers } from "next/headers";
-import { CalendarDays, ImageUp, LogOut, Plug, Sparkles, Users } from "lucide-react";
-import { getReflection, getSettings, hasCalendarKey, hasShareKey, listGroups, mcpResource, publicUrl, sharingEnabled } from "@/backend";
+import { CalendarDays, IdCard, ImageUp, LogOut, Plug, Sparkles, Users } from "lucide-react";
+import { getReflection, getSettings, hasCalendarKey, hasShareKey, listGroups, ownCards, mcpResource, publicUrl, sharingEnabled } from "@/backend";
 import { getCopy } from "@/components/serverCopy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupSettings } from "@/components/GroupSettings";
+import { OwnCardsSettings } from "@/components/Cards";
 import { CalendarSettings, LanguageSettings, ReflectionSettings, ShareSettings, WebhookSettings } from "@/components/Settings";
 import { pageCopy, pageViewer } from "../viewer";
 
@@ -43,6 +44,13 @@ export default async function SettingsPage() {
           <ShareSettings hasKey={await hasShareKey(v)} shareUrl={`${publicUrl(await headers())}/api/share`} />
         </section>
       )}
+      <section id="karte" className="rounded-2xl bg-surface p-5 shadow-card">
+        <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
+          <IdCard aria-hidden className="h-4 w-4" />
+          {copy.ownCardTitle}
+        </h2>
+        <OwnCardsSettings cards={await ownCards(v)} />
+      </section>
       <section id="kalender" className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
           <CalendarDays aria-hidden className="h-4 w-4" />

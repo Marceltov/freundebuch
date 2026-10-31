@@ -403,6 +403,54 @@ test("Verlauf: a word finds what was told, its match marked; the partner's priva
   await expect(page.getByRole("list", { name: "Gefunden" }).getByRole("link")).toHaveCount(1);
 });
 
+test("an own card: written in Einstellungen, given by its link, and shown on the friend's page who subscribed to it", async ({ page, baseURL }) => {
+  await page.goto("/einstellungen");
+  // The first card is named "Privat" unless the user names it otherwise.
+  await expect(page.locator("#karte").getByLabel("Name der neuen Karte")).toHaveValue("Privat");
+  await page.locator("#karte").getByRole("button", { name: "Karte anlegen" }).click();
+  const mine = page.locator("#karte").getByRole("region", { name: "Privat" });
+  await mine.getByLabel("Telefon").fill("+49 170 5550123");
+  await mine.getByLabel("Adresse").fill("Lindenweg 4, Leipzig");
+  await mine.getByRole("button", { name: "Speichern" }).click();
+  await expect(mine.getByText("Gespeichert")).toBeVisible();
+  await mine.getByRole("button", { name: "Link erzeugen" }).click();
+  const link = (await mine.locator("code").textContent())!;
+  expect(link).toMatch(/\/api\/card\/fbk_[\w-]+\.vcf$/);
+  // Any contacts app can read it, without a sign-in.
+  const vcf = await (await page.request.get(link, { headers: { cookie: "" } })).text();
+  expect(vcf).toContain("TEL;TYPE=cell:+49 170 5550123");
+
+  // Someone in the book gets it: here the same instance stands in for the friend's.
+  const recorded = await page.request.post("/api/v1/rambles", {
+    headers: { origin: baseURL! },
+    data: asRamble({
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Ida.",
+      transcript: "Anruf mit Ida Karte.",
+      visibility: "shared",
+      people: [{ name: "Ida Karte", present: true }],
+    }),
+  });
+  const ida = (await recorded.json()).people[0].id;
+  await page.goto(`/p/${ida}`);
+  // No card yet: no empty section, attaching one is in the menu.
+  await expect(page.getByRole("heading", { name: "Ihre Karte" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Mehr zu Ida Karte" }).click();
+  await page.getByPlaceholder("Link zu ihrer Karte").fill(link);
+  await page.getByPlaceholder("Link zu ihrer Karte").press("Enter");
+  await expect(page.getByRole("link", { name: "+49 170 5550123" })).toHaveAttribute("href", "tel:+491705550123");
+  await expect(page.getByText("Lindenweg 4, Leipzig")).toBeVisible();
+  await expect(page.getByText("Was sie selbst über sich sagen")).toBeVisible();
+  await expectNoSideScroll(page);
+  // Ending the link in Einstellungen stops it at once.
+  await page.goto("/einstellungen");
+  const privat = page.locator("#karte").getByRole("region", { name: "Privat" });
+  await privat.getByRole("button", { name: "Link beenden" }).click();
+  await expect(privat.getByRole("button", { name: "Link erzeugen" })).toBeVisible();
+  expect((await page.request.get(link)).status()).toBe(404);
+});
+
 test("a birthday near: Claude drafts the wishes in Erzählen, and the user sends them from their own app", async ({ page, baseURL }) => {
   const soon = new Date(Date.parse(`${today}T00:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10);
   const recorded = await page.request.post("/api/v1/rambles", {

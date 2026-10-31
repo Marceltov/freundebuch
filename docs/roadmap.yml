@@ -21,16 +21,6 @@ items:
       - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household" }
       - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
 
-  - id: own-cards
-    status: later
-    when: Later
-    icon: card-account-details-outline
-    title: Own cards
-    summary: What a person says about themselves (number, address, birthday), shared by a link they can revoke. The only thing that crosses between people.
-    links:
-      - { label: "#70", url: "https://github.com/Marceltov/freundebuch/issues/70" }
-      - { label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it" }
-
   - id: map
     status: later
     when: Later
@@ -42,12 +32,24 @@ items:
       - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
 
   # ---- done, newest first ------------------------------------------------------------------------------------------------
+  - id: own-cards
+    status: done
+    date: 2026-10-31
+    icon: card-account-details-outline
+    title: Own cards
+    summary: What a person says about themselves (number, address, birthday), a vCard behind a link they can end, fetched once a day by the books it was given to. The only thing that crosses between people.
+    links:
+      - { label: "#70", url: "https://github.com/Marceltov/freundebuch/issues/70" }
+      - { label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it" }
+      - { label: "ADR 0024", url: "https://marceltov.github.io/freundebuch/adr/0024-own-cards-behind-a-secret-link/" }
+      - { label: "PR #111", url: "https://github.com/Marceltov/freundebuch/pull/111" }
+
   - id: birthday-messages
     status: done
     date: 2026-10-31
     icon: cake-variant-outline
     title: Birthday messages you send
-    summary: Claude drafts the wishes from what is shared about them; you send them from your own messenger, through a link that only fills the text in.
+    summary: Claude drafts the wishes from what you know about them, never their health; you send them from your own messenger, through a link that only fills the text in.
     links:
       - { label: "#71", url: "https://github.com/Marceltov/freundebuch/issues/71" }
       - { label: "V3", url: "https://marceltov.github.io/freundebuch/values/#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it" }

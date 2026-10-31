@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   BookOpen,
   Cake,
+  IdCard,
   CalendarDays,
   Coffee,
   Gift,
@@ -34,6 +35,7 @@ import { JournalItem } from "@/components/Journal";
 import { layoutNetwork, Network } from "@/components/Network";
 import { PersonMenu } from "@/components/PersonMenu";
 import { ShareButton } from "@/components/ShareButton";
+import { PersonCardBox } from "@/components/Cards";
 import { WishButton } from "@/components/WishButton";
 import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
 
@@ -123,6 +125,7 @@ export function FriendPage({
             gender={b.person.gender}
             look={b.person.look}
             intervalDays={b.freshness.intervalDays}
+            hasCard={!!b.card}
             others={others}
           />
         </div>
@@ -223,6 +226,13 @@ export function FriendPage({
                 </Fragment>
               ),
           )}
+        </Section>
+      )}
+
+      {/* Their own card (ADR 0024): what they say about themselves, apart from what was told about them. Attached in the menu. */}
+      {b.card && (
+        <Section title={copy.cardTitle} icon={IdCard}>
+          <PersonCardBox personId={b.person.id} card={b.card} />
         </Section>
       )}
 

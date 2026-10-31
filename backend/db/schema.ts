@@ -158,6 +158,19 @@ export interface Schema {
     reflection_day: ColumnType<number | null, number | null | undefined, number | null>;
     reflection_hour: ColumnType<number | null, number | null | undefined, number | null>;
   };
+  /** One of a user's own cards, named by `label` ("Privat", "Arbeit"): `card` is the JSON of a Card (cards.ts); `key_hash` its published link's, null while unpublished. */
+  own_cards: { id: string; user_id: string; label: string; card: string; key_hash: string | null; created_at: number; updated_at: number };
+  /** The card subscribed to for a person: the last one fetched (JSON) and when, when it was last tried, and why that failed (a code), if it did. */
+  card_subscriptions: {
+    person_id: string;
+    url: string;
+    card: string | null;
+    fetched_at: number | null;
+    tried_at: number | null;
+    failed: string | null;
+    added_by: string;
+    created_at: number;
+  };
   files: {
     id: string;
     user_id: string;

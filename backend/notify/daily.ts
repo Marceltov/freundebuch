@@ -3,6 +3,7 @@
 import { notifyCopy, type NotifyCopy } from "./copy";
 import { userLanguage } from "../settings";
 import { config } from "../config";
+import { refreshCards } from "../cards";
 import { db } from "../db";
 import { addDays, today } from "../dates";
 import { lastSeen } from "../intervals";
@@ -104,7 +105,7 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
 const localTime = (now: number) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: config.timeZone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
 
-const running = processState("notify", () => ({ busy: false, timer: null as NodeJS.Timeout | null }));
+const running = processState("notify", () => ({ busy: false, cards: false, timer: null as NodeJS.Timeout | null }));
 
 /** One tick of the scheduler: from NOTIFY_AT on, serves each user who hasn't had today's reminders yet. */
 export async function runDailyIfDue(now = Date.now(), fetchFn: typeof fetch = fetch): Promise<void> {
@@ -117,12 +118,24 @@ export async function runDailyIfDue(now = Date.now(), fetchFn: typeof fetch = fe
   }
 }
 
+// A tick refreshes the cards that are due (cards.ts); a slow run isn't joined by the next tick.
+async function refreshCardsOnce(): Promise<void> {
+  if (running.cards) return;
+  running.cards = true;
+  try {
+    await refreshCards();
+  } finally {
+    running.cards = false;
+  }
+}
+
 /** Checks every minute. Safe to call twice; the timer doesn't keep the process alive. */
 export function startScheduler(): void {
   if (running.timer) return;
   running.timer = setInterval(() => {
     runDailyIfDue().catch((e) => log.error(e, "daily reminders failed"));
     runReflectionsDue().catch((e) => log.error(e, "weekly reflections failed"));
+    refreshCardsOnce().catch((e) => log.error(e, "refreshing cards failed"));
   }, 60_000);
   running.timer.unref();
 }

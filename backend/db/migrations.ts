@@ -735,6 +735,34 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  // Own cards (backend/cards.ts, ADR 0024): what a user says about themselves, published behind a secret link (only its hash
+  // is kept), and the cards subscribed to for the people in the book, one per person, shared like the name.
+  "021_own_cards": {
+    async up(db) {
+      await db.schema
+        .createTable("own_cards")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("label", "text", (c) => c.notNull())
+        .addColumn("card", "text", (c) => c.notNull().check(sql`json_valid(card)`))
+        .addColumn("key_hash", "text", (c) => c.unique())
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .addColumn("updated_at", "bigint", (c) => c.notNull())
+        .addUniqueConstraint("own_cards_label", ["user_id", "label"])
+        .execute();
+      await db.schema
+        .createTable("card_subscriptions")
+        .addColumn("person_id", "text", (c) => c.primaryKey().references("persons.id").onDelete("cascade"))
+        .addColumn("url", "text", (c) => c.notNull())
+        .addColumn("card", "text", (c) => c.check(sql`card IS NULL OR json_valid(card)`))
+        .addColumn("fetched_at", "bigint")
+        .addColumn("tried_at", "bigint")
+        .addColumn("failed", "text")
+        .addColumn("added_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+    },
+  },
 };
 
 /** The name the household's own group starts with. */

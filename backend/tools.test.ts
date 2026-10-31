@@ -21,6 +21,7 @@ test("one table holds every tool the MCP endpoint offers", () => {
     "birthday_message",
     "briefing",
     "calendar_feed",
+    "cards",
     "correct",
     "experiences",
     "find_person",
