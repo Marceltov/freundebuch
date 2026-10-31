@@ -22,7 +22,7 @@ The absolute URL depends on the request (`PUBLIC_URL`, or the request's host beh
 
 Chosen option: "The domain returns paths; the edges make every `url` absolute", because the domain is the one place that knows which page shows an item, and the edges only need one generic step.
 
-* `backend/urls.ts` owns the path scheme: `personPath()`, `conversationPath()`, and `itemPath()` with the row anchor from `anchorId()`, which the pages use for the row's element id. Pages and links can't drift apart.
+* `backend/core/urls.ts` owns the path scheme: `personPath()`, `conversationPath()`, and `itemPath()` with the row anchor from `anchorId()`, which the pages use for the row's element id. Pages and links can't drift apart.
 * Domain results carry relative `url`s; the pages use them as they are. `mcp.ts` and the REST dispatcher run `absoluteUrls(publicUrl(headers), body)` just before a result leaves.
 * An item links to the page it was read from: in a briefing or `whats_due`, the person's page; in a conversation, the conversation's page, which lists everything filed from it, done and outdated items too. The page that returned an item always shows it, so a link never lands on nothing.
 * A link reveals nothing on its own: it only names what the viewer could already see, and opening it runs the page's own `visible()` reads.

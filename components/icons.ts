@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-// One icon per kind of conversation, fact category and exchange (the vocabularies in backend/types.ts).
+// One icon per kind of conversation, fact category and exchange (the vocabularies in backend/core/types.ts).
 export const KIND_ICON: Record<string, LucideIcon> = { in_person: Coffee, call: Phone, message: MessageCircle, video: Video, event: PartyPopper };
 
 export const CATEGORY_ICON: Record<string, LucideIcon> = {

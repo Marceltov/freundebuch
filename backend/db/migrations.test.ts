@@ -2,7 +2,7 @@ import { Kysely, SqliteDialect, sql } from "kysely";
 import Database from "better-sqlite3";
 import { beforeEach, expect, test } from "vitest";
 import { MIGRATION_NAMES, NEWER, migrate, migrateTo } from "./migrations";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS } from "../types";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS } from "../core/types";
 import { db, newId, now, resetDbForTests } from "./index";
 
 // A ramble for a conversation inserted by hand, returning its id.

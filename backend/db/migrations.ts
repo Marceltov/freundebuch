@@ -5,9 +5,9 @@
 import { Kysely, sql } from "kysely";
 import { Migrator, type Migration } from "kysely/migration";
 import { randomUUID } from "node:crypto";
-import { norm } from "../names";
+import { norm } from "../people/names";
 
-// The vocabularies of backend/types.ts as they were when this migration was written, checked by the database as well: a write
+// The vocabularies of backend/core/types.ts as they were when this migration was written, checked by the database as well: a write
 // path that forgets to check a value still can't store a bad one.
 const oneOf = (column: string, values: readonly string[]) => sql`${sql.ref(column)} in (${sql.join(values.map((v) => sql.lit(v)))})`;
 const VISIBILITY = ["shared", "private"];
@@ -711,7 +711,7 @@ const migrations: Record<string, Migration> = {
       await db.schema.createIndex("place_owners_by_person").on("place_owners").column("person_id").execute();
     },
   },
-  // A person's look (backend/looks.ts): the parts their avatar is drawn from and the user's words for it, as JSON. Shared
+  // A person's look (backend/people/looks.ts): the parts their avatar is drawn from and the user's words for it, as JSON. Shared
   // like the name; null while nobody has described them.
   "019_person_looks": {
     async up(db) {
@@ -735,7 +735,7 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
-  // Own cards (backend/cards.ts, ADR 0024): what a user says about themselves, published behind a secret link (only its hash
+  // Own cards (backend/sharing/cards.ts, ADR 0024): what a user says about themselves, published behind a secret link (only its hash
   // is kept), and the cards subscribed to for the people in the book, one per person, shared like the name.
   "021_own_cards": {
     async up(db) {

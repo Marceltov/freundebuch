@@ -1,19 +1,19 @@
 // The daily reminders: once a day, after NOTIFY_AT, every user with a webhook gets what is due today or tomorrow. Each user's
 // list comes from whatsDue(viewer), so nobody is ever told about the partner's private items.
 import { notifyCopy, type NotifyCopy } from "./copy";
-import { userLanguage } from "../settings";
-import { config } from "../config";
-import { refreshCards } from "../cards";
+import { userLanguage } from "../core/settings";
+import { config } from "../core/config";
+import { refreshCards } from "../sharing/cards";
 import { db } from "../db";
-import { addDays, today } from "../dates";
-import { lastSeen } from "../intervals";
-import { errorFields, logger } from "../log";
-import { processState } from "../state";
-import { upcomingDates, whatsDue, type DueItem } from "../due";
-import { viewerById } from "../users";
-import type { Viewer } from "../types";
+import { addDays, today } from "../people/dates";
+import { lastSeen } from "../people/intervals";
+import { errorFields, logger } from "../core/log";
+import { processState } from "../core/state";
+import { upcomingDates, whatsDue, type DueItem } from "../reading/due";
+import { viewerById } from "../core/users";
+import type { Viewer } from "../core/types";
 import { sendWebhook, type WebhookMessage } from "./webhook";
-import { runReflectionsDue } from "../reflection";
+import { runReflectionsDue } from "../journal/reflection";
 
 const log = logger("notify");
 const MAX_PER_USER = 10;

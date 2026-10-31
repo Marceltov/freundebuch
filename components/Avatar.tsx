@@ -2,7 +2,7 @@ import type { LookParts } from "@/backend";
 
 // A person's avatar, stacked from parts in one flat style on a 100×100 canvas: the hair behind the head, shoulders, neck, ears,
 // head, beard, face, the hair in front and glasses on top. The sticker around it (color, rim, tilt) is the Face's. Nothing is
-// stored but the choices (backend/looks.ts), so a new part style changes every avatar at once.
+// stored but the choices (backend/people/looks.ts), so a new part style changes every avatar at once.
 
 const SKIN: Record<LookParts["skin"], string> = { light: "#fbe1d0", fair: "#f2c8a5", medium: "#dea478", olive: "#c48c5a", brown: "#94603e", dark: "#5c3a26" };
 const HAIR: Record<LookParts["hairColor"], string> = {

@@ -1,7 +1,7 @@
 // The OIDC relying party: discovery, the authorize URL (code + PKCE S256, state, nonce), and the code
 // exchange with the id_token's claims checked. Every failure logs why (log.ts) and is an AuthError; the routes word it.
 import { redirectUriOk } from "../oauth/routes";
-import { processState } from "../state";
+import { processState } from "../core/state";
 import { allowed, nameFrom, type Provider } from "./config";
 import { errorCode, fail, logUrl } from "./log";
 

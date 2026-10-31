@@ -2,8 +2,8 @@
 // the `oidc` logger per failure: msg is a fixed reason, the detail its fields. Callers pass only variable names, issuer URLs,
 // HTTP statuses and short error codes: never a secret, code, token, state, nonce, verifier, cookie, address, name, sub or
 // other claim value. The logger caps and cleans string values, so a value can't fake another line.
-import { AuthError } from "../errors";
-import { logger } from "../log";
+import { AuthError } from "../core/errors";
+import { logger } from "../core/log";
 
 type Detail = Record<string, string | number>;
 

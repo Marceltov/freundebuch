@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { sign } from "../auth/tokens";
-import { resetSecretForTests } from "../secret";
+import { resetSecretForTests } from "../core/secret";
 import { asRamble, seed, type Seed } from "../testing/fixtures";
-import type { Viewer } from "../types";
+import type { Viewer } from "../core/types";
 import { dispatch } from "./api";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the tests read response bodies by shape, which the API tests check
@@ -388,7 +388,7 @@ describe("files", () => {
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
     const sharp = (await import("sharp")).default;
-    const { readFile, shareFile } = await import("../files");
+    const { readFile, shareFile } = await import("../conversations/files");
     vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-api-")));
     const img = async (r: number) =>
       new Uint8Array(
