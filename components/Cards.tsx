@@ -1,9 +1,9 @@
 "use client";
 
-import { Link2, Mail, MapPin, Phone, Save, Trash2 } from "lucide-react";
+import { Link2, Mail, MapPin, Phone, Plus, Save, Trash2, Unlink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { Card, PersonCard } from "@/backend";
+import type { Card, OwnCard, PersonCard } from "@/backend";
 import { CopyField } from "@/components/CopyButton";
 import { useCopy } from "@/components/i18n";
 
@@ -13,23 +13,69 @@ const FIELDS = ["name", "phone", "email", "address", "birthday", "note"] as cons
 const button = "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 font-bold";
 const input = "w-full rounded-xl border border-rule bg-paper px-3 py-2";
 
-/** Settings: the viewer's own card (PUT /api/v1/me/card) and its secret link (POST/DELETE /api/v1/me/card/link), shown once. */
-export function OwnCardSettings({ card: initial, published: wasPublished }: { card: Card; published: boolean }) {
+/** Settings: the viewer's own cards (GET/PUT/DELETE /api/v1/me/cards/{label}), each with its own secret link, and a new one. */
+export function OwnCardsSettings({ cards }: { cards: OwnCard[] }) {
   const copy = useCopy();
+  const router = useRouter();
+  const [label, setLabel] = useState(cards.length ? "" : copy.cardDefaultLabel);
+  const [failed, setFailed] = useState(false);
+
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch(`/api/v1/me/cards/${encodeURIComponent(label.trim())}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }).catch(() => null);
+    setFailed(!res?.ok);
+    if (res?.ok) {
+      setLabel("");
+      router.refresh();
+    }
+  }
+
+  return (
+    <div className="space-y-4 text-sm">
+      <p className="text-muted">{copy.ownCardHint}</p>
+      {cards.map((c) => (
+        <OwnCardEditor key={c.label} {...c} />
+      ))}
+      <form onSubmit={create} className="flex flex-wrap items-end gap-2">
+        <label className="min-w-0 flex-1">
+          <span className="mb-1 block font-semibold">{copy.cardNewLabel}</span>
+          <input required maxLength={50} value={label} onChange={(e) => setLabel(e.target.value)} className={input} />
+        </label>
+        <button type="submit" className={`${button} bg-carbon text-on-carbon`}>
+          <Plus aria-hidden className="h-4 w-4" />
+          {copy.cardCreate}
+        </button>
+      </form>
+      {failed && (
+        <p role="status" className="text-error">
+          {copy.actionFailed}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** One of the viewer's cards: its fields, its link (shown once), and deleting it. */
+function OwnCardEditor({ label, card: initial, published: wasPublished }: OwnCard) {
+  const copy = useCopy();
+  const router = useRouter();
   const [card, setCard] = useState<Card>(initial);
   const [published, setPublished] = useState(wasPublished);
   const [url, setUrl] = useState<string | null>(null);
   const [state, setState] = useState<"saved" | "failed" | null>(null);
+  const path = `/api/v1/me/cards/${encodeURIComponent(label)}`;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const res = await fetch("/api/v1/me/card", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(card) }).catch(
-      () => null,
-    );
+    const res = await fetch(path, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(card) }).catch(() => null);
     setState(res?.ok ? "saved" : "failed");
   }
   async function publish() {
-    const res = await fetch("/api/v1/me/card/link", { method: "POST" }).catch(() => null);
+    const res = await fetch(`${path}/link`, { method: "POST" }).catch(() => null);
     setState(res?.ok ? null : "failed");
     if (res?.ok) {
       setUrl(((await res.json()) as { url: string }).url);
@@ -37,17 +83,23 @@ export function OwnCardSettings({ card: initial, published: wasPublished }: { ca
     }
   }
   async function unpublish() {
-    const res = await fetch("/api/v1/me/card/link", { method: "DELETE" }).catch(() => null);
+    const res = await fetch(`${path}/link`, { method: "DELETE" }).catch(() => null);
     setState(res?.ok ? null : "failed");
     if (res?.ok) {
       setUrl(null);
       setPublished(false);
     }
   }
+  async function remove() {
+    if (!window.confirm(copy.cardDeleteConfirm.replace("{label}", label))) return;
+    const res = await fetch(path, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) return setState("failed");
+    router.refresh();
+  }
 
   return (
-    <div className="space-y-3 text-sm">
-      <p className="text-muted">{copy.ownCardHint}</p>
+    <section aria-label={label} className="space-y-3 rounded-xl border border-rule p-3">
+      <h3 className="font-display font-semibold">{label}</h3>
       <form onSubmit={save} className="space-y-2">
         {FIELDS.map((f) => (
           <label key={f} className="block">
@@ -84,47 +136,37 @@ export function OwnCardSettings({ card: initial, published: wasPublished }: { ca
         </button>
         {published && (
           <button type="button" onClick={unpublish} className={`${button} bg-surface-2`}>
-            <Trash2 aria-hidden className="h-4 w-4" />
+            <Unlink aria-hidden className="h-4 w-4" />
             {copy.cardLinkRevoke}
           </button>
         )}
+        <button type="button" onClick={remove} className={`${button} bg-surface-2`}>
+          <Trash2 aria-hidden className="h-4 w-4" />
+          {copy.cardDelete}
+        </button>
         {state === "failed" && (
           <span role="status" className="text-error">
             {copy.actionFailed}
           </span>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
-/** A friend's page: the card they gave, or a field to subscribe to it (PUT/DELETE /api/v1/people/{id}/card). */
-export function PersonCardBox({ personId, card }: { personId: string; card: PersonCard | null }) {
+/** A friend's page, once their card is attached (in the person's menu): what it says, and removing it (DELETE /api/v1/people/{id}/card). */
+export function PersonCardBox({ personId, card }: { personId: string; card: PersonCard }) {
   const copy = useCopy();
   const router = useRouter();
-  const [url, setUrl] = useState("");
   const [failed, setFailed] = useState(false);
 
-  async function subscribe(e: React.FormEvent) {
-    e.preventDefault();
-    const res = await fetch(`/api/v1/people/${personId}/card`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ url }),
-    }).catch(() => null);
-    setFailed(!res?.ok);
-    if (res?.ok) {
-      setUrl("");
-      router.refresh();
-    }
-  }
   async function unsubscribe() {
     const res = await fetch(`/api/v1/people/${personId}/card`, { method: "DELETE" }).catch(() => null);
     setFailed(!res?.ok);
     if (res?.ok) router.refresh();
   }
 
-  const c = card?.card;
+  const c = card.card;
   return (
     <div className="space-y-2 text-sm">
       {c && (
@@ -155,27 +197,13 @@ export function PersonCardBox({ personId, card }: { personId: string; card: Pers
           {c.note && <li className="whitespace-pre-line text-muted">{c.note}</li>}
         </ul>
       )}
-      {card && <p className="text-xs text-muted">{card.failed ? copy.cardFailed[card.failed] : copy.cardOwnWords}</p>}
-      {!card && (
-        <form onSubmit={subscribe} className="flex flex-wrap gap-2">
-          <label className="min-w-0 flex-1">
-            <span className="sr-only">{copy.cardSubscribeLabel}</span>
-            <input type="url" required placeholder={copy.cardSubscribeLabel} value={url} onChange={(e) => setUrl(e.target.value)} className={input} />
-          </label>
-          <button type="submit" className={`${button} bg-carbon text-on-carbon`}>
-            <Link2 aria-hidden className="h-4 w-4" />
-            {copy.cardSubscribe}
-          </button>
-        </form>
-      )}
-      {card && (
-        <button type="button" onClick={unsubscribe} className="text-xs font-semibold text-muted underline">
-          {copy.cardUnsubscribe}
-        </button>
-      )}
+      <p className="text-xs text-muted">{card.failed ? copy.cardFailed[card.failed] : copy.cardOwnWords}</p>
+      <button type="button" onClick={unsubscribe} className="text-xs font-semibold text-muted underline">
+        {copy.cardUnsubscribe}
+      </button>
       {failed && (
         <p role="status" className="text-error">
-          {copy.cardSubscribeFailed}
+          {copy.actionFailed}
         </p>
       )}
     </div>

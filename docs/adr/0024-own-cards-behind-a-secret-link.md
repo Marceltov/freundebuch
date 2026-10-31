@@ -20,11 +20,11 @@ What freundebuch knows about someone comes from what the user tells it. Some thi
 
 Chosen option: the link, like the calendar feed ([ADR 0008](0008-calendar-feed-through-a-secret-url.md)).
 
-* **The user's own card** (`own_cards`) holds only what they write on it: name, phone, email, address, birthday, note. **Publishing** makes `/api/card/<key>.vcf`, a vCard 4.0 that any contacts app reads too. Only the key's hash is kept; a new key ends the old one, and unpublishing ends it.
+* **The user's own cards** (`own_cards`) hold only what they write on them: name, phone, email, address, birthday, note. A user keeps as many as they like, each with a name ("Privat", "Arbeit"), so a freelancer gives clients a different number than friends. **Publishing** a card makes `/api/card/<key>.vcf`, a vCard 4.0 that any contacts app reads too. Each card has one link, shared by everyone it was given to: a link per recipient would let one of them be cut off alone, but make the user keep a list of who has which. Only the key's hash is kept; a new key ends that card's old one, and unpublishing or deleting the card ends it.
 * **Subscribing** attaches a card link to a person (`card_subscriptions`, one per person) and fetches it at once, then once a day. A card is shared in the household like the person's name, and either user may attach or remove it ([ADR 0011](0011-either-user-edits-shared-items.md)).
 * **A card is the person's own words.** The briefing carries it as `card`, apart from facts; Claude is told never to copy it into facts and to ask when its birthday differs from the filed one.
-* **Fetching a typed URL is guarded.** Only `https`, no credentials in the URL, a host that resolves only to public addresses (no loopback, private, link-local or unique-local networks), no redirects, at most 64 KB and 10 s. A failure is kept as a code (`unreachable`, `not_found`, `not_a_card`, `refused`) next to the last good card. The URL is never logged.
-* **MCP first**: the tool `cards` (`mine`, `set_mine`, `publish`, `unpublish`, `subscribe`, `unsubscribe`), then REST (`/api/v1/me/card`, `/api/v1/me/card/link`, `/api/v1/people/{id}/card`) and the web app (Einstellungen → Deine Karte, and "Ihre Karte" on a person's page). `cards` stays out of the in-app chat, like `calendar_feed`: the link it makes only works absolute.
+* **Fetching a typed URL is guarded.** Only `https`, no credentials in the URL, a host that resolves only to public addresses (no loopback, private, link-local or unique-local networks), no redirects, at most 64 KB and 10 s. The addresses are checked again as the connection is made, and the connection goes to a checked one, so a host that answers differently the second time (DNS rebinding) is refused. A failure is kept as a code (`unreachable`, `not_found`, `not_a_card`, `refused`) next to the last good card. The URL is never logged.
+* **MCP first**: the tool `cards` (`mine`, `set_mine`, `delete_mine`, `publish`, `unpublish`, `subscribe`, `unsubscribe`; a card is named by `label`), then REST (`/api/v1/me/cards/{label}`, `/api/v1/me/cards/{label}/link`, `/api/v1/people/{id}/card`) and the web app (Einstellungen → Deine Karten; on a person's page, "Karte verknüpfen" in the menu and "Ihre Karte" once one is attached). `cards` stays out of the in-app chat, like `calendar_feed`: the link it makes only works absolute.
 
 ### Consequences
 
@@ -32,7 +32,7 @@ Chosen option: the link, like the calendar feed ([ADR 0008](0008-calendar-feed-t
 * Good, because the format is a vCard, readable without freundebuch ([V6](../values.md#v6-self-hosting-has-everything)).
 * Bad, because the owner's server sees each subscriber's server fetch the card once a day (its address and the time), as a calendar host does.
 * Bad, because a change reaches subscribers within a day, not at once.
-* Bad, because DNS is resolved once for the check and again by `fetch`, so a host that answers differently the second time (DNS rebinding) could slip through. Pinning the checked address in the request would close that.
+* Bad, because ending one card's link cuts off everyone it was given to; to drop one person, the user makes a new link and sends it to the others.
 
 ## More Information
 

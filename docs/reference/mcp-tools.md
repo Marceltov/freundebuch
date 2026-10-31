@@ -21,7 +21,7 @@ The MCP endpoint is `POST ${PUBLIC_URL}/mcp`: stateless, protocol version 2026-0
 | `journal` | read | Your journal entries (and the ones your partner shared) in a period, the last 30 days by default, optionally only those naming a person; each with its day, text, people and ramble. |
 | `search` | read | Finds what was told by a word you remember rather than by who or when ("Spiegel", "Hellengerst"): ramble transcripts, conversations, experiences, journal entries, facts, promises, exchanges, dates and places that hold every word of `query`, newest first, each with a snippet, the people, the day and a link. Plain word matching, case and umlauts folded, not meaning; only what you may see matches, never the other user's private items, and a transcript only when you may read it. |
 | `get_transcript` | read | The verbatim ramble, by the ramble's id (`rambleId`, as `record` and `journal` return it) or one of its conversations' (`conversationId`). |
-| `cards` | destructive | [Own cards](../using/cards.md): shows or replaces your own card, makes or ends its link (a new link ends the old one), and subscribes a person to the card link they gave you, or drops it. Not in the in-app chat. |
+| `cards` | destructive | [Own cards](../using/cards.md): lists, writes and deletes your own cards (several, each with a name), makes or ends a card's link (a new link ends that card's old one), and subscribes a person to the card link they gave you, or drops it. Not in the in-app chat. |
 | `calendar_feed` | destructive | Gives you the secret URL of your [calendar feed](../using/calendar.md), making one when you have none; replaces or revokes it, which ends the old URL. Not in the in-app chat. |
 
 ## What a result tells Claude

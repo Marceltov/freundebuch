@@ -118,6 +118,7 @@ export function FriendPage({
             gender={b.person.gender}
             look={b.person.look}
             intervalDays={b.freshness.intervalDays}
+            hasCard={!!b.card}
             others={others}
           />
         </div>
@@ -219,10 +220,12 @@ export function FriendPage({
         </Section>
       )}
 
-      {/* Their own card (ADR 0024): what they say about themselves, apart from what was told about them. */}
-      <Section title={copy.cardTitle} icon={IdCard}>
-        <PersonCardBox personId={b.person.id} card={b.card} />
-      </Section>
+      {/* Their own card (ADR 0024): what they say about themselves, apart from what was told about them. Attached in the menu. */}
+      {b.card && (
+        <Section title={copy.cardTitle} icon={IdCard}>
+          <PersonCardBox personId={b.person.id} card={b.card} />
+        </Section>
+      )}
 
       {b.known.length > 0 && (
         <Section title={copy.known} icon={BookOpen}>

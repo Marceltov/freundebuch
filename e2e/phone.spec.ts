@@ -405,7 +405,10 @@ test("Verlauf: a word finds what was told, its match marked; the partner's priva
 
 test("an own card: written in Einstellungen, given by its link, and shown on the friend's page who subscribed to it", async ({ page, baseURL }) => {
   await page.goto("/einstellungen");
-  const mine = page.locator("#karte");
+  // The first card is named "Privat" unless the user names it otherwise.
+  await expect(page.locator("#karte").getByLabel("Name der neuen Karte")).toHaveValue("Privat");
+  await page.locator("#karte").getByRole("button", { name: "Karte anlegen" }).click();
+  const mine = page.locator("#karte").getByRole("region", { name: "Privat" });
   await mine.getByLabel("Telefon").fill("+49 170 5550123");
   await mine.getByLabel("Adresse").fill("Lindenweg 4, Leipzig");
   await mine.getByRole("button", { name: "Speichern" }).click();
@@ -431,16 +434,20 @@ test("an own card: written in Einstellungen, given by its link, and shown on the
   });
   const ida = (await recorded.json()).people[0].id;
   await page.goto(`/p/${ida}`);
+  // No card yet: no empty section, attaching one is in the menu.
+  await expect(page.getByRole("heading", { name: "Ihre Karte" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Mehr zu Ida Karte" }).click();
   await page.getByPlaceholder("Link zu ihrer Karte").fill(link);
-  await page.getByRole("button", { name: "Karte verknüpfen" }).click();
+  await page.getByPlaceholder("Link zu ihrer Karte").press("Enter");
   await expect(page.getByRole("link", { name: "+49 170 5550123" })).toHaveAttribute("href", "tel:+491705550123");
   await expect(page.getByText("Lindenweg 4, Leipzig")).toBeVisible();
   await expect(page.getByText("Was sie selbst über sich sagen")).toBeVisible();
   await expectNoSideScroll(page);
   // Ending the link in Einstellungen stops it at once.
   await page.goto("/einstellungen");
-  await page.locator("#karte").getByRole("button", { name: "Link beenden" }).click();
-  await expect(page.locator("#karte").getByRole("button", { name: "Link erzeugen" })).toBeVisible();
+  const privat = page.locator("#karte").getByRole("region", { name: "Privat" });
+  await privat.getByRole("button", { name: "Link beenden" }).click();
+  await expect(privat.getByRole("button", { name: "Link erzeugen" })).toBeVisible();
   expect((await page.request.get(link)).status()).toBe(404);
 });
 

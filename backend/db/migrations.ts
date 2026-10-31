@@ -741,10 +741,14 @@ const migrations: Record<string, Migration> = {
     async up(db) {
       await db.schema
         .createTable("own_cards")
-        .addColumn("user_id", "text", (c) => c.primaryKey().references("users.id").onDelete("cascade"))
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("label", "text", (c) => c.notNull())
         .addColumn("card", "text", (c) => c.notNull().check(sql`json_valid(card)`))
         .addColumn("key_hash", "text", (c) => c.unique())
+        .addColumn("created_at", "bigint", (c) => c.notNull())
         .addColumn("updated_at", "bigint", (c) => c.notNull())
+        .addUniqueConstraint("own_cards_label", ["user_id", "label"])
         .execute();
       await db.schema
         .createTable("card_subscriptions")

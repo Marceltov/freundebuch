@@ -4,8 +4,10 @@ import {
   cardPath,
   cardRoute,
   checkCard,
+  deleteOwnCard,
   fetchable,
-  ownCard,
+  fetchCard,
+  ownCards,
   parseVCard,
   personCard,
   publishCard,
@@ -24,8 +26,7 @@ beforeEach(async () => {
 });
 
 const publicDns = async () => ["93.184.216.34"];
-const served = (body: string, status = 200) =>
-  vi.fn(async () => new Response(body, { status, headers: { "content-type": "text/vcard" } })) as unknown as typeof fetch;
+const served = (body: string, status = 200) => vi.fn(async () => new Response(body, { status, headers: { "content-type": "text/vcard" } }));
 
 test("a card keeps only what fits, and a birthday as a day with or without the year", () => {
   expect(checkCard({ name: " Anna ", phone: "", birthday: "1986-11-03" })).toEqual({ name: "Anna", birthday: "1986-11-03" });
@@ -56,25 +57,48 @@ test("a card goes out as a vCard and comes back the same, and one from another a
   expect(parseVCard("<html>nope</html>")).toBeNull();
 });
 
-test("the own card is served behind its link, a new link ends the old one, and unpublishing ends it", async () => {
-  await setOwnCard(s.a, { name: "Alice", phone: "+49 1" });
-  expect(await ownCard(s.a)).toEqual({ card: { name: "Alice", phone: "+49 1" }, published: false });
-  const first = await publishCard(s.a);
+test("each own card is served behind its own link, a new link ends only that card's old one, and unpublishing ends it", async () => {
+  expect(await ownCards(s.a)).toEqual([]);
+  await setOwnCard(s.a, "Privat", { name: "Alice", phone: "+49 1" });
+  await setOwnCard(s.a, "Arbeit", { name: "Alice A.", email: "alice@work.example" });
+  expect(await ownCards(s.a)).toEqual([
+    { label: "Arbeit", card: { name: "Alice A.", email: "alice@work.example" }, published: false },
+    { label: "Privat", card: { name: "Alice", phone: "+49 1" }, published: false },
+  ]);
+  const first = await publishCard(s.a, "privat"); // names match without regard to case
+  const work = await publishCard(s.a, "Arbeit");
   expect(cardPath(first)).toMatch(/^\/api\/card\/fbk_[\w-]+\.vcf$/);
   const res = await cardRoute(`${first}.vcf`);
   expect(res.headers.get("content-type")).toBe("text/vcard; charset=utf-8");
   expect(parseVCard(await res.text())).toEqual({ name: "Alice", phone: "+49 1" });
-  const second = await publishCard(s.a);
+  expect(parseVCard(await (await cardRoute(`${work}.vcf`)).text())).toEqual({ name: "Alice A.", email: "alice@work.example" });
+  const second = await publishCard(s.a, "Privat");
   expect((await cardRoute(`${first}.vcf`)).status).toBe(404);
   expect((await cardRoute(`${second}.vcf`)).status).toBe(200);
+  expect((await cardRoute(`${work}.vcf`)).status).toBe(200);
   // Changing the card keeps the link.
-  await setOwnCard(s.a, { name: "Alice", email: "a@example.org" });
+  await setOwnCard(s.a, "Privat", { name: "Alice", email: "a@example.org" });
   expect(parseVCard(await (await cardRoute(`${second}.vcf`)).text())).toEqual({ name: "Alice", email: "a@example.org" });
-  await unpublishCard(s.a);
+  await unpublishCard(s.a, "Privat");
   expect((await cardRoute(`${second}.vcf`)).status).toBe(404);
+  expect((await cardRoute(`${work}.vcf`)).status).toBe(200);
+  // Deleting a card ends its link.
+  await deleteOwnCard(s.a, "Arbeit");
+  expect((await cardRoute(`${work}.vcf`)).status).toBe(404);
+  expect((await ownCards(s.a)).map((c) => c.label)).toEqual(["Privat"]);
   expect((await cardRoute("nope.vcf")).status).toBe(404);
-  // Bob's card is his own.
-  expect((await ownCard(s.b)).card).toEqual({});
+  await expect(publishCard(s.a, "Verein")).rejects.toThrow(/No card named Verein/);
+  await expect(setOwnCard(s.a, "  ", {})).rejects.toThrow(/needs a name/);
+  // Bob's cards are his own.
+  expect(await ownCards(s.b)).toEqual([]);
+  await expect(publishCard(s.b, "Privat")).rejects.toThrow(/No card/);
+});
+
+test("a host that answers with a private address on the second lookup is never connected to (DNS rebinding)", async () => {
+  let lookups = 0;
+  const rebinding = async () => (lookups++ === 0 ? ["93.184.216.34"] : ["10.0.0.5"]);
+  expect(await fetchCard("https://rebind.example/a.vcf", undefined, rebinding)).toBe("unreachable");
+  expect(lookups).toBe(2);
 });
 
 test("a card is fetched only from https on the internet, never from this server or the networks behind it", async () => {
@@ -95,7 +119,7 @@ test("a subscribed card is in the briefing for both users, kept apart from what 
   const fetchFn = served(vcf);
   const got = await subscribeCard(s.a, s.anna, "https://cards.example.org/anna.vcf", fetchFn, publicDns);
   expect(got).toMatchObject({ card: { name: "Anna Reise", phone: "+49 170 1" }, failed: null });
-  expect(fetchFn).toHaveBeenCalledWith("https://cards.example.org/anna.vcf", expect.objectContaining({ redirect: "manual" }));
+  expect(fetchFn).toHaveBeenCalledWith("https://cards.example.org/anna.vcf", expect.objectContaining({ headers: { accept: "text/vcard" } }));
   expect((await briefing(s.b, s.anna)).card?.card?.phone).toBe("+49 170 1");
   expect((await briefing(s.a, s.anna)).known.map((f) => f.text)).not.toContain("+49 170 1");
   // Not again within the day; after it, again, and a revoked link shows as not found while the last card stays.
@@ -106,7 +130,7 @@ test("a subscribed card is in the briefing for both users, kept apart from what 
   expect(await personCard(s.anna)).toMatchObject({ card: { phone: "+49 170 1" }, failed: "not_found" });
   // A page that is no card, and an unreachable host.
   expect((await subscribeCard(s.a, s.tom, "https://x.example/tom", served("<html/>"), publicDns)).failed).toBe("not_a_card");
-  const down = vi.fn(async () => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch;
+  const down = vi.fn(async () => Promise.reject(new TypeError("fetch failed")));
   expect((await subscribeCard(s.a, s.tom, "https://x.example/tom", down, publicDns)).failed).toBe("unreachable");
   await unsubscribeCard(s.anna);
   expect(await personCard(s.anna)).toBeNull();

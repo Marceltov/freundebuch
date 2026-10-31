@@ -280,13 +280,16 @@ export const PersonCardJson = z
 
 export const OwnCardJson = z
   .object({
-    card: CardJson.describe("The caller's own card; empty while they wrote none"),
+    label: z.string().describe('What the caller calls the card ("Privat", "Arbeit"); names it in every call'),
+    card: CardJson.describe("What the card says"),
     published: z.boolean().describe("Whether a link to it works now"),
   })
   .meta({ id: "OwnCard" });
 
+export const OwnCardsJson = z.object({ cards: z.array(OwnCardJson).describe("The caller's own cards, by name") }).meta({ id: "OwnCards" });
+
 export const CardLinkJson = z
-  .object({ url: z.string().describe("The new link to the caller's card, as an absolute URL; shown once, and the previous one stopped working") })
+  .object({ url: z.string().describe("The new link to the caller's card, as an absolute URL; shown once, and that card's previous one stopped working") })
   .meta({ id: "CardLink" });
 
 export const CardSubscribeJson = z
@@ -295,7 +298,7 @@ export const CardSubscribeJson = z
 
 export const CardsJson = z
   .object({
-    mine: OwnCardJson.optional().describe("The user's own card, for mine, set_mine, publish and unpublish"),
+    mine: z.array(OwnCardJson).optional().describe("The user's own cards, for mine, set_mine, delete_mine, publish and unpublish"),
     link: z.string().optional().describe("For publish: the new link to the user's card, as an absolute URL, shown once"),
     person: PersonCardJson.nullable().optional().describe("For subscribe: the person's card as fetched; null after unsubscribe"),
   })
@@ -948,6 +951,7 @@ export const COMPONENTS = [
   CardJson,
   PersonCardJson,
   OwnCardJson,
+  OwnCardsJson,
   CardLinkJson,
   CardSubscribeJson,
   CardsJson,
@@ -1000,6 +1004,7 @@ export const COMPONENTS = [
 ];
 
 export const IdParam = z.string().describe("The id");
+export const LabelParam = z.string().describe('The name of one of the caller\'s own cards ("Privat", "Arbeit")');
 export const TableParam = z.string().describe("The kind of item: `facts`, `promises`, `dates`, `exchanges`, `relationships` or `conversations`");
 export const TraitsQuery = z.object({
   people: z.string().optional().describe("Person ids, comma-separated"),

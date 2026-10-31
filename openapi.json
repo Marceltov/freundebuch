@@ -2309,11 +2309,11 @@
         }
       }
     },
-    "/api/v1/me/card": {
+    "/api/v1/me/cards": {
       "get": {
-        "operationId": "getOwnCard",
-        "summary": "The caller's own card",
-        "description": "What the caller says about themselves (number, address, birthday), for the people they give its link to.",
+        "operationId": "getOwnCards",
+        "summary": "The caller's own cards",
+        "description": "What the caller says about themselves (number, address, birthday), on as many cards as they keep (\"Privat\", \"Arbeit\"), each for the people they give its link to.",
         "tags": [
           "Cards"
         ],
@@ -2327,11 +2327,11 @@
         ],
         "responses": {
           "200": {
-            "description": "The card",
+            "description": "The cards",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OwnCard"
+                  "$ref": "#/components/schemas/OwnCards"
                 }
               }
             }
@@ -2347,11 +2347,13 @@
             }
           }
         }
-      },
+      }
+    },
+    "/api/v1/me/cards/{label}": {
       "put": {
         "operationId": "putOwnCard",
-        "summary": "Replace the caller's own card",
-        "description": "Empty fields are dropped. A published link serves the new card from now on; whoever subscribed to it gets it on their next fetch.",
+        "summary": "Write one of the caller's own cards",
+        "description": "Writes the card of that name, a new one when there is none (names match without regard to case). Empty fields are dropped. A published link serves the new card from now on; whoever subscribed to it gets it on their next fetch.",
         "tags": [
           "Cards"
         ],
@@ -2361,6 +2363,17 @@
           },
           {
             "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "description": "The name of one of the caller's own cards (\"Privat\", \"Arbeit\")",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2405,13 +2418,11 @@
             }
           }
         }
-      }
-    },
-    "/api/v1/me/card/link": {
-      "post": {
-        "operationId": "publishOwnCard",
-        "summary": "A new secret link to the caller's card",
-        "description": "Served as a vCard at /api/card/{key}.vcf. Anyone with the link can read the card. A new link replaces the old one, which stops working.",
+      },
+      "delete": {
+        "operationId": "deleteOwnCard",
+        "summary": "Delete one of the caller's own cards",
+        "description": "Its link stops working; whoever subscribed keeps the card as they last fetched it.",
         "tags": [
           "Cards"
         ],
@@ -2421,6 +2432,71 @@
           },
           {
             "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "description": "The name of one of the caller's own cards (\"Privat\", \"Arbeit\")",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/cards/{label}/link": {
+      "post": {
+        "operationId": "publishOwnCard",
+        "summary": "A new secret link to one of the caller's cards",
+        "description": "Served as a vCard at /api/card/{key}.vcf. Anyone with the link can read the card. A new link replaces that card's old one, which stops working; the other cards' links don't change.",
+        "tags": [
+          "Cards"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "description": "The name of one of the caller's own cards (\"Privat\", \"Arbeit\")",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2443,12 +2519,22 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "delete": {
         "operationId": "unpublishOwnCard",
-        "summary": "End the link to the caller's card",
+        "summary": "End the link to one of the caller's cards",
         "description": "Whoever subscribed keeps the card as they last fetched it and gets nothing new.",
         "tags": [
           "Cards"
@@ -2461,12 +2547,33 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "description": "The name of one of the caller's own cards (\"Privat\", \"Arbeit\")",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "204": {
             "description": "Done"
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3311,8 +3418,12 @@
       "OwnCard": {
         "type": "object",
         "properties": {
+          "label": {
+            "type": "string",
+            "description": "What the caller calls the card (\"Privat\", \"Arbeit\"); names it in every call"
+          },
           "card": {
-            "description": "The caller's own card; empty while they wrote none",
+            "description": "What the card says",
             "$ref": "#/components/schemas/Card"
           },
           "published": {
@@ -3321,8 +3432,24 @@
           }
         },
         "required": [
+          "label",
           "card",
           "published"
+        ]
+      },
+      "OwnCards": {
+        "type": "object",
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnCard"
+            },
+            "description": "The caller's own cards, by name"
+          }
+        },
+        "required": [
+          "cards"
         ]
       },
       "CardLink": {
@@ -3330,7 +3457,7 @@
         "properties": {
           "url": {
             "type": "string",
-            "description": "The new link to the caller's card, as an absolute URL; shown once, and the previous one stopped working"
+            "description": "The new link to the caller's card, as an absolute URL; shown once, and that card's previous one stopped working"
           }
         },
         "required": [
@@ -3353,8 +3480,11 @@
         "type": "object",
         "properties": {
           "mine": {
-            "description": "The user's own card, for mine, set_mine, publish and unpublish",
-            "$ref": "#/components/schemas/OwnCard"
+            "description": "The user's own cards, for mine, set_mine, delete_mine, publish and unpublish",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnCard"
+            }
           },
           "link": {
             "description": "For publish: the new link to the user's card, as an absolute URL, shown once",

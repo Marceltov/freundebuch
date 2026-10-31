@@ -1,12 +1,15 @@
 // Own cards (ADR 0024): what a person says about themselves, the only thing that crosses from one person to another (V3).
-// A user keeps their own card and may publish it behind a secret link, as a vCard any contacts app can read too; another
-// freundebuch subscribes to that link for the person, the way a calendar subscribes to a feed, and fetches it again once a day.
+// A user keeps cards of their own, each named ("Privat", "Arbeit"), and may publish each behind a secret link of its own, as a
+// vCard any contacts app can read too; another freundebuch subscribes to that link for the person, the way a calendar subscribes
+// to a feed, and fetches it again once a day.
 // No federation: nothing else is ever fetched or sent, and a card holds only what its owner wrote on it.
 import { createHash, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
+import { get } from "node:https";
+import type { LookupFunction } from "node:net";
 import { BlockList, isIP } from "node:net";
 import { config } from "./config";
-import { db, now } from "./db";
+import { db, newId, now } from "./db";
 import { InvalidInputError, NotFoundError } from "./errors";
 import { errorFields, logger } from "./log";
 import type { Viewer } from "./types";
@@ -106,7 +109,7 @@ export function parseVCard(text: string): Card | null {
   }
 }
 
-// ---- the user's own card --------------------------------------------------------------------------------------------------
+// ---- the user's own cards -------------------------------------------------------------------------------------------------
 
 const KEY_PREFIX = "fbk_";
 const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
@@ -114,42 +117,78 @@ const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
 /** Where the card of `key` is served, as a path. */
 export const cardPath = (key: string) => `/api/card/${key}.vcf`;
 
-/** The viewer's own card (empty when they wrote none), and whether it is published. */
-export async function ownCard(v: Viewer): Promise<{ card: Card; published: boolean }> {
-  const r = await (await db()).selectFrom("own_cards").select(["card", "key_hash"]).where("user_id", "=", v.userId).executeTakeFirst();
-  return { card: r ? (JSON.parse(r.card) as Card) : {}, published: !!r?.key_hash };
+/** One of the viewer's own cards: its name, what it says, and whether its link works now. */
+export type OwnCard = { label: string; card: Card; published: boolean };
+
+const MAX_LABEL = 50;
+
+function checkLabel(label: string): string {
+  const l = label.trim();
+  if (!l) throw new InvalidInputError("A card needs a name");
+  if (l.length > MAX_LABEL) throw new InvalidInputError(`A card's name is longer than ${MAX_LABEL} characters`);
+  return l;
 }
 
-/** Replaces the viewer's own card. A published link serves the new one from now on. */
-export async function setOwnCard(v: Viewer, input: unknown): Promise<Card> {
+async function cardRows(v: Viewer) {
+  return (await db()).selectFrom("own_cards").select(["id", "label", "card", "key_hash"]).where("user_id", "=", v.userId).orderBy("label").execute();
+}
+
+/** The viewer's card named `label`, matched without regard to case, or undefined. */
+async function cardRow(v: Viewer, label: string) {
+  const l = checkLabel(label).toLowerCase();
+  return (await cardRows(v)).find((r) => r.label.toLowerCase() === l);
+}
+
+async function mustCard(v: Viewer, label: string) {
+  const r = await cardRow(v, label);
+  if (!r) throw new NotFoundError(`No card named ${label.trim()}`);
+  return r;
+}
+
+/** The viewer's own cards, by name. */
+export async function ownCards(v: Viewer): Promise<OwnCard[]> {
+  return (await cardRows(v)).map((r) => ({ label: r.label, card: JSON.parse(r.card) as Card, published: !!r.key_hash }));
+}
+
+/** Writes the viewer's card named `label`, a new one when they have none of that name. Its link, if published, serves the new card from now on. */
+export async function setOwnCard(v: Viewer, label: string, input: unknown): Promise<OwnCard> {
   const card = checkCard(input);
   const json = JSON.stringify(card);
-  await (
-    await db()
-  )
-    .insertInto("own_cards")
-    .values({ user_id: v.userId, card: json, key_hash: null, updated_at: now() })
-    .onConflict((oc) => oc.column("user_id").doUpdateSet({ card: json, updated_at: now() }))
-    .execute();
-  return card;
+  const d = await db();
+  const r = await cardRow(v, label);
+  if (r) await d.updateTable("own_cards").set({ card: json, updated_at: now() }).where("id", "=", r.id).execute();
+  else
+    await d
+      .insertInto("own_cards")
+      .values({ id: newId(), user_id: v.userId, label: checkLabel(label), card: json, key_hash: null, created_at: now(), updated_at: now() })
+      .execute();
+  return { label: r?.label ?? checkLabel(label), card, published: !!r?.key_hash };
 }
 
-/** A new secret link to the viewer's card; the previous one stops working. Shown once: only its hash is kept. */
-export async function publishCard(v: Viewer): Promise<string> {
+/** Deletes the viewer's card named `label`, and with it its link. */
+export async function deleteOwnCard(v: Viewer, label: string): Promise<void> {
+  const r = await mustCard(v, label);
+  await (await db()).deleteFrom("own_cards").where("id", "=", r.id).execute();
+}
+
+/** A new secret link to the viewer's card named `label`; that card's previous link stops working, the others' don't. Shown once: only its hash is kept. */
+export async function publishCard(v: Viewer, label: string): Promise<string> {
+  const r = await mustCard(v, label);
   const key = KEY_PREFIX + randomBytes(32).toString("base64url");
   await (
     await db()
   )
-    .insertInto("own_cards")
-    .values({ user_id: v.userId, card: "{}", key_hash: hashKey(key), updated_at: now() })
-    .onConflict((oc) => oc.column("user_id").doUpdateSet({ key_hash: hashKey(key) }))
+    .updateTable("own_cards")
+    .set({ key_hash: hashKey(key) })
+    .where("id", "=", r.id)
     .execute();
   return key;
 }
 
-/** Ends the link: whoever subscribed to it keeps the card as last fetched, and gets nothing new. */
-export async function unpublishCard(v: Viewer): Promise<void> {
-  await (await db()).updateTable("own_cards").set({ key_hash: null }).where("user_id", "=", v.userId).execute();
+/** Ends the link to the card named `label`: whoever subscribed to it keeps the card as last fetched, and gets nothing new. */
+export async function unpublishCard(v: Viewer, label: string): Promise<void> {
+  const r = await mustCard(v, label);
+  await (await db()).updateTable("own_cards").set({ key_hash: null }).where("id", "=", r.id).execute();
 }
 
 /** GET /api/card/<key>.vcf: the card the key publishes, or 404. */
@@ -198,6 +237,7 @@ for (const [net, bits] of [
 
 export type Resolver = (host: string) => Promise<string[]>;
 const resolve: Resolver = async (host) => (await lookup(host, { all: true })).map((a) => a.address);
+const isPublic = (a: string) => !blocked.check(a, isIP(a) === 6 ? "ipv6" : "ipv4");
 
 /** Whether `url` may be fetched: https (http too in e2e), and a host that resolves only to public addresses. */
 export async function fetchable(url: string, resolver: Resolver = resolve): Promise<boolean> {
@@ -212,16 +252,60 @@ export async function fetchable(url: string, resolver: Resolver = resolve): Prom
   if (config.e2e()) return true;
   const host = u.hostname.replace(/^\[|\]$/g, "");
   const addresses = isIP(host) ? [host] : await resolver(host).catch(() => []);
-  return addresses.length > 0 && addresses.every((a) => !blocked.check(a, isIP(a) === 6 ? "ipv6" : "ipv4"));
+  return addresses.length > 0 && addresses.every(isPublic);
 }
 
 const MAX_BYTES = 64 * 1024;
 
+/** How a card is fetched: a GET that answers with a Response. Tests pass their own. */
+export type Fetcher = (url: string, init: { signal: AbortSignal; headers: Record<string, string> }) => Promise<Response>;
+
+/**
+ * A GET over https whose connection goes only to an address checked as it connects. `fetchable` checks the host's addresses
+ * first, but a host that answers differently the second time (DNS rebinding) would reach a private address through `fetch`;
+ * here the address connected to is the one checked. Redirects are not followed, and at most MAX_BYTES + 1 bytes are read.
+ */
+function pinnedFetch(resolver: Resolver): Fetcher {
+  const checked: LookupFunction = (host, options, done) => {
+    resolver(host).then(
+      (addresses) => {
+        if (!addresses.length || !addresses.every(isPublic)) return done(Object.assign(new Error("not a public address"), { code: "EREFUSED" }), "", 4);
+        const all = addresses.map((address) => ({ address, family: isIP(address) }));
+        if (options.all) done(null, all);
+        else done(null, all[0].address, all[0].family);
+      },
+      (e: NodeJS.ErrnoException) => done(e, "", 4),
+    );
+  };
+  return (url, init) =>
+    new Promise((ok, fail) => {
+      const req = get(url, { headers: init.headers, signal: init.signal, lookup: checked }, (res) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        res.on("data", (c: Buffer) => {
+          chunks.push(c);
+          size += c.length;
+          if (size > MAX_BYTES) res.destroy();
+        });
+        const answer = () => {
+          const status = res.statusCode ?? 502;
+          ok(new Response([204, 205, 304].includes(status) ? null : Buffer.concat(chunks), { status: status < 200 || status > 599 ? 502 : status }));
+        };
+        res.on("end", answer);
+        res.on("close", answer); // destroyed past MAX_BYTES: what was read is enough to refuse it
+        res.on("error", fail);
+      });
+      req.on("error", fail);
+    });
+}
+
 /** Fetches the card at `url`: the card, or why not. Redirects are not followed and at most 64 KB are read. */
-export async function fetchCard(url: string, fetchFn: typeof fetch = fetch, resolver: Resolver = resolve): Promise<Card | CardFailure> {
+export async function fetchCard(url: string, fetchFn?: Fetcher, resolver: Resolver = resolve): Promise<Card | CardFailure> {
   if (!(await fetchable(url, resolver))) return "refused";
+  // e2e serves cards over http from this same server, which pinnedFetch would refuse.
+  const fetcher = fetchFn ?? (config.e2e() ? (u, init) => fetch(u, { ...init, redirect: "manual" }) : pinnedFetch(resolver));
   try {
-    const res = await fetchFn(url, { redirect: "manual", signal: AbortSignal.timeout(10_000), headers: { accept: "text/vcard" } });
+    const res = await fetcher(url, { signal: AbortSignal.timeout(10_000), headers: { accept: "text/vcard" } });
     if (res.status === 404 || res.status === 410) return "not_found";
     if (!res.ok) return "unreachable";
     const body = await res.arrayBuffer();
@@ -252,13 +336,7 @@ async function store(personId: string, got: Card | CardFailure): Promise<PersonC
  * Subscribes the person to the card at `url`, replacing any card they had, and fetches it once now. A URL that can't be
  * fetched at all (not https, or not a public address) is refused before anything is kept.
  */
-export async function subscribeCard(
-  v: Viewer,
-  personId: string,
-  url: string,
-  fetchFn: typeof fetch = fetch,
-  resolver: Resolver = resolve,
-): Promise<PersonCard> {
+export async function subscribeCard(v: Viewer, personId: string, url: string, fetchFn?: Fetcher, resolver: Resolver = resolve): Promise<PersonCard> {
   const u = url.trim();
   if (!(await fetchable(u, resolver))) throw new InvalidInputError("A card link must be an https address on the internet");
   const d = await db();
@@ -285,7 +363,7 @@ export async function personCard(personId: string): Promise<PersonCard | null> {
 const DAY = 86_400_000;
 
 /** Fetches every card not tried in the last day, one after another. Returns how many came back. */
-export async function refreshCards(at = now(), fetchFn: typeof fetch = fetch, resolver: Resolver = resolve): Promise<number> {
+export async function refreshCards(at = now(), fetchFn?: Fetcher, resolver: Resolver = resolve): Promise<number> {
   const rows = await (
     await db()
   )
