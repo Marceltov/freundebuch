@@ -15,16 +15,20 @@ interface Item {
 }
 
 export interface Schema {
+  /** A book: the people, conversations and items its members keep together; nothing in it points into another book. */
+  books: { id: string; name: string; created_by: string; created_at: number };
+  /** Who may open a book, and the person who is them in it ("me"). */
+  members: { book_id: string; user_id: string; person_id: string; created_at: number };
   users: {
     id: string;
     oidc_sub: string;
     name: string;
     email: string | null;
-    person_id: string | null;
     created_at: number;
     language: ColumnType<"de" | "en", "de" | "en" | undefined, "de" | "en">;
   };
   persons: {
+    book_id: string;
     id: string;
     name: string;
     created_by: string;
@@ -35,9 +39,10 @@ export interface Schema {
     /** JSON of a Look (backend/people/looks.ts), or null. */
     look: ColumnType<string | null, string | null | undefined, string | null>;
   };
-  aliases: { person_id: string; alias: string; norm: string };
-  person_settings: { user_id: string; person_id: string; interval_days: number | null; interval_confirmed: Flag };
+  aliases: { book_id: string; person_id: string; alias: string; norm: string };
+  person_settings: { book_id: string; user_id: string; person_id: string; interval_days: number | null; interval_confirmed: Flag };
   conversations: {
+    book_id: string;
     id: string;
     date: string;
     kind: string;
@@ -53,9 +58,19 @@ export interface Schema {
   };
   /** What the user told, word for word: one ramble, split into conversations, journal entries and items that point to it. The
    * transcript is the recorder's whenever anything filed from it is private (`transcript_private`). */
-  rambles: { id: string; date: string; transcript: string; transcript_private: Flag; visibility: string; recorded_by: string; created_at: number };
-  participants: { conversation_id: string; person_id: string };
+  rambles: {
+    book_id: string;
+    id: string;
+    date: string;
+    transcript: string;
+    transcript_private: Flag;
+    visibility: string;
+    recorded_by: string;
+    created_at: number;
+  };
+  participants: { book_id: string; conversation_id: string; person_id: string };
   places: {
+    book_id: string;
     id: string;
     name: string;
     created_by: string;
@@ -67,6 +82,7 @@ export interface Schema {
   };
   /** Whose home a place is, as each user filed it. */
   place_owners: {
+    book_id: string;
     place_id: string;
     person_id: string;
     visibility: string;
@@ -75,8 +91,9 @@ export interface Schema {
     ramble_id: ColumnType<string | null, string | null | undefined, string | null>;
     created_at: number;
   };
-  place_aliases: { place_id: string; alias: string; norm: string };
+  place_aliases: { book_id: string; place_id: string; alias: string; norm: string };
   series: {
+    book_id: string;
     id: string;
     name: string;
     kind: string;
@@ -88,8 +105,9 @@ export interface Schema {
     recorded_by: string;
     created_at: number;
   };
-  series_skips: { series_id: string; date: string };
+  series_skips: { book_id: string; series_id: string; date: string };
   experiences: {
+    book_id: string;
     id: string;
     ramble_id: string;
     series_id: string | null;
@@ -102,12 +120,13 @@ export interface Schema {
     recorded_by: string;
     created_at: number;
   };
-  experience_people: { experience_id: string; person_id: string };
+  experience_people: { book_id: string; experience_id: string; person_id: string };
   /** What the user thinks and feels about their own life, cut from a ramble; private unless they share it. */
-  journal_entries: { id: string; ramble_id: string; date: string; text: string; visibility: string; recorded_by: string; created_at: number };
+  journal_entries: { book_id: string; id: string; ramble_id: string; date: string; text: string; visibility: string; recorded_by: string; created_at: number };
   /** The people a journal entry names. */
-  journal_mentions: { entry_id: string; person_id: string };
+  journal_mentions: { book_id: string; entry_id: string; person_id: string };
   facts: Item & {
+    book_id: string;
     id: string;
     person_id: string;
     text: string;
@@ -124,9 +143,18 @@ export interface Schema {
     /** On a situation: the day (YYYY-MM-DD) after which to ask how it went; null on any other kind. */
     check_after: ColumnType<string | null, string | null | undefined, string | null>;
   };
-  promises: Item & { id: string; person_id: string; text: string; by_me: number; due: string | null; done: Flag };
-  dates: Item & { id: string; person_id: string; kind: "birthday" | "anniversary" | "custom"; date: string; label: string | null; yearly: Flag };
+  promises: Item & { book_id: string; id: string; person_id: string; text: string; by_me: number; due: string | null; done: Flag };
+  dates: Item & {
+    book_id: string;
+    id: string;
+    person_id: string;
+    kind: "birthday" | "anniversary" | "custom";
+    date: string;
+    label: string | null;
+    yearly: Flag;
+  };
   exchanges: Item & {
+    book_id: string;
     id: string;
     person_id: string;
     kind: string;
@@ -136,11 +164,12 @@ export interface Schema {
     currency: string | null;
     settled: Flag;
   };
-  relationships: Item & { id: string; from_id: string; to_id: string; label: string; inverse: string; note: string | null };
-  /** `household`: the group of everyone who signs in (Haushalt), which can't be deleted. */
-  groups: { id: string; name: string; created_by: string | null; created_at: number; seeded: Flag; household: Flag };
-  group_aliases: { group_id: string; alias: string; norm: string };
+  relationships: Item & { book_id: string; id: string; from_id: string; to_id: string; label: string; inverse: string; note: string | null };
+  /** `household`: the book's own group of its members (Haushalt), which can't be deleted. */
+  groups: { book_id: string; id: string; name: string; created_by: string | null; created_at: number; seeded: Flag; household: Flag };
+  group_aliases: { book_id: string; group_id: string; alias: string; norm: string };
   group_members: {
+    book_id: string;
     group_id: string;
     person_id: string;
     visibility: string;
@@ -162,6 +191,7 @@ export interface Schema {
   own_cards: { id: string; user_id: string; label: string; card: string; key_hash: string | null; created_at: number; updated_at: number };
   /** The card subscribed to for a person: the last one fetched (JSON) and when, when it was last tried, and why that failed (a code), if it did. */
   card_subscriptions: {
+    book_id: string;
     person_id: string;
     url: string;
     card: string | null;
@@ -172,6 +202,7 @@ export interface Schema {
     created_at: number;
   };
   files: {
+    book_id: string;
     id: string;
     user_id: string;
     sha256: string;

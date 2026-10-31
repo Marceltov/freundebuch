@@ -36,7 +36,9 @@ export function db(): Promise<Kysely<Schema>> {
 }
 
 export const newId = (): string => randomUUID();
-export const now = (): number => Date.now();
+// Strictly increasing within the process, so rows created in one go still order by `created_at, id` (no rowid).
+let last = 0;
+export const now = (): number => (last = Math.max(Date.now(), last + 1));
 
 /** Test only: replaces the database with a fresh, migrated, in-memory one. */
 export async function resetDbForTests(): Promise<void> {
