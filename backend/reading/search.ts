@@ -2,7 +2,7 @@
 // the same readers as everywhere else, so only what the viewer may see can match: the partner's private items never do, not even
 // as a count, and a transcript only when the viewer may read it (V2). Plain matching on folded words, every word must occur;
 // not meaning search.
-import { db } from "../db";
+import { scope } from "../db/scope";
 import { InvalidInputError } from "../core/errors";
 import { listPlaces } from "../experiences/places";
 import { norm } from "../people/names";
@@ -51,14 +51,14 @@ export async function search(v: Viewer, query: string, limit = 20): Promise<Sear
   const words = searchWords(query);
   if (!words.length) throw new InvalidInputError("Give a word to search for");
   if (!Number.isInteger(limit) || limit < 1) throw new InvalidInputError("limit must be a positive whole number");
-  const d = await db();
+  const d = await scope(v);
   const hits: SearchHit[] = [];
 
   // Rambles the viewer may see a part of, and what was told in them.
   const rambles = await listRambles(v);
   const readable = rambles.length
     ? await d
-        .selectFrom("rambles")
+        .from("rambles")
         .select(["id", "transcript"])
         .where(
           "id",
@@ -110,7 +110,7 @@ export async function search(v: Viewer, query: string, limit = 20): Promise<Sear
   // Items about a person, filed in a conversation, with a ramble alone, or remembered without one.
   const items = async <T extends "facts" | "promises" | "exchanges" | "dates">(table: T) =>
     (await d
-      .selectFrom(table as "facts")
+      .from(table as "facts")
       .innerJoin("persons", "persons.id", `${table as "facts"}.person_id`)
       .select([
         `${table as "facts"}.id as id`,

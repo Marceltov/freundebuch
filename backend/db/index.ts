@@ -10,8 +10,10 @@ import { migrate } from "./migrations";
 import type { Schema } from "./schema";
 
 export type { Schema } from "./schema";
+/** Raw SQL fragments for expressions inside a scoped query; a whole raw query goes through backend/db. */
+export { sql } from "kysely";
 
-const state = processState("db", () => ({ db: undefined as Promise<Kysely<Schema>> | undefined }));
+const state = processState("db", () => ({ db: undefined as Promise<Kysely<Schema>> | undefined, raw: undefined as Kysely<Schema> | undefined }));
 
 async function open(file: string): Promise<Kysely<Schema>> {
   const d = await connect(file);
@@ -41,10 +43,17 @@ export const newId = (): string => randomUUID();
 let last = 0;
 export const now = (): number => (last = Math.max(Date.now(), last + 1));
 
-/** Test only: replaces the database with a fresh, migrated, in-memory one. */
+/** Test only: replaces the database with a fresh, migrated, in-memory one, every query checked for its book (check.ts). */
 export async function resetDbForTests(): Promise<void> {
-  const old = state.db;
-  state.db = open(":memory:").then((d) => d.withPlugin(new BookCheck()));
-  await state.db;
-  if (old) await (await old.catch(() => undefined))?.destroy();
+  const old = state.raw;
+  const raw = await open(":memory:");
+  state.raw = raw;
+  state.db = Promise.resolve(raw.withPlugin(new BookCheck()));
+  await old?.destroy();
+}
+
+/** Test only: the test database without the book check, for a test that plants or inspects rows by hand. */
+export function unchecked(): Kysely<Schema> {
+  if (!state.raw) throw new Error("resetDbForTests() first");
+  return state.raw;
 }

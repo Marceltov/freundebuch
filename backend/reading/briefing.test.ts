@@ -4,7 +4,7 @@ import { markOutdated } from "../conversations/corrections";
 import { recordConversation, remember } from "../conversations/conversations";
 import { addRelationship } from "../people/relationships";
 import { buildNetwork } from "../people/network";
-import { db } from "../db/testing";
+import { unchecked } from "../db/testing";
 import { NotFoundError } from "../core/errors";
 import { setCheckInInterval } from "../people/intervals";
 import { seed, type Seed } from "../testing/fixtures";
@@ -110,7 +110,7 @@ test("groups: the names of the groups the viewer may see the person in, each onc
 });
 
 test("superseded facts are not current", async () => {
-  const old = (await (await db()).selectFrom("facts").select("id").where("text", "=", "new job").executeTakeFirstOrThrow()).id;
+  const old = (await unchecked().selectFrom("facts").select("id").where("text", "=", "new job").executeTakeFirstOrThrow()).id;
   await record(s.a, { facts: [{ person: 0, text: "started at the museum", category: "work", supersedes: old }] });
   const texts = (await briefing(s.a, s.anna, "2026-10-23")).known.map((f) => f.text);
   expect(texts).toContain("started at the museum");
@@ -158,7 +158,7 @@ test("open: undone promises, unsettled exchanges and gift ideas, each shown per 
       { person: 0, kind: "gift_idea", direction: "to_them", text: "secret gift", private: true },
     ],
   });
-  const d = await db();
+  const d = unchecked();
   await d.updateTable("promises").set({ done: 1 }).where("text", "=", "send photos").execute();
   await record(s.a, { promises: [{ person: 0, text: "call back", byMe: true }] });
   const a = (await briefing(s.a, s.anna, "2026-10-23")).open;

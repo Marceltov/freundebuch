@@ -3,7 +3,7 @@
 // never revealed. Either user may mark done, edit or delete a shared item; only its recorder changes its visibility. A
 // conversation stays its recorder's: deleting it takes items with it the partner may not see. A private item is only ever
 // visible to its recorder anyway.
-import type { Kysely } from "kysely";
+import { scope, type Scope } from "../db/scope";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "../people/dates";
 import { moveMembership } from "../people/groups";
 import {
@@ -17,8 +17,8 @@ import {
   SITUATION_DAYS,
   type FiledRelationship,
 } from "./conversations";
-import { resolveTarget, type Target } from "../people/household";
-import { db, now, type Schema } from "../db";
+import { memberPersons, resolveTarget, type Target } from "../people/household";
+import { now } from "../db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
 import { norm } from "../people/names";
 import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, VISIBILITIES, type FactKind, type Viewer, type Visibility } from "../core/types";
@@ -54,12 +54,12 @@ type Row = {
 type Who = "viewer" | "editor" | "recorder";
 
 /** The row, when the viewer can see it (else not_found) and may act on it as `who` says (else forbidden). */
-async function load(d: Kysely<Schema>, v: Viewer, table: ItemTable, id: string, who: Who): Promise<Row> {
+async function load(d: Scope, v: Viewer, table: ItemTable, id: string, who: Who): Promise<Row> {
   assertTable(table);
   // One query shape for every table; the columns read here exist on all of them (a conversation has no conversation_id).
   const t = table as "facts";
   const row = (await d
-    .selectFrom(t)
+    .from(t)
     .selectAll()
     .where("id", "=", id)
     .$call((qb) => visible(qb, v, t))
@@ -81,10 +81,10 @@ const DONE_COLUMN = { promises: "done", exchanges: "settled" } as const;
 /** Marks a promise done or an exchange settled. A shared one may be marked by either user; a private one is invisible to the other. */
 export async function markDone(v: Viewer, table: "promises" | "exchanges", id: string): Promise<void> {
   if (!(table in DONE_COLUMN)) throw new InvalidInputError(`Only promises and exchanges can be marked done, not "${table}"`);
-  const d = await db();
+  const d = await scope(v);
   await load(d, v, table, id, "viewer");
   await d
-    .updateTable(table as "promises")
+    .update(table as "promises")
     .set({ [DONE_COLUMN[table]]: 1 } as { done: number })
     .where("id", "=", id)
     .execute();
@@ -93,9 +93,9 @@ export async function markDone(v: Viewer, table: "promises" | "exchanges", id: s
 /** A fact as it stands after a correction, with the name of the person it is about. */
 export type FactState = { id: string; personId: string; name: string; text: string; kind: FactKind; checkAfter: string | null; status: "current" | "outdated" };
 
-async function factState(d: Kysely<Schema>, id: string): Promise<FactState> {
+async function factState(d: Scope, id: string): Promise<FactState> {
   const f = await d
-    .selectFrom("facts")
+    .from("facts")
     .innerJoin("persons", "persons.id", "facts.person_id")
     .select(["facts.id", "facts.person_id", "persons.name", "facts.text", "facts.kind", "facts.check_after", "facts.status"])
     .where("facts.id", "=", id)
@@ -113,9 +113,9 @@ async function factState(d: Kysely<Schema>, id: string): Promise<FactState> {
 
 /** Marks a fact outdated. A shared fact may be marked by either user. */
 export async function markOutdated(v: Viewer, factId: string): Promise<FactState> {
-  const d = await db();
+  const d = await scope(v);
   await load(d, v, "facts", factId, "viewer");
-  await d.updateTable("facts").set({ status: "outdated" }).where("id", "=", factId).execute();
+  await d.update("facts").set({ status: "outdated" }).where("id", "=", factId).execute();
   return factState(d, factId);
 }
 
@@ -261,7 +261,7 @@ export async function editItem(
   patch: Record<string, unknown>,
 ): Promise<{ fact?: FactState & { defaultCheckAfter: boolean } }> {
   assertTable(table);
-  const d = await db();
+  const d = await scope(v);
   const row = await load(d, v, table, id, "editor");
   const keys = Object.keys(patch);
   if (!keys.length) throw new InvalidInputError("Nothing to change");
@@ -292,7 +292,7 @@ export async function editItem(
     }
   }
   // One transaction: a new place is made only when the edit lands.
-  await d.transaction().execute(async (tx) => {
+  await d.transaction(async (tx) => {
     if ((table === "conversations" || table === "experiences" || table === "series") && "place" in set) {
       set.place_id =
         set.place === null || set.place === ""
@@ -303,7 +303,7 @@ export async function editItem(
     // A conversation's transcript is its ramble's.
     if (table === "conversations" && "transcript" in set) {
       await tx
-        .updateTable("rambles")
+        .update("rambles")
         .set({ transcript: set.transcript as string })
         .where("id", "=", rambleOf(tx, id))
         .execute();
@@ -311,7 +311,7 @@ export async function editItem(
     }
     if (Object.keys(set).length)
       await tx
-        .updateTable(table as "facts")
+        .update(table as "facts")
         .set(set)
         .where("id", "=", id)
         .execute();
@@ -323,16 +323,16 @@ export async function editItem(
  * Whether the ramble, or any part told in it, is private: its conversations, journal entries and every item filed from it
  * (memberships included), with a conversation or without one.
  */
-async function holdsPrivate(d: Kysely<Schema>, rambleId: string): Promise<boolean> {
-  const r = await d.selectFrom("rambles").select("visibility").where("id", "=", rambleId).executeTakeFirst();
+async function holdsPrivate(d: Scope, rambleId: string): Promise<boolean> {
+  const r = await d.from("rambles").select("visibility").where("id", "=", rambleId).executeTakeFirst();
   if (r?.visibility === "private") return true;
-  const conversations = d.selectFrom("conversations").select("id").where("ramble_id", "=", rambleId);
+  const conversations = d.from("conversations").select("id").where("ramble_id", "=", rambleId);
   for (const t of ["conversations", "journal_entries", "experiences"] as const)
-    if (await d.selectFrom(t).select("id").where("ramble_id", "=", rambleId).where("visibility", "=", "private").executeTakeFirst()) return true;
+    if (await d.from(t).select("id").where("ramble_id", "=", rambleId).where("visibility", "=", "private").executeTakeFirst()) return true;
   for (const t of [...CONVERSATION_ITEMS, "group_members"] as const)
     if (
       await d
-        .selectFrom(t as "facts")
+        .from(t as "facts")
         .select("visibility")
         .where((eb) => eb.or([eb("ramble_id", "=", rambleId), eb("conversation_id", "in", conversations)]))
         .where("visibility", "=", "private")
@@ -347,15 +347,15 @@ async function holdsPrivate(d: Kysely<Schema>, rambleId: string): Promise<boolea
  * transcript still holds the text of a private part that was later deleted or shared, so only the recorder's explicit
  * `shareTranscript` may lower it.
  */
-async function raiseTranscriptPrivacy(d: Kysely<Schema>, rambleId: string): Promise<void> {
-  if (await holdsPrivate(d, rambleId)) await d.updateTable("rambles").set({ transcript_private: 1 }).where("id", "=", rambleId).execute();
+async function raiseTranscriptPrivacy(d: Scope, rambleId: string): Promise<void> {
+  if (await holdsPrivate(d, rambleId)) await d.update("rambles").set({ transcript_private: 1 }).where("id", "=", rambleId).execute();
 }
 
 /** The ramble a conversation was told in, as a subquery. */
-const rambleOf = (d: Kysely<Schema>, conversationId: string) => d.selectFrom("conversations").select("ramble_id").where("id", "=", conversationId);
+const rambleOf = (d: Scope, conversationId: string) => d.from("conversations").select("ramble_id").where("id", "=", conversationId);
 
 /** The ramble an item was told in: its own, or its conversation's; null for one filed outside a ramble. */
-async function rambleOfRow(d: Kysely<Schema>, table: ItemTable, row: Row): Promise<string | null> {
+async function rambleOfRow(d: Scope, table: ItemTable, row: Row): Promise<string | null> {
   if (row.ramble_id) return row.ramble_id;
   if (table === "conversations") return (await rambleOf(d, row.id).executeTakeFirst())?.ramble_id ?? null;
   if (row.conversation_id) return (await rambleOf(d, row.conversation_id).executeTakeFirst())?.ramble_id ?? null;
@@ -367,10 +367,10 @@ async function rambleOfRow(d: Kysely<Schema>, table: ItemTable, row: Row): Promi
  * recorder's word that it holds nothing private any more. Refused while the ramble or any part of it is private.
  */
 export async function shareTranscript(v: Viewer, id: string): Promise<void> {
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
     const own = await tx
-      .selectFrom("rambles")
+      .from("rambles")
       .select(["id", "recorded_by"])
       .where("id", "=", id)
       .$call((qb) => visible(qb, v, "rambles"))
@@ -382,7 +382,7 @@ export async function shareTranscript(v: Viewer, id: string): Promise<void> {
     } else rambleId = (await rambleOfRow(tx, "conversations", await load(tx, v, "conversations", id, "recorder")))!;
     if (await holdsPrivate(tx, rambleId))
       throw new InvalidInputError("Something told in this ramble is private: share it first, or keep the transcript private");
-    await tx.updateTable("rambles").set({ transcript_private: 0 }).where("id", "=", rambleId).execute();
+    await tx.update("rambles").set({ transcript_private: 0 }).where("id", "=", rambleId).execute();
   });
 }
 
@@ -393,14 +393,14 @@ export async function shareTranscript(v: Viewer, id: string): Promise<void> {
 export async function setVisibility(v: Viewer, table: ItemTable, id: string, visibility: Visibility): Promise<void> {
   assertTable(table);
   if (!VISIBILITIES.includes(visibility)) throw new InvalidInputError(`Visibility must be one of ${VISIBILITIES.join(", ")}`);
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
     const row = await load(tx, v, table, id, "recorder");
     if (visibility === "private") await assertReplacesNothingShared(tx, table, id);
     // A private conversation forces private on all its items; share the conversation first.
     if (table === "experiences" && visibility === "shared") {
       const series = await tx
-        .selectFrom("experiences")
+        .from("experiences")
         .innerJoin("series", "series.id", "experiences.series_id")
         .select("series.visibility")
         .where("experiences.id", "=", id)
@@ -408,11 +408,11 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
       if (series?.visibility === "private") throw new InvalidInputError("This experience belongs to a private series: share the series first");
     }
     if (table !== "conversations" && visibility === "shared" && row.conversation_id) {
-      const parent = await tx.selectFrom("conversations").select("visibility").where("id", "=", row.conversation_id).executeTakeFirst();
+      const parent = await tx.from("conversations").select("visibility").where("id", "=", row.conversation_id).executeTakeFirst();
       if (parent?.visibility === "private") throw new InvalidInputError("This item belongs to a private conversation: share the conversation first");
     }
     await tx
-      .updateTable(table as "facts")
+      .update(table as "facts")
       .set({ visibility })
       .where("id", "=", id)
       .execute();
@@ -420,7 +420,7 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
       if (visibility === "private") {
         for (const t of [...CONVERSATION_ITEMS, "group_members"] as const)
           await tx
-            .updateTable(t as "facts")
+            .update(t as "facts")
             .set({ visibility })
             .where("conversation_id", "=", id)
             .execute();
@@ -428,8 +428,8 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
     }
     // A series made private takes the viewer's sessions with it, and makes their transcripts private.
     if (table === "series" && visibility === "private") {
-      const sessions = await tx.selectFrom("experiences").select("ramble_id").where("series_id", "=", id).where("recorded_by", "=", v.userId).execute();
-      await tx.updateTable("experiences").set({ visibility }).where("series_id", "=", id).where("recorded_by", "=", v.userId).execute();
+      const sessions = await tx.from("experiences").select("ramble_id").where("series_id", "=", id).where("recorded_by", "=", v.userId).execute();
+      await tx.update("experiences").set({ visibility }).where("series_id", "=", id).where("recorded_by", "=", v.userId).execute();
       for (const s of sessions) await raiseTranscriptPrivacy(tx, s.ramble_id);
     }
     const rambleId = await rambleOfRow(tx, table, row);
@@ -437,7 +437,7 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
     // A part shared makes its ramble exist for the partner (the transcript stays as it was); a part made private makes the
     // transcript private.
     if (visibility === "shared" && (table === "conversations" || table === "journal_entries" || table === "experiences"))
-      await tx.updateTable("rambles").set({ visibility }).where("id", "=", rambleId).execute();
+      await tx.update("rambles").set({ visibility }).where("id", "=", rambleId).execute();
     await raiseTranscriptPrivacy(tx, rambleId);
   });
 }
@@ -446,10 +446,10 @@ export async function setVisibility(v: Viewer, table: ItemTable, id: string, vis
  * A fact that replaced a shared fact stays shared, as recordConversation demands of it at the start: private, it would leave the
  * partner's fact outdated with no successor they can see. Checked for the fact itself, or for every fact of a conversation.
  */
-async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, id: string): Promise<void> {
+async function assertReplacesNothingShared(d: Scope, table: ItemTable, id: string): Promise<void> {
   if (table !== "facts" && table !== "conversations") return;
   const replaced = await d
-    .selectFrom("facts as old")
+    .from("facts as old")
     .innerJoin("facts as new", "new.id", "old.superseded_by")
     .select("old.id")
     .where("old.visibility", "=", "shared")
@@ -462,27 +462,26 @@ async function assertReplacesNothingShared(d: Kysely<Schema>, table: ItemTable, 
 
 /** Marks a session day of a series the viewer may see as skipped, so it isn't asked about as missing. */
 export async function skipSession(v: Viewer, seriesId: string, date: string): Promise<void> {
-  const d = await db();
+  const d = await scope(v);
   await load(d, v, "series", seriesId, "viewer");
   await d
-    .insertInto("series_skips")
-    .values({ series_id: seriesId, date: day(date, "The skipped day") })
+    .insert("series_skips", { series_id: seriesId, date: day(date, "The skipped day") })
     .onConflict((oc) => oc.doNothing())
     .execute();
 }
 
 /** Whether anything is left that was told in the ramble. */
-async function holdsAnything(d: Kysely<Schema>, rambleId: string): Promise<boolean> {
+async function holdsAnything(d: Scope, rambleId: string): Promise<boolean> {
   for (const t of ["conversations", "journal_entries", "experiences", ...CONVERSATION_ITEMS] as const)
     if (
       await d
-        .selectFrom(t as "facts")
+        .from(t as "facts")
         .select("id")
         .where("ramble_id", "=", rambleId)
         .executeTakeFirst()
     )
       return true;
-  return !!(await d.selectFrom("group_members").select("group_id").where("ramble_id", "=", rambleId).executeTakeFirst());
+  return !!(await d.from("group_members").select("group_id").where("ramble_id", "=", rambleId).executeTakeFirst());
 }
 
 /**
@@ -491,15 +490,15 @@ async function holdsAnything(d: Kysely<Schema>, rambleId: string): Promise<boole
  */
 export async function deleteItem(v: Viewer, table: ItemTable, id: string): Promise<void> {
   assertTable(table);
-  const d = await db();
+  const d = await scope(v);
   const row = await load(d, v, table, id, "editor");
   const ramble = table === "conversations" || table === "journal_entries" || table === "experiences" ? await rambleOfRow(d, table, row) : null;
   await d
-    .deleteFrom(table as "facts")
+    .delete(table as "facts")
     .where("id", "=", id)
     .execute();
   // A ramble goes with the last part told in it.
-  if (ramble && !(await holdsAnything(d, ramble))) await d.deleteFrom("rambles").where("id", "=", ramble).execute();
+  if (ramble && !(await holdsAnything(d, ramble))) await d.delete("rambles").where("id", "=", ramble).execute();
   // A fact filed from a shared file takes the file with it once nothing else names it.
   if (table === "facts") await pruneFiles();
 }
@@ -514,8 +513,8 @@ export async function factToRelationship(
   r: { from: Target; to: Target; label: string; inverse: string; note?: string },
 ): Promise<{ ids: string[]; relationships: FiledRelationship[] }> {
   checkRelationship(r, () => {});
-  const d = await db();
-  const relationships = await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  const relationships = await d.transaction(async (tx) => {
     const fact = (await load(tx, v, "facts", factId, "editor")) as Row & { person_id: string };
     const [froms, tos] = await Promise.all([resolveTarget(tx, v, r.from), resolveTarget(tx, v, r.to)]);
     if (!froms.includes(fact.person_id) && !tos.includes(fact.person_id))
@@ -526,7 +525,7 @@ export async function factToRelationship(
       { recorded_by: v.userId, conversation_id: fact.conversation_id ?? null, ramble_id: fact.ramble_id ?? null, created_at: now() },
       { ...r, visibility: fact.visibility as Visibility },
     );
-    await tx.deleteFrom("facts").where("id", "=", factId).execute();
+    await tx.delete("facts").where("id", "=", factId).execute();
     return filed;
   });
   await pruneFiles();
@@ -538,13 +537,12 @@ export async function factToRelationship(
  * visibility: who sees it sees who was there. NotFoundError for no such person or a conversation the viewer can't see.
  */
 export async function addParticipant(v: Viewer, conversationId: string, personId: string): Promise<void> {
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
     await load(tx, v, "conversations", conversationId, "recorder");
-    if (!(await tx.selectFrom("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
+    if (!(await tx.from("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
     await tx
-      .insertInto("participants")
-      .values({ conversation_id: conversationId, person_id: personId })
+      .insert("participants", { conversation_id: conversationId, person_id: personId })
       .onConflict((oc) => oc.doNothing())
       .execute();
   });
@@ -552,17 +550,12 @@ export async function addParticipant(v: Viewer, conversationId: string, personId
 
 /** Takes someone out of a conversation the viewer recorded, who wasn't there after all; a conversation keeps at least one person. */
 export async function removeParticipant(v: Viewer, conversationId: string, personId: string): Promise<void> {
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
     await load(tx, v, "conversations", conversationId, "recorder");
-    const others = await tx
-      .selectFrom("participants")
-      .select("person_id")
-      .where("conversation_id", "=", conversationId)
-      .where("person_id", "!=", personId)
-      .execute();
+    const others = await tx.from("participants").select("person_id").where("conversation_id", "=", conversationId).where("person_id", "!=", personId).execute();
     if (!others.length) throw new InvalidInputError("A conversation needs at least one person: delete it instead, or add who was there first");
-    await tx.deleteFrom("participants").where("conversation_id", "=", conversationId).where("person_id", "=", personId).execute();
+    await tx.delete("participants").where("conversation_id", "=", conversationId).where("person_id", "=", personId).execute();
   });
 }
 
@@ -570,12 +563,12 @@ export async function renamePerson(v: Viewer, id: string, name: string): Promise
   void v;
   const n = name.trim();
   if (!n) throw new InvalidInputError("A person needs a name");
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
-    if (!(await tx.selectFrom("persons").select("id").where("id", "=", id).executeTakeFirst())) throw new NotFoundError("No such person");
-    await tx.updateTable("persons").set({ name: n }).where("id", "=", id).execute();
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
+    if (!(await tx.from("persons").select("id").where("id", "=", id).executeTakeFirst())) throw new NotFoundError("No such person");
+    await tx.update("persons").set({ name: n }).where("id", "=", id).execute();
     // An alias that matches the name adds nothing (insertAlias never stores one).
-    await tx.deleteFrom("aliases").where("person_id", "=", id).where("norm", "=", norm(n)).execute();
+    await tx.delete("aliases").where("person_id", "=", id).where("norm", "=", norm(n)).execute();
   });
 }
 
@@ -589,85 +582,80 @@ export type Moved = { facts: number; promises: number; dates: number; exchanges:
  */
 export async function mergePeople(v: Viewer, keepId: string, dropId: string): Promise<{ kept: string; dropped: string; moved: Moved }> {
   if (keepId === dropId) throw new InvalidInputError("Can't merge a person into themselves");
-  const d = await db();
-  return d.transaction().execute(async (tx) => {
-    const keep = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", keepId).executeTakeFirst();
-    const drop = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", dropId).executeTakeFirst();
+  const d = await scope(v);
+  return d.transaction(async (tx) => {
+    const keep = await tx.from("persons").select(["id", "name"]).where("id", "=", keepId).executeTakeFirst();
+    const drop = await tx.from("persons").select(["id", "name"]).where("id", "=", dropId).executeTakeFirst();
     if (!keep || !drop) throw new NotFoundError("No such person");
-    const own = await tx.selectFrom("users").select("id").where("person_id", "=", dropId).executeTakeFirst();
+    const own = [...(await memberPersons(tx)).values()].includes(dropId);
     if (own) throw new InvalidInputError("Can't merge a user's own person");
     const moved = await movable(tx, v, keepId, dropId);
 
     for (const t of ["facts", "promises", "dates", "exchanges"] as const)
-      await tx.updateTable(t).set({ person_id: keepId }).where("person_id", "=", dropId).execute();
+      await tx.update(t).set({ person_id: keepId }).where("person_id", "=", dropId).execute();
 
     // A relationship between the two would become one with itself.
     await tx
-      .deleteFrom("relationships")
+      .delete("relationships")
       .where((eb) => eb.or([eb.and([eb("from_id", "=", keepId), eb("to_id", "=", dropId)]), eb.and([eb("from_id", "=", dropId), eb("to_id", "=", keepId)])]))
       .execute();
-    await tx.updateTable("relationships").set({ from_id: keepId }).where("from_id", "=", dropId).execute();
-    await tx.updateTable("relationships").set({ to_id: keepId }).where("to_id", "=", dropId).execute();
+    await tx.update("relationships").set({ from_id: keepId }).where("from_id", "=", dropId).execute();
+    await tx.update("relationships").set({ to_id: keepId }).where("to_id", "=", dropId).execute();
 
     // The dropped name stays findable as an alias, unless it is the same name once normalised.
-    const aliases = await tx.selectFrom("aliases").select("alias").where("person_id", "=", dropId).execute();
+    const aliases = await tx.from("aliases").select("alias").where("person_id", "=", dropId).execute();
     for (const alias of [drop.name, ...aliases.map((a) => a.alias)]) {
       if (norm(alias) === norm(keep.name)) continue;
       await tx
-        .insertInto("aliases")
-        .values({ person_id: keepId, alias, norm: norm(alias) })
+        .insert("aliases", { person_id: keepId, alias, norm: norm(alias) })
         .onConflict((oc) => oc.doNothing())
         .execute();
     }
-    await tx.deleteFrom("aliases").where("person_id", "=", dropId).execute();
+    await tx.delete("aliases").where("person_id", "=", dropId).execute();
 
-    for (const p of await tx.selectFrom("participants").select("conversation_id").where("person_id", "=", dropId).execute())
+    for (const p of await tx.from("participants").select("conversation_id").where("person_id", "=", dropId).execute())
       await tx
-        .insertInto("participants")
-        .values({ conversation_id: p.conversation_id, person_id: keepId })
+        .insert("participants", { conversation_id: p.conversation_id, person_id: keepId })
         .onConflict((oc) => oc.doNothing())
         .execute();
-    await tx.deleteFrom("participants").where("person_id", "=", dropId).execute();
+    await tx.delete("participants").where("person_id", "=", dropId).execute();
     // Journal entries that named the one merged away name the one kept.
-    for (const m of await tx.selectFrom("journal_mentions").select("entry_id").where("person_id", "=", dropId).execute())
+    for (const m of await tx.from("journal_mentions").select("entry_id").where("person_id", "=", dropId).execute())
       await tx
-        .insertInto("journal_mentions")
-        .values({ entry_id: m.entry_id, person_id: keepId })
+        .insert("journal_mentions", { entry_id: m.entry_id, person_id: keepId })
         .onConflict((oc) => oc.doNothing())
         .execute();
-    await tx.deleteFrom("journal_mentions").where("person_id", "=", dropId).execute();
+    await tx.delete("journal_mentions").where("person_id", "=", dropId).execute();
     // So do the experiences they were at.
-    for (const m of await tx.selectFrom("experience_people").select("experience_id").where("person_id", "=", dropId).execute())
+    for (const m of await tx.from("experience_people").select("experience_id").where("person_id", "=", dropId).execute())
       await tx
-        .insertInto("experience_people")
-        .values({ experience_id: m.experience_id, person_id: keepId })
+        .insert("experience_people", { experience_id: m.experience_id, person_id: keepId })
         .onConflict((oc) => oc.doNothing())
         .execute();
-    await tx.deleteFrom("experience_people").where("person_id", "=", dropId).execute();
+    await tx.delete("experience_people").where("person_id", "=", dropId).execute();
     // And their homes, each recorder's ownership once.
-    for (const o of await tx.selectFrom("place_owners").selectAll().where("person_id", "=", dropId).execute())
+    for (const o of await tx.from("place_owners").selectAll().where("person_id", "=", dropId).execute())
       await tx
-        .insertInto("place_owners")
-        .values({ ...o, person_id: keepId })
+        .insert("place_owners", { ...o, person_id: keepId })
         .onConflict((oc) => oc.doNothing())
         .execute();
-    await tx.deleteFrom("place_owners").where("person_id", "=", dropId).execute();
+    await tx.delete("place_owners").where("person_id", "=", dropId).execute();
 
-    for (const m of await tx.selectFrom("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute())
+    for (const m of await tx.from("group_members").select(["group_id", "recorded_by"]).where("person_id", "=", dropId).execute())
       await moveMembership(tx, m.recorded_by, { group_id: m.group_id, person_id: dropId }, { group_id: m.group_id, person_id: keepId });
 
     // Settings are per user. The confirmed interval wins; with both or neither confirmed, the smaller one does.
-    for (const dropped of await tx.selectFrom("person_settings").selectAll().where("person_id", "=", dropId).execute()) {
-      const kept = await tx.selectFrom("person_settings").selectAll().where("person_id", "=", keepId).where("user_id", "=", dropped.user_id).executeTakeFirst();
+    for (const dropped of await tx.from("person_settings").selectAll().where("person_id", "=", dropId).execute()) {
+      const kept = await tx.from("person_settings").selectAll().where("person_id", "=", keepId).where("user_id", "=", dropped.user_id).executeTakeFirst();
       if (!kept) {
-        await tx.updateTable("person_settings").set({ person_id: keepId }).where("person_id", "=", dropId).where("user_id", "=", dropped.user_id).execute();
+        await tx.update("person_settings").set({ person_id: keepId }).where("person_id", "=", dropId).where("user_id", "=", dropped.user_id).execute();
         continue;
       }
       let winner = kept;
       if (kept.interval_confirmed !== dropped.interval_confirmed) winner = kept.interval_confirmed ? kept : dropped;
       else if (dropped.interval_days !== null && (kept.interval_days === null || dropped.interval_days < kept.interval_days)) winner = dropped;
       await tx
-        .updateTable("person_settings")
+        .update("person_settings")
         .set({
           interval_days: winner.interval_days,
           interval_confirmed: winner.interval_confirmed,
@@ -677,18 +665,18 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
         .execute();
     }
 
-    await tx.deleteFrom("persons").where("id", "=", dropId).execute(); // takes the remaining settings and rows with it
+    await tx.delete("persons").where("id", "=", dropId).execute(); // takes the remaining settings and rows with it
     return { kept: keep.name, dropped: drop.name, moved };
   });
 }
 
 /** What of `dropId` a merge into `keepId` moves over, counting only rows the viewer may see. */
-async function movable(tx: Kysely<Schema>, v: Viewer, keepId: string, dropId: string): Promise<Moved> {
+async function movable(tx: Scope, v: Viewer, keepId: string, dropId: string): Promise<Moved> {
   const count = async (q: { executeTakeFirstOrThrow(): Promise<{ n: number | string | bigint }> }) => Number((await q.executeTakeFirstOrThrow()).n);
   const items = async (t: "facts" | "promises" | "dates" | "exchanges") =>
     count(
       tx
-        .selectFrom(t)
+        .from(t)
         .select((eb) => eb.fn.countAll().as("n"))
         .where("person_id", "=", dropId)
         .$call((qb) => visible(qb, v, t)),
@@ -701,7 +689,7 @@ async function movable(tx: Kysely<Schema>, v: Viewer, keepId: string, dropId: st
     // One between the two goes instead.
     relationships: await count(
       tx
-        .selectFrom("relationships")
+        .from("relationships")
         .select((eb) => eb.fn.countAll().as("n"))
         .where((eb) => eb.or([eb("from_id", "=", dropId), eb("to_id", "=", dropId)]))
         .where((eb) => eb.and([eb("from_id", "!=", keepId), eb("to_id", "!=", keepId)]))
@@ -709,7 +697,7 @@ async function movable(tx: Kysely<Schema>, v: Viewer, keepId: string, dropId: st
     ),
     conversations: await count(
       tx
-        .selectFrom("participants")
+        .from("participants")
         .innerJoin("conversations", "conversations.id", "participants.conversation_id")
         .select((eb) => eb.fn.countAll().as("n"))
         .where("participants.person_id", "=", dropId)
@@ -717,7 +705,7 @@ async function movable(tx: Kysely<Schema>, v: Viewer, keepId: string, dropId: st
     ),
     groups: await count(
       tx
-        .selectFrom("group_members")
+        .from("group_members")
         .select((eb) => eb.fn.countAll().as("n"))
         .where("person_id", "=", dropId)
         .$call((qb) => visible(qb, v, "group_members")),

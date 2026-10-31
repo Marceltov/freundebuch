@@ -79,7 +79,7 @@ export async function shareRoute(req: Request): Promise<Response> {
   if (!file) return json({ error: "Send the file as the body, or as the form field `file`", code: "invalid_request", message: copy.shareUnreadable }, 400);
   try {
     const shot = await shareFile(v, file.bytes, file.type, file.batch);
-    if (!shot.duplicate) void queueRead(shot.id, model);
+    if (!shot.duplicate) void queueRead(v, shot.id, model);
     // `message` is what the Shortcut shows.
     // `url` is where it waits, for the Shortcut to open as its last step.
     // An absolute address even without PUBLIC_URL: the Shortcut can't open a path.

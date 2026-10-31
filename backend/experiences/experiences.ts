@@ -1,10 +1,10 @@
 // Experiences: what the user lived through on a day (a concert, a trip, a dog-school lesson), as parts of a ramble, and series
 // of them (a course, a weekly training). Claude files them with record (conversations.ts); nothing here interprets. A series
 // stays a memory: nothing removes it on its own. Every read goes through visible().
-import { sql, type Kysely } from "kysely";
+import { scope, type Scope } from "../db/scope";
 import { assertDay, notFuture, today as todayOf } from "../people/dates";
 import { missedSessions } from "./sessions";
-import { db, newId, type Schema } from "../db";
+import { sql, newId } from "../db";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { norm } from "../people/names";
 import { describePlace, fileOwnersOf, ownersOf, placeAndInsideIds, resolvePlace, type PlaceCandidate, type PlaceRef } from "./places";
@@ -62,7 +62,7 @@ export function validateExperiences(xs: NewExperience[], people: number): void {
 
 /** The series an experience names, in `tx`: one the viewer may see by id or exact name, else a new one, private in a private ramble. */
 async function resolveSeries(
-  tx: Kysely<Schema>,
+  tx: Scope,
   v: Viewer,
   ref: SeriesRef,
   x: NewExperience,
@@ -73,7 +73,7 @@ async function resolveSeries(
 ) {
   const seen = () =>
     tx
-      .selectFrom("series")
+      .from("series")
       .selectAll()
       .$call((qb) => visible(qb, v, "series"));
   if (typeof ref === "string") {
@@ -96,7 +96,7 @@ async function resolveSeries(
     recorded_by: v.userId,
     created_at: t,
   };
-  await tx.insertInto("series").values(row).execute();
+  await tx.insert("series", row).execute();
   return row;
 }
 
@@ -105,7 +105,7 @@ async function resolveSeries(
  * the ramble, its series or the experience itself is.
  */
 export async function insertExperiences(
-  tx: Kysely<Schema>,
+  tx: Scope,
   v: Viewer,
   r: { rambleId: string; date: string; visibility: Visibility },
   xs: NewExperience[],
@@ -126,8 +126,7 @@ export async function insertExperiences(
     await fileOwnersOf(tx, v, x.place, levels, (o) => (o === "me" || o === "us" ? o : personIds[o]), visibility, r.rambleId);
     const id = newId();
     await tx
-      .insertInto("experiences")
-      .values({
+      .insert("experiences", {
         id,
         ramble_id: r.rambleId,
         series_id: series?.id ?? null,
@@ -142,7 +141,7 @@ export async function insertExperiences(
       })
       .execute();
     for (const personId of new Set([v.personId, ...(x.present ?? []).map((p) => personIds[p])]))
-      await tx.insertInto("experience_people").values({ experience_id: id, person_id: personId }).execute();
+      await tx.insert("experience_people", { experience_id: id, person_id: personId }).execute();
     out.push({ id, url: series ? `${seriesPath(series.id)}#experience-${id}` : `/r/${r.rambleId}#experience-${id}`, seriesId: series?.id ?? null, visibility });
   }
   return out;
@@ -177,9 +176,9 @@ export type ExperienceQuery = {
 
 /** The experiences the viewer may see, newest first, narrowed by period, kind (any case), place, series or a person who was there. */
 export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promise<ExperienceView[]> {
-  const d = await db();
+  const d = await scope(v);
   let query = d
-    .selectFrom("experiences")
+    .from("experiences")
     .selectAll()
     .$call((qb) => visible(qb, v, "experiences"))
     .orderBy("date", "desc")
@@ -189,7 +188,7 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
   if (q.kind) query = query.where(sql<string>`lower(kind)`, "=", q.kind.trim().toLowerCase());
   if (q.placeId) query = query.where("place_id", "in", placeAndInsideIds(d, v, q.placeId));
   if (q.seriesId) query = query.where("series_id", "=", q.seriesId);
-  if (q.personId) query = query.where("id", "in", (eb) => eb.selectFrom("experience_people").select("experience_id").where("person_id", "=", q.personId!));
+  if (q.personId) query = query.where("id", "in", (await scope(v)).from("experience_people").select("experience_id").where("person_id", "=", q.personId!));
   if (q.ids) query = query.where("id", "in", q.ids.length ? q.ids : [""]);
   if (q.limit) query = query.limit(q.limit);
   const rows = await query.execute();
@@ -197,7 +196,7 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
   const ids = rows.map((r) => r.id);
   const [people, places, series] = await Promise.all([
     d
-      .selectFrom("experience_people")
+      .from("experience_people")
       .innerJoin("persons", "persons.id", "experience_people.person_id")
       .select(["experience_people.experience_id", "persons.id", "persons.name"])
       .where("experience_id", "in", ids)
@@ -205,12 +204,12 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
       .orderBy("persons.name")
       .execute(),
     d
-      .selectFrom("places")
+      .from("places")
       .select(["id", "name"])
       .where("id", "in", [...new Set(rows.flatMap((r) => (r.place_id ? [r.place_id] : [])))].concat([""]))
       .execute(),
     d
-      .selectFrom("series")
+      .from("series")
       .select(["id", "name"])
       .where("id", "in", [...new Set(rows.flatMap((r) => (r.series_id ? [r.series_id] : [])))].concat([""]))
       .$call((qb) => visible(qb, v, "series"))
@@ -241,9 +240,9 @@ export async function listExperiences(v: Viewer, q: ExperienceQuery = {}): Promi
 /** The kinds the viewer's visible experiences use, most used first, so Claude keeps "Konzert" "Konzert". */
 export async function experienceKinds(v: Viewer): Promise<string[]> {
   const rows = await (
-    await db()
+    await scope(v)
   )
-    .selectFrom("experiences")
+    .from("experiences")
     .select(["kind", (eb) => eb.fn.countAll<number>().as("n")])
     .$call((qb) => visible(qb, v, "experiences"))
     .groupBy("kind")
@@ -256,9 +255,9 @@ export async function experienceKinds(v: Viewer): Promise<string[]> {
 /** The series the viewer may see, by name. */
 export async function listSeries(v: Viewer): Promise<SeriesSummary[]> {
   const rows = await (
-    await db()
+    await scope(v)
   )
-    .selectFrom("series")
+    .from("series")
     .selectAll()
     .$call((qb) => visible(qb, v, "series"))
     .orderBy("name")
@@ -287,9 +286,9 @@ export type SeriesView = SeriesSummary & {
 
 /** One series the viewer may see, with its sessions by date and the days skipped. */
 export async function getSeries(v: Viewer, id: string, today = todayOf()): Promise<SeriesView> {
-  const d = await db();
+  const d = await scope(v);
   const s = await d
-    .selectFrom("series")
+    .from("series")
     .selectAll()
     .where("id", "=", id)
     .$call((qb) => visible(qb, v, "series"))
@@ -297,8 +296,8 @@ export async function getSeries(v: Viewer, id: string, today = todayOf()): Promi
   if (!s) throw new NotFoundError("No such series");
   const [sessions, skips, place] = await Promise.all([
     listExperiences(v, { seriesId: id }),
-    d.selectFrom("series_skips").select("date").where("series_id", "=", id).orderBy("date").execute(),
-    s.place_id ? d.selectFrom("places").select(["id", "name"]).where("id", "=", s.place_id).executeTakeFirst() : undefined,
+    d.from("series_skips").select("date").where("series_id", "=", id).orderBy("date").execute(),
+    s.place_id ? d.from("places").select(["id", "name"]).where("id", "=", s.place_id).executeTakeFirst() : undefined,
   ]);
   return {
     id: s.id,
@@ -327,20 +326,20 @@ export type PlaceView = PlaceCandidate & {
 
 /** One place the viewer may see, with everything at it or inside it they may see, newest first. */
 export async function getPlace(v: Viewer, id: string): Promise<PlaceView> {
-  const d = await db();
+  const d = await scope(v);
   const p = await describePlace(d, v, id);
   const at = placeAndInsideIds(d, v, id);
   const [experiences, conversations, series] = await Promise.all([
     listExperiences(v, { placeId: id }),
     d
-      .selectFrom("conversations")
+      .from("conversations")
       .select(["id", "date", "summary"])
       .where("place_id", "in", at)
       .$call((qb) => visible(qb, v, "conversations"))
       .orderBy("date", "desc")
       .execute(),
     d
-      .selectFrom("series")
+      .from("series")
       .selectAll()
       .where("place_id", "in", at)
       .$call((qb) => visible(qb, v, "series"))

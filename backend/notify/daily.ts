@@ -1,10 +1,10 @@
 // The daily reminders: once a day, after NOTIFY_AT, every user with a webhook gets what is due today or tomorrow. Each user's
 // list comes from whatsDue(viewer), so nobody is ever told about the partner's private items.
+import { instance } from "../db/scope";
 import { notifyCopy, type NotifyCopy } from "./copy";
 import { userLanguage } from "../core/settings";
 import { config } from "../core/config";
 import { refreshCards } from "../sharing/cards";
-import { db } from "../db";
 import { addDays, today } from "../people/dates";
 import { lastSeen } from "../people/intervals";
 import { errorFields, logger } from "../core/log";
@@ -67,14 +67,14 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
   // A background job has no request to take the address from.
   const base = config.publicUrl();
   const click = (id: string) => (base ? `${base}/p/${id}` : undefined);
-  const d = await db();
-  const rows = await d.selectFrom("user_settings").select(["user_id", "webhook_url"]).where("webhook_url", "is not", null).execute();
+  const d = await instance();
+  const rows = await d.from("user_settings").select(["user_id", "webhook_url"]).where("webhook_url", "is not", null).execute();
   let sent = 0;
   let users = 0;
   for (const row of rows) {
     try {
       if (onlyNew) {
-        const mark = await d.selectFrom("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
+        const mark = await d.from("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
         if (mark?.value === from) continue;
       }
       const v = await viewerById(row.user_id);
@@ -89,8 +89,7 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
       for (const m of messages) if (await sendWebhook(row.webhook_url!, m, fetchFn)) sent++;
       if (onlyNew)
         await d
-          .insertInto("meta")
-          .values({ key: doneKey(row.user_id), value: from })
+          .insert("meta", { key: doneKey(row.user_id), value: from })
           .onConflict((oc) => oc.column("key").doUpdateSet({ value: from }))
           .execute();
     } catch (e) {

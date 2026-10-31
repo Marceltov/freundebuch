@@ -9,6 +9,8 @@ import type { Schema } from "./schema";
 import type { BookTable, InstanceTable } from "./tables";
 
 type Handle = Kysely<Schema> | Transaction<Schema>;
+// Only its type is used: the builders the scope hands out are the ones Kysely's own methods return.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 declare const handle: Kysely<Schema>;
 
 type Ref<T extends string> = T | `${T} as ${string}`;
@@ -78,6 +80,8 @@ function instanceOn(h: Handle): InstanceDb {
   return i;
 }
 
+const systemViewer = (bookId: string): Viewer => ({ userId: "", personId: "", bookId, books: [bookId] });
+
 /** The viewer's books. */
 export async function scope(v: Viewer): Promise<Scope> {
   return scopeWith(await db(), v);
@@ -85,7 +89,13 @@ export async function scope(v: Viewer): Promise<Scope> {
 
 /** One book, for jobs that run without a user (refreshing cards): nobody's private rows, only the shared ones. */
 export async function systemScope(bookId: string): Promise<Scope> {
-  return scopeWith(await db(), { userId: "", personId: "", bookId, books: [bookId] });
+  return scopeWith(await db(), systemViewer(bookId));
+}
+
+/** Runs `fn` for every book on the instance, each in a system scope, oldest first. */
+export async function eachBook(fn: (s: Scope) => Promise<void>): Promise<void> {
+  const d = await db();
+  for (const b of await d.selectFrom("books").select("id").orderBy("created_at").orderBy("id").execute()) await fn(scopeWith(d, systemViewer(b.id)));
 }
 
 /** The instance tables: users and their settings, own cards, chat usage, books and who is in them. */

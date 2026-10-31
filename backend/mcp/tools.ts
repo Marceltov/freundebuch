@@ -1048,7 +1048,7 @@ export const TOOLS: readonly Tool[] = [
       }
       if (!personId) throw new InvalidInputError(`${action} needs personId`);
       if (action === "unsubscribe") {
-        await unsubscribeCard(personId);
+        await unsubscribeCard(v, personId);
         return ok(CardsJson, { person: null });
       }
       if (!url) throw new InvalidInputError("subscribe needs url");

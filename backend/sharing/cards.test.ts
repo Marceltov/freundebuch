@@ -127,12 +127,12 @@ test("a subscribed card is in the briefing for both users, kept apart from what 
   expect(fetchFn).toHaveBeenCalledTimes(1);
   const gone = served("", 404);
   await refreshCards(Date.now() + 86_400_001, gone, publicDns);
-  expect(await personCard(s.anna)).toMatchObject({ card: { phone: "+49 170 1" }, failed: "not_found" });
+  expect(await personCard(s.a, s.anna)).toMatchObject({ card: { phone: "+49 170 1" }, failed: "not_found" });
   // A page that is no card, and an unreachable host.
   expect((await subscribeCard(s.a, s.tom, "https://x.example/tom", served("<html/>"), publicDns)).failed).toBe("not_a_card");
   const down = vi.fn(async () => Promise.reject(new TypeError("fetch failed")));
   expect((await subscribeCard(s.a, s.tom, "https://x.example/tom", down, publicDns)).failed).toBe("unreachable");
-  await unsubscribeCard(s.anna);
-  expect(await personCard(s.anna)).toBeNull();
+  await unsubscribeCard(s.a, s.anna);
+  expect(await personCard(s.a, s.anna)).toBeNull();
   expect((await briefing(s.a, s.anna)).card).toBeNull();
 });

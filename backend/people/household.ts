@@ -14,6 +14,19 @@ export async function householdPersons(s: Scope): Promise<string[]> {
   return rows.map((r) => r.person_id);
 }
 
+/** The book's members: each user id with their person. */
+export async function memberPersons(s: Scope): Promise<Map<string, string>> {
+  const rows = await s.instance.from("members").select(["user_id", "person_id"]).where("book_id", "=", s.v.bookId).execute();
+  return new Map(rows.map((r) => [r.user_id, r.person_id]));
+}
+
+/** The book's other members, as viewers of it. */
+export async function otherMembers(s: Scope): Promise<Viewer[]> {
+  return [...(await memberPersons(s))]
+    .filter(([userId]) => userId !== s.v.userId)
+    .map(([userId, personId]) => ({ userId, personId, bookId: s.v.bookId, books: [s.v.bookId] }));
+}
+
 /** The person ids a target stands for. */
 export async function resolveTarget(s: Scope, v: Viewer, t: Target): Promise<string[]> {
   if (t === "me") return [v.personId];

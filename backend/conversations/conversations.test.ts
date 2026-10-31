@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import { recordConversation, getConversation, type NewConversation } from "./conversations";
-import { db, resetDbForTests } from "../db/testing";
+import { resetDbForTests, unchecked } from "../db/testing";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "../core/errors";
 import { getPerson } from "../people/people";
 import { userFromOidc } from "../core/users";
@@ -26,9 +26,7 @@ const base = (over: Partial<NewConversation> = {}): NewConversation => ({
 const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "group_members"] as const;
 // The rows of an item table a conversation could have filed: everyone who signs in is in Haushalt from the start, without one.
 const filedRows = async (t: (typeof ITEM_TABLES)[number] | string) => {
-  const rows = await (
-    await db()
-  )
+  const rows = await unchecked()
     .selectFrom(t as "group_members")
     .selectAll()
     .execute();
@@ -134,7 +132,7 @@ test("a private conversation makes all its items private", async () => {
       groups: [{ name: "Uni", members: [0] }],
     }),
   );
-  const d = await db();
+  const d = unchecked();
   for (const t of ITEM_TABLES) {
     const rows = (await filedRows(t)) as { visibility: string }[];
     expect(rows.length, t).toBeGreaterThan(0);
@@ -149,7 +147,7 @@ test("a private conversation makes all its items private", async () => {
 });
 
 test("one private item makes the transcript private; none leaves it shared", async () => {
-  const d = await db();
+  const d = unchecked();
   const tp = async (id: string) =>
     (
       await d
@@ -170,7 +168,7 @@ test("one private item makes the transcript private; none leaves it shared", asy
 test("supersedes marks the old fact outdated", async () => {
   const first = await recordConversation(a, base({ facts: [{ person: 0, text: "works at the bank", category: "work" }] }));
   const anna = first.people[0].id;
-  const d = await db();
+  const d = unchecked();
   const old = await d.selectFrom("facts").select("id").executeTakeFirstOrThrow();
   await recordConversation(
     a,
@@ -279,7 +277,7 @@ test("a conversation files a role to us", async () => {
   const b = await userFromOidc({ sub: "b", name: "Bob" });
   const r = await recordConversation(a, base({ relationships: [{ from: 0, to: "us", label: "Vermieter:in", inverse: "Mieter:in" }] }));
   expect(r.counts.relationships).toBe(2);
-  const rows = await (await db()).selectFrom("relationships").select(["from_id", "to_id", "conversation_id"]).execute();
+  const rows = await unchecked().selectFrom("relationships").select(["from_id", "to_id", "conversation_id"]).execute();
   expect(rows.map((x) => x.to_id).sort()).toEqual([a.personId, b.personId].sort());
   expect(rows.every((x) => x.from_id === r.people[0].id && x.conversation_id === r.conversationId)).toBe(true);
 });

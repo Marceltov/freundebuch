@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { getConversation, record, remember } from "../conversations/conversations";
-import { db } from "../db/testing";
+import { firstBook } from "../db/testing";
 import { deleteItem, editItem, mergePeople } from "../conversations/corrections";
 import { deleteRamble } from "../conversations/rambles";
 import { AmbiguousError, InvalidInputError } from "../core/errors";
@@ -60,7 +60,7 @@ test("renaming keeps the old name as another name; merging moves conversations a
   expect(await placeOf(s.a, b.conversations[0].id)).toBe(keep);
   const [found] = await findPlaces(s.a, "Hundeschule am See");
   expect(found).toMatchObject({ id: keep, name: "Hundeschule Pfotenglück", aliases: expect.arrayContaining(["Pfotenglück", "Hundeschule am See"]) });
-  expect(await (await db()).selectFrom("places").select("id").where("id", "=", drop).execute()).toEqual([]);
+  expect(await (await firstBook()).from("places").select("id").where("id", "=", drop).execute()).toEqual([]);
 });
 
 test("minor: merging a place the partner sees into one they can't is refused, so its name never reaches them", async () => {
@@ -76,9 +76,9 @@ test("minor: merging a place the partner sees into one they can't is refused, so
 test("minor: a conversation's place patch of the wrong type is refused, and a failing edit leaves no new place", async () => {
   const r = await at(s.a, "Café Lisa");
   await expect(editItem(s.a, "conversations", r.conversations[0].id, { place: 5 })).rejects.toThrow(InvalidInputError);
-  const before = (await (await db()).selectFrom("places").select("id").execute()).length;
+  const before = (await (await firstBook()).from("places").select("id").execute()).length;
   await expect(editItem(s.a, "conversations", r.conversations[0].id, { place: "Neues Café", kind: "nope" })).rejects.toThrow(InvalidInputError);
-  expect((await (await db()).selectFrom("places").select("id").execute()).length).toBe(before);
+  expect((await (await firstBook()).from("places").select("id").execute()).length).toBe(before);
 });
 
 test("minor: a place whose last part was deleted is found no more, not even by whoever made it", async () => {
@@ -88,22 +88,21 @@ test("minor: a place whose last part was deleted is found no more, not even by w
 });
 
 test("a new database has places with a parent, an address, and owners", async () => {
-  const d = await db();
-  await d.insertInto("places").values({ id: "muc", name: "München", created_by: s.a.userId, created_at: 1 }).execute();
+  const d = await firstBook();
+  await d.insert("places", { id: "muc", name: "München", created_by: s.a.userId, created_at: 1 }).execute();
   await d
-    .insertInto("places")
-    .values({ id: "oly", name: "Olympiahalle", created_by: s.a.userId, created_at: 1, parent_id: "muc", address: "Spiridon-Louis-Ring 21" })
+    .insert("places", { id: "oly", name: "Olympiahalle", created_by: s.a.userId, created_at: 1, parent_id: "muc", address: "Spiridon-Louis-Ring 21" })
     .execute();
-  await d.insertInto("place_owners").values({ place_id: "oly", person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 }).execute();
-  expect(await d.selectFrom("places").select(["parent_id", "address"]).where("id", "=", "oly").executeTakeFirst()).toEqual({
+  await d.insert("place_owners", { place_id: "oly", person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 }).execute();
+  expect(await d.from("places").select(["parent_id", "address"]).where("id", "=", "oly").executeTakeFirst()).toEqual({
     parent_id: "muc",
     address: "Spiridon-Louis-Ring 21",
   });
-  expect(await d.selectFrom("place_owners").select(["person_id", "visibility"]).execute()).toEqual([{ person_id: s.anna, visibility: "private" }]);
+  expect(await d.from("place_owners").select(["person_id", "visibility"]).execute()).toEqual([{ person_id: s.anna, visibility: "private" }]);
 });
 
 // Nesting set by hand until record files it: `inside(child, parent)`.
-const inside = async (child: string, parent: string) => (await db()).updateTable("places").set({ parent_id: parent }).where("id", "=", child).execute();
+const inside = async (child: string, parent: string) => (await firstBook()).update("places").set({ parent_id: parent }).where("id", "=", child).execute();
 const experienceAt = (v: Seed["a"], place: unknown, visibility: "shared" | "private" = "shared") =>
   record(v, {
     date: "2026-10-28",
@@ -128,17 +127,17 @@ test("a place inside another shows its parents, and the parent's page shows what
 
 test("a place whose only link to the viewer is a parent of a place they see is found, with nothing of what's not theirs", async () => {
   const oly = (await placeOf(s.a, (await at(s.a, "Olympiahalle")).conversations[0].id))!;
-  const d = await db();
-  await d.insertInto("places").values({ id: "bay", name: "Bayern", created_by: s.a.userId, created_at: 1 }).execute();
+  const d = await firstBook();
+  await d.insert("places", { id: "bay", name: "Bayern", created_by: s.a.userId, created_at: 1 }).execute();
   await inside(oly, "bay");
   expect((await findPlaces(s.b, "Bayern")).map((p) => p.id)).toEqual(["bay"]);
   expect((await getPlace(s.b, "bay")).inside.map((p) => p.name)).toEqual(["Olympiahalle"]);
 });
 
 test("a place with only a visible owner is found, and shows its owner", async () => {
-  const d = await db();
-  await d.insertInto("places").values({ id: "home", name: "Annas Wohnung", created_by: s.a.userId, created_at: 1, address: "Hauptstraße 5" }).execute();
-  await d.insertInto("place_owners").values({ place_id: "home", person_id: s.anna, visibility: "shared", recorded_by: s.a.userId, created_at: 1 }).execute();
+  const d = await firstBook();
+  await d.insert("places", { id: "home", name: "Annas Wohnung", created_by: s.a.userId, created_at: 1, address: "Hauptstraße 5" }).execute();
+  await d.insert("place_owners", { place_id: "home", person_id: s.anna, visibility: "shared", recorded_by: s.a.userId, created_at: 1 }).execute();
   const [p] = await findPlaces(s.b, "Annas Wohnung");
   expect(p).toMatchObject({ id: "home", address: "Hauptstraße 5", owners: [{ id: s.anna, name: "Anna" }] });
 });
@@ -160,10 +159,9 @@ test("a private place inside a shared one stays invisible downward, and a privat
   expect(alice.experiences.map((e) => e.id)).toEqual([privateConcert.experiences[0].id]);
 
   await (
-    await db()
+    await firstBook()
   )
-    .insertInto("place_owners")
-    .values({ place_id: muc, person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 })
+    .insert("place_owners", { place_id: muc, person_id: s.anna, visibility: "private", recorded_by: s.a.userId, created_at: 1 })
     .execute();
   expect((await getPlace(s.b, muc)).owners).toEqual([]);
   expect((await getPlace(s.a, muc)).owners.map((o) => o.id)).toEqual([s.anna]);
@@ -323,7 +321,7 @@ test("deleting a ramble takes the homes it filed with it", async () => {
   const r = await at(s.a, { name: "Annas Wohnung", owners: [0] });
   await remember(s.a, { visibility: "shared", homes: [{ person: s.tom, place: "Annas Wohnung" }] });
   await deleteRamble(s.a, r.rambleId);
-  expect(await (await db()).selectFrom("place_owners").select("person_id").execute()).toEqual([{ person_id: s.tom }]);
+  expect(await (await firstBook()).from("place_owners").select("person_id").execute()).toEqual([{ person_id: s.tom }]);
 });
 
 test("a home given to remember names its person, not owners", async () => {

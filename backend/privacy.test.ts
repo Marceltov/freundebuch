@@ -5,7 +5,7 @@ import { briefing } from "./reading/briefing";
 import { calendarFeed } from "./sharing/calendar";
 import { getConversation, listConversations, recordConversation } from "./conversations/conversations";
 import { deleteItem, setVisibility, shareTranscript } from "./conversations/corrections";
-import { db } from "./db/testing";
+import { unchecked } from "./db/testing";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "./core/errors";
 import { whatsDue } from "./reading/due";
 import { lastSeen, setCheckInInterval } from "./people/intervals";
@@ -48,7 +48,7 @@ test("A's private conversation does not exist for B; B's shared call is visible 
 });
 
 test("deleting or sharing the private items never re-exposes the dinner's transcript to B", async () => {
-  const d = await db();
+  const d = unchecked();
   const id = async (t: "facts" | "dates" | "relationships") =>
     (await d.selectFrom(t).select("id").where("conversation_id", "=", s.dinner).where("visibility", "=", "private").executeTakeFirstOrThrow()).id;
   // The transcript still holds "divorce", whatever happens to the items recorded from it.
@@ -63,7 +63,7 @@ test("deleting or sharing the private items never re-exposes the dinner's transc
 });
 
 test("only the recorder's explicit shareTranscript reveals a transcript, and only once nothing recorded with it is private", async () => {
-  const d = await db();
+  const d = unchecked();
   const privates = async (t: "facts" | "dates" | "relationships") =>
     d.selectFrom(t).select("id").where("conversation_id", "=", s.dinner).where("visibility", "=", "private").execute();
   await expect(shareTranscript(s.a, s.dinner)).rejects.toBeInstanceOf(InvalidInputError);
@@ -140,9 +140,7 @@ test("A's private group membership neither blocks nor reveals itself to B's shar
   expect([mine.counts.groups, theirs.counts.groups]).toEqual([1, 1]);
   const seen = async (v: Viewer) =>
     (
-      await (
-        await db()
-      )
+      await unchecked()
         .selectFrom("group_members")
         .innerJoin("groups", "groups.id", "group_members.group_id")
         .select(["groups.name", "group_members.visibility"])
@@ -164,7 +162,7 @@ test("A's private group membership neither blocks nor reveals itself to B's shar
 });
 
 test("a private fact can't outdate B's shared fact, so B's fact stays current", async () => {
-  const d = await db();
+  const d = unchecked();
   const hiking = (await d.selectFrom("facts").select("id").where("text", "=", "likes hiking").executeTakeFirstOrThrow()).id;
   const status = async () => (await d.selectFrom("facts").select("status").where("id", "=", hiking).executeTakeFirstOrThrow()).status;
   const replace = { person: 0, text: "hurt her knee, no more hiking", category: "health" as const, supersedes: hiking };
@@ -177,7 +175,7 @@ test("a private fact can't outdate B's shared fact, so B's fact stays current", 
 });
 
 test("a fact that outdated B's shared fact can't be made private afterwards, on its own or with its conversation", async () => {
-  const d = await db();
+  const d = unchecked();
   const hiking = (await d.selectFrom("facts").select("id").where("text", "=", "likes hiking").executeTakeFirstOrThrow()).id;
   const r = await record(s.a, { facts: [{ person: 0, text: "hurt her knee, no more hiking", category: "health", supersedes: hiking }] });
   const knee = (await d.selectFrom("facts").select("id").where("conversation_id", "=", r.conversationId).executeTakeFirstOrThrow()).id;
@@ -191,7 +189,7 @@ test("a fact that outdated B's shared fact can't be made private afterwards, on 
 });
 
 test("a private fact may replace the recorder's own private fact", async () => {
-  const d = await db();
+  const d = unchecked();
   const divorce = (await d.selectFrom("facts").select("id").where("text", "=", "divorce").executeTakeFirstOrThrow()).id;
   await record(s.a, { facts: [{ person: 0, text: "divorce is final", category: "family", private: true, supersedes: divorce }] });
   expect((await d.selectFrom("facts").select("status").where("id", "=", divorce).executeTakeFirstOrThrow()).status).toBe("outdated");
@@ -270,7 +268,7 @@ test("the orbit is per viewer: A's private conversation with Anna and Bob doesn'
 });
 
 test("the links B is handed never name one of A's private items or conversations", async () => {
-  const d = await db();
+  const d = unchecked();
   const tables = ["conversations", "facts", "promises", "dates", "exchanges", "relationships"] as const;
   const secret = (
     await Promise.all(tables.map((t) => d.selectFrom(t).select("id").where("visibility", "=", "private").where("recorded_by", "=", s.a.userId).execute()))
@@ -371,7 +369,7 @@ test("a private role never shows to the partner, not even as 'us'", async () => 
   expect(b.network.edges.some((e) => e.from === s.a.personId || e.to === s.a.personId)).toBe(false);
   expect(JSON.stringify(b)).not.toContain(secret);
   const network = JSON.stringify(b.network);
-  await (await db()).deleteFrom("relationships").where("id", "=", secret).execute();
+  await unchecked().deleteFrom("relationships").where("id", "=", secret).execute();
   expect(JSON.stringify((await briefing(s.b, s.lena)).network)).toBe(network);
 });
 

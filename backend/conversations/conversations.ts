@@ -1,9 +1,9 @@
 // Recording a conversation: the one write path for what Claude extracts from a ramble. Everything lands in one transaction, so a
 // bad item leaves nothing behind. Privacy is decided here once: a private conversation makes every item private, and any private
 // item makes the verbatim transcript private to the recorder (it contains the private part).
-import type { Kysely } from "kysely";
+import { scope, type Scope } from "../db/scope";
 import { addDays, assertDay, isDay, isYearless, notFuture, today } from "../people/dates";
-import { db, newId, now, type Schema } from "../db";
+import { newId, now } from "../db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "../core/errors";
 import { insertExperiences, validateExperiences, type NewExperience, type RecordedExperience } from "../experiences/experiences";
 import { checkLook, lookJson } from "../people/looks";
@@ -25,7 +25,7 @@ import {
 } from "../core/types";
 import { dropBlobs, takeFiles } from "./files";
 import { resolveOrCreateGroup } from "../people/groups";
-import { isHouseholdWord, resolvePairs, type Target } from "../people/household";
+import { isHouseholdWord, memberPersons, resolvePairs, type Target } from "../people/household";
 import { conversationPath, groupPath, itemPath, journalPath, personPath, type AnchoredTable } from "../core/urls";
 import { visible } from "../visibility";
 
@@ -206,7 +206,7 @@ function validateItems<P>(c: Items<P>, ref: (p: P) => void): void {
  * Returns them as filed; `name` gives the name of the person an item is about, `page` the page that shows its row.
  */
 async function insertItems<P>(
-  tx: Kysely<Schema>,
+  tx: Scope,
   v: Viewer,
   base: ItemBase,
   c: Items<P>,
@@ -227,7 +227,7 @@ async function insertItems<P>(
     const factId = newId();
     const replaced = f.supersedes
       ? await tx
-          .selectFrom("facts")
+          .from("facts")
           .select("kind")
           .where("id", "=", f.supersedes)
           .$call((qb) => visible(qb, v, "facts"))
@@ -240,8 +240,7 @@ async function insertItems<P>(
       throw new InvalidInputError("News about a situation needs a new checkAfter: suggest when to ask again and agree it with the user");
     const checkAfter = kind === "situation" ? (f.checkAfter ?? addDays(today(), SITUATION_DAYS)) : null;
     await tx
-      .insertInto("facts")
-      .values({ ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f) })
+      .insert("facts", { ...base, id: factId, person_id: id(f.person), text: f.text, category: f.category, kind, check_after: checkAfter, visibility: vis(f) })
       .execute();
     if (f.supersedes) await outdate(tx, v, f.supersedes, factId, id(f.person), vis(f));
     filed.facts.push({
@@ -256,16 +255,14 @@ async function insertItems<P>(
   for (const p of c.promises ?? []) {
     const promiseId = newId();
     await tx
-      .insertInto("promises")
-      .values({ ...base, id: promiseId, person_id: id(p.person), text: p.text, by_me: p.byMe ? 1 : 0, due: p.due ?? null, visibility: vis(p) })
+      .insert("promises", { ...base, id: promiseId, person_id: id(p.person), text: p.text, by_me: p.byMe ? 1 : 0, due: p.due ?? null, visibility: vis(p) })
       .execute();
     filed.promises.push({ ...about("promises", promiseId, id(p.person), vis(p)), text: p.text, byMe: p.byMe, due: p.due ?? null });
   }
   for (const d of c.dates ?? []) {
     const dateId = newId();
     await tx
-      .insertInto("dates")
-      .values({
+      .insert("dates", {
         ...base,
         id: dateId,
         person_id: id(d.person),
@@ -281,8 +278,7 @@ async function insertItems<P>(
   for (const e of c.exchanges ?? []) {
     const exchangeId = newId();
     await tx
-      .insertInto("exchanges")
-      .values({
+      .insert("exchanges", {
         ...base,
         id: exchangeId,
         person_id: id(e.person),
@@ -356,7 +352,7 @@ export async function remember(
   }
   const vis = (item: { private?: boolean }): Visibility => (r.visibility === "private" || item.private ? "private" : "shared");
   const base: ItemBase = { recorded_by: v.userId, conversation_id: null, created_at: now() };
-  return (await db()).transaction().execute(async (tx) => {
+  return (await scope(v)).transaction(async (tx) => {
     const ids = [
       ...new Set(
         [...(r.facts ?? []), ...(r.promises ?? []), ...(r.dates ?? []), ...(r.exchanges ?? []), ...(r.genders ?? []), ...looks, ...(r.homes ?? [])].map(
@@ -364,17 +360,17 @@ export async function remember(
         ),
       ),
     ];
-    const people = await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute();
+    const people = await tx.from("persons").select(["id", "name"]).where("id", "in", ids).execute();
     if (people.length !== ids.length) throw new NotFoundError("No such person");
     const genders: Array<{ person: string; gender: Gender | null; relabel: Relabel[] }> = [];
     for (const g of r.genders ?? []) {
-      const before = await tx.selectFrom("persons").select("gender").where("id", "=", g.person).executeTakeFirstOrThrow();
-      await tx.updateTable("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
+      const before = await tx.from("persons").select("gender").where("id", "=", g.person).executeTakeFirstOrThrow();
+      await tx.update("persons").set({ gender: g.gender }).where("id", "=", g.person).execute();
       genders.push({ ...g, relabel: await relabelFor(tx, v, g.person, before.gender, g.gender) });
     }
     for (const l of looks)
       await tx
-        .updateTable("persons")
+        .update("persons")
         .set({ look: lookJson(l.look) })
         .where("id", "=", l.person)
         .execute();
@@ -474,13 +470,13 @@ export function sameRelationship(
  * its own words and `created` false, and it takes the note if it had none and is the recorder's.
  */
 export async function insertRelationship(
-  tx: Kysely<Schema>,
+  tx: Scope,
   base: ItemBase,
   r: { fromId: string; toId: string; label: string; inverse: string; note?: string; visibility: Visibility },
 ): Promise<{ id: string; fromId: string; toId: string; label: string; inverse: string; created: boolean }> {
   const row = { from_id: r.fromId, to_id: r.toId, label: r.label.trim(), inverse: r.inverse.trim() };
   const known = await tx
-    .selectFrom("relationships")
+    .from("relationships")
     .select(["id", "from_id", "to_id", "label", "inverse", "note", "recorded_by"])
     .where((eb) => eb.or([eb.and([eb("from_id", "=", r.fromId), eb("to_id", "=", r.toId)]), eb.and([eb("from_id", "=", r.toId), eb("to_id", "=", r.fromId)])]))
     .where((eb) => eb.or([eb("recorded_by", "=", base.recorded_by), eb("visibility", "=", "shared")]))
@@ -489,14 +485,11 @@ export async function insertRelationship(
   const same = known.find((k) => sameRelationship(k, row));
   if (same) {
     if (!same.note?.trim() && r.note?.trim() && same.recorded_by === base.recorded_by)
-      await tx.updateTable("relationships").set({ note: r.note }).where("id", "=", same.id).execute();
+      await tx.update("relationships").set({ note: r.note }).where("id", "=", same.id).execute();
     return { id: same.id, fromId: same.from_id, toId: same.to_id, label: same.label, inverse: same.inverse, created: false };
   }
   const id = newId();
-  await tx
-    .insertInto("relationships")
-    .values({ ...base, ...row, id, note: r.note?.trim() || null, visibility: r.visibility })
-    .execute();
+  await tx.insert("relationships", { ...base, ...row, id, note: r.note?.trim() || null, visibility: r.visibility }).execute();
   return { id, fromId: r.fromId, toId: r.toId, label: row.label, inverse: row.inverse, created: true };
 }
 
@@ -505,7 +498,7 @@ export async function insertRelationship(
  * to its row on the page of `from`, or of `to` when from is "me" or "us".
  */
 export async function insertRelationships(
-  tx: Kysely<Schema>,
+  tx: Scope,
   v: Viewer,
   base: ItemBase,
   r: { from: Target; to: Target; label: string; inverse: string; note?: string; visibility: Visibility },
@@ -515,7 +508,7 @@ export async function insertRelationships(
   const out: FiledRelationship[] = [];
   for (const [fromId, toId] of pairs) {
     const x = await insertRelationship(tx, base, { fromId, toId, label: r.label, inverse: r.inverse, note: r.note, visibility: r.visibility });
-    const names = new Map((await tx.selectFrom("persons").select(["id", "name"]).where("id", "in", [x.fromId, x.toId]).execute()).map((p) => [p.id, p.name]));
+    const names = new Map((await tx.from("persons").select(["id", "name"]).where("id", "in", [x.fromId, x.toId]).execute()).map((p) => [p.id, p.name]));
     const page = isHouseholdWord(r.from) ? toId : fromId;
     out.push({ ...x, fromName: names.get(x.fromId) ?? "", toName: names.get(x.toId) ?? "", url: itemPath(personPath(page), "relationships", x.id) });
   }
@@ -524,7 +517,7 @@ export async function insertRelationships(
 
 /** Adds the people to the group this name resolves to for the viewer (created when none does); returns it and how many memberships were new. */
 export async function insertMemberships(
-  tx: Kysely<Schema>,
+  tx: Scope,
   v: Viewer,
   base: ItemBase,
   name: string,
@@ -536,8 +529,7 @@ export async function insertMemberships(
   // Each user has their own membership row. One the viewer recorded before keeps its visibility; only they may change it.
   for (const m of new Set(personIds)) {
     const r = await tx
-      .insertInto("group_members")
-      .values({
+      .insert("group_members", {
         group_id: groupId,
         person_id: m,
         visibility,
@@ -670,13 +662,22 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
 
   // The shared files it was told from: their transcripts join the ramble's, and the files go once it has committed.
   let blobs: string[] = [];
-  const recorded = await (await db()).transaction().execute(async (tx) => {
+  const recorded = await (
+    await scope(v)
+  ).transaction(async (tx) => {
     const taken = await takeFiles(tx, v, r.fileIds ?? []);
     blobs = taken.blobs;
     const transcript = [r.transcript, ...taken.transcripts.map((x) => `${FROM_FILE}\n${x}`)].join("\n\n");
     await tx
-      .insertInto("rambles")
-      .values({ id: rambleId, date: r.date, transcript, transcript_private: transcriptPrivate, visibility: r.visibility, recorded_by: v.userId, created_at: t })
+      .insert("rambles", {
+        id: rambleId,
+        date: r.date,
+        transcript,
+        transcript_private: transcriptPrivate,
+        visibility: r.visibility,
+        recorded_by: v.userId,
+        created_at: t,
+      })
       .execute();
     const placeLevels: string[][] = [];
     for (const [i, c] of (r.conversations ?? []).entries()) {
@@ -684,8 +685,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
       const placeId = c.place === undefined || c.place === "" ? null : await resolvePlace(tx, v, c.place, r.visibility, levels);
       placeLevels.push(levels);
       await tx
-        .insertInto("conversations")
-        .values({
+        .insert("conversations", {
           id: conversationIds[i],
           date: c.date ?? r.date,
           kind: c.kind,
@@ -702,9 +702,9 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     const people: Omit<Recorded["people"][number], "url">[] = [];
     for (const [ref, p] of r.people.entries()) {
       if (p.id) {
-        const row = await tx.selectFrom("persons").select(["id", "name"]).where("id", "=", p.id).executeTakeFirst();
+        const row = await tx.from("persons").select(["id", "name"]).where("id", "=", p.id).executeTakeFirst();
         if (!row) throw new NotFoundError(`No such person: ${p.id}`);
-        if (p.gender) await tx.updateTable("persons").set({ gender: p.gender }).where("id", "=", row.id).execute();
+        if (p.gender) await tx.update("persons").set({ gender: p.gender }).where("id", "=", row.id).execute();
         people.push({ ref, id: row.id, name: row.name, created: false });
       } else {
         const name = p.name!.trim();
@@ -719,7 +719,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     const id = (x: PersonRef) => people[x].id;
     for (const [i, c] of (r.conversations ?? []).entries())
       for (const personId of new Set([v.personId, ...c.present.map(id)]))
-        await tx.insertInto("participants").values({ conversation_id: conversationIds[i], person_id: personId }).execute();
+        await tx.insert("participants", { conversation_id: conversationIds[i], person_id: personId }).execute();
 
     // Whose home a conversation's place is, once the people it names are known.
     for (const [i, c] of (r.conversations ?? []).entries())
@@ -733,21 +733,26 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
       people.map((p) => p.id),
       t,
     );
-    if (experiences.some((e) => e.visibility === "private"))
-      await tx.updateTable("rambles").set({ transcript_private: 1 }).where("id", "=", rambleId).execute();
+    if (experiences.some((e) => e.visibility === "private")) await tx.update("rambles").set({ transcript_private: 1 }).where("id", "=", rambleId).execute();
     for (const [i, c] of (r.conversations ?? []).entries())
-      if (c.at !== undefined) await tx.updateTable("conversations").set({ experience_id: experiences[c.at].id }).where("id", "=", conversationIds[i]).execute();
+      if (c.at !== undefined) await tx.update("conversations").set({ experience_id: experiences[c.at].id }).where("id", "=", conversationIds[i]).execute();
 
     const journal: RecordedRamble["journal"] = [];
     for (const j of r.journal ?? []) {
       const entryId = newId();
       const visibility = journalVis(j);
       await tx
-        .insertInto("journal_entries")
-        .values({ id: entryId, ramble_id: rambleId, date: j.date ?? r.date, text: j.text.trim(), visibility, recorded_by: v.userId, created_at: t })
+        .insert("journal_entries", {
+          id: entryId,
+          ramble_id: rambleId,
+          date: j.date ?? r.date,
+          text: j.text.trim(),
+          visibility,
+          recorded_by: v.userId,
+          created_at: t,
+        })
         .execute();
-      for (const personId of new Set((j.mentions ?? []).map(id)))
-        await tx.insertInto("journal_mentions").values({ entry_id: entryId, person_id: personId }).execute();
+      for (const personId of new Set((j.mentions ?? []).map(id))) await tx.insert("journal_mentions", { entry_id: entryId, person_id: personId }).execute();
       journal.push({ id: entryId, visibility, url: journalPath(entryId) });
     }
 
@@ -780,7 +785,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
       for (const g of mine(r.groups)) {
         const members = new Set(g.members.map(id)).size;
         const { added, groupId } = await insertMemberships(tx, v, base, g.name, g.members.map(id), vis(g));
-        const { name } = await tx.selectFrom("groups").select("name").where("id", "=", groupId).executeTakeFirstOrThrow();
+        const { name } = await tx.from("groups").select("name").where("id", "=", groupId).executeTakeFirstOrThrow();
         groups.push({ id: groupId, name, added, already: members - added, url: groupPath(groupId) });
       }
     }
@@ -833,9 +838,9 @@ export const PRIVATE_REPLACES_SHARED =
  * Marks a fact the viewer can see as outdated by `newId`; it must be about the same person as the fact that replaces it. A private
  * fact may only replace the viewer's own private fact: outdating a shared one would show the partner that something private changed.
  */
-async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, newId: string, personId: string, visibility: Visibility): Promise<void> {
+async function outdate(tx: Scope, v: Viewer, factId: string, newId: string, personId: string, visibility: Visibility): Promise<void> {
   const old = await tx
-    .selectFrom("facts")
+    .from("facts")
     .select(["person_id", "visibility"])
     .where("id", "=", factId)
     .$call((qb) => visible(qb, v, "facts"))
@@ -843,12 +848,12 @@ async function outdate(tx: Kysely<Schema>, v: Viewer, factId: string, newId: str
   if (!old) throw new NotFoundError(`No such fact: ${factId}`);
   if (old.person_id !== personId) throw new InvalidInputError("A fact can only supersede a fact about the same person");
   if (visibility === "private" && old.visibility !== "private") throw new InvalidInputError(PRIVATE_REPLACES_SHARED);
-  await tx.updateTable("facts").set({ status: "outdated", superseded_by: newId }).where("id", "=", factId).execute();
+  await tx.update("facts").set({ status: "outdated", superseded_by: newId }).where("id", "=", factId).execute();
 }
 
 /** Whether the viewer has filed anything yet; until then the start page says how to begin. */
 export async function hasRecorded(v: Viewer): Promise<boolean> {
-  return !!(await (await db()).selectFrom("conversations").select("id").where("recorded_by", "=", v.userId).limit(1).executeTakeFirst());
+  return !!(await (await scope(v)).from("conversations").select("id").where("recorded_by", "=", v.userId).limit(1).executeTakeFirst());
 }
 
 /** A conversation in the history: when, how, the summary, and who was there. */
@@ -864,9 +869,9 @@ export type ConversationSummary = {
 
 /** Every conversation the viewer may see, newest first. */
 export async function listConversations(v: Viewer): Promise<ConversationSummary[]> {
-  const d = await db();
+  const d = await scope(v);
   const convs = await d
-    .selectFrom("conversations")
+    .from("conversations")
     .select(["id", "ramble_id", "date", "kind", "summary"])
     .$call((qb) => visible(qb, v, "conversations"))
     .orderBy("date", "desc")
@@ -874,7 +879,7 @@ export async function listConversations(v: Viewer): Promise<ConversationSummary[
     .execute();
   if (!convs.length) return [];
   const present = await d
-    .selectFrom("participants")
+    .from("participants")
     .innerJoin("persons", "persons.id", "participants.person_id")
     .select(["participants.conversation_id", "persons.id", "persons.name"])
     .where(
@@ -897,17 +902,17 @@ export async function listConversations(v: Viewer): Promise<ConversationSummary[
 }
 
 export async function getConversation(v: Viewer, id: string): Promise<ConversationView> {
-  const d = await db();
+  const d = await scope(v);
   const c = await d
-    .selectFrom("conversations")
+    .from("conversations")
     .selectAll()
     .where("id", "=", id)
     .$call((qb) => visible(qb, v, "conversations"))
     .executeTakeFirst();
   if (!c) throw new NotFoundError("No such conversation");
-  const ramble = await d.selectFrom("rambles").select(["transcript", "transcript_private"]).where("id", "=", c.ramble_id).executeTakeFirstOrThrow();
+  const ramble = await d.from("rambles").select(["transcript", "transcript_private"]).where("id", "=", c.ramble_id).executeTakeFirstOrThrow();
   const participants = await d
-    .selectFrom("participants")
+    .from("participants")
     .innerJoin("persons", "persons.id", "participants.person_id")
     .select(["persons.id", "persons.name"])
     .where("participants.conversation_id", "=", id)
@@ -925,43 +930,42 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
     c.recorded_by === v.userId
       ? null
       : await d
-          .selectFrom("users")
-          .innerJoin("persons", "persons.id", "users.person_id")
+          .from("persons")
           .select("persons.name")
-          .where("users.id", "=", c.recorded_by)
+          .where("id", "=", (await memberPersons(d)).get(c.recorded_by) ?? "")
           .executeTakeFirst();
   const by = recorder ? { by: recorder.name } : {};
   const [facts, promises, dates, exchanges, relationships] = await Promise.all([
     d
-      .selectFrom("facts")
+      .from("facts")
       .selectAll()
       .where("conversation_id", "=", id)
       .$call((qb) => visible(qb, v, "facts"))
       .orderBy("created_at")
       .execute(),
     d
-      .selectFrom("promises")
+      .from("promises")
       .selectAll()
       .where("conversation_id", "=", id)
       .$call((qb) => visible(qb, v, "promises"))
       .orderBy("created_at")
       .execute(),
     d
-      .selectFrom("dates")
+      .from("dates")
       .selectAll()
       .where("conversation_id", "=", id)
       .$call((qb) => visible(qb, v, "dates"))
       .orderBy("created_at")
       .execute(),
     d
-      .selectFrom("exchanges")
+      .from("exchanges")
       .selectAll()
       .where("conversation_id", "=", id)
       .$call((qb) => visible(qb, v, "exchanges"))
       .orderBy("created_at")
       .execute(),
     d
-      .selectFrom("relationships")
+      .from("relationships")
       .selectAll()
       .where("conversation_id", "=", id)
       .$call((qb) => visible(qb, v, "relationships"))
@@ -969,18 +973,18 @@ export async function getConversation(v: Viewer, id: string): Promise<Conversati
       .execute(),
   ]);
   const ids = [...new Set([...[facts, promises, dates, exchanges].flat().map((x) => x.person_id), ...relationships.flatMap((r) => [r.from_id, r.to_id])])];
-  const names = new Map(ids.length ? (await d.selectFrom("persons").select(["id", "name"]).where("id", "in", ids).execute()).map((p) => [p.id, p.name]) : []);
+  const names = new Map(ids.length ? (await d.from("persons").select(["id", "name"]).where("id", "in", ids).execute()).map((p) => [p.id, p.name]) : []);
   const about = (personId: string): About => ({ personId, name: names.get(personId) ?? "" });
   return {
     id: c.id,
     date: c.date,
     kind: c.kind as ConversationKind,
-    place: c.place_id ? ((await d.selectFrom("places").select("name").where("id", "=", c.place_id).executeTakeFirst())?.name ?? null) : null,
+    place: c.place_id ? ((await d.from("places").select("name").where("id", "=", c.place_id).executeTakeFirst())?.name ?? null) : null,
     placeId: c.place_id,
     experienceId:
       c.experience_id &&
       (await d
-        .selectFrom("experiences")
+        .from("experiences")
         .select("id")
         .where("id", "=", c.experience_id)
         .$call((qb) => visible(qb, v, "experiences"))

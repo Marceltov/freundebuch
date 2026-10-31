@@ -1,13 +1,13 @@
 // Places: where something happened, a record of its own with other names, as people have. A place exists for a viewer only
 // through a part they may see; so a place the other user holds only
 // through private parts is neither found nor reused, and a new one is made. Parts are conversations, experiences and series. Names match as people's do (names.ts).
-import { sql, type Kysely } from "kysely";
-import { db, newId, now, type Schema } from "../db";
+import { scope, type Scope } from "../db/scope";
+import { sql, newId, now } from "../db";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "../core/errors";
 import { norm, rank } from "../people/names";
 import type { Viewer } from "../core/types";
 import { personPath, placePath } from "../core/urls";
-import { resolveTarget } from "../people/household";
+import { otherMembers, resolveTarget } from "../people/household";
 import type { Visibility } from "../core/types";
 import { visible } from "../visibility";
 
@@ -32,9 +32,9 @@ export const MAX_PLACE = 120;
 export const MAX_ADDRESS = 200;
 
 /** The places with something at them the viewer may see, or a home of someone they may see is theirs. */
-function seenDirectly(d: Kysely<Schema>, v: Viewer) {
+function seenDirectly(d: Scope, v: Viewer) {
   return d
-    .selectFrom("places")
+    .from("places")
     .select("places.id")
     .where((eb) =>
       eb.or([
@@ -43,7 +43,7 @@ function seenDirectly(d: Kysely<Schema>, v: Viewer) {
             "places.id",
             "in",
             d
-              .selectFrom(t as "conversations")
+              .from(t as "conversations")
               .select("place_id")
               .where("place_id", "is not", null)
               .$call((qb) => visible(qb, v, t)) as never,
@@ -53,7 +53,7 @@ function seenDirectly(d: Kysely<Schema>, v: Viewer) {
           "places.id",
           "in",
           d
-            .selectFrom("place_owners")
+            .from("place_owners")
             .select("place_id")
             .$call((qb) => visible(qb, v, "place_owners")),
         ),
@@ -66,19 +66,19 @@ function seenDirectly(d: Kysely<Schema>, v: Viewer) {
  * upward: whoever sees the Olympiahalle may know it is in München, but a place inside one they see stays hidden unless it is seen
  * itself. A place with nothing left at it is found no more.
  */
-export function visiblePlaceIds(d: Kysely<Schema>, v: Viewer) {
+export function visiblePlaceIds(d: Scope, v: Viewer) {
   return sql<string>`(with recursive seen(id) as (select id from places where id in ${seenDirectly(d, v)} union select p.parent_id from places p join seen on p.id = seen.id where p.parent_id is not null) select id from seen)`;
 }
 
 /** The place `id` and the places inside it, at any depth, that the viewer may see. */
-export function placeAndInsideIds(d: Kysely<Schema>, v: Viewer, id: string) {
+export function placeAndInsideIds(d: Scope, v: Viewer, id: string) {
   return sql<string>`(with recursive down(id) as (select ${id} union select p.id from places p join down on p.parent_id = down.id) select id from down where id in ${visiblePlaceIds(d, v)})`;
 }
 
 /** The places the viewer may see, or (`only`) those of them with these ids; the places they sit in are read along for `parents`. */
-async function visiblePlaces(d: Kysely<Schema>, v: Viewer, only?: string[]): Promise<PlaceCandidate[]> {
+async function visiblePlaces(d: Scope, v: Viewer, only?: string[]): Promise<PlaceCandidate[]> {
   if (only && !only.length) return [];
-  let query = d.selectFrom("places").select(["id", "name", "parent_id", "address"]).where("id", "in", visiblePlaceIds(d, v));
+  let query = d.from("places").select(["id", "name", "parent_id", "address"]).where("id", "in", visiblePlaceIds(d, v));
   if (only)
     query = query.where(
       "id",
@@ -89,9 +89,9 @@ async function visiblePlaces(d: Kysely<Schema>, v: Viewer, only?: string[]): Pro
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
   const [aliases, owners] = await Promise.all([
-    d.selectFrom("place_aliases").select(["place_id", "alias"]).where("place_id", "in", ids).orderBy("alias").execute(),
+    d.from("place_aliases").select(["place_id", "alias"]).where("place_id", "in", ids).orderBy("alias").execute(),
     d
-      .selectFrom("place_owners")
+      .from("place_owners")
       .innerJoin("persons", "persons.id", "place_owners.person_id")
       .select(["place_owners.place_id", "persons.id", "persons.name"])
       .where("place_owners.place_id", "in", ids)
@@ -120,8 +120,8 @@ async function visiblePlaces(d: Kysely<Schema>, v: Viewer, only?: string[]): Pro
 }
 
 /** One place the viewer may see, with where it sits, its address and owners, and the places directly inside it they may see. */
-export async function describePlace(d: Kysely<Schema>, v: Viewer, id: string): Promise<PlaceCandidate & { inside: PlaceCandidate[] }> {
-  const children = await d.selectFrom("places").select("id").where("parent_id", "=", id).execute();
+export async function describePlace(d: Scope, v: Viewer, id: string): Promise<PlaceCandidate & { inside: PlaceCandidate[] }> {
+  const children = await d.from("places").select("id").where("parent_id", "=", id).execute();
   const all = await visiblePlaces(d, v, [id, ...children.map((c) => c.id)]);
   const p = all.find((x) => x.id === id);
   if (!p) throw new NotFoundError("No such place");
@@ -130,14 +130,14 @@ export async function describePlace(d: Kysely<Schema>, v: Viewer, id: string): P
 
 /** Every place the viewer may see, by name. */
 export async function listPlaces(v: Viewer): Promise<PlaceCandidate[]> {
-  return visiblePlaces(await db(), v);
+  return visiblePlaces(await scope(v), v);
 }
 
 /** The places the viewer may see whose name or other name matches `q`, tolerant of spelling, best first. */
 export async function findPlaces(v: Viewer, q: string, limit = 5): Promise<PlaceCandidate[]> {
   const nq = norm(q);
   if (!nq) return [];
-  return (await visiblePlaces(await db(), v))
+  return (await visiblePlaces(await scope(v), v))
     .map((p) => ({ p, r: rank(nq, [p.name, ...p.aliases]) }))
     .filter((h): h is { p: PlaceCandidate; r: number } => h.r !== null)
     .sort((x, y) => x.r - y.r || x.p.name.localeCompare(y.p.name))
@@ -152,13 +152,7 @@ export async function findPlaces(v: Viewer, q: string, limit = 5): Promise<Place
  * place and of each place it names it sits in, in that order. Owners are filed apart (fileOwnersOf), once the caller knows who
  * they are.
  */
-export async function resolvePlace(
-  tx: Kysely<Schema>,
-  v: Viewer,
-  ref: PlaceRef<unknown>,
-  visibility: Visibility = "shared",
-  levels: string[] = [],
-): Promise<string> {
+export async function resolvePlace(tx: Scope, v: Viewer, ref: PlaceRef<unknown>, visibility: Visibility = "shared", levels: string[] = []): Promise<string> {
   const id = await findOrMakePlace(tx, v, ref);
   levels.push(id);
   if (typeof ref === "string") return id;
@@ -169,25 +163,25 @@ export async function resolvePlace(
         `The household sees this place, so a private part can't set ${what}: leave it out, or file it shared, or with correct once the user agrees it may be seen`,
       );
   };
-  const row = await tx.selectFrom("places").select(["parent_id", "address"]).where("id", "=", id).executeTakeFirstOrThrow();
+  const row = await tx.from("places").select(["parent_id", "address"]).where("id", "=", id).executeTakeFirstOrThrow();
   if (ref.address !== undefined) {
     const address = checkAddress(ref.address);
     if (address !== row.address) {
       await refuse("its address");
-      await tx.updateTable("places").set({ address }).where("id", "=", id).execute();
+      await tx.update("places").set({ address }).where("id", "=", id).execute();
     }
   }
   if (ref.in !== undefined) {
     const parent = await resolvePlace(tx, v, ref.in, visibility, levels);
     if (!row.parent_id && !(await wouldLoop(tx, id, parent))) {
       await refuse("where it sits");
-      await tx.updateTable("places").set({ parent_id: parent }).where("id", "=", id).execute();
+      await tx.update("places").set({ parent_id: parent }).where("id", "=", id).execute();
     }
   }
   return id;
 }
 
-async function findOrMakePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef<unknown>): Promise<string> {
+async function findOrMakePlace(tx: Scope, v: Viewer, ref: PlaceRef<unknown>): Promise<string> {
   const places = await visiblePlaces(tx, v);
   if (typeof ref === "object" && "id" in ref) {
     if (!places.some((p) => p.id === ref.id)) throw new NotFoundError("No such place");
@@ -204,26 +198,21 @@ async function findOrMakePlace(tx: Kysely<Schema>, v: Viewer, ref: PlaceRef<unkn
       `The place "${name}" is close to ${near.map((p) => `"${p.name}" (${p.id})`).join(", ")}. Name an existing place by its id, or set confirmedNew: true on a place the user confirmed is new`,
     );
   const id = newId();
-  await tx.insertInto("places").values({ id, name, created_by: v.userId, created_at: now() }).execute();
+  await tx.insert("places", { id, name, created_by: v.userId, created_at: now() }).execute();
   return id;
 }
 
-/** The household's other users, as viewers. */
-async function others(tx: Kysely<Schema>, v: Viewer): Promise<Viewer[]> {
-  return (await tx.selectFrom("users").select(["id", "person_id"]).where("id", "!=", v.userId).execute()).map((u) => ({
-    userId: u.id,
-    personId: u.person_id ?? "",
-  }));
-}
+/** The book's other members, as viewers. */
+const others = (tx: Scope): Promise<Viewer[]> => otherMembers(tx);
 
 /** Whether `viewer` may see the place `id`. */
-async function sees(tx: Kysely<Schema>, viewer: Viewer, id: string): Promise<boolean> {
-  return !!(await tx.selectFrom("places").select("id").where("id", "=", id).where("id", "in", visiblePlaceIds(tx, viewer)).executeTakeFirst());
+async function sees(tx: Scope, viewer: Viewer, id: string): Promise<boolean> {
+  return !!(await tx.from("places").select("id").where("id", "=", id).where("id", "in", visiblePlaceIds(tx, viewer)).executeTakeFirst());
 }
 
 /** Whether another user sees the place `id` but not the place `other` (or, without `other`, sees `id` at all). */
-async function othersSee(tx: Kysely<Schema>, v: Viewer, id: string, other?: string): Promise<boolean> {
-  for (const o of await others(tx, v)) if ((await sees(tx, o, id)) && !(other && (await sees(tx, o, other)))) return true;
+async function othersSee(tx: Scope, v: Viewer, id: string, other?: string): Promise<boolean> {
+  for (const o of await others(tx)) if ((await sees(tx, o, id)) && !(other && (await sees(tx, o, other)))) return true;
   return false;
 }
 
@@ -241,7 +230,7 @@ const placeLevels = <P>(ref: PlaceRef<P> | undefined): Array<PlaceRef<P>> =>
  * level says so (ownersPrivate); told in `rambleId`, if any.
  */
 export async function fileOwnersOf<P>(
-  tx: Kysely<Schema>,
+  tx: Scope,
   v: Viewer,
   ref: PlaceRef<P> | undefined,
   ids: string[],
@@ -262,12 +251,12 @@ function checkAddress(address: string | null): string | null {
 }
 
 /** Whether `parent` is `id` or sits inside it, at any depth. */
-async function wouldLoop(tx: Kysely<Schema>, id: string, parent: string): Promise<boolean> {
+async function wouldLoop(tx: Scope, id: string, parent: string): Promise<boolean> {
   const seen = new Set<string>();
   for (let p: string | null = parent; p && !seen.has(p);) {
     if (p === id) return true;
     seen.add(p);
-    p = (await tx.selectFrom("places").select("parent_id").where("id", "=", p).executeTakeFirst())?.parent_id ?? null;
+    p = (await tx.from("places").select("parent_id").where("id", "=", p).executeTakeFirst())?.parent_id ?? null;
   }
   return false;
 }
@@ -275,7 +264,7 @@ async function wouldLoop(tx: Kysely<Schema>, id: string, parent: string): Promis
 /** Files `owners` (person ids, "me" or "us") as whose home the place is, each the viewer's own ownership with `visibility`; told in
  * `rambleId`, if any (the first ramble that told it keeps it). */
 export async function fileOwners(
-  tx: Kysely<Schema>,
+  tx: Scope,
   v: Viewer,
   placeId: string,
   owners: string[],
@@ -284,20 +273,19 @@ export async function fileOwners(
 ): Promise<void> {
   const ids = [...new Set((await Promise.all(owners.map((o) => resolveTarget(tx, v, o)))).flat())];
   if (!ids.length) return;
-  const found = await tx.selectFrom("persons").select("id").where("id", "in", ids).execute();
+  const found = await tx.from("persons").select("id").where("id", "in", ids).execute();
   if (found.length !== ids.length) throw new NotFoundError("No such person");
   for (const personId of ids)
     await tx
-      .insertInto("place_owners")
-      .values({ place_id: placeId, person_id: personId, visibility, recorded_by: v.userId, ramble_id: rambleId, created_at: now() })
+      .insert("place_owners", { place_id: placeId, person_id: personId, visibility, recorded_by: v.userId, ramble_id: rambleId, created_at: now() })
       .onConflict((oc) => oc.columns(["place_id", "person_id", "recorded_by"]).doUpdateSet({ visibility }))
       .execute();
 }
 
 /** Sets (null: clears) the place a place sits inside; refused when that would make it sit inside itself. */
 export async function setPlaceParent(v: Viewer, id: string, parentId: string | null): Promise<void> {
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
     await loadPlace(tx, v, id);
     if (parentId !== null) {
       await loadPlace(tx, v, parentId);
@@ -308,16 +296,16 @@ export async function setPlaceParent(v: Viewer, id: string, parentId: string | n
           "The household sees this place but not the one it would sit in, which would show them that place: ask the user before making it seen, e.g. by filing something shared there",
         );
     }
-    await tx.updateTable("places").set({ parent_id: parentId }).where("id", "=", id).execute();
+    await tx.update("places").set({ parent_id: parentId }).where("id", "=", id).execute();
   });
 }
 
 /** Sets (null: clears) a place's address in words. */
 export async function setPlaceAddress(v: Viewer, id: string, address: string | null): Promise<void> {
-  const d = await db();
+  const d = await scope(v);
   await loadPlace(d, v, id);
   await d
-    .updateTable("places")
+    .update("places")
     .set({ address: checkAddress(address) })
     .where("id", "=", id)
     .execute();
@@ -326,8 +314,8 @@ export async function setPlaceAddress(v: Viewer, id: string, address: string | n
 /** Adds whose home a place is: a person id, "me" or "us". */
 export async function addPlaceOwner(v: Viewer, id: string, person: string, visibility: Visibility): Promise<void> {
   if (visibility !== "shared" && visibility !== "private") throw new InvalidInputError("visibility is shared or private");
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
     await loadPlace(tx, v, id);
     await fileOwners(tx, v, id, [person], visibility);
   });
@@ -335,26 +323,25 @@ export async function addPlaceOwner(v: Viewer, id: string, person: string, visib
 
 /** Drops a person as owner of a place: the viewer's own ownership and a shared one of the partner's. */
 export async function removePlaceOwner(v: Viewer, id: string, personId: string): Promise<void> {
-  const d = await db();
+  const d = await scope(v);
   await loadPlace(d, v, id);
   await d
-    .deleteFrom("place_owners")
+    .delete("place_owners")
     .where("place_id", "=", id)
     .where("person_id", "=", personId)
     .$call((qb) => visible(qb, v, "place_owners"))
     .execute();
 }
 
-async function loadPlace(d: Kysely<Schema>, v: Viewer, id: string): Promise<{ id: string; name: string }> {
-  const p = await d.selectFrom("places").select(["id", "name"]).where("id", "=", id).where("id", "in", visiblePlaceIds(d, v)).executeTakeFirst();
+async function loadPlace(d: Scope, v: Viewer, id: string): Promise<{ id: string; name: string }> {
+  const p = await d.from("places").select(["id", "name"]).where("id", "=", id).where("id", "in", visiblePlaceIds(d, v)).executeTakeFirst();
   if (!p) throw new NotFoundError("No such place");
   return p;
 }
 
-async function insertAlias(d: Kysely<Schema>, placeId: string, alias: string): Promise<void> {
+async function insertAlias(d: Scope, placeId: string, alias: string): Promise<void> {
   await d
-    .insertInto("place_aliases")
-    .values({ place_id: placeId, alias, norm: norm(alias) })
+    .insert("place_aliases", { place_id: placeId, alias, norm: norm(alias) })
     .onConflict((oc) => oc.doNothing())
     .execute();
 }
@@ -363,7 +350,7 @@ async function insertAlias(d: Kysely<Schema>, placeId: string, alias: string): P
 export async function addPlaceAlias(v: Viewer, id: string, alias: string): Promise<void> {
   const a = alias.trim();
   if (!a || a.length > MAX_PLACE) throw new InvalidInputError(`Another name needs 1 to ${MAX_PLACE} characters`);
-  const d = await db();
+  const d = await scope(v);
   const p = await loadPlace(d, v, id);
   if (norm(a) !== norm(p.name)) await insertAlias(d, id, a);
 }
@@ -372,20 +359,20 @@ export async function addPlaceAlias(v: Viewer, id: string, alias: string): Promi
 export async function renamePlace(v: Viewer, id: string, name: string): Promise<void> {
   const n = name.trim();
   if (!n || n.length > MAX_PLACE) throw new InvalidInputError(`A place needs a name of 1 to ${MAX_PLACE} characters`);
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
     const p = await loadPlace(tx, v, id);
     if (norm(p.name) !== norm(n)) await insertAlias(tx, id, p.name);
-    await tx.deleteFrom("place_aliases").where("place_id", "=", id).where("norm", "=", norm(n)).execute();
-    await tx.updateTable("places").set({ name: n }).where("id", "=", id).execute();
+    await tx.delete("place_aliases").where("place_id", "=", id).where("norm", "=", norm(n)).execute();
+    await tx.update("places").set({ name: n }).where("id", "=", id).execute();
   });
 }
 
 /** Merges the duplicate `dropId` into `keepId`: everything at it moves, its names stay as other names, and it is deleted. */
 export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Promise<void> {
   if (keepId === dropId) throw new InvalidInputError("Can't merge a place into itself");
-  const d = await db();
-  await d.transaction().execute(async (tx) => {
+  const d = await scope(v);
+  await d.transaction(async (tx) => {
     const keep = await loadPlace(tx, v, keepId);
     const drop = await loadPlace(tx, v, dropId);
     // Whoever sees the dropped place would see the kept one's name and other names after the merge: refused when they can't
@@ -398,41 +385,40 @@ export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Pr
     const hidden = await othersSee(tx, v, keepId, dropId);
     for (const t of ["conversations", "experiences", "series"] as const)
       await tx
-        .updateTable(t as "conversations")
+        .update(t as "conversations")
         .set({ place_id: keepId })
         .where("place_id", "=", dropId)
         .execute();
     // The kept place keeps where it sits and its address, and takes the dropped one's where it has none; what sat inside the
     // dropped place sits inside the kept one, and its owners move, each recorder's once.
     const [k, dr] = await Promise.all(
-      [keepId, dropId].map((id) => tx.selectFrom("places").select(["parent_id", "address"]).where("id", "=", id).executeTakeFirstOrThrow()),
+      [keepId, dropId].map((id) => tx.from("places").select(["parent_id", "address"]).where("id", "=", id).executeTakeFirstOrThrow()),
     );
     const adopt = !hidden && dr.parent_id && !(await wouldLoop(tx, keepId, dr.parent_id)) ? dr.parent_id : null;
     const parent = k.parent_id && k.parent_id !== dropId ? k.parent_id : adopt;
     await tx
-      .updateTable("places")
+      .update("places")
       .set({ parent_id: parent, address: k.address ?? (hidden ? null : dr.address) })
       .where("id", "=", keepId)
       .execute();
-    await tx.updateTable("places").set({ parent_id: keepId }).where("parent_id", "=", dropId).where("id", "!=", keepId).execute();
-    for (const o of await tx.selectFrom("place_owners").selectAll().where("place_id", "=", dropId).execute())
+    await tx.update("places").set({ parent_id: keepId }).where("parent_id", "=", dropId).where("id", "!=", keepId).execute();
+    for (const o of await tx.from("place_owners").selectAll().where("place_id", "=", dropId).execute())
       await tx
-        .insertInto("place_owners")
-        .values({ ...o, place_id: keepId })
+        .insert("place_owners", { ...o, place_id: keepId })
         .onConflict((oc) => oc.doNothing())
         .execute();
-    const aliases = await tx.selectFrom("place_aliases").select("alias").where("place_id", "=", dropId).execute();
+    const aliases = await tx.from("place_aliases").select("alias").where("place_id", "=", dropId).execute();
     if (!hidden) for (const a of [drop.name, ...aliases.map((x) => x.alias)]) if (norm(a) !== norm(keep.name)) await insertAlias(tx, keepId, a);
-    await tx.deleteFrom("places").where("id", "=", dropId).execute();
+    await tx.delete("places").where("id", "=", dropId).execute();
   });
 }
 
 /** The places the viewer may see of the conversations and experiences a person was part of: how often and when last, newest first. */
 export async function placesOf(v: Viewer, personId: string): Promise<Array<PlaceCandidate & { times: number; last: string }>> {
-  const d = await db();
+  const d = await scope(v);
   const [conversations, experiences] = await Promise.all([
     d
-      .selectFrom("conversations")
+      .from("conversations")
       .innerJoin("participants", "participants.conversation_id", "conversations.id")
       .select(["conversations.place_id", "conversations.date"])
       .where("participants.person_id", "=", personId)
@@ -440,7 +426,7 @@ export async function placesOf(v: Viewer, personId: string): Promise<Array<Place
       .$call((qb) => visible(qb, v, "conversations"))
       .execute(),
     d
-      .selectFrom("experiences")
+      .from("experiences")
       .innerJoin("experience_people", "experience_people.experience_id", "experiences.id")
       .select(["experiences.place_id", "experiences.date"])
       .where("experience_people.person_id", "=", personId)
@@ -460,14 +446,14 @@ export async function placesOf(v: Viewer, personId: string): Promise<Array<Place
 
 /** The places directly inside a place, as far as the viewer may see. */
 export async function placesInside(v: Viewer, id: string): Promise<PlaceCandidate[]> {
-  return (await describePlace(await db(), v, id)).inside;
+  return (await describePlace(await scope(v), v, id)).inside;
 }
 
 /** The homes of a person the viewer may see: the places with an ownership of theirs the viewer may see. */
 export async function homesOf(v: Viewer, personId: string): Promise<PlaceCandidate[]> {
-  const d = await db();
+  const d = await scope(v);
   const owned = await d
-    .selectFrom("place_owners")
+    .from("place_owners")
     .select("place_id")
     .where("person_id", "=", personId)
     .$call((qb) => visible(qb, v, "place_owners"))

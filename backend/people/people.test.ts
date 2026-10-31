@@ -1,17 +1,14 @@
 import { beforeEach, expect, test } from "vitest";
-import { db, newId, now, resetDbForTests } from "../db/testing";
+import type { Scope } from "../db/scope";
+import { newId, now, resetDbForTests, firstBook } from "../db/testing";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { addAlias, createPerson, findPeople, getPerson, listPeople, setGender } from "./people";
 import { userFromOidc } from "../core/users";
 import type { Viewer } from "../core/types";
 
 // A ramble for a conversation inserted by hand, returning its id.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ramble = async (d: { insertInto: (t: "rambles") => any }, id: string, by: string) => (
-  await d
-    .insertInto("rambles")
-    .values({ id, date: "2026-01-01", transcript: "", transcript_private: 0, visibility: "shared", recorded_by: by, created_at: 0 })
-    .execute(),
+const ramble = async (d: Scope, id: string, by: string) => (
+  await d.insert("rambles", { id, date: "2026-01-01", transcript: "", transcript_private: 0, visibility: "shared", recorded_by: by, created_at: 0 }).execute(),
   id
 );
 
@@ -67,10 +64,9 @@ test("limit caps the result", async () => {
 test("context shows relationships and when the viewer last saw the person", async () => {
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
-  const d = await db();
+  const d = await firstBook();
   await d
-    .insertInto("relationships")
-    .values({
+    .insert("relationships", {
       id: newId(),
       from_id: anna,
       to_id: tom,
@@ -86,8 +82,7 @@ test("context shows relationships and when the viewer last saw the person", asyn
   for (const date of ["2026-10-01", "2026-10-20"]) {
     const id = newId();
     await d
-      .insertInto("conversations")
-      .values({
+      .insert("conversations", {
         id,
         date,
         kind: "call",
@@ -99,8 +94,7 @@ test("context shows relationships and when the viewer last saw the person", asyn
       })
       .execute();
     await d
-      .insertInto("participants")
-      .values([
+      .insert("participants", [
         { conversation_id: id, person_id: anna },
         { conversation_id: id, person_id: b.personId },
       ])
@@ -109,8 +103,7 @@ test("context shows relationships and when the viewer last saw the person", asyn
   // A conversation the viewer was not part of does not count as seeing Anna.
   const other = newId();
   await d
-    .insertInto("conversations")
-    .values({
+    .insert("conversations", {
       id: other,
       date: "2026-10-22",
       kind: "call",
@@ -121,7 +114,7 @@ test("context shows relationships and when the viewer last saw the person", asyn
       created_at: now(),
     })
     .execute();
-  await d.insertInto("participants").values({ conversation_id: other, person_id: anna }).execute();
+  await d.insert("participants", { conversation_id: other, person_id: anna }).execute();
   const [c] = await findPeople(b, "Anna");
   expect(c.context).toEqual(["Partner:in of Tom", "last seen 2026-10-20"]);
   expect((await findPeople(b, "Tom"))[0].context).toEqual(["Partner:in of Anna"]);
@@ -130,10 +123,9 @@ test("context shows relationships and when the viewer last saw the person", asyn
 test("context never contains anything from a private item of the other user", async () => {
   const anna = await createPerson(a, { name: "Anna" });
   const tom = await createPerson(a, { name: "Tom" });
-  const d = await db();
+  const d = await firstBook();
   await d
-    .insertInto("relationships")
-    .values({
+    .insert("relationships", {
       id: newId(),
       from_id: anna,
       to_id: tom,
@@ -148,8 +140,7 @@ test("context never contains anything from a private item of the other user", as
     .execute();
   const cid = newId();
   await d
-    .insertInto("conversations")
-    .values({
+    .insert("conversations", {
       id: cid,
       date: "2026-10-20",
       kind: "call",
@@ -161,8 +152,7 @@ test("context never contains anything from a private item of the other user", as
     })
     .execute();
   await d
-    .insertInto("participants")
-    .values([
+    .insert("participants", [
       { conversation_id: cid, person_id: anna },
       { conversation_id: cid, person_id: b.personId },
     ])
@@ -180,11 +170,10 @@ test("addAlias adds, dedupes by norm and is found", async () => {
 });
 
 test("getPerson hides createdFrom when the conversation is not visible", async () => {
-  const d = await db();
+  const d = await firstBook();
   const cid = newId();
   await d
-    .insertInto("conversations")
-    .values({
+    .insert("conversations", {
       id: cid,
       date: "2026-10-20",
       kind: "call",
@@ -229,9 +218,8 @@ test("relationship hints read naturally in both directions", async () => {
   const tom = await createPerson(a, { name: "Tom" });
   const anna = await createPerson(a, { name: "Anna" });
   const rel = async (from: string, to: string, label: string, inverse: string) =>
-    (await db())
-      .insertInto("relationships")
-      .values({
+    (await firstBook())
+      .insert("relationships", {
         id: newId(),
         from_id: from,
         to_id: to,
@@ -272,10 +260,20 @@ test("a gender change returns the person's relationships the viewer may edit: th
   const rel = async (by: Viewer, from: string, to: string, label: string, inverse: string, visibility = "shared") => {
     const id = newId();
     await (
-      await db()
+      await firstBook()
     )
-      .insertInto("relationships")
-      .values({ id, from_id: from, to_id: to, label, inverse, note: null, visibility, recorded_by: by.userId, conversation_id: null, created_at: now() })
+      .insert("relationships", {
+        id,
+        from_id: from,
+        to_id: to,
+        label,
+        inverse,
+        note: null,
+        visibility,
+        recorded_by: by.userId,
+        conversation_id: null,
+        created_at: now(),
+      })
       .execute();
     return id;
   };
@@ -299,10 +297,9 @@ test("a first gender asks only for the person's words still in a neutral form; a
   const rel = async (from: string, to: string, label: string, inverse: string) => {
     const id = newId();
     await (
-      await db()
+      await firstBook()
     )
-      .insertInto("relationships")
-      .values({
+      .insert("relationships", {
         id,
         from_id: from,
         to_id: to,

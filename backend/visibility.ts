@@ -1,6 +1,7 @@
 // Item-level privacy in one place: a row is visible to a viewer when it is shared or they recorded it. Every read of a table that
 // carries `visibility` and `recorded_by` goes through `visible`, so the rule cannot drift between call sites.
-import { sql, type Expression, type SqlBool } from "kysely";
+import type { Expression, SqlBool } from "kysely";
+import { sql } from "./db";
 import type { Viewer } from "./core/types";
 
 /** The tables whose rows carry a visibility and their recording user. */

@@ -1,6 +1,6 @@
 // Relationships and group memberships set directly, without a conversation (relate): "Lena is Anna's sister", "Anna is in the
 // Uni group". They go through the same checks and writers as the ones recorded with a conversation, with conversation_id null.
-import type { Kysely } from "kysely";
+import { scope, type Scope } from "../db/scope";
 import {
   checkGroup,
   checkRelationship,
@@ -10,7 +10,7 @@ import {
   type FiledRelationship,
   type ItemBase,
 } from "../conversations/conversations";
-import { db, now, type Schema } from "../db";
+import { now } from "../db";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import type { Viewer, Visibility } from "../core/types";
 import { groupPath } from "../core/urls";
@@ -22,9 +22,9 @@ export type NewMembership = { name: string; members: string[]; visibility: Visib
 
 const baseOf = (v: Viewer): ItemBase => ({ recorded_by: v.userId, conversation_id: null, created_at: now() });
 
-async function assertPeople(tx: Kysely<Schema>, ids: string[]): Promise<void> {
+async function assertPeople(tx: Scope, ids: string[]): Promise<void> {
   const unique = [...new Set(ids)];
-  const found = await tx.selectFrom("persons").select("id").where("id", "in", unique).execute();
+  const found = await tx.from("persons").select("id").where("id", "in", unique).execute();
   if (found.length !== unique.length) throw new NotFoundError("No such person");
 }
 
@@ -35,7 +35,7 @@ async function assertPeople(tx: Kysely<Schema>, ids: string[]): Promise<void> {
 export async function addRelationship(v: Viewer, r: NewRelationship): Promise<{ ids: string[]; relationships: FiledRelationship[] }> {
   checkRelationship(r, () => {});
   checkVisibility(r.visibility);
-  return (await db()).transaction().execute(async (tx) => {
+  return (await scope(v)).transaction(async (tx) => {
     await assertPeople(
       tx,
       [r.from, r.to].filter((t) => !isHouseholdWord(t)),
@@ -53,10 +53,10 @@ export async function addToGroup(v: Viewer, g: NewMembership): Promise<{ added: 
   checkGroup(g, () => {});
   checkVisibility(g.visibility);
   if (!g.members.length) throw new InvalidInputError("A group membership needs at least one person");
-  return (await db()).transaction().execute(async (tx) => {
+  return (await scope(v)).transaction(async (tx) => {
     await assertPeople(tx, g.members);
     const { added, groupId: id } = await insertMemberships(tx, v, baseOf(v), g.name, g.members, g.visibility);
-    const { name } = await tx.selectFrom("groups").select("name").where("id", "=", id).executeTakeFirstOrThrow();
+    const { name } = await tx.from("groups").select("name").where("id", "=", id).executeTakeFirstOrThrow();
     return { added, already: new Set(g.members).size - added, id, name, url: groupPath(id) };
   });
 }

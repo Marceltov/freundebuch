@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { record } from "../conversations/conversations";
 import { skipSession, editItem } from "../conversations/corrections";
-import { db } from "../db/testing";
+import { unchecked } from "../db/testing";
 import type { SeriesRef } from "./experiences";
 import { whatsDue } from "../reading/due";
 import { getSeries } from "./experiences";
@@ -24,7 +24,7 @@ async function dogSchool(series: SeriesRef = { name: "Hundeschule mit Toffee", r
     experiences: [{ kind: "Kurs", title: "Erste Stunde", present: [0, 1], series }],
   });
   const id = r.experiences[0].seriesId!;
-  await (await db()).updateTable("series").set({ created_at: FILED }).where("id", "=", id).execute();
+  await unchecked().updateTable("series").set({ created_at: FILED }).where("id", "=", id).execute();
   return id;
 }
 const lesson = (v: Seed["a"], seriesId: string, date: string, extra: object = {}) =>

@@ -1,7 +1,7 @@
 // The start page's orbit: the viewer in the middle, people on three rings by how fresh the viewer's own contact with them is.
 // Placement reads `freshness` (the viewer's own last seen and interval), and badges read only what the viewer may see, so the
 // partner's private conversations never move a face and their private items never badge one.
-import { db } from "../db";
+import { scope } from "../db/scope";
 import { daysBetween, today } from "./dates";
 import { upcomingDates } from "../reading/due";
 import { freshness } from "./intervals";
@@ -45,19 +45,19 @@ function ringOf(ratio: number | null, intervalDays: number | null, daysSince: nu
  */
 export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Promise<OrbitFace[]> {
   const from = today(now);
-  const d = await db();
+  const d = await scope(v);
   const members = groupId ? new Set((await getGroup(v, groupId)).members.map((m) => m.personId)) : null;
   const [persons, birthdays, promised, gifts] = await Promise.all([
-    d.selectFrom("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),
+    d.from("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),
     upcomingDates(v, from, SOON_DAYS).then((ds) => ds.filter((x) => x.kind === "birthday")),
     d
-      .selectFrom("promises")
+      .from("promises")
       .select("person_id")
       .where("done", "=", 0)
       .$call((qb) => visible(qb, v, "promises"))
       .execute(),
     d
-      .selectFrom("exchanges")
+      .from("exchanges")
       .select("person_id")
       .where("kind", "=", "gift_idea")
       .where("settled", "=", 0)

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SITUATION_DAYS } from "../conversations/conversations";
 import { fileContent, shareFile } from "../conversations/files";
 import { addDays, today } from "../people/dates";
-import { db } from "../db/testing";
+import { unchecked } from "../db/testing";
 import { seed, type Seed } from "../testing/fixtures";
 import { asRamble } from "../testing/fixtures";
 import { TOOLS, toolByName } from "./tools";
@@ -61,7 +61,7 @@ test("the descriptions tell Claude to file roles in words, to agree a situation'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the tests read tool results by shape, which the output schemas check
 type Json = any;
 const run = async (v: Seed["a"], name: string, args: object): Promise<Json> => toolByName(name)!.run(v, args);
-const factId = async (text: string) => (await (await db()).selectFrom("facts").select("id").where("text", "=", text).executeTakeFirstOrThrow()).id;
+const factId = async (text: string) => (await unchecked().selectFrom("facts").select("id").where("text", "=", text).executeTakeFirstOrThrow()).id;
 const SIX_WEEKS = () => addDays(today(), SITUATION_DAYS);
 const lunch = (over: object = {}) => ({
   date: "2026-10-22",
@@ -708,9 +708,7 @@ describe("missed sessions over MCP", () => {
       people: [],
       experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
     });
-    await (
-      await db()
-    )
+    await unchecked()
       .updateTable("series")
       .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })
       .where("id", "=", r.experiences[0].seriesId)
