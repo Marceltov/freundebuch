@@ -1,7 +1,7 @@
 // The one-off conversion of 162: an old-format database (the migrations before books) becomes one book, nothing lost, nothing
 // private changing hands.
 import Database from "better-sqlite3";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -10,7 +10,7 @@ import { closeDatabaseForTests, openDatabase } from "../backend/db";
 import { viewerById } from "../backend/core/users";
 import { briefing } from "../backend/reading/briefing";
 import { getConversation } from "../backend/conversations/conversations";
-import { migrate as migrateOld } from "./fixtures/old-migrations";
+import { MIGRATION_NAMES as OLD_MIGRATIONS, migrate as migrateOld, migrateTo } from "./fixtures/old-migrations";
 import { convert } from "./convert-to-books";
 
 const dirs: string[] = [];
@@ -74,4 +74,15 @@ test("the old database becomes one book with both users as members, every row ke
   // Relationships told in the same millisecond keep the order they were told in (z-rel first).
   const order = new Database(newFile).prepare("select id from relationships order by created_at, id").all() as { id: string }[];
   expect(order.map((r) => r.id)).toEqual(["z-rel", "a-rel"]);
+});
+
+test("an old database that isn't at the last migration before books is refused, nothing written", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "fb-convert-"));
+  dirs.push(dir);
+  const [oldFile, newFile] = [join(dir, "old.db"), join(dir, "new.db")];
+  const k = await connect(oldFile);
+  await migrateTo(k, OLD_MIGRATIONS[OLD_MIGRATIONS.length - 2]);
+  await k.destroy();
+  await expect(convert(oldFile, newFile)).rejects.toThrow(/not at the last migration before books/);
+  expect(existsSync(newFile)).toBe(false);
 });

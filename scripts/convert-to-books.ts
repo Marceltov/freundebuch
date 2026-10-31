@@ -12,6 +12,7 @@ import { connect } from "../backend/db/connect";
 import { migrate } from "../backend/db/migrations";
 import { isBookTable } from "../backend/db/tables";
 import { FIRST_BOOK } from "../backend/core/users";
+import { MIGRATION_NAMES as OLD_MIGRATIONS } from "./fixtures/old-migrations";
 
 export type Report = { book: string; tables: Record<string, { old: number; new: number }>; mismatches: string[] };
 
@@ -22,6 +23,14 @@ const q = (name: string) => `"${name}"`;
 export async function convert(oldFile: string, newFile: string, bookName = FIRST_BOOK): Promise<Report> {
   if (!existsSync(oldFile)) throw new Error(`no database at ${oldFile}`);
   if (existsSync(newFile)) throw new Error(`${newFile} exists; convert into a new file`);
+  // Only the schema the 21 old migrations leave is copied column by column; anything else would lose columns without a word.
+  const ran = new Database(oldFile, { readonly: true });
+  const names = (ran.prepare("select name from kysely_migration order by name").all() as { name: string }[]).map((r) => r.name);
+  ran.close();
+  if (names.join() !== [...OLD_MIGRATIONS].sort().join())
+    throw new Error(
+      `the old database is not at the last migration before books (${names.at(-1) ?? "none"}); start the last old image on it once, then convert`,
+    );
   const k = await connect(newFile);
   await migrate(k);
   await k.destroy();
