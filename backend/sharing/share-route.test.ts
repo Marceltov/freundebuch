@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeEach, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { sign } from "../auth/tokens";
-import { db } from "../db";
+import { unchecked } from "../db/testing";
 import { createShareKey, listPending, setFileModelForTests } from "../conversations/files";
 import { fileRoute, rangeOf, shareRoute } from "./share-route";
 import { resetSecretForTests } from "../core/secret";
@@ -47,7 +47,7 @@ test("the Shortcut sends the image as the body with its share key: 202, stored a
   expect(res.status).toBe(202);
   const body = await res.json();
   expect(body).toMatchObject({ status: "reading", duplicate: false, message: "Danke! freundebuch liest die Datei, sie wartet unter „Prüfen“." });
-  expect((await (await db()).selectFrom("files").select("user_id").where("id", "=", body.id).executeTakeFirstOrThrow()).user_id).toBe(s.a.userId);
+  expect((await unchecked().selectFrom("files").select("user_id").where("id", "=", body.id).executeTakeFirstOrThrow()).user_id).toBe(s.a.userId);
 });
 
 test("the share page sends a form with the cookie", async () => {
@@ -74,7 +74,7 @@ test("a PDF or a text file comes in as the body or as the form field file, and t
   const form = new FormData();
   form.set("file", new Blob(["Patrick: Wochenende war gut"], { type: "text/plain" }), "chat.txt");
   expect((await share(form, { authorization: `Bearer ${key}` })).status).toBe(202);
-  const types = await (await db()).selectFrom("files").select("media_type").orderBy("media_type").execute();
+  const types = await unchecked().selectFrom("files").select("media_type").orderBy("media_type").execute();
   expect(types.map((t) => t.media_type)).toEqual(["application/pdf", "text/plain"]);
 });
 
@@ -84,7 +84,7 @@ test("not an image, PDF or text, or too large: refused, nothing stored", async (
   expect((await share(new Uint8Array([0x50, 0x4b, 3, 4, 0, 0]) as BodyInit, { ...auth, "content-type": "application/zip" })).status).toBe(400);
   expect((await share("hello", { ...auth, "content-type": "image/png" })).status).toBe(400);
   expect((await share(new Uint8Array(16 * 1024 * 1024) as BodyInit, { ...auth, "content-type": "image/png" })).status).toBe(413);
-  expect(await (await db()).selectFrom("files").selectAll().execute()).toEqual([]);
+  expect(await unchecked().selectFrom("files").selectAll().execute()).toEqual([]);
 });
 
 test("without an API key there is no sharing", async () => {
@@ -182,7 +182,7 @@ test("a file shared again with a new share joins it, so Prüfen opens on the sha
   ).toEqual([fresh.id, old.id].sort());
 });
 
-test("files of one share that came in the same millisecond keep the order they came in", async () => {
+test("files of one share keep the order they came in: no two get the same time", async () => {
   const key = await createShareKey(s.a);
   const ids: string[] = [];
   for (let i = 0; i < 6; i++)
@@ -193,7 +193,8 @@ test("files of one share that came in the same millisecond keep the order they c
         ).json()) as { id: string }
       ).id,
     );
-  await (await db()).updateTable("files").set({ created_at: 5 }).where("id", "in", ids).execute();
+  const times = await unchecked().selectFrom("files").select("created_at").where("id", "in", ids).orderBy("created_at").execute();
+  expect(new Set(times.map((t) => t.created_at)).size).toBe(ids.length);
   expect((await listPending(s.a)).map((f) => f.id)).toEqual(ids);
 });
 

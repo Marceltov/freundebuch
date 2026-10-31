@@ -1,3 +1,4 @@
+import { firstBook } from "../db/testing";
 import { beforeEach, expect, test } from "vitest";
 import { recordConversation } from "../conversations/conversations";
 import { setCheckInInterval } from "../people/intervals";
@@ -75,8 +76,8 @@ test("promises: open ones due within the horizon, past due included; done, undat
     ],
   });
   expect(r.counts.promises).toBe(5);
-  const { db } = await import("../db/testing");
-  await (await db()).updateTable("promises").set({ done: 1 }).where("text", "=", "already done").execute();
+  const {} = await import("../db/testing");
+  await (await firstBook()).update("promises").set({ done: 1 }).where("text", "=", "already done").execute();
   expect((await whatsDue(s.a, "2026-10-23")).filter((i) => i.kind === "promise").map((i) => `${i.date} ${i.text}`)).toEqual([
     "2026-10-01 return the book",
     "2026-10-25 send photos",

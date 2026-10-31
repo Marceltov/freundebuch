@@ -3,6 +3,8 @@
 import { resetDbForTests } from "../db/testing";
 import { recordConversation } from "../conversations/conversations";
 import { userFromOidc } from "../core/users";
+import { instance } from "../db/scope";
+import { createBook } from "../people/books";
 import type { Viewer } from "../core/types";
 
 export type Seed = {
@@ -65,6 +67,26 @@ export async function seed(): Promise<Seed> {
     facts: [{ person: 0, text: "likes hiking", category: "hobby" }],
   });
   return { a, b, anna, tom, lena: coffee.people[0].id, dinner: dinner.conversationId, coffee: coffee.conversationId, call: call.conversationId };
+}
+
+/** A second book on the same instance: Carol's own, with a shared call with Carl. Nothing of it may reach the first book. */
+export async function seedOtherBook(): Promise<{ c: Viewer; carl: string; carlCall: string }> {
+  const i = await instance();
+  await i.insert("users", { id: "carol", oidc_sub: "c", name: "Carol", email: null, created_at: Date.now() }).execute();
+  const c = await createBook(i, "carol", "Carol", "Carols Buch");
+  const call = await recordConversation(c, {
+    date: "2026-10-16",
+    kind: "call",
+    summary: "Called Carl about the museum.",
+    transcript: "Called Carl, he wants to visit the museum where Anna works.",
+    visibility: "shared",
+    people: [
+      { name: "Carl", present: true },
+      { name: "Anna", present: false },
+    ],
+    facts: [{ person: 0, text: "loves museums", category: "hobby" }],
+  });
+  return { c, carl: call.people[0].id, carlCall: call.conversationId };
 }
 
 /** A conversation in the shape record_conversation took, as the ramble record files it: one conversation, everything in it. */

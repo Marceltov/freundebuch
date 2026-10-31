@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { sign } from "../auth/tokens";
 import { calendarRoute } from "../sharing/calendar";
 import { shareFile } from "../conversations/files";
-import { db } from "../db/testing";
+import { unchecked, firstBook } from "../db/testing";
 import { logTo } from "../core/log";
 import { mcpRoute } from "./mcp";
 import { resetSecretForTests } from "../core/secret";
@@ -205,7 +205,7 @@ describe("tools", () => {
     void visibility;
     const r = await call(s.a, "record", asRamble(rest));
     expect(r.isError).toBe(true);
-    expect(await (await db()).selectFrom("conversations").select("id").where("summary", "=", "Lunch with Anna.").execute()).toEqual([]);
+    expect(await (await firstBook()).from("conversations").select("id").where("summary", "=", "Lunch with Anna.").execute()).toEqual([]);
   });
 
   test("record, read back as structured content and JSON text", async () => {
@@ -315,9 +315,9 @@ describe("tools", () => {
 
   test("correct maps each action to its correction", async () => {
     await call(s.a, "record", asRamble(ramble({ promises: [{ person: 0, text: "send the playlist", byMe: true }] })));
-    const d = await db();
-    const promise = (await d.selectFrom("promises").select("id").where("text", "=", "send the playlist").executeTakeFirstOrThrow()).id;
-    const marathon = (await d.selectFrom("facts").select("id").where("text", "=", "training for a marathon").executeTakeFirstOrThrow()).id;
+    const d = await firstBook();
+    const promise = (await d.from("promises").select("id").where("text", "=", "send the playlist").executeTakeFirstOrThrow()).id;
+    const marathon = (await d.from("facts").select("id").where("text", "=", "training for a marathon").executeTakeFirstOrThrow()).id;
     const ok = { structuredContent: { corrected: true } };
     expect(await call(s.b, "correct", { action: "done", table: "promises", id: promise })).toMatchObject(ok);
     expect(await call(s.a, "correct", { action: "edit", table: "facts", id: marathon, patch: { text: "ran a marathon" } })).toMatchObject(ok);
@@ -332,7 +332,7 @@ describe("tools", () => {
       content: [{ text: expect.stringMatching(/^alias: /) }],
     });
     expect(await call(s.a, "correct", { action: "merge", id: s.anna, drop: s.tom })).toMatchObject(ok);
-    expect(await d.selectFrom("persons").select("id").where("id", "=", s.tom).execute()).toEqual([]);
+    expect(await d.from("persons").select("id").where("id", "=", s.tom).execute()).toEqual([]);
     // The dinner still holds private items, so its transcript stays private; the coffee is B's to never see.
     expect(await call(s.a, "correct", { action: "share_transcript", id: s.dinner })).toMatchObject({
       isError: true,
@@ -366,8 +366,8 @@ describe("tools", () => {
         { person: s.lena, text: "sucht einen Hund", category: "hobby", kind: "situation", checkAfter: "2026-12-01" },
       ],
     });
-    const d = await db();
-    const id = (await d.selectFrom("facts").select("id").where("text", "=", "unsere Nachbarin").executeTakeFirstOrThrow()).id;
+    const d = await firstBook();
+    const id = (await d.from("facts").select("id").where("text", "=", "unsere Nachbarin").executeTakeFirstOrThrow()).id;
     const ok = { structuredContent: { corrected: true } };
     expect(await call(s.a, "correct", { action: "to_relationship", id, from: s.lena, to: "us", label: "Nachbar:in", inverse: "Nachbar:in" })).toMatchObject(ok);
     // The gender comes back with the relationships whose words Claude puts in it.
@@ -403,7 +403,7 @@ describe("tools", () => {
   });
 
   test("an unexpected failure is logged, and the client only gets 'internal error'", async () => {
-    await sql`drop table person_settings`.execute(await db());
+    await sql`drop table person_settings`.execute(unchecked());
     const r = await call(s.a, "whats_due", {});
     expect(r).toMatchObject({ isError: true, content: [{ text: "internal error" }] });
     expect(logs.map((l) => JSON.parse(l))).toEqual([
@@ -452,8 +452,8 @@ describe("privacy over MCP", () => {
   test("get_transcript stays null for B after A shares the private items, until A uses share_transcript", async () => {
     const r = await call(s.a, "record", asRamble(ramble()));
     const id = r.structuredContent.conversations[0].id;
-    const d = await db();
-    const money = (await d.selectFrom("facts").select("id").where("text", "=", "worried about money").executeTakeFirstOrThrow()).id;
+    const d = await firstBook();
+    const money = (await d.from("facts").select("id").where("text", "=", "worried about money").executeTakeFirstOrThrow()).id;
     expect(await call(s.a, "correct", { action: "visibility", table: "facts", id: money, visibility: "shared" })).toMatchObject({
       structuredContent: { corrected: true },
     });

@@ -1,8 +1,8 @@
 // Reading rambles: what the user told in one go, and the parts filed from it (conversations, journal entries, items). A ramble
 // exists for a viewer only through a part they may see, so the other user never learns of one that holds only a private
 // journal entry; its transcript they read only when nothing told in it is private.
+import { scope } from "../db/scope";
 import { listConversations, type ConversationSummary } from "./conversations";
-import { db } from "../db";
 import { ForbiddenError, NotFoundError } from "../core/errors";
 import { listExperiences, type ExperienceView } from "../experiences/experiences";
 import { pruneFiles } from "./files";
@@ -28,11 +28,11 @@ const EVER = "0000-01-01";
 
 /** The items the viewer may see that were filed with a ramble but with none of its conversations. */
 async function rambleItems(v: Viewer): Promise<Array<RambleItem & { rambleId: string }>> {
-  const d = await db();
+  const d = await scope(v);
   const out: Array<RambleItem & { rambleId: string }> = [];
   for (const table of ["facts", "promises", "dates", "exchanges"] as const) {
     const rows = await d
-      .selectFrom(table as "facts")
+      .from(table as "facts")
       .innerJoin("persons", "persons.id", `${table as "facts"}.person_id`)
       .select([`${table as "facts"}.id as id`, `${table as "facts"}.ramble_id as ramble_id`, "persons.id as personId", "persons.name as name"])
       .$if(table === "dates", (qb) => qb.select((eb) => eb.fn.coalesce(eb.ref("dates.label" as "facts.text"), eb.ref("dates.date" as "facts.text")).as("text")))
@@ -65,9 +65,9 @@ export async function listRambles(v: Viewer): Promise<RambleSummary[]> {
     ]),
   ];
   if (!ids.length) return [];
-  const d = await db();
+  const d = await scope(v);
   const rows = await d
-    .selectFrom("rambles")
+    .from("rambles")
     .select(["id", "date"])
     .where("id", "in", ids)
     .$call((qb) => visible(qb, v, "rambles"))
@@ -90,8 +90,8 @@ export async function listRambles(v: Viewer): Promise<RambleSummary[]> {
 export async function getRamble(v: Viewer, id: string): Promise<RambleView> {
   const summary = (await listRambles(v)).find((r) => r.id === id);
   if (!summary) throw new NotFoundError("No such ramble");
-  const d = await db();
-  const r = await d.selectFrom("rambles").select(["transcript", "transcript_private", "recorded_by"]).where("id", "=", id).executeTakeFirstOrThrow();
+  const d = await scope(v);
+  const r = await d.from("rambles").select(["transcript", "transcript_private", "recorded_by"]).where("id", "=", id).executeTakeFirstOrThrow();
   return { ...summary, transcript: r.recorded_by === v.userId || !r.transcript_private ? r.transcript : null, recordedBy: r.recorded_by };
 }
 
@@ -105,7 +105,7 @@ export async function rambleTranscript(v: Viewer, id: string): Promise<{ rambleI
 export async function deleteRamble(v: Viewer, id: string): Promise<void> {
   const r = await getRamble(v, id);
   if (r.recordedBy !== v.userId) throw new ForbiddenError("Only the person who recorded a ramble may delete it");
-  await (await db()).deleteFrom("rambles").where("id", "=", id).execute();
+  await (await scope(v)).delete("rambles").where("id", "=", id).execute();
   // A fact filed from a shared file takes the file with it once nothing else names it.
   await pruneFiles();
 }

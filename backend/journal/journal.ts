@@ -1,8 +1,8 @@
 // The journal: what the user thinks, feels and plans about their own life, cut from their rambles (conversations.ts, record).
 // Entries are private unless the user shared one; every read goes through visible(), so another user never learns that a
 // private entry exists. Claude reads the journal and interprets it (the MCP tool journal); nothing here interprets.
+import { scope } from "../db/scope";
 import { addDays, today } from "../people/dates";
-import { db } from "../db";
 import type { Viewer, Visibility } from "../core/types";
 import { journalPath, personPath } from "../core/urls";
 import { visible } from "../visibility";
@@ -32,9 +32,9 @@ export async function journalEntries(
 ): Promise<JournalEntry[]> {
   const to = q.to ?? today();
   const from = q.from ?? addDays(to, -JOURNAL_DAYS);
-  const d = await db();
+  const d = await scope(v);
   let query = d
-    .selectFrom("journal_entries")
+    .from("journal_entries")
     .selectAll()
     .where("date", ">=", from)
     .where("date", "<=", to)
@@ -42,12 +42,12 @@ export async function journalEntries(
     .orderBy("date", "desc")
     .orderBy("created_at", "desc");
   if (q.own) query = query.where("recorded_by", "=", v.userId);
-  if (q.personId) query = query.where("id", "in", (eb) => eb.selectFrom("journal_mentions").select("entry_id").where("person_id", "=", q.personId!));
+  if (q.personId) query = query.where("id", "in", (await scope(v)).from("journal_mentions").select("entry_id").where("person_id", "=", q.personId!));
   if (q.limit) query = query.limit(q.limit);
   const rows = await query.execute();
   const mentions = rows.length
     ? await d
-        .selectFrom("journal_mentions")
+        .from("journal_mentions")
         .innerJoin("persons", "persons.id", "journal_mentions.person_id")
         .select(["journal_mentions.entry_id", "persons.id", "persons.name"])
         .where(

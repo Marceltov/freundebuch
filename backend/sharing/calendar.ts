@@ -2,9 +2,9 @@
 // any other calendar app subscribes to. Calendar apps fetch a subscribed feed without signing in, so the feed is reached by a
 // secret URL per user (ADR 0008). Only the key's hash is stored; the feed is read as its user, through `visible`, so the partner's
 // private items are never in it, not even as a busy slot.
+import { instance, scope } from "../db/scope";
 import { createHash, randomBytes } from "node:crypto";
 import { ageOn, nextOccurrence, today } from "../people/dates";
-import { db } from "../db";
 import { notifyCopy } from "../notify/copy";
 import { userLanguage } from "../core/settings";
 import type { Viewer } from "../core/types";
@@ -24,28 +24,27 @@ export async function createCalendarKey(v: Viewer): Promise<string> {
   const key = KEY_PREFIX + randomBytes(32).toString("base64url");
   const hash = hashKey(key);
   await (
-    await db()
-  )
-    .insertInto("user_settings")
-    .values({ user_id: v.userId, webhook_url: null, calendar_key_hash: hash })
+    await scope(v)
+  ).instance
+    .insert("user_settings", { user_id: v.userId, webhook_url: null, calendar_key_hash: hash })
     .onConflict((oc) => oc.column("user_id").doUpdateSet({ calendar_key_hash: hash }))
     .execute();
   return key;
 }
 
 export async function hasCalendarKey(v: Viewer): Promise<boolean> {
-  const r = await (await db()).selectFrom("user_settings").select("calendar_key_hash").where("user_id", "=", v.userId).executeTakeFirst();
+  const r = await (await instance()).from("user_settings").select("calendar_key_hash").where("user_id", "=", v.userId).executeTakeFirst();
   return !!r?.calendar_key_hash;
 }
 
 export async function revokeCalendarKey(v: Viewer): Promise<void> {
-  await (await db()).updateTable("user_settings").set({ calendar_key_hash: null }).where("user_id", "=", v.userId).execute();
+  await (await scope(v)).instance.update("user_settings").set({ calendar_key_hash: null }).where("user_id", "=", v.userId).execute();
 }
 
 /** The user a calendar key belongs to, or null. */
 export async function viewerFromCalendarKey(key: string): Promise<Viewer | null> {
   if (!key.startsWith(KEY_PREFIX)) return null;
-  const r = await (await db()).selectFrom("user_settings").select("user_id").where("calendar_key_hash", "=", hashKey(key)).executeTakeFirst();
+  const r = await (await instance()).from("user_settings").select("user_id").where("calendar_key_hash", "=", hashKey(key)).executeTakeFirst();
   return r ? viewerById(r.user_id) : null;
 }
 
@@ -60,15 +59,15 @@ const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{(\w
 
 /** The viewer's feed as iCalendar text, its links absolute against `base`. */
 export async function calendarFeed(v: Viewer, base: string, now = Date.now()): Promise<string> {
-  const d = await db();
+  const d = await scope(v);
   const copy = notifyCopy(await userLanguage(v));
-  const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
+  const names = new Map((await d.from("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const name = (id: string) => names.get(id) ?? "";
   const year = +today(now).slice(0, 4);
   const events: Event[] = [];
 
   for (const r of await d
-    .selectFrom("dates")
+    .from("dates")
     .selectAll()
     .$call((qb) => visible(qb, v, "dates"))
     .execute()) {
@@ -93,7 +92,7 @@ export async function calendarFeed(v: Viewer, base: string, now = Date.now()): P
 
   // Like whatsDue: only the viewer's own open promises; one the partner recorded is between them and the person.
   const promises = await d
-    .selectFrom("promises")
+    .from("promises")
     .select(["id", "person_id", "text", "due", "by_me"])
     .where("done", "=", 0)
     .where("due", "is not", null)

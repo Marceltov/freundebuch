@@ -3,13 +3,14 @@
 // vCard any contacts app can read too; another freundebuch subscribes to that link for the person, the way a calendar subscribes
 // to a feed, and fetches it again once a day.
 // No federation: nothing else is ever fetched or sent, and a card holds only what its owner wrote on it.
+import { eachBook, instance, scope, type Scope } from "../db/scope";
 import { createHash, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { get } from "node:https";
 import type { LookupFunction } from "node:net";
 import { BlockList, isIP } from "node:net";
 import { config } from "../core/config";
-import { db, newId, now } from "../db";
+import { newId, now } from "../db";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { errorFields, logger } from "../core/log";
 import type { Viewer } from "../core/types";
@@ -130,7 +131,7 @@ function checkLabel(label: string): string {
 }
 
 async function cardRows(v: Viewer) {
-  return (await db()).selectFrom("own_cards").select(["id", "label", "card", "key_hash"]).where("user_id", "=", v.userId).orderBy("label").execute();
+  return (await scope(v)).instance.from("own_cards").select(["id", "label", "card", "key_hash"]).where("user_id", "=", v.userId).orderBy("label").execute();
 }
 
 /** The viewer's card named `label`, matched without regard to case, or undefined. */
@@ -154,13 +155,12 @@ export async function ownCards(v: Viewer): Promise<OwnCard[]> {
 export async function setOwnCard(v: Viewer, label: string, input: unknown): Promise<OwnCard> {
   const card = checkCard(input);
   const json = JSON.stringify(card);
-  const d = await db();
+  const d = await scope(v);
   const r = await cardRow(v, label);
-  if (r) await d.updateTable("own_cards").set({ card: json, updated_at: now() }).where("id", "=", r.id).execute();
+  if (r) await d.instance.update("own_cards").set({ card: json, updated_at: now() }).where("id", "=", r.id).execute();
   else
-    await d
-      .insertInto("own_cards")
-      .values({ id: newId(), user_id: v.userId, label: checkLabel(label), card: json, key_hash: null, created_at: now(), updated_at: now() })
+    await d.instance
+      .insert("own_cards", { id: newId(), user_id: v.userId, label: checkLabel(label), card: json, key_hash: null, created_at: now(), updated_at: now() })
       .execute();
   return { label: r?.label ?? checkLabel(label), card, published: !!r?.key_hash };
 }
@@ -168,7 +168,7 @@ export async function setOwnCard(v: Viewer, label: string, input: unknown): Prom
 /** Deletes the viewer's card named `label`, and with it its link. */
 export async function deleteOwnCard(v: Viewer, label: string): Promise<void> {
   const r = await mustCard(v, label);
-  await (await db()).deleteFrom("own_cards").where("id", "=", r.id).execute();
+  await (await scope(v)).instance.delete("own_cards").where("id", "=", r.id).execute();
 }
 
 /** A new secret link to the viewer's card named `label`; that card's previous link stops working, the others' don't. Shown once: only its hash is kept. */
@@ -176,9 +176,9 @@ export async function publishCard(v: Viewer, label: string): Promise<string> {
   const r = await mustCard(v, label);
   const key = KEY_PREFIX + randomBytes(32).toString("base64url");
   await (
-    await db()
-  )
-    .updateTable("own_cards")
+    await scope(v)
+  ).instance
+    .update("own_cards")
     .set({ key_hash: hashKey(key) })
     .where("id", "=", r.id)
     .execute();
@@ -188,14 +188,14 @@ export async function publishCard(v: Viewer, label: string): Promise<string> {
 /** Ends the link to the card named `label`: whoever subscribed to it keeps the card as last fetched, and gets nothing new. */
 export async function unpublishCard(v: Viewer, label: string): Promise<void> {
   const r = await mustCard(v, label);
-  await (await db()).updateTable("own_cards").set({ key_hash: null }).where("id", "=", r.id).execute();
+  await (await scope(v)).instance.update("own_cards").set({ key_hash: null }).where("id", "=", r.id).execute();
 }
 
 /** GET /api/card/<key>.vcf: the card the key publishes, or 404. */
 export async function cardRoute(file: string): Promise<Response> {
   const key = file.endsWith(".vcf") ? file.slice(0, -4) : "";
   const r = key.startsWith(KEY_PREFIX)
-    ? await (await db()).selectFrom("own_cards").select(["user_id", "card", "updated_at"]).where("key_hash", "=", hashKey(key)).executeTakeFirst()
+    ? await (await instance()).from("own_cards").select(["user_id", "card", "updated_at"]).where("key_hash", "=", hashKey(key)).executeTakeFirst()
     : undefined;
   if (!r || !(await viewerById(r.user_id))) return new Response("not found", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
   return new Response(toVCard(JSON.parse(r.card) as Card, r.updated_at), {
@@ -318,18 +318,17 @@ export async function fetchCard(url: string, fetchFn?: Fetcher, resolver: Resolv
   }
 }
 
-async function store(personId: string, got: Card | CardFailure): Promise<PersonCard> {
-  const d = await db();
+async function store(d: Scope, personId: string, got: Card | CardFailure): Promise<PersonCard> {
   if (typeof got === "string") {
-    await d.updateTable("card_subscriptions").set({ failed: got, tried_at: now() }).where("person_id", "=", personId).execute();
+    await d.update("card_subscriptions").set({ failed: got, tried_at: now() }).where("person_id", "=", personId).execute();
   } else {
     await d
-      .updateTable("card_subscriptions")
+      .update("card_subscriptions")
       .set({ card: JSON.stringify(got), fetched_at: now(), tried_at: now(), failed: null })
       .where("person_id", "=", personId)
       .execute();
   }
-  return (await personCard(personId))!;
+  return (await cardOf(d, personId))!;
 }
 
 /**
@@ -339,44 +338,58 @@ async function store(personId: string, got: Card | CardFailure): Promise<PersonC
 export async function subscribeCard(v: Viewer, personId: string, url: string, fetchFn?: Fetcher, resolver: Resolver = resolve): Promise<PersonCard> {
   const u = url.trim();
   if (!(await fetchable(u, resolver))) throw new InvalidInputError("A card link must be an https address on the internet");
-  const d = await db();
-  if (!(await d.selectFrom("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
+  const d = await scope(v);
+  if (!(await d.from("persons").select("id").where("id", "=", personId).executeTakeFirst())) throw new NotFoundError("No such person");
   await d
-    .insertInto("card_subscriptions")
-    .values({ person_id: personId, url: u, card: null, fetched_at: null, tried_at: null, failed: null, added_by: v.userId, created_at: now() })
+    .insert("card_subscriptions", {
+      person_id: personId,
+      url: u,
+      card: null,
+      fetched_at: null,
+      tried_at: null,
+      failed: null,
+      added_by: v.userId,
+      created_at: now(),
+    })
     .onConflict((oc) => oc.column("person_id").doUpdateSet({ url: u, card: null, fetched_at: null, tried_at: null, failed: null, added_by: v.userId }))
     .execute();
-  return store(personId, await fetchCard(u, fetchFn, resolver));
+  return store(d, personId, await fetchCard(u, fetchFn, resolver));
 }
 
 /** Drops the person's card and its link. Shared like the name, so either user may (ADR 0011). */
-export async function unsubscribeCard(personId: string): Promise<void> {
-  await (await db()).deleteFrom("card_subscriptions").where("person_id", "=", personId).execute();
+export async function unsubscribeCard(v: Viewer, personId: string): Promise<void> {
+  await (await scope(v)).delete("card_subscriptions").where("person_id", "=", personId).execute();
 }
 
 /** The person's subscribed card, or null when they have none. Shared like the name: every user of the household sees it. */
-export async function personCard(personId: string): Promise<PersonCard | null> {
-  const r = await (await db()).selectFrom("card_subscriptions").select(["card", "fetched_at", "failed"]).where("person_id", "=", personId).executeTakeFirst();
+export async function personCard(v: Viewer, personId: string): Promise<PersonCard | null> {
+  return cardOf(await scope(v), personId);
+}
+
+async function cardOf(d: Scope, personId: string): Promise<PersonCard | null> {
+  const r = await d.from("card_subscriptions").select(["card", "fetched_at", "failed"]).where("person_id", "=", personId).executeTakeFirst();
   return r ? { card: r.card ? (JSON.parse(r.card) as Card) : null, fetchedAt: r.fetched_at, failed: (r.failed as CardFailure | null) ?? null } : null;
 }
 
 const DAY = 86_400_000;
 
-/** Fetches every card not tried in the last day, one after another. Returns how many came back. */
+/** Fetches every card not tried in the last day, book by book, one after another. Returns how many came back. */
 export async function refreshCards(at = now(), fetchFn?: Fetcher, resolver: Resolver = resolve): Promise<number> {
-  const rows = await (
-    await db()
-  )
-    .selectFrom("card_subscriptions")
-    .select(["person_id", "url"])
-    .where((eb) => eb.or([eb("tried_at", "is", null), eb("tried_at", "<", at - DAY)]))
-    .execute();
+  let tried = 0;
   let fetched = 0;
-  for (const r of rows) {
-    const got = await fetchCard(r.url, fetchFn, resolver);
-    await store(r.person_id, got);
-    if (typeof got !== "string") fetched++;
-  }
-  if (rows.length) log.info({ cards: rows.length, fetched }, "cards refreshed");
+  await eachBook(async (d) => {
+    const rows = await d
+      .from("card_subscriptions")
+      .select(["person_id", "url"])
+      .where((eb) => eb.or([eb("tried_at", "is", null), eb("tried_at", "<", at - DAY)]))
+      .execute();
+    for (const r of rows) {
+      const got = await fetchCard(r.url, fetchFn, resolver);
+      await store(d, r.person_id, got);
+      if (typeof got !== "string") fetched++;
+    }
+    tried += rows.length;
+  });
+  if (tried) log.info({ cards: tried, fetched }, "cards refreshed");
   return fetched;
 }

@@ -1,10 +1,10 @@
 // The weekly reflection: on the day and hour a user chose, Claude reads their journal entries of the past week (and the
 // conversations they had) and writes a few lines on what stood out, which reach them as a push linking the Tagebuch. It files
 // nothing, reflects patterns and never diagnoses. Off unless the user turns it on; a week without entries sends nothing.
+import { instance, scope } from "../db/scope";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../core/config";
 import { addDays, today } from "../people/dates";
-import { db } from "../db";
 import { InvalidInputError } from "../core/errors";
 import { journalEntries, type JournalEntry } from "./journal";
 import { logger } from "../core/log";
@@ -71,7 +71,13 @@ export function reflectionModel(): ReflectionModel | null {
 export type ReflectionSetting = { day: number; hour: number } | null;
 
 export async function getReflection(v: Viewer): Promise<ReflectionSetting> {
-  const row = await (await db()).selectFrom("user_settings").select(["reflection_day", "reflection_hour"]).where("user_id", "=", v.userId).executeTakeFirst();
+  const row = await (
+    await scope(v)
+  ).instance
+    .from("user_settings")
+    .select(["reflection_day", "reflection_hour"])
+    .where("user_id", "=", v.userId)
+    .executeTakeFirst();
   return row && row.reflection_day !== null && row.reflection_hour !== null ? { day: row.reflection_day, hour: row.reflection_hour } : null;
 }
 
@@ -81,10 +87,9 @@ export async function putReflection(v: Viewer, r: ReflectionSetting): Promise<vo
     throw new InvalidInputError("day is 0 (Sunday) to 6 (Saturday), hour 0 to 23");
   const values = { reflection_day: r?.day ?? null, reflection_hour: r?.hour ?? null };
   await (
-    await db()
-  )
-    .insertInto("user_settings")
-    .values({ user_id: v.userId, webhook_url: null, ...values })
+    await scope(v)
+  ).instance
+    .insert("user_settings", { user_id: v.userId, webhook_url: null, ...values })
     .onConflict((oc) => oc.column("user_id").doUpdateSet(values))
     .execute();
 }
@@ -98,9 +103,9 @@ export async function runReflection(v: Viewer, now: number, model: ReflectionMod
   const entries = await journalEntries(v, { from, to: day, own: true });
   if (!entries.length) return false;
   const conversations = await (
-    await db()
+    await scope(v)
   )
-    .selectFrom("conversations")
+    .from("conversations")
     .select(["date", "summary"])
     .where("date", ">=", from)
     .where("date", "<=", day)
@@ -126,18 +131,17 @@ export async function runReflectionsDue(now = Date.now(), model: ReflectionModel
   if (!model) return 0;
   const { weekday, hour } = local(now);
   const day = today(now);
-  const d = await db();
-  const rows = await d.selectFrom("user_settings").select("user_id").where("reflection_day", "=", weekday).where("reflection_hour", "=", hour).execute();
+  const d = await instance();
+  const rows = await d.from("user_settings").select("user_id").where("reflection_day", "=", weekday).where("reflection_hour", "=", hour).execute();
   let sent = 0;
   for (const row of rows) {
-    const mark = await d.selectFrom("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
+    const mark = await d.from("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
     if (mark?.value === day) continue;
     const v = await viewerById(row.user_id);
     // Without a webhook nothing could go out: the day stays open, so one added later this hour still gets it.
     if (!v || !(await getSettings(v)).webhookUrl) continue;
     await d
-      .insertInto("meta")
-      .values({ key: doneKey(row.user_id), value: day })
+      .insert("meta", { key: doneKey(row.user_id), value: day })
       .onConflict((oc) => oc.column("key").doUpdateSet({ value: day }))
       .execute();
     if (await runReflection(v, now, model, fetchFn).catch((e) => (log.error({ err: e }, "a reflection failed"), false))) sent++;

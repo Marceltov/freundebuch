@@ -1,7 +1,7 @@
 // A person's look: the parts their avatar is put together from, and the user's own words for how they look. Shared like the
 // name, because it is how the person looks, not something the household knows about them. No picture is kept (V4): the
 // parts are drawn on the fly (components/Avatar.tsx), and `description` lets Claude choose them again when the parts change.
-import { db } from "../db";
+import { scope } from "../db/scope";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { LOOK_PART_NAMES, LOOK_PARTS, type Look, type LookParts, type Viewer } from "../core/types";
 
@@ -38,9 +38,9 @@ export const lookJson = (look: Look | null): string | null => (look ? JSON.strin
 export async function setLook(v: Viewer, personId: string, look: unknown): Promise<Look | null> {
   void v;
   const checked = look === null ? null : checkLook(look);
-  const d = await db();
+  const d = await scope(v);
   const res = await d
-    .updateTable("persons")
+    .update("persons")
     .set({ look: lookJson(checked) })
     .where("id", "=", personId)
     .executeTakeFirst();
@@ -51,7 +51,7 @@ export async function setLook(v: Viewer, personId: string, look: unknown): Promi
 /** The parts of everyone who has a look, by person id: what every page draws a face from. */
 export async function looks(v: Viewer): Promise<Record<string, LookParts>> {
   void v;
-  const rows = await (await db()).selectFrom("persons").select(["id", "look"]).where("look", "is not", null).execute();
+  const rows = await (await scope(v)).from("persons").select(["id", "look"]).where("look", "is not", null).execute();
   const out: Record<string, LookParts> = {};
   for (const r of rows) {
     const look = parseLook(r.look);

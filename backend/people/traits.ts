@@ -1,7 +1,7 @@
 // What people need and how they are: the facts of kind `need` and `personality`, as the viewer sees them.
-import type { Kysely, Selectable } from "kysely";
+import { scope, type Scope } from "../db/scope";
+import type { Selectable } from "kysely";
 import type { Fact } from "../reading/briefing";
-import { db } from "../db";
 import type { Schema } from "../db/schema";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { hiddenFiles } from "../conversations/files";
@@ -38,10 +38,10 @@ export function splitTraits(facts: Selectable<Schema["facts"]>[], v: Viewer, pag
 }
 
 /** The current traits the viewer may see of each person given, an entry (maybe empty) for every one. */
-export async function traitsOf(d: Kysely<Schema>, v: Viewer, personIds: string[]): Promise<Map<string, Traits>> {
+export async function traitsOf(d: Scope, v: Viewer, personIds: string[]): Promise<Map<string, Traits>> {
   const rows = personIds.length
     ? await d
-        .selectFrom("facts")
+        .from("facts")
         .selectAll()
         .where("person_id", "in", personIds)
         .where("status", "=", "current")
@@ -78,8 +78,8 @@ export async function traitsFor(v: Viewer, q: { people?: string[]; groups?: stri
   const people = q.people ?? [];
   const groups = q.groups ?? [];
   if (!people.length && !groups.length) throw new InvalidInputError("Name at least one person or group");
-  const d = await db();
-  const named = people.length ? await d.selectFrom("persons").select(["id", "name"]).where("id", "in", people).execute() : [];
+  const d = await scope(v);
+  const named = people.length ? await d.from("persons").select(["id", "name"]).where("id", "in", people).execute() : [];
   const order = new Map<string, string>();
   for (const id of people) {
     const p = named.find((x) => x.id === id);

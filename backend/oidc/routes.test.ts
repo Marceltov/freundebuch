@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE, viewerFromRequest } from "../auth/session";
 import { resetTokensForTests, sign, verify } from "../auth/tokens";
-import { db, resetDbForTests } from "../db/testing";
+import { resetDbForTests, unchecked } from "../db/testing";
 import { resetRateLimitsForTests } from "../chat/limits";
 import { logTo } from "../core/log";
 import { registerRoute } from "../oauth/routes";
@@ -114,7 +114,7 @@ const failed = (res: Response) => {
   expect(setCookie(res, IDENTITY_COOKIE)).toBeUndefined();
   expect(setCookie(res, "fb_oidc")).toMatch(/^fb_oidc=; Path=\/api\/oidc; Max-Age=0; HttpOnly; SameSite=Lax/);
 };
-const users = async () => (await db()).selectFrom("users").select(["id", "oidc_sub", "name", "email"]).execute();
+const users = async () => unchecked().selectFrom("users").select(["id", "oidc_sub", "name", "email"]).execute();
 
 describe("not configured", () => {
   test("start goes back to the login page, naming the missing variables in the log; nothing is fetched", async () => {

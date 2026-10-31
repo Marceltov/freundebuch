@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConversation, recordConversation, remember } from "../conversations/conversations";
 import { fileContent, shareFile } from "../conversations/files";
-import { db } from "../db/testing";
+import { firstBook } from "../db/testing";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { addDays, today } from "./dates";
 import { findPlaces } from "../experiences/places";
@@ -18,7 +18,7 @@ beforeEach(async () => {
   s = await seed();
 });
 
-const conversations = async () => (await (await db()).selectFrom("conversations").select("id").execute()).length;
+const conversations = async () => (await (await firstBook()).from("conversations").select("id").execute()).length;
 
 test("a birthday and a fact are filed about known people without making up a conversation", async () => {
   const before = await conversations();
@@ -50,7 +50,7 @@ test("an unknown person or a bad date is refused, and nothing is filed", async (
 });
 
 const fact = async (text: string) =>
-  (await db()).selectFrom("facts").select(["id", "kind", "check_after", "status"]).where("text", "=", text).executeTakeFirstOrThrow();
+  (await firstBook()).from("facts").select(["id", "kind", "check_after", "status"]).where("text", "=", text).executeTakeFirstOrThrow();
 
 test("a situation gets a nudge date, six weeks out by default", async () => {
   await remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "sucht ein Auto", category: "other", kind: "situation" }] });
@@ -103,7 +103,7 @@ test("news about a situation needs its new day, agreed with the user; nothing is
     remember(s.a, { visibility: "shared", facts: [{ person: s.anna, text: "der Rohbau steht", category: "home", supersedes: old.id }] }),
   ).rejects.toThrow(/needs a new checkAfter/);
   expect(await fact("baut ein Haus")).toMatchObject({ status: "current" });
-  expect(await (await db()).selectFrom("facts").select("id").where("text", "=", "der Rohbau steht").execute()).toEqual([]);
+  expect(await (await firstBook()).from("facts").select("id").where("text", "=", "der Rohbau steht").execute()).toEqual([]);
   await remember(s.a, {
     visibility: "shared",
     facts: [{ person: s.anna, text: "zieht im Mai ein", category: "home", supersedes: old.id, checkAfter: "2027-05-15" }],
@@ -147,9 +147,9 @@ test("a conversation filed from shared files keeps their transcripts, word for w
   const one = await shareFile(s.a, new TextEncoder().encode("Bild 1"), "text/plain");
   const two = await shareFile(s.a, new TextEncoder().encode("Bild 2"), "text/plain");
   const read = (id: string, transcript: string) =>
-    db().then((d) =>
+    firstBook().then((d) =>
       d
-        .updateTable("files")
+        .update("files")
         .set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript, people: [] }) })
         .where("id", "=", id)
         .execute(),
@@ -181,9 +181,11 @@ test("a conversation filed from shared files keeps their transcripts, word for w
   expect(conv.transcript).toBe(
     "Marcel: Schau mal, was in der Gruppe steht.\n\n--- Aus einer geteilten Datei ---\n[19:20] Patrick: Freitag Spieleabend bei Olivier\n\n--- Aus einer geteilten Datei ---\nFoto: Anna und Tom auf dem Hochzeitsfest",
   );
-  expect(await (await db()).selectFrom("files").select("id").where("id", "in", [one.id, two.id]).execute()).toEqual([]);
+  expect(await (await firstBook()).from("files").select("id").where("id", "in", [one.id, two.id]).execute()).toEqual([]);
   expect(await fileContent(s.a, one.id)).toBeNull();
-  expect((await (await db()).selectFrom("facts").select("file_id").where("text", "=", "plant einen Spieleabend").executeTakeFirstOrThrow()).file_id).toBeNull();
+  expect(
+    (await (await firstBook()).from("facts").select("file_id").where("text", "=", "plant einen Spieleabend").executeTakeFirstOrThrow()).file_id,
+  ).toBeNull();
   // A file already filed is gone: it can't be taken again.
   await expect(
     recordConversation(s.a, {

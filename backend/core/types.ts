@@ -2,7 +2,11 @@
 // the backend and the schemas of the surfaces check them at run time.
 export const VISIBILITIES = ["shared", "private"] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
-export type Viewer = { userId: string; personId: string };
+/**
+ * Who is asking, and in which books: `bookId` is the book writes go to and `personId` the viewer's own person there ("me");
+ * `books` every book they may read.
+ */
+export type Viewer = { userId: string; personId: string; bookId: string; books: readonly string[] };
 export const CONVERSATION_KINDS = ["in_person", "call", "message", "video", "event"] as const;
 export type ConversationKind = (typeof CONVERSATION_KINDS)[number];
 export const FACT_CATEGORIES = ["work", "home", "family", "health", "hobby", "travel", "other"] as const;

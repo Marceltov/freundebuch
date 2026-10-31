@@ -5,7 +5,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConversation, record, recordConversation } from "../conversations/conversations";
-import { db } from "../db";
+import { unchecked } from "../db/testing";
 import { discardFile, shareFile } from "../conversations/files";
 import { asRamble, seed, type Seed } from "../testing/fixtures";
 
@@ -239,9 +239,7 @@ test("what remember filed shows its people as link chips", () => {
 test("opened on a shared file, Claude gets the file and its suggestion as data in the first message, and files with its id", async () => {
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
   const file = await shareFile(s.a, new TextEncoder().encode("Patrick: Freitag Spieleabend bei Olivier"), "text/plain");
-  await (
-    await db()
-  )
+  await unchecked()
     .updateTable("files")
     .set({ status: "pending", reading: JSON.stringify({ summary: "Freitag Spieleabend bei Olivier", people: [] }) })
     .where("id", "=", file.id)
@@ -290,9 +288,7 @@ test("once the file is filed it is gone: the chat on it goes on without it, and 
 test("opened on a shared file, Claude learns the day it was shared and dates what it files by that, not by the day of review", async () => {
   vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-chat-file-")));
   const file = await shareFile(s.a, new TextEncoder().encode("Anna: bin wieder da"), "text/plain");
-  await (
-    await db()
-  )
+  await unchecked()
     .updateTable("files")
     .set({ status: "pending", created_at: Date.parse("2026-10-20T10:00:00Z") })
     .where("id", "=", file.id)
@@ -311,7 +307,7 @@ test("opened on several files, Claude gets them all in order as data, hears they
   const parts = [];
   for (const t of ["Teil 1: Patrick fragt", "Teil 2: Sybille antwortet", "Teil 3: Marcel sagt zu"])
     parts.push(await shareFile(s.a, new TextEncoder().encode(t), "text/plain"));
-  const d = await db();
+  const d = unchecked();
   await d
     .updateTable("files")
     .set({ created_at: Date.parse("2026-10-21T10:00:00Z") })
@@ -382,9 +378,7 @@ test("opened on no page, the chat tells Claude about a missed session so it asks
     people: [],
     experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
   });
-  await (
-    await db()
-  )
+  await unchecked()
     .updateTable("series")
     .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })
     .where("id", "=", r.experiences[0].seriesId!)
@@ -395,7 +389,7 @@ test("opened on no page, the chat tells Claude about a missed session so it asks
 });
 
 test("opened on a ramble, Claude gets what was filed from it and its transcript, to add or correct; never the partner's private one", async () => {
-  const d = await db();
+  const d = unchecked();
   const ramble = async (conv: string) => (await d.selectFrom("conversations").select("ramble_id").where("id", "=", conv).executeTakeFirstOrThrow()).ramble_id;
   const { model, calls } = fake([text("Wer war noch da?")]);
   await chat(s.a, [{ role: "user", content: "Anna war nicht allein da" }], { rambleId: await ramble(s.dinner) }, model);
