@@ -16,6 +16,15 @@ const BACKEND_IMPORTS = {
   ],
 };
 
+// Only backend/db talks to the database: the rest of the backend goes through scope() and instance() (backend/db/scope.ts).
+const DATA_LAYER = {
+  paths: [...BACKEND_IMPORTS.paths, { name: "kysely", allowTypeImports: true, message: "Only backend/db talks to the database; use scope() or instance()." }],
+  patterns: [
+    ...BACKEND_IMPORTS.patterns,
+    { group: ["**/db/connect", "**/db/migrations", "**/db/check"], message: "Only backend/db talks to the database; use scope() or instance()." },
+  ],
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -25,6 +34,7 @@ const eslintConfig = defineConfig([
     rules: { "no-restricted-imports": ["error", FRONTEND_IMPORTS] },
   },
   { files: ["backend/**"], rules: { "no-restricted-imports": ["error", BACKEND_IMPORTS] } },
+  { files: ["backend/**"], ignores: ["backend/db/**", "backend/testing/**", "**/*.test.ts"], rules: { "no-restricted-imports": ["error", DATA_LAYER] } },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     ".next/**",
