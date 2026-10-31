@@ -14,7 +14,11 @@ export type { Schema } from "./schema";
 /** Raw SQL fragments for expressions inside a scoped query; a whole raw query goes through backend/db. */
 export { sql } from "kysely";
 
-const state = processState("db", () => ({ db: undefined as Promise<Kysely<Schema>> | undefined, raw: undefined as Kysely<Schema> | undefined }));
+const state = processState("db", () => ({
+  db: undefined as Promise<Kysely<Schema>> | undefined,
+  raw: undefined as Kysely<Schema> | undefined,
+  opened: undefined as Kysely<Schema> | undefined,
+}));
 
 async function open(file: string): Promise<Kysely<Schema>> {
   const d = await connect(file);
@@ -30,7 +34,7 @@ async function open(file: string): Promise<Kysely<Schema>> {
 /** Opens `${DATA_DIR}/freundebuch.db` (or `file`) and migrates it; the server does this once, before it takes a request. */
 export async function openDatabase(file = join(config.dataDir(), "freundebuch.db")): Promise<void> {
   const d = await open(file);
-  state.raw = d;
+  state.opened = d;
   state.db = Promise.resolve(d);
 }
 
@@ -55,8 +59,8 @@ export async function resetDbForTests(): Promise<void> {
 
 /** Test only: closes the database, so the next test starts with none open. */
 export async function closeDatabaseForTests(): Promise<void> {
-  await state.raw?.destroy();
-  state.raw = undefined;
+  await (state.raw ?? state.opened)?.destroy();
+  state.raw = state.opened = undefined;
   state.db = undefined;
 }
 

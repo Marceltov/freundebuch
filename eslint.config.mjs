@@ -21,7 +21,11 @@ const DATA_LAYER = {
   paths: [...BACKEND_IMPORTS.paths, { name: "kysely", allowTypeImports: true, message: "Only backend/db talks to the database; use scope() or instance()." }],
   patterns: [
     ...BACKEND_IMPORTS.patterns,
-    { group: ["**/db/connect", "**/db/migrations", "**/db/check"], message: "Only backend/db talks to the database; use scope() or instance()." },
+    {
+      group: ["**/db/connect", "**/db/migrations", "**/db/check", "**/db/testing"],
+      message: "Only backend/db talks to the database; use scope() or instance().",
+    },
+    { group: ["**/db", "**/db/index"], importNames: ["db", "unchecked"], message: "Only backend/db talks to the database; use scope() or instance()." },
   ],
 };
 

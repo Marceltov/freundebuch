@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { connect } from "./connect";
 import { NEWER, migrate } from "./migrations";
-import { closeDatabaseForTests, db, openDatabase } from "./index";
+import { closeDatabaseForTests, db, openDatabase, unchecked } from "./index";
 
 const dirs: string[] = [];
 const dir = () => {
@@ -25,6 +25,11 @@ test("opening an empty data directory creates the database with the baseline", a
   const file = join(dir(), "freundebuch.db");
   await openDatabase(file);
   expect(await (await db()).selectFrom("books").select("id").execute()).toEqual([]);
+});
+
+test("the unchecked test handle doesn't exist on a database the server opened", async () => {
+  await openDatabase(join(dir(), "freundebuch.db"));
+  expect(() => unchecked()).toThrow("resetDbForTests() first");
 });
 
 test("a database from a newer freundebuch stops the start with NEWER", async () => {
