@@ -2,8 +2,8 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { Kysely } from "kysely";
-import { config } from "../config";
-import { processState } from "../state";
+import { config } from "../core/config";
+import { processState } from "../core/state";
 import { connect } from "./connect";
 import { migrate } from "./migrations";
 import type { Schema } from "./schema";

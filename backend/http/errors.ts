@@ -1,6 +1,6 @@
 // The HTTP status for each refusal, and the JSON error body every API endpoint answers with.
-import { AmbiguousError, AuthError, ForbiddenError, FreundebuchError, InvalidInputError, InvalidRequestError, NotFoundError } from "../errors";
-import { errorFields, logger } from "../log";
+import { AmbiguousError, AuthError, ForbiddenError, FreundebuchError, InvalidInputError, InvalidRequestError, NotFoundError } from "../core/errors";
+import { errorFields, logger } from "../core/log";
 
 const log = logger("http");
 

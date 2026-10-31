@@ -4,7 +4,7 @@ import { getCopy } from "@/components/serverCopy";
 import { BADGE_ICON, faceColor, faceTilt, initials } from "@/components/faceStyle";
 import { OrbitArt } from "@/components/Looks";
 
-// The start page: "Du" in the middle, three dashed rings around it (backend/orbit.ts places the faces). Close = seen recently,
+// The start page: "Du" in the middle, three dashed rings around it (backend/people/orbit.ts places the faces). Close = seen recently,
 // the outer ring = due. Each face is a sticker with the first name under it and links to the friend page. PAD leaves room
 // around the rings for the names of the outer faces.
 const SIZE = 360;

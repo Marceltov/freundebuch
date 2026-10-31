@@ -428,7 +428,7 @@ const de = {
   languageName: { de: "Deutsch", en: "English" } as Record<Language, string>,
   locale: "de-DE",
 
-  // The names of the vocabularies the domain stores (backend/types.ts).
+  // The names of the vocabularies the domain stores (backend/core/types.ts).
   kindName: { in_person: "Treffen", call: "Anruf", message: "Nachricht", video: "Videoanruf", event: "Feier" } as Record<string, string>,
   dateKindName: { birthday: "Geburtstag", anniversary: "Jahrestag", custom: "Datum" } as Record<string, string>,
 };

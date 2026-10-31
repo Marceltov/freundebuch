@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { resetSecretForTests } from "../secret";
+import { resetSecretForTests } from "../core/secret";
 import { TTL, cid, newJti, resetTokensForTests, sign, spendOnce, verify } from "./tokens";
 
 beforeEach(() => {

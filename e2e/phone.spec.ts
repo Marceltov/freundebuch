@@ -1017,7 +1017,7 @@ test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and i
 });
 
 test.describe("voice", () => {
-  // The microphone is Chromium's stand-in (playwright.config.ts), Whisper the e2e stand-in (backend/transcribe.ts).
+  // The microphone is Chromium's stand-in (playwright.config.ts), Whisper the e2e stand-in (backend/conversations/transcribe.ts).
   test("a message spoken into Erzählen is sent as its words; a voice note added there waits under Prüfen as its transcript", async ({ page }) => {
     // Chromium headless has no screen to keep on: a stand-in counts the wake locks held.
     await page.addInitScript(() => {

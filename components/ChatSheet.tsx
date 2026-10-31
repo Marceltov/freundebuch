@@ -54,7 +54,7 @@ const linkLabel = (copy: Copy, l: ChatLink) =>
 
 // The chat with Claude ("Erzählen"), as a sheet over the current page. It knows the page it was opened on (a friend or a
 // conversation) and says so in a chip the user can remove. The conversation is kept on this device; the server gets it whole
-// with every message (backend/chat-route.ts). A failed message stays in the field to send again.
+// with every message (backend/chat/chat-route.ts). A failed message stays in the field to send again.
 // With `sharing`, the paperclip hands files to POST /api/share, as sharing from the phone does, and they go along with this chat
 // (context `fileIds`), to be worked through together. `files`: opened from Prüfen on those files, as a new conversation about them.
 // With `voice` (a transcription server is set up), the microphone takes the place of send while the field is empty: a message

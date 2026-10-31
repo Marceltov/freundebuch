@@ -1,9 +1,9 @@
 // One household, recorded through the real write path, for the privacy tests of every read function. Alice (A) records a shared
 // dinner with Anna that holds private parts, and a private coffee with Lena; Bob (B) records a shared call with Anna.
 import { resetDbForTests } from "../db/testing";
-import { recordConversation } from "../conversations";
-import { userFromOidc } from "../users";
-import type { Viewer } from "../types";
+import { recordConversation } from "../conversations/conversations";
+import { userFromOidc } from "../core/users";
+import type { Viewer } from "../core/types";
 
 export type Seed = {
   a: Viewer;

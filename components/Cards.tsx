@@ -7,7 +7,7 @@ import type { Card, OwnCard, PersonCard } from "@/backend";
 import { CopyField } from "@/components/CopyButton";
 import { useCopy } from "@/components/i18n";
 
-// Own cards (backend/cards.ts, ADR 0024): what a person says about themselves, the only thing that crosses between people.
+// Own cards (backend/sharing/cards.ts, ADR 0024): what a person says about themselves, the only thing that crosses between people.
 
 const FIELDS = ["name", "phone", "email", "address", "birthday", "note"] as const;
 const button = "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 font-bold";

@@ -1,5 +1,5 @@
 // Reading requests and answering with redirects, for the handlers in backend/.
-import { publicUrl } from "../urls";
+import { publicUrl } from "../core/urls";
 
 // Reads at most `max` bytes; null (and the stream cancelled) as soon as the body is larger. A body that ends
 // before the Content-Length it declared was cut short on its way (a proxy's buffer limit, a dropped

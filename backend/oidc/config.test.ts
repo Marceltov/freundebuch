@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { config } from "../config";
+import { config } from "../core/config";
 import { allowed, missingVars, nameFrom, provider } from "./config";
 
 const VARS = ["ISSUER", "CLIENT_ID", "CLIENT_SECRET"].map((n) => `FREUNDEBUCH_OIDC_${n}`);

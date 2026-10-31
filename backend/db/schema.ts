@@ -1,7 +1,7 @@
 // The tables, as Kysely sees them. Times are milliseconds since the epoch; booleans are 0/1 integers. An item's `conversation_id`
 // is null when no conversation recorded it.
 import type { ColumnType } from "kysely";
-import type { FactKind } from "../types";
+import type { FactKind } from "../core/types";
 
 type Flag = ColumnType<number, number | undefined, number>;
 
@@ -32,7 +32,7 @@ export interface Schema {
     created_at: number;
     gender: ColumnType<"female" | "male" | "nonbinary" | null, "female" | "male" | "nonbinary" | null | undefined, "female" | "male" | "nonbinary" | null>;
 
-    /** JSON of a Look (backend/looks.ts), or null. */
+    /** JSON of a Look (backend/people/looks.ts), or null. */
     look: ColumnType<string | null, string | null | undefined, string | null>;
   };
   aliases: { person_id: string; alias: string; norm: string };

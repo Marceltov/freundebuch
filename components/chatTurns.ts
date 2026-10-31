@@ -1,5 +1,5 @@
 // What of a chat goes to the server with the next message: its last turns, at most MAX_TURNS and MAX_CHARS together (the limits
-// of backend/chat-route.ts), starting with one of the user's, as the Claude API wants. The whole chat stays on the device.
+// of backend/chat/chat-route.ts), starting with one of the user's, as the Claude API wants. The whole chat stays on the device.
 const MAX_TURNS = 40;
 const MAX_CHARS = 250_000;
 

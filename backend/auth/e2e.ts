@@ -1,10 +1,10 @@
 // GET /api/e2e/login?name=: signs the browser in as a user of that name without authentik, for the Playwright tests. Answers
 // only while config.e2e() (FREUNDEBUCH_E2E=1 outside a production build); otherwise it is an unknown endpoint like any other.
-import { config } from "../config";
-import { NotFoundError } from "../errors";
+import { config } from "../core/config";
+import { NotFoundError } from "../core/errors";
 import { errorReply } from "../http/errors";
 import { seeOther } from "../http/request";
-import { userFromOidc } from "../users";
+import { userFromOidc } from "../core/users";
 import { sign } from "./tokens";
 import { IDENTITY_COOKIE } from "./session";
 

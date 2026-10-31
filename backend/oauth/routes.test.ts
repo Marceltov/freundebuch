@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { viewerFromRequest } from "../auth/session";
 import { TTL, cid, resetTokensForTests, verify } from "../auth/tokens";
 import { resetDbForTests } from "../db/testing";
-import { logsOf } from "../log";
-import { resetSecretForTests } from "../secret";
-import type { Viewer } from "../types";
-import { userFromOidc } from "../users";
+import { logsOf } from "../core/log";
+import { resetSecretForTests } from "../core/secret";
+import type { Viewer } from "../core/types";
+import { userFromOidc } from "../core/users";
 import {
   GRANT_TTL,
   authServerRoute,

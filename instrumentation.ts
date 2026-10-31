@@ -3,5 +3,5 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   (await import("./backend/notify/daily")).startScheduler();
   // Shared files a restart interrupted are read again.
-  void (await import("./backend/files")).resumeReading();
+  void (await import("./backend/conversations/files")).resumeReading();
 }

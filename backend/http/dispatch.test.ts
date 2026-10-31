@@ -3,10 +3,10 @@ import * as z from "zod";
 import { sign } from "../auth/tokens";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { resetDbForTests } from "../db/testing";
-import { AmbiguousError, ForbiddenError, InvalidInputError } from "../errors";
-import { logsOf } from "../log";
-import { resetSecretForTests } from "../secret";
-import { userFromOidc } from "../users";
+import { AmbiguousError, ForbiddenError, InvalidInputError } from "../core/errors";
+import { logsOf } from "../core/log";
+import { resetSecretForTests } from "../core/secret";
+import { userFromOidc } from "../core/users";
 import { createDispatcher, matchOps, op, type AnyOp } from "./dispatch";
 
 const E = { 400: { description: "bad" }, 401: { description: "no" }, 403: { description: "no" }, 409: { description: "two" } };

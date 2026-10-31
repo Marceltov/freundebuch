@@ -2,8 +2,8 @@
 // base64url(JSON payload) "." base64url(HMAC-SHA256). The key is derived from the server secret, so rotating
 // FREUNDEBUCH_SECRET invalidates every token and cookie signed here (ADR 0003).
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { secret } from "../secret";
-import { processState } from "../state";
+import { secret } from "../core/secret";
+import { processState } from "../core/state";
 
 // `uid` is the signed-in user's id. `until` (epoch seconds) is when that sign-in ends: the refresh chain it starts stops there.
 export type Kind = "client" | "code" | "access" | "refresh" | "identity" | "oidc";

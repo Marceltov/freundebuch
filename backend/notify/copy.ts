@@ -1,6 +1,6 @@
 // The text of the reminders, the calendar feed and the Shortcut's answers, in each language a user may choose. It lives here, not
 // in components/copy.ts: backend/ never imports the frontend. `{name}` placeholders are filled by daily.ts.
-import type { Language } from "../types";
+import type { Language } from "../core/types";
 
 const de = {
   birthday: "🎂 {name} hat {when} Geburtstag",

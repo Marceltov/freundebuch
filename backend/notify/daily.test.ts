@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { record } from "../conversations";
+import { record } from "../conversations/conversations";
 import { db } from "../db";
-import { logsOf } from "../log";
+import { logsOf } from "../core/log";
 import { seed, type Seed } from "../testing/fixtures";
-import { getSettings, putSettings, setLanguage, testWebhook } from "../settings";
+import { getSettings, putSettings, setLanguage, testWebhook } from "../core/settings";
 import { runDaily, runDailyIfDue } from "./daily";
 
 type Sent = { url: string; title: string; body: string; click?: string };
@@ -144,7 +144,7 @@ describe("runDaily", () => {
           created_at: i,
         })
         .execute();
-    const total = (await import("../due")).whatsDue;
+    const total = (await import("../reading/due")).whatsDue;
     const items = (await total(s.a, "2026-10-23", 1)).length;
     expect(items).toBeGreaterThan(10);
     const n = await runDaily(NOW, fetchFn);
@@ -209,7 +209,7 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
 
   test("a user whose processing throws is retried, the others are not resent", async () => {
     await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
-    const due = await import("../due");
+    const due = await import("../reading/due");
     const real = due.whatsDue;
     const spy = vi.spyOn(due, "whatsDue").mockImplementation(async (v, ...rest) => {
       if (v.userId === s.a.userId) throw new Error("boom");
