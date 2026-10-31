@@ -170,6 +170,9 @@ export const SearchHitJson = z
   })
   .meta({ id: "SearchHit" });
 export const SearchJson = z.object({ hits: z.array(SearchHitJson).describe("Newest first") }).meta({ id: "Search" });
+export const BirthdayMessageQuery = z.object({
+  text: z.string().optional().describe("The final message; with it, `send` holds the links to send it with"),
+});
 export const SearchQuery = z.object({
   q: z.string().describe("The words to find; every one must occur, in any case, umlauts folded. At most 20 hits"),
 });
@@ -935,6 +938,27 @@ export const ShareKeyJson = z
   .object({ key: z.string().describe("The share key; shown only now. Send it as `Authorization: Bearer <key>` to /api/share") })
   .meta({ id: "ShareKey" });
 
+export const BirthdayMessageJson = z
+  .object({
+    person: z.object({ id: z.string(), name: z.string(), url: z.string().describe("The person's page, as an absolute URL") }),
+    birthday: z
+      .object({
+        date: z.string().describe("The day the birthday falls on next (YYYY-MM-DD)"),
+        inDays: z.number().int().describe("Days from today; 0 is today"),
+        age: z.number().int().nullable().describe("The age reached then, when the year of birth is known"),
+      })
+      .nullable()
+      .describe("Null when no birthday is filed"),
+    roles: z.array(z.string()).describe("Who the person is to the household, in the words filed"),
+    news: z.array(z.string()).describe("What is going on in their life: shared situations, nothing about health"),
+    known: z.array(z.string()).describe("What stays true about them: shared facts, nothing about health"),
+    lastSeen: z.string().nullable().describe("The day the caller last spoke to them"),
+    send: z
+      .array(z.object({ app: z.enum(["whatsapp", "telegram", "sms", "email"]), url: z.string() }))
+      .describe("With a final text: links that open each app with it filled in and no one chosen; empty while drafting"),
+  })
+  .meta({ id: "BirthdayMessage" });
+
 export const CalendarFeedJson = z
   .object({
     active: z.boolean().describe("Whether the user has a calendar feed now"),
@@ -963,6 +987,7 @@ export const COMPONENTS = [
   PendingFileListJson,
   ShareKeyJson,
   CalendarFeedJson,
+  BirthdayMessageJson,
   PersonPatchJson,
   FactRelationshipJson,
   RelationshipIdsJson,

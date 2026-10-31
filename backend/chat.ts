@@ -33,7 +33,8 @@ export type ChatContext = { personId?: string; conversationId?: string; rambleId
 
 const fileIdsOf = (c: ChatContext): string[] => c.fileIds ?? (c.fileId ? [c.fileId] : []);
 /** Something a tool call filed or looked up, for the link chips under the reply. */
-export type ChatLink = { kind: "person" | "conversation" | "group" | "experience"; id: string; name?: string; date?: string; url: string };
+/** `send`: a link that opens the user's own app with a message filled in (birthday_message); `id` is the app. */
+export type ChatLink = { kind: "person" | "conversation" | "group" | "experience" | "send"; id: string; name?: string; date?: string; url: string };
 export type ChatCode = "chat_refused" | "chat_too_long" | "chat_limit" | "chat_unavailable";
 /** A code is a failure the app words in German; when something was filed before it, `links` and `filed` say what, so the
  * user doesn't send it again. */
@@ -169,6 +170,10 @@ export function linksOf(name: string, input: unknown, out: Record<string, unknow
   if (name === "briefing" && person && str(person.id) && str(person.name) && str(person.url))
     return [{ kind: "person", id: person.id, name: person.name, url: person.url }];
   if (name === "relate" && str(out.name) && str(out.id) && str(out.url)) return [{ kind: "group", id: out.id, name: out.name, url: out.url }];
+  if (name === "birthday_message" && Array.isArray(out.send))
+    return (out.send as { app: unknown; url: unknown }[])
+      .filter((l) => str(l.app) && str(l.url))
+      .map((l) => ({ kind: "send" as const, id: l.app as string, url: l.url as string }));
   return [];
 }
 

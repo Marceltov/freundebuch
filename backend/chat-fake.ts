@@ -2,7 +2,8 @@
 // end to end without an API key or a bill. It knows six messages: "Notiz: …" files a conversation with the rest as its
 // transcript about the person whose page the chat was opened on; "Tagebuch: …" files the rest as a private journal entry;
 // "Erlebnis: …" files the rest as a session of the series "Hundeschule" (weekly) at "Pfotenglück";
-// "Erledigt", in a chat opened on shared files, closes them (inbox done); "Fehlertest" fails like an unreachable API; anything else gets "Verstanden.". Tool results get "Erfasst.".
+// "Erledigt", in a chat opened on shared files, closes them (inbox done); a request for birthday wishes on a person's page
+// ("…zum Geburtstag…") asks birthday_message for the links to "Alles Gute!"; "Fehlertest" fails like an unreachable API; anything else gets "Verstanden.". Tool results get "Erfasst.".
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChatModel } from "./chat";
 
@@ -45,6 +46,8 @@ export const fakeModel: ChatModel = {
         ],
         "tool_use",
       );
+    if (/Geburtstag/.test(last.content) && person)
+      return reply([{ type: "tool_use", id: "fake_wish", name: "birthday_message", input: { personId: person, text: "Alles Gute!" } }], "tool_use");
     const journal = last.content.match(/^Tagebuch:\s*(.+)$/s);
     if (journal && day)
       return reply(

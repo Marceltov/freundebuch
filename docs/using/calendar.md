@@ -32,3 +32,9 @@ Treat the address like a password: anyone who has it can read these dates withou
 **Neue Adresse erzeugen** makes a new address; **Abo beenden** turns the feed off. Either way the old address stops working at once, and a calendar subscribed to it goes empty: subscribe again with the new one. Claude can do both too, and asks first.
 
 The design decision is in [ADR 0008](../adr/0008-calendar-feed-through-a-secret-url.md).
+
+## Birthday wishes
+
+When a birthday is a week away or less, the person's page shows **Glückwunsch schreiben**. It opens Erzählen with the request in the field. Claude drafts a short message in your voice from what you know about them: who they are to you, what is going on, what you know, your own private notes included. It never uses anything about their health, and never what your partner keeps private. Change it until it sounds like you. Then Claude gives you buttons that open **WhatsApp**, **Telegram**, **SMS** or **email** with the text filled in. You pick the person there and send it yourself.
+
+freundebuch never sends anything to the people in your book ([V3](../values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it)). Over MCP the same works with any Claude: ask it to help you congratulate someone (`birthday_message`).

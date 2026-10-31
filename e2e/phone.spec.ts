@@ -451,6 +451,37 @@ test("an own card: written in Einstellungen, given by its link, and shown on the
   expect((await page.request.get(link)).status()).toBe(404);
 });
 
+test("a birthday near: Claude drafts the wishes in Erzählen, and the user sends them from their own app", async ({ page, baseURL }) => {
+  const soon = new Date(Date.parse(`${today}T00:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10);
+  const recorded = await page.request.post("/api/v1/rambles", {
+    headers: { origin: baseURL! },
+    data: asRamble({
+      date: today,
+      kind: "call",
+      summary: "Anruf mit Gerda.",
+      transcript: "Anruf mit Gerda Fest, sie hat bald Geburtstag.",
+      visibility: "shared",
+      people: [{ name: "Gerda Fest", present: true }],
+      dates: [{ person: 0, kind: "birthday", date: `1980${soon.slice(4)}`, yearly: true }],
+    }),
+  });
+  const gerda = (await recorded.json()).people[0].id;
+  await page.goto(`/p/${gerda}`);
+  await page.getByRole("button", { name: "Glückwunsch schreiben" }).click();
+  const sheet = page.getByRole("dialog", { name: "Erzählen" });
+  // The request waits in the field: the user sends it, or changes it first.
+  const field = sheet.getByLabel("Nachricht", { exact: true });
+  await expect(field).toHaveValue("Hilf mir, Gerda Fest zum Geburtstag zu gratulieren.");
+  await field.press("Control+Enter");
+  // The link only opens WhatsApp with the text in it; freundebuch sends nothing.
+  const whatsapp = sheet.getByRole("link", { name: "Mit WhatsApp senden" });
+  await expect(whatsapp).toBeVisible({ timeout: 15_000 });
+  await expect(whatsapp).toHaveAttribute("href", `https://wa.me/?text=${encodeURIComponent("Alles Gute!")}`);
+  await expect(whatsapp).toHaveAttribute("target", "_blank");
+  await expect(sheet.getByRole("link", { name: "Mit SMS senden" })).toBeVisible();
+  await expectNoSideScroll(page);
+});
+
 test("Erzählen files from a friend's page and keeps the chat across pages", async ({ page, baseURL }) => {
   const recorded = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },

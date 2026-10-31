@@ -46,7 +46,11 @@ const errors = (copy: Copy): Record<string, string> => ({
 const noSubscribe = () => () => {};
 
 const linkLabel = (copy: Copy, l: ChatLink) =>
-  l.kind === "conversation" ? copy.conversationOn.replace("{day}", l.date ? shortDay(copy, l.date) : "") : (l.name ?? "");
+  l.kind === "conversation"
+    ? copy.conversationOn.replace("{day}", l.date ? shortDay(copy, l.date) : "")
+    : l.kind === "send"
+      ? copy.sendWith.replace("{app}", copy.sendApps[l.id as keyof Copy["sendApps"]] ?? l.id)
+      : (l.name ?? "");
 
 // The chat with Claude ("Erzählen"), as a sheet over the current page. It knows the page it was opened on (a friend or a
 // conversation) and says so in a chip the user can remove. The conversation is kept on this device; the server gets it whole
@@ -60,12 +64,15 @@ export function ChatSheet({
   sharing = false,
   voice = false,
   files = [],
+  prompt,
   onClose,
 }: {
   userId: string;
   sharing?: boolean;
   voice?: boolean;
   files?: string[];
+  /** Text to start the field with, for the user to send or change. */
+  prompt?: string;
   onClose: () => void;
 }) {
   const copy = useCopy();
@@ -87,7 +94,7 @@ export function ChatSheet({
       .catch(() => {});
   }, [opened]);
   // A message spoken before the last sheet was closed, whose words came back too late to send, waits in the field.
-  const [draft, setDraft] = useState(() => (typeof window === "undefined" ? "" : (unsent() ?? "")));
+  const [draft, setDraft] = useState(() => prompt ?? (typeof window === "undefined" ? "" : (unsent() ?? "")));
   useEffect(clearUnsent, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -373,16 +380,29 @@ export function ChatSheet({
                 <p className="rounded-2xl rounded-bl-md bg-surface px-3.5 py-2.5 whitespace-pre-wrap shadow-card">{t.content}</p>
                 {t.links && t.links.length > 0 && (
                   <span className="flex flex-wrap gap-1.5">
-                    {t.links.map((l) => (
-                      <Link
-                        key={l.url}
-                        href={l.url}
-                        onClick={onClose}
-                        className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-carbon hover:bg-rule"
-                      >
-                        {linkLabel(copy, l)} ›
-                      </Link>
-                    ))}
+                    {t.links.map((l) =>
+                      // A link to send wishes leaves freundebuch for the user's own app; the sheet stays, to file it after.
+                      l.kind === "send" ? (
+                        <a
+                          key={l.url}
+                          href={l.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-full bg-carbon px-2.5 py-1 text-xs font-semibold text-on-carbon"
+                        >
+                          {linkLabel(copy, l)} ›
+                        </a>
+                      ) : (
+                        <Link
+                          key={l.url}
+                          href={l.url}
+                          onClick={onClose}
+                          className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-carbon hover:bg-rule"
+                        >
+                          {linkLabel(copy, l)} ›
+                        </Link>
+                      ),
+                    )}
                   </span>
                 )}
               </div>

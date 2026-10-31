@@ -18,6 +18,7 @@ beforeEach(async () => {
 
 test("one table holds every tool the MCP endpoint offers", () => {
   expect(TOOLS.map((t) => t.name).sort()).toEqual([
+    "birthday_message",
     "briefing",
     "calendar_feed",
     "cards",
