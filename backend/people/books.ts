@@ -44,11 +44,10 @@ export async function joinBook(i: InstanceDb, bookId: string, userId: string, us
   return addMember(i, bookId, userId, userName, household.id);
 }
 
-/** The user as a member of one book, writing to it; null when they aren't in it. */
+/** The user as a member of one book, reading and writing only it; null when they aren't in it. */
 export async function viewerIn(i: InstanceDb, userId: string, bookId: string): Promise<Viewer | null> {
-  const v = await viewerOf(i, userId);
   const m = await i.from("members").select("person_id").where("user_id", "=", userId).where("book_id", "=", bookId).executeTakeFirst();
-  return v && m ? { ...v, bookId, personId: m.person_id } : null;
+  return m ? { userId, personId: m.person_id, bookId, books: [bookId] } : null;
 }
 
 /** The user's viewer: their oldest membership is the book they write to; they read every book they are in. */

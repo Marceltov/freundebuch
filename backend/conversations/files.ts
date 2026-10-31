@@ -213,7 +213,14 @@ export async function resumeReading(model: FileModel | null = fileModel()): Prom
       const rows = await s.from("files").select(["id", "user_id"]).where("status", "=", "reading").orderBy("created_at").execute();
       for (const r of rows) {
         const v = await viewerIn(s.instance, r.user_id, s.v.bookId);
-        if (v) void queueRead(v, r.id, model);
+        // Its user left the book: nobody is left to read it for.
+        if (!v)
+          await s
+            .update("files")
+            .set({ status: "failed", reading: JSON.stringify({ error: "its user left the book" }) })
+            .where("id", "=", r.id)
+            .execute();
+        else void queueRead(v, r.id, model);
       }
     });
   } catch (e) {

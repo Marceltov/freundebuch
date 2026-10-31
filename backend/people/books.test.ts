@@ -3,6 +3,7 @@ import { resetDbForTests } from "../db/testing";
 import { instance, scope } from "../db/scope";
 import { userFromOidc, viewerById } from "../core/users";
 import { householdPersons } from "./household";
+import { createBook, viewerIn, viewerOf } from "./books";
 
 beforeEach(resetDbForTests);
 
@@ -57,4 +58,12 @@ test("signing in again keeps the book and person; a new sign-in name renames the
 test("a user in no book has no viewer", async () => {
   await (await instance()).insert("users", { id: "x", oidc_sub: "x", name: "X", created_at: 1 }).execute();
   expect(await viewerById("x")).toBeNull();
+});
+
+test("a user as a member of one book reads only that book", async () => {
+  const a = await userFromOidc({ sub: "a", name: "Alice" });
+  const i = await instance();
+  const other = await createBook(i, a.userId, "Alice", "Arbeit");
+  expect((await viewerOf(i, a.userId))?.books).toEqual([a.bookId, other.bookId]);
+  expect(await viewerIn(i, a.userId, other.bookId)).toEqual({ userId: a.userId, personId: other.personId, bookId: other.bookId, books: [other.bookId] });
 });

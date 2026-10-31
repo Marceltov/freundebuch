@@ -215,6 +215,14 @@ test("after a restart, what was still being read is read again", async () => {
   expect(await status(shot.id)).toBe("pending");
 });
 
+test("after a restart, a file whose user left the book fails instead of waiting to be read", async () => {
+  const shot = await shareFile(s.b, await image());
+  await (await firstBook()).instance.delete("members").where("user_id", "=", s.b.userId).execute();
+  await resumeReading(answering(suggestion([{ name: "Anna", personId: s.anna }])));
+  await new Promise((r) => setTimeout(r, 50));
+  expect(await status(shot.id)).toBe("failed");
+});
+
 test("a file a pre-read once found nothing in is stored afresh when shared again", async () => {
   const bytes = await image();
   const first = await shareFile(s.a, bytes);
