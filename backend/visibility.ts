@@ -30,6 +30,6 @@ export function visible<T extends { where(e: Expression<SqlBool>): T }>(qb: T, v
  */
 export function visibleGroups<T extends { where(e: Expression<SqlBool>): T }>(qb: T, v: Viewer): T {
   return qb.where(
-    sql<SqlBool>`(groups.seeded = 1 or groups.created_by = ${v.userId} or exists (select 1 from group_members m where m.group_id = groups.id and (m.visibility = 'shared' or m.recorded_by = ${v.userId})))`,
+    sql<SqlBool>`(groups.seeded = 1 or groups.created_by = ${v.userId} or exists (select 1 from group_members m where m.book_id = groups.book_id and m.group_id = groups.id and (m.visibility = 'shared' or m.recorded_by = ${v.userId})))`,
   );
 }

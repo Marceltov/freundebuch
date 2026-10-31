@@ -28,3 +28,30 @@ test("raw SQL on a book table fails; select 1 and instance tables pass", async (
   await expect((await instance()).ping()).resolves.toBeUndefined();
   await expect((await instance()).from("users").selectAll().execute()).resolves.toEqual([]);
 });
+
+test("raw SQL naming its table through sql.table or a schema fails too", async () => {
+  await expect(sql`select * from ${sql.table("persons")}`.execute(await db())).rejects.toThrow("unscoped query on persons");
+  await expect(sql`select * from main.persons`.execute(await db())).rejects.toThrow("unscoped query on persons");
+});
+
+test("a raw fragment inside a scoped query that reads a book table must name its book", async () => {
+  const s = await scope(v);
+  await expect(async () =>
+    s
+      .from("persons")
+      .select(sql<number>`(select count(*) from facts where facts.person_id = persons.id)`.as("n"))
+      .execute(),
+  ).rejects.toThrow("unscoped query on facts");
+  await expect(
+    s
+      .from("persons")
+      .select(sql<number>`(select count(*) from facts where facts.person_id = persons.id and facts.book_id = persons.book_id)`.as("n"))
+      .execute(),
+  ).resolves.toEqual([]);
+});
+
+test("naming the book means comparing it, not only mentioning it", async () => {
+  const d = await db();
+  await expect(d.selectFrom("persons").selectAll().where("book_id", "is not", null).execute()).rejects.toThrow("unscoped query on persons");
+  await expect(d.selectFrom("persons").selectAll().where("book_id", "=", "b").execute()).resolves.toEqual([]);
+});

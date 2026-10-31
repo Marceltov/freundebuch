@@ -67,23 +67,24 @@ function seenDirectly(d: Scope, v: Viewer) {
  * itself. A place with nothing left at it is found no more.
  */
 export function visiblePlaceIds(d: Scope, v: Viewer) {
-  return sql<string>`(with recursive seen(id) as (select id from places where id in ${seenDirectly(d, v)} union select p.parent_id from places p join seen on p.id = seen.id where p.parent_id is not null) select id from seen)`;
+  return sql<string>`(with recursive seen(id, book_id) as (select id, book_id from places where id in ${seenDirectly(d, v)} union select p.parent_id, p.book_id from places p join seen on p.book_id = seen.book_id and p.id = seen.id where p.parent_id is not null) select id from seen)`;
 }
 
 /** The place `id` and the places inside it, at any depth, that the viewer may see. */
 export function placeAndInsideIds(d: Scope, v: Viewer, id: string) {
-  return sql<string>`(with recursive down(id) as (select ${id} union select p.id from places p join down on p.parent_id = down.id) select id from down where id in ${visiblePlaceIds(d, v)})`;
+  return sql<string>`(with recursive down(id, book_id) as (select id, book_id from places where id = ${id} union select p.id, p.book_id from places p join down on p.book_id = down.book_id and p.parent_id = down.id) select id from down where id in ${visiblePlaceIds(d, v)})`;
 }
 
 /** The places the viewer may see, or (`only`) those of them with these ids; the places they sit in are read along for `parents`. */
 async function visiblePlaces(d: Scope, v: Viewer, only?: string[]): Promise<PlaceCandidate[]> {
   if (only && !only.length) return [];
   let query = d.from("places").select(["id", "name", "parent_id", "address"]).where("id", "in", visiblePlaceIds(d, v));
+  // json_each spreads the ids as rows; on Postgres this would be unnest. The walk goes up from them, in their book.
   if (only)
     query = query.where(
       "id",
       "in",
-      sql<string>`(with recursive up(id) as (select value from json_each(${JSON.stringify(only)}) union select p.parent_id from places p join up on p.id = up.id where p.parent_id is not null) select id from up)`,
+      sql<string>`(with recursive up(id, book_id) as (select id, book_id from places where id in (select value from json_each(${JSON.stringify(only)})) union select p.parent_id, p.book_id from places p join up on p.book_id = up.book_id and p.id = up.id where p.parent_id is not null) select id from up)`,
     );
   const rows = await query.orderBy("name").execute();
   if (!rows.length) return [];
