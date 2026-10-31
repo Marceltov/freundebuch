@@ -1,7 +1,7 @@
 // What needs attention for a viewer: dates coming up, promises with a due date, and people not seen for longer than their
 // interval. Everything is read through `visible` and the viewer's own interval, so the partner's private items never show up.
+import { scope } from "../db/scope";
 import { missedSessions } from "../experiences/sessions";
-import { db } from "../db";
 import { ageOn, daysBetween, nextOccurrence, today } from "../people/dates";
 import { freshness } from "../people/intervals";
 import type { Viewer } from "../core/types";
@@ -44,8 +44,8 @@ export type UpcomingDate = {
 
 /** The viewer's visible dates that fall within `horizonDays` of `from`, soonest first; a yearly date recurs, a one-off date only counts once. */
 export async function upcomingDates(v: Viewer, from: string, horizonDays: number, personId?: string): Promise<UpcomingDate[]> {
-  let q = (await db())
-    .selectFrom("dates")
+  let q = (await scope(v))
+    .from("dates")
     .selectAll()
     .$call((qb) => visible(qb, v, "dates"));
   if (personId) q = q.where("person_id", "=", personId);
@@ -74,8 +74,8 @@ export async function upcomingDates(v: Viewer, from: string, horizonDays: number
  * between them and the person, even when it is shared. A shared situation nudges both users, a private one only its recorder.
  */
 export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Promise<DueItem[]> {
-  const d = await db();
-  const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
+  const d = await scope(v);
+  const names = new Map((await d.from("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const name = (id: string) => names.get(id) ?? "";
 
   const dates: DueItem[] = (await upcomingDates(v, from, horizonDays)).map((u) => ({
@@ -101,7 +101,7 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
   limit.setUTCDate(limit.getUTCDate() + horizonDays);
   const promises: DueItem[] = (
     await d
-      .selectFrom("promises")
+      .from("promises")
       .select(["id", "person_id", "text", "due", "by_me"])
       .where("done", "=", 0)
       .where("due", "is not", null)
@@ -124,7 +124,7 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
 
   const situations: DueItem[] = (
     await d
-      .selectFrom("facts")
+      .from("facts")
       .select(["id", "person_id", "text", "check_after"])
       .where("kind", "=", "situation")
       .where("status", "=", "current")

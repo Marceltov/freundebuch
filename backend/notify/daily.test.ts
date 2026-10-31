@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { record } from "../conversations/conversations";
-import { db } from "../db";
+import { firstBook } from "../db/testing";
 import { logsOf } from "../core/log";
 import { seed, type Seed } from "../testing/fixtures";
 import { getSettings, putSettings, setLanguage, testWebhook } from "../core/settings";
@@ -65,11 +65,10 @@ describe("runDaily", () => {
 
   test("overdue people and promises are announced", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    const d = await db();
-    await d.updateTable("persons").set({ name: "Anna" }).where("id", "=", s.anna).execute();
+    const d = await firstBook();
+    await d.update("persons").set({ name: "Anna" }).where("id", "=", s.anna).execute();
     await d
-      .insertInto("promises")
-      .values({
+      .insert("promises", {
         id: "pr1",
         person_id: s.anna,
         text: "Buch leihen",
@@ -89,11 +88,21 @@ describe("runDaily", () => {
 
   test("a promise the person made reads as theirs; the partner's promises are never announced", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    const d = await db();
+    const d = await firstBook();
     const promise = (id: string, text: string, by_me: number, recorded_by: string) =>
       d
-        .insertInto("promises")
-        .values({ id, person_id: s.anna, text, due: "2026-10-23", by_me, done: 0, visibility: "shared", recorded_by, conversation_id: null, created_at: 1 })
+        .insert("promises", {
+          id,
+          person_id: s.anna,
+          text,
+          due: "2026-10-23",
+          by_me,
+          done: 0,
+          visibility: "shared",
+          recorded_by,
+          conversation_id: null,
+          created_at: 1,
+        })
         .execute();
     await promise("pr1", "das Zelt leihen", 0, s.a.userId);
     await promise("pr2", "Bobs Besorgung", 1, s.b.userId);
@@ -105,10 +114,9 @@ describe("runDaily", () => {
   test("a situation past its day nudges to ask", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     await (
-      await db()
+      await firstBook()
     )
-      .insertInto("facts")
-      .values({
+      .insert("facts", {
         id: "f1",
         person_id: s.anna,
         text: "sucht ein Auto",
@@ -127,11 +135,10 @@ describe("runDaily", () => {
 
   test("more than 10 items: nine singles and a '+N weitere' summary", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    const d = await db();
+    const d = await firstBook();
     for (let i = 0; i < 12; i++)
       await d
-        .insertInto("promises")
-        .values({
+        .insert("promises", {
           id: `pr${i}`,
           person_id: s.anna,
           text: `P${i}`,
@@ -159,10 +166,9 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     // B has something due too (A's private birthday is not B's).
     await (
-      await db()
+      await firstBook()
     )
-      .insertInto("promises")
-      .values({
+      .insert("promises", {
         id: "pb",
         person_id: s.anna,
         text: "Anruf",
@@ -226,11 +232,8 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
 
   test("a restart after A was served sends only to B", async () => {
     await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
-    const d = await db();
-    await d
-      .insertInto("meta")
-      .values({ key: `last_notify_date:${s.a.userId}`, value: "2026-10-23" })
-      .execute();
+    const d = await firstBook();
+    await d.instance.insert("meta", { key: `last_notify_date:${s.a.userId}`, value: "2026-10-23" }).execute();
     await runDailyIfDue(NOW, fetchFn);
     expect(sent.length).toBeGreaterThan(0);
     expect(sent.every((m) => m.url.endsWith("/b"))).toBe(true);
@@ -276,9 +279,9 @@ describe("missed sessions", () => {
       experiences: [{ kind: "Kurs", title: "Erste", series: { name: "Hundeschule mit Toffee", rhythmDays: 7 } }],
     });
     await (
-      await db()
+      await firstBook()
     )
-      .updateTable("series")
+      .update("series")
       .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })
       .where("id", "=", r.experiences[0].seriesId!)
       .execute();

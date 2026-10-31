@@ -1,14 +1,13 @@
 // Everything to know before meeting a person, as the viewer sees it: every list below is read through `visible`, and "recent"
 // shows who else was there (names are always shared) but never the items of a conversation.
+import { scope } from "../db/scope";
 import { personCard, type PersonCard } from "../sharing/cards";
-import { sql } from "kysely";
-import { db } from "../db";
 import { ageOn, nextOccurrence, today } from "../people/dates";
 import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "../people/intervals";
 import { getPerson } from "../people/people";
 import { labelKey } from "../conversations/conversations";
-import { householdPersons } from "../people/household";
+import { householdPersons, memberPersons } from "../people/household";
 import { buildNetwork, type Network } from "../people/network";
 import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Look, type Viewer, type Visibility } from "../core/types";
 import { conversationPath, groupPath, itemPath, personPath } from "../core/urls";
@@ -98,12 +97,12 @@ export type Briefing = {
 
 export async function briefing(v: Viewer, personId: string, from = today()): Promise<Briefing> {
   const person = await getPerson(v, personId);
-  const d = await db();
+  const d = await scope(v);
   const [fresh, nextDates, facts, promises, exchanges, rels, convs, setting, birthdays, groups] = await Promise.all([
     freshness(v, personId, from),
     upcomingDates(v, from, NEXT_DATES_DAYS, personId),
     d
-      .selectFrom("facts")
+      .from("facts")
       .selectAll()
       .where("person_id", "=", personId)
       .where("status", "=", "current")
@@ -111,7 +110,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .orderBy("created_at")
       .execute(),
     d
-      .selectFrom("promises")
+      .from("promises")
       .selectAll()
       .where("person_id", "=", personId)
       .where("done", "=", 0)
@@ -119,7 +118,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .orderBy("created_at")
       .execute(),
     d
-      .selectFrom("exchanges")
+      .from("exchanges")
       .selectAll()
       .where("person_id", "=", personId)
       .where("settled", "=", 0)
@@ -127,15 +126,15 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .orderBy("created_at")
       .execute(),
     d
-      .selectFrom("relationships")
+      .from("relationships")
       .selectAll()
       .where((eb) => eb.or([eb("from_id", "=", personId), eb("to_id", "=", personId)]))
       .$call((qb) => visible(qb, v, "relationships"))
       .orderBy("created_at")
-      .orderBy(sql`rowid`)
+      .orderBy("id")
       .execute(),
     d
-      .selectFrom("conversations")
+      .from("conversations")
       .innerJoin("participants", "participants.conversation_id", "conversations.id")
       .select(["conversations.id", "conversations.date", "conversations.kind", "conversations.summary"])
       .where("participants.person_id", "=", personId)
@@ -144,9 +143,9 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .orderBy("conversations.created_at", "desc")
       .limit(RECENT)
       .execute(),
-    d.selectFrom("person_settings").select("interval_confirmed").where("user_id", "=", v.userId).where("person_id", "=", personId).executeTakeFirst(),
+    d.from("person_settings").select("interval_confirmed").where("user_id", "=", v.userId).where("person_id", "=", personId).executeTakeFirst(),
     d
-      .selectFrom("dates")
+      .from("dates")
       .select(["id", "date", "yearly", "recorded_by"])
       .where("person_id", "=", personId)
       .where("kind", "=", "birthday")
@@ -154,7 +153,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .orderBy("created_at")
       .execute(),
     d
-      .selectFrom("group_members")
+      .from("group_members")
       .innerJoin("groups", "groups.id", "group_members.group_id")
       .select(["groups.id", "groups.name", "group_members.visibility"])
       .where("group_members.person_id", "=", personId)
@@ -163,15 +162,15 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       .execute(),
   ]);
 
-  const persons = await d.selectFrom("persons").select(["id", "name", "gender"]).execute();
+  const persons = await d.from("persons").select(["id", "name", "gender"]).execute();
   const names = new Map(persons.map((p) => [p.id, p.name]));
   const household = await householdPersons(d);
   // Promises and exchanges are stored from their recorder's side; one the other user recorded is shown with their own person's name.
-  const users = new Map((await d.selectFrom("users").select(["id", "person_id"]).execute()).map((u) => [u.id, (u.person_id && names.get(u.person_id)) || ""]));
+  const users = new Map([...(await memberPersons(d))].map(([userId, personId]) => [userId, names.get(personId) ?? ""]));
   const by = (r: { recorded_by: string }) => (r.recorded_by === v.userId ? {} : { by: users.get(r.recorded_by) ?? "" });
   const others = convs.length
     ? await d
-        .selectFrom("participants")
+        .from("participants")
         .select(["conversation_id", "person_id"])
         .where(
           "conversation_id",
@@ -230,7 +229,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
     journal: await journalEntries(v, { from: "0000-01-01", to: from, personId, own: true, limit: BRIEFING_JOURNAL }),
     experiences: await listExperiences(v, { personId, to: from, limit: BRIEFING_JOURNAL }),
     homes: await homesOf(v, personId),
-    card: await personCard(personId),
+    card: await personCard(v, personId),
     known,
     open: {
       promises: promises.map((p) => ({

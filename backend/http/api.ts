@@ -740,8 +740,8 @@ const OPS: AnyOp[] = [
     auth: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 401: E401 },
-  }).handle(async ({ params }) => {
-    await unsubscribeCard(params.id);
+  }).handle(async ({ viewer, params }) => {
+    await unsubscribeCard(viewer, params.id);
     return { status: 204, body: undefined };
   }),
 

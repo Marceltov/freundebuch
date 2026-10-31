@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import { getConversation, record, type NewRamble } from "../conversations/conversations";
-import { db } from "../db/testing";
+import { unchecked } from "../db/testing";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { briefing } from "../reading/briefing";
 import { deleteItem, editItem, setVisibility, skipSession } from "../conversations/corrections";
@@ -36,7 +36,7 @@ const dogSchool = (over: Partial<NewRamble> = {}) =>
     journal: [{ text: "Ich war nervös." }],
     ...over,
   });
-const row = async (table: "experiences" | "series", id: string) => (await db()).selectFrom(table).selectAll().where("id", "=", id).executeTakeFirstOrThrow();
+const row = async (table: "experiences" | "series", id: string) => unchecked().selectFrom(table).selectAll().where("id", "=", id).executeTakeFirstOrThrow();
 
 test("the dog-school ramble files a session in a new series at a place, a conversation at it, and a journal entry", async () => {
   const r = await dogSchool();
@@ -59,7 +59,7 @@ test("the dog-school ramble files a session in a new series at a place, a conver
     visibility: "shared",
     place_id: e.place_id,
   });
-  const people = await (await db()).selectFrom("experience_people").select("person_id").where("experience_id", "=", e.id).execute();
+  const people = await unchecked().selectFrom("experience_people").select("person_id").where("experience_id", "=", e.id).execute();
   expect(people.map((p) => p.person_id).sort()).toEqual([s.a.personId, s.b.personId, s.anna].sort());
   expect((await getConversation(s.a, r.conversations[0].id)).experienceId).toBe(e.id);
   expect((await findPlaces(s.a, "Pfotenglück")).map((p) => p.id)).toEqual([e.place_id]);
@@ -106,12 +106,12 @@ test("a private ramble or a private series makes its experiences private, and a 
   });
   expect(own.experiences[0].visibility).toBe("private");
   expect(
-    (await (await db()).selectFrom("rambles").select("transcript_private").where("id", "=", own.rambleId).executeTakeFirstOrThrow()).transcript_private,
+    (await unchecked().selectFrom("rambles").select("transcript_private").where("id", "=", own.rambleId).executeTakeFirstOrThrow()).transcript_private,
   ).toBe(1);
 });
 
 test("at or series naming something that isn't there is refused, and nothing is filed", async () => {
-  const before = (await (await db()).selectFrom("rambles").select("id").execute()).length;
+  const before = (await unchecked().selectFrom("rambles").select("id").execute()).length;
   await expect(dogSchool({ conversations: [{ kind: "in_person", summary: "x", present: [], at: 3 }] })).rejects.toThrow(InvalidInputError);
   await expect(
     record(s.a, {
@@ -125,7 +125,7 @@ test("at or series naming something that isn't there is refused, and nothing is 
   await expect(
     record(s.a, { date: "2026-10-28", transcript: "t", visibility: "shared", people: [], experiences: [{ kind: " ", title: "x" }] }),
   ).rejects.toThrow(InvalidInputError);
-  expect((await (await db()).selectFrom("rambles").select("id").execute()).length).toBe(before);
+  expect((await unchecked().selectFrom("rambles").select("id").execute()).length).toBe(before);
 });
 
 test("the partner sees a shared session, never a private one, and no place through it", async () => {

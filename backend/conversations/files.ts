@@ -6,12 +6,13 @@
 // transcript, in the conversation's; the file itself goes once it is reviewed (filed, done or discarded). Nothing is filed
 // unattended. Waiting files belong to the user who shared them. Facts filed by the screenshot reading before files still show
 // their image, to whoever may see the fact.
+import { eachBook, instance, scope, type Scope } from "../db/scope";
+import { viewerIn } from "../people/books";
 import { createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { config } from "../core/config";
 import { today } from "../people/dates";
-import { sql, type Kysely } from "kysely";
-import { db, newId, now, type Schema } from "../db";
+import { newId, now } from "../db";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { decodeHeic } from "./heic";
 import { logger } from "../core/log";
@@ -118,14 +119,14 @@ export async function shareFile(
 ): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
   if (bytes.byteLength === 0) throw new InvalidInputError("The file is empty");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const d = await db();
-  const seen = await d.selectFrom("files").select(["id", "status"]).where("user_id", "=", v.userId).where("sha256", "=", sha256).executeTakeFirst();
+  const d = await scope(v);
+  const seen = await d.from("files").select(["id", "status"]).where("user_id", "=", v.userId).where("sha256", "=", sha256).executeTakeFirst();
   // An old pre-read that found "nothing" dropped its blob and filed nothing: sharing it again starts afresh. One the screenshot
   // reading filed stays for its fact, under a retired hash, so the same bytes can wait under Prüfen again.
-  if (seen?.status === "nothing") await d.deleteFrom("files").where("id", "=", seen.id).execute();
+  if (seen?.status === "nothing") await d.delete("files").where("id", "=", seen.id).execute();
   else if (seen?.status === "filed")
     await d
-      .updateTable("files")
+      .update("files")
       .set({ sha256: `${sha256}:${seen.id}` })
       .where("id", "=", seen.id)
       .execute();
@@ -133,7 +134,7 @@ export async function shareFile(
     // Shared again along with a new share: it joins that one, so Prüfen opens on what was just sent.
     if (batchOf(batch))
       await d
-        .updateTable("files")
+        .update("files")
         .set({ batch_id: batchOf(batch) })
         .where("id", "=", seen.id)
         .execute();
@@ -177,8 +178,7 @@ export async function shareFile(
   await store().put(key, stored, mediaType);
   try {
     await d
-      .insertInto("files")
-      .values({
+      .insert("files", {
         id,
         user_id: v.userId,
         sha256,
@@ -198,8 +198,8 @@ export async function shareFile(
 }
 
 /** Reads the files one after another, so a burst of shares doesn't become a burst of requests. */
-export function queueRead(id: string, model: FileModel): Promise<void> {
-  const run = state.queue.then(async () => void (await readFile(id, model))).catch((e) => log.error({ err: e }, "reading a file failed"));
+export function queueRead(v: Viewer, id: string, model: FileModel): Promise<void> {
+  const run = state.queue.then(async () => void (await readFile(v, id, model))).catch((e) => log.error({ err: e }, "reading a file failed"));
   state.queue = run;
   return run;
 }
@@ -209,18 +209,29 @@ export async function resumeReading(model: FileModel | null = fileModel()): Prom
   try {
     await pruneFiles();
     if (!model) return;
-    const rows = await (await db()).selectFrom("files").select("id").where("status", "=", "reading").orderBy("created_at").execute();
-    for (const r of rows) void queueRead(r.id, model);
+    await eachBook(async (s) => {
+      const rows = await s.from("files").select(["id", "user_id"]).where("status", "=", "reading").orderBy("created_at").execute();
+      for (const r of rows) {
+        const v = await viewerIn(s.instance, r.user_id, s.v.bookId);
+        // Its user left the book: nobody is left to read it for.
+        if (!v)
+          await s
+            .update("files")
+            .set({ status: "failed", reading: JSON.stringify({ error: "its user left the book" }) })
+            .where("id", "=", r.id)
+            .execute();
+        else void queueRead(v, r.id, model);
+      }
+    });
   } catch (e) {
     log.error({ err: e }, "resuming the files failed");
   }
 }
 
-async function knownPeople(): Promise<KnownPerson[]> {
-  const d = await db();
+async function knownPeople(d: Scope): Promise<KnownPerson[]> {
   const [people, aliases] = await Promise.all([
-    d.selectFrom("persons").select(["id", "name"]).orderBy("name").execute(),
-    d.selectFrom("aliases").select(["person_id", "alias"]).execute(),
+    d.from("persons").select(["id", "name"]).orderBy("name").execute(),
+    d.from("aliases").select(["person_id", "alias"]).execute(),
   ]);
   return people.map((p) => ({ id: p.id, name: p.name, aliases: aliases.filter((a) => a.person_id === p.id).map((a) => a.alias) }));
 }
@@ -238,23 +249,22 @@ function clean(r: Suggestion, known: Set<string>): Suggestion {
   };
 }
 
-/** Pre-reads a file: its suggestion (`pending`), or why not (`failed`). Either way the user hears of it and it waits. A voice
+/** Pre-reads one of the viewer's files: its suggestion (`pending`), or why not (`failed`). Either way the user hears of it and it waits. A voice
  * note is transcribed first, and Claude reads the transcript; a transcript made before a failed pre-read is kept for the retry. */
-export async function readFile(id: string, model: FileModel, whisper: Transcriber | null = transcriber()): Promise<FileStatus> {
-  const d = await db();
-  const row = await d.selectFrom("files").selectAll().where("id", "=", id).executeTakeFirst();
+export async function readFile(v: Viewer, id: string, model: FileModel, whisper: Transcriber | null = transcriber()): Promise<FileStatus> {
+  const d = await scope(v);
+  const row = await d.from("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
   if (!row || row.status !== "reading") return row && row.status !== "nothing" ? row.status : "failed";
-  const v = await viewerById(row.user_id);
   const bytes = await store().get(row.blob_key);
   const set = (status: FileStatus, reading: Suggestion | { error: string; transcript?: string }) =>
     d
-      .updateTable("files")
+      .update("files")
       .set({ status, reading: JSON.stringify(reading) })
       .where("id", "=", id)
       .where("status", "=", "reading")
       .execute();
   const click = `${PENDING_PATH}#${id}`;
-  if (!v || !bytes) {
+  if (!bytes) {
     await set("failed", { error: "the file is gone" });
     return "failed";
   }
@@ -281,7 +291,7 @@ export async function readFile(id: string, model: FileModel, whisper: Transcribe
     heard = said.text;
     input = { bytes: new TextEncoder().encode(`A voice note, transcribed:\n\n${heard}`), type: "text/plain" };
   }
-  const people = await knownPeople();
+  const people = await knownPeople(d);
   const read = await model.read({ ...input, people, today: day, language: await userLanguage(v) });
   if ("error" in read) {
     await set("failed", heard ? { ...read, transcript: heard } : read);
@@ -329,21 +339,21 @@ export type PendingFile = {
 /** The viewer's own files that wait for them, newest first; files shared together sit side by side, in the order they came,
  * where the batch's newest one would be. The partner's never show. */
 export async function listPending(v: Viewer): Promise<PendingFile[]> {
-  const d = await db();
+  const d = await scope(v);
   const all = await d
-    .selectFrom("files")
+    .from("files")
     .selectAll()
     .where("user_id", "=", v.userId)
     .where("status", "in", ["reading", "pending", "failed"])
     .orderBy("created_at", "desc")
-    .orderBy(sql`rowid`, "desc")
+    .orderBy("id", "desc")
     .execute();
   const rows: typeof all = [];
   for (const r of all) {
     if (!r.batch_id) rows.push(r);
     else if (!rows.some((x) => x.batch_id === r.batch_id)) rows.push(...all.filter((x) => x.batch_id === r.batch_id).reverse());
   }
-  const names = new Map((await d.selectFrom("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
+  const names = new Map((await d.from("persons").select(["id", "name"]).execute()).map((p) => [p.id, p.name]));
   const cand = (id: string): PendingCandidate | null => (names.has(id) ? { id, name: names.get(id)!, url: personPath(id) } : null);
   return rows.map((r) => {
     // A pre-read from before files (a social media `Reading`) has `text` where a suggestion has `summary`.
@@ -371,9 +381,9 @@ export async function listPending(v: Viewer): Promise<PendingFile[]> {
 /** How many of the viewer's files wait for them (the badge in the navigation). */
 export async function pendingCount(v: Viewer): Promise<number> {
   const r = await (
-    await db()
+    await scope(v)
   )
-    .selectFrom("files")
+    .from("files")
     .select((eb) => eb.fn.countAll<number>().as("n"))
     .where("user_id", "=", v.userId)
     .where("status", "in", ["pending", "failed"])
@@ -389,9 +399,9 @@ export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
   const unique = [...new Set(ids)];
   if (!unique.length) return [];
   const rows = await (
-    await db()
+    await scope(v)
   )
-    .selectFrom("files")
+    .from("files")
     .selectAll()
     .where("id", "in", unique)
     .where("user_id", "=", v.userId)
@@ -426,18 +436,18 @@ export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
  * the order given, for the conversation's transcript. The blobs are for the caller to delete once `tx` has committed.
  * NotFoundError when any isn't the viewer's own waiting file.
  */
-export async function takeFiles(tx: Kysely<Schema>, v: Viewer, ids: string[]): Promise<{ transcripts: string[]; blobs: string[] }> {
+export async function takeFiles(tx: Scope, v: Viewer, ids: string[]): Promise<{ transcripts: string[]; blobs: string[] }> {
   const unique = [...new Set(ids)];
   if (!unique.length) return { transcripts: [], blobs: [] };
   const rows = await tx
-    .selectFrom("files")
+    .from("files")
     .select(["id", "reading", "blob_key"])
     .where("id", "in", unique)
     .where("user_id", "=", v.userId)
     .where("status", "in", ["reading", "pending", "failed"])
     .execute();
   if (rows.length !== unique.length) throw new NotFoundError("No such file waiting");
-  await tx.deleteFrom("files").where("id", "in", unique).execute();
+  await tx.delete("files").where("id", "in", unique).execute();
   const byId = new Map(rows.map((r) => [r.id, r]));
   const transcripts = unique.map((id) => {
     const read = (byId.get(id)!.reading ? JSON.parse(byId.get(id)!.reading!) : null) as { transcript?: string; summary?: string; text?: string } | null;
@@ -461,11 +471,11 @@ export async function dropBlobs(keys: string[]): Promise<void> {
 export async function hiddenFiles(v: Viewer, ids: string[]): Promise<Set<string>> {
   const unique = [...new Set(ids)];
   if (!unique.length) return new Set();
-  const d = await db();
-  const others = await d.selectFrom("files").select("id").where("id", "in", unique).where("user_id", "!=", v.userId).execute();
+  const d = await scope(v);
+  const others = await d.from("files").select("id").where("id", "in", unique).where("user_id", "!=", v.userId).execute();
   if (!others.length) return new Set();
   const viaFact = await d
-    .selectFrom("facts")
+    .from("facts")
     .select("file_id")
     .where(
       "file_id",
@@ -478,7 +488,7 @@ export async function hiddenFiles(v: Viewer, ids: string[]): Promise<Set<string>
 }
 
 async function ownPending(v: Viewer, id: string) {
-  const row = await (await db()).selectFrom("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
+  const row = await (await scope(v)).from("files").selectAll().where("id", "=", id).where("user_id", "=", v.userId).executeTakeFirst();
   if (!row || !["reading", "pending", "failed"].includes(row.status)) throw new NotFoundError("No such file waiting");
   return row;
 }
@@ -487,8 +497,8 @@ async function ownPending(v: Viewer, id: string) {
 export async function retryFile(v: Viewer, id: string, model: FileModel): Promise<void> {
   const row = await ownPending(v, id);
   if (row.status !== "failed") throw new InvalidInputError("Only a file that couldn't be read is read again");
-  await (await db()).updateTable("files").set({ status: "reading" }).where("id", "=", id).execute();
-  void queueRead(id, model);
+  await (await scope(v)).update("files").set({ status: "reading" }).where("id", "=", id).execute();
+  void queueRead(v, id, model);
 }
 
 /** Closes a waiting file: worked through with nothing to file, or thrown away. Row and blob go. */
@@ -500,9 +510,9 @@ export async function discardFile(v: Viewer, id: string): Promise<void> {
 export async function discardFiles(v: Viewer, ids: string[]): Promise<void> {
   const rows = await Promise.all([...new Set(ids)].map((id) => ownPending(v, id)));
   await (
-    await db()
+    await scope(v)
   )
-    .deleteFrom("files")
+    .delete("files")
     .where(
       "id",
       "in",
@@ -514,15 +524,15 @@ export async function discardFiles(v: Viewer, ids: string[]): Promise<void> {
 
 /** The file, for the user who shared it, or for a viewer who may see a fact filed from it; null otherwise. */
 export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8Array; type: string } | null> {
-  const d = await db();
-  const row = await d.selectFrom("files").select(["user_id", "status", "blob_key", "media_type"]).where("id", "=", id).executeTakeFirst();
+  const d = await scope(v);
+  const row = await d.from("files").select(["user_id", "status", "blob_key", "media_type"]).where("id", "=", id).executeTakeFirst();
   if (!row) return null;
   const mine = row.user_id === v.userId;
   if (!mine && (await hiddenFiles(v, [id])).has(id)) return null;
   const viaFact =
     !mine &&
     !!(await d
-      .selectFrom("facts")
+      .from("facts")
       .select("id")
       .where("file_id", "=", id)
       .$call((qb) => visible(qb, v, "facts"))
@@ -534,18 +544,23 @@ export async function fileContent(v: Viewer, id: string): Promise<{ bytes: Uint8
 
 /** Drops filed files no fact names any more (the fact was deleted, or its person), blob and row. */
 export async function pruneFiles(): Promise<number> {
-  const d = await db();
-  const rows = await d
-    .selectFrom("files")
-    .select(["id", "blob_key"])
-    .where("status", "=", "filed")
-    .where(({ not, exists, selectFrom }) => not(exists(selectFrom("facts").select("facts.id").whereRef("facts.file_id", "=", "files.id"))))
-    .execute();
-  for (const r of rows) {
-    await store().delete(r.blob_key);
-    await d.deleteFrom("files").where("id", "=", r.id).execute();
-  }
-  return rows.length;
+  let pruned = 0;
+  await eachBook(async (d) => {
+    const rows = await d
+      .from("files")
+      .select(["id", "blob_key"])
+      .where("status", "=", "filed")
+      .where(({ not, exists, selectFrom }) =>
+        not(exists(selectFrom("facts").select("facts.id").whereRef("facts.file_id", "=", "files.id").whereRef("facts.book_id", "=", "files.book_id"))),
+      )
+      .execute();
+    for (const r of rows) {
+      await store().delete(r.blob_key);
+      await d.delete("files").where("id", "=", r.id).execute();
+    }
+    pruned += rows.length;
+  });
+  return pruned;
 }
 
 // The share key: the credential of the iPhone Shortcut. It can only hand in files, nothing else, so it is no second way
@@ -558,27 +573,26 @@ export async function createShareKey(v: Viewer): Promise<string> {
   const key = KEY_PREFIX + randomBytes(32).toString("base64url");
   const hash = hashKey(key);
   await (
-    await db()
-  )
-    .insertInto("user_settings")
-    .values({ user_id: v.userId, webhook_url: null, share_key_hash: hash })
+    await scope(v)
+  ).instance
+    .insert("user_settings", { user_id: v.userId, webhook_url: null, share_key_hash: hash })
     .onConflict((oc) => oc.column("user_id").doUpdateSet({ share_key_hash: hash }))
     .execute();
   return key;
 }
 
 export async function hasShareKey(v: Viewer): Promise<boolean> {
-  const r = await (await db()).selectFrom("user_settings").select("share_key_hash").where("user_id", "=", v.userId).executeTakeFirst();
+  const r = await (await scope(v)).instance.from("user_settings").select("share_key_hash").where("user_id", "=", v.userId).executeTakeFirst();
   return !!r?.share_key_hash;
 }
 
 export async function revokeShareKey(v: Viewer): Promise<void> {
-  await (await db()).updateTable("user_settings").set({ share_key_hash: null }).where("user_id", "=", v.userId).execute();
+  await (await scope(v)).instance.update("user_settings").set({ share_key_hash: null }).where("user_id", "=", v.userId).execute();
 }
 
 /** The user a share key belongs to, or null. */
 export async function viewerFromShareKey(key: string): Promise<Viewer | null> {
   if (!key.startsWith(KEY_PREFIX)) return null;
-  const r = await (await db()).selectFrom("user_settings").select("user_id").where("share_key_hash", "=", hashKey(key)).executeTakeFirst();
+  const r = await (await instance()).from("user_settings").select("user_id").where("share_key_hash", "=", hashKey(key)).executeTakeFirst();
   return r ? viewerById(r.user_id) : null;
 }

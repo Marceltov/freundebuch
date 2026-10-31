@@ -401,8 +401,8 @@ describe("files", () => {
     };
     const one = await shareFile(s.a, await img(1));
     const two = await shareFile(s.a, await img(2));
-    await readFile(one.id, unsure);
-    await readFile(two.id, unsure);
+    await readFile(s.a, one.id, unsure);
+    await readFile(s.a, two.id, unsure);
 
     const list = await call(s.a, "GET", "/files");
     expect(list.status).toBe(200);

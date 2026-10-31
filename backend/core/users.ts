@@ -1,43 +1,36 @@
-// Users come from the OIDC provider. The first login also creates the user's own Person, so "me" is a person like any other.
-// The person's name follows the sign-in name until someone renames the person in freundebuch (Bille signs in, the book knows
-// her as Sybille); from then on the sign-in name only finds her, as another name.
-import { db, newId, now } from "../db";
+// Users come from the OIDC provider. The first sign-in joins the instance's book, or makes one on a fresh instance, and creates
+// the user's own person in it, so "me" is a person like any other. The person's name follows the sign-in name until someone
+// renames the person in freundebuch (Bille signs in, the book knows her as Sybille); from then on the sign-in name only finds
+// her, as another name.
+import { instance } from "../db/scope";
+import { newId, now } from "../db";
+import { createBook, joinBook, viewerOf } from "../people/books";
 import { insertAlias } from "../people/people";
 import type { Viewer } from "./types";
 
+/** The name a fresh instance's first book gets. */
+export const FIRST_BOOK = "Unser Buch";
+
 export async function userFromOidc(c: { sub: string; name: string; email?: string }): Promise<Viewer> {
-  const d = await db();
-  return d.transaction().execute(async (tx) => {
-    const user = await tx.selectFrom("users").select(["id", "person_id", "name"]).where("oidc_sub", "=", c.sub).executeTakeFirst();
-    if (user?.person_id) {
-      const person = await tx.selectFrom("persons").select("name").where("id", "=", user.person_id).executeTakeFirstOrThrow();
-      await tx.updateTable("users").set({ name: c.name }).where("id", "=", user.id).execute();
-      if (person.name === user.name) await tx.updateTable("persons").set({ name: c.name }).where("id", "=", user.person_id).execute();
-      else await insertAlias(tx, user.person_id, person.name, c.name);
-      return { userId: user.id, personId: user.person_id };
+  return (await instance()).transaction(async (i) => {
+    const user = await i.from("users").select(["id", "name"]).where("oidc_sub", "=", c.sub).executeTakeFirst();
+    const known = user && (await viewerOf(i, user.id));
+    if (user && known) {
+      const s = i.scope(known);
+      const person = await s.from("persons").select("name").where("id", "=", known.personId).executeTakeFirstOrThrow();
+      await i.update("users").set({ name: c.name }).where("id", "=", user.id).execute();
+      if (person.name === user.name) await s.update("persons").set({ name: c.name }).where("id", "=", known.personId).execute();
+      else await insertAlias(s, known.personId, person.name, c.name);
+      return known;
     }
     const userId = user?.id ?? newId();
-    const personId = newId();
-    const t = now();
-    if (!user)
-      await tx
-        .insertInto("users")
-        .values({ id: userId, oidc_sub: c.sub, name: c.name, email: c.email ?? null, person_id: null, created_at: t })
-        .execute();
-    await tx.insertInto("persons").values({ id: personId, name: c.name, created_by: userId, created_from: null, created_at: t }).execute();
-    await tx.updateTable("users").set({ name: c.name, person_id: personId }).where("id", "=", userId).execute();
-    // Everyone who signs in is in the household's own group.
-    const household = await tx.selectFrom("groups").select("id").where("household", "=", 1).executeTakeFirst();
-    if (household)
-      await tx
-        .insertInto("group_members")
-        .values({ group_id: household.id, person_id: personId, visibility: "shared", recorded_by: userId, conversation_id: null })
-        .execute();
-    return { userId, personId };
+    if (user) await i.update("users").set({ name: c.name }).where("id", "=", userId).execute();
+    else await i.insert("users", { id: userId, oidc_sub: c.sub, name: c.name, email: c.email ?? null, created_at: now() }).execute();
+    const book = await i.from("books").select("id").orderBy("created_at").orderBy("id").executeTakeFirst();
+    return book ? joinBook(i, book.id, userId, c.name) : createBook(i, userId, c.name, FIRST_BOOK);
   });
 }
 
 export async function viewerById(userId: string): Promise<Viewer | null> {
-  const row = await (await db()).selectFrom("users").select(["id", "person_id"]).where("id", "=", userId).executeTakeFirst();
-  return row?.person_id ? { userId: row.id, personId: row.person_id } : null;
+  return viewerOf(await instance(), userId);
 }
