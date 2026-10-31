@@ -13,7 +13,11 @@ import { orbit } from "./people/orbit";
 import { addToGroupById, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup } from "./people/groups";
 import { findPeople, getPerson, listPeople, peopleOverview } from "./people/people";
 import { addRelationship, addToGroup } from "./people/relationships";
-import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
+import { DINNER_TRANSCRIPT, seed, seedOtherBook, type Seed } from "./testing/fixtures";
+import { search } from "./reading/search";
+import { listPlaces } from "./experiences/places";
+import { listExperiences } from "./experiences/experiences";
+import { journalEntries } from "./journal/journal";
 import type { Viewer } from "./core/types";
 import { visible } from "./visibility";
 
@@ -387,3 +391,43 @@ test("B never sees A's private situation in the briefing", async () => {
   expect(b.situations).toEqual([]);
   expect(JSON.stringify(b)).not.toContain("heimlich");
 });
+
+test("a second book's people, conversations and items reach no read path of the first, and back", async () => {
+  const o = await seedOtherBook();
+  const [mine, theirs] = await Promise.all([groupCounts(s.a), groupCounts(o.c)]);
+  // Everything each viewer can read, as one text: nothing of the other book may be in it.
+  const reads = async (v: Viewer, people: string[]) =>
+    JSON.stringify([
+      await listPeople(v),
+      await peopleOverview(v),
+      await findPeople(v, "Anna"),
+      await findPeople(v, "Carl"),
+      await listConversations(v),
+      await listGroups(v),
+      await search(v, "museum"),
+      await whatsDue(v, "2026-10-01", 60),
+      await orbit(v),
+      await calendarFeed(v, "https://fb.example"),
+      await listPlaces(v),
+      await listExperiences(v),
+      await journalEntries(v, {}),
+      ...(await Promise.all(people.map((p) => briefing(v, p)))),
+    ]);
+  const ofA = await reads(s.a, [s.anna, s.tom, s.lena]);
+  for (const x of [o.carl, o.carlCall, o.c.personId, "Carl", "loves museums", "Called Carl"]) expect(ofA).not.toContain(x);
+  const ofC = await reads(o.c, [o.carl]);
+  for (const x of [s.anna, s.tom, s.lena, s.dinner, s.coffee, s.call, s.a.personId, "new job", "likes hiking", "Luigi"]) expect(ofC).not.toContain(x);
+  // Carol's "Anna" is her own person, not the first book's.
+  expect((await findPeople(o.c, "Anna")).map((p) => p.id)).not.toContain(s.anna);
+  // Opening the other book's ids finds nothing.
+  await expect(getPerson(s.a, o.carl)).rejects.toBeInstanceOf(NotFoundError);
+  await expect(getConversation(s.a, o.carlCall)).rejects.toBeInstanceOf(NotFoundError);
+  await expect(getPerson(o.c, s.anna)).rejects.toBeInstanceOf(NotFoundError);
+  await expect(getConversation(o.c, s.call)).rejects.toBeInstanceOf(NotFoundError);
+  await expect(briefing(o.c, s.anna)).rejects.toBeInstanceOf(NotFoundError);
+  // Group counts are the same as before the other book came.
+  expect(await groupCounts(s.a)).toEqual(mine);
+  expect(theirs).toEqual(await groupCounts(o.c));
+});
+
+const groupCounts = async (v: Viewer) => (await listGroups(v)).map((g) => [g.name, g.count]);
