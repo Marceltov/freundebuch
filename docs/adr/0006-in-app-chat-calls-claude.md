@@ -21,7 +21,7 @@ ADR 0001 made freundebuch AI-first with the AI in the client: Claude, connected 
 Chosen option: "The server calls the Claude API with an API key", because it is the supported way and needs no extra service.
 
 * `FREUNDEBUCH_ANTHROPIC_API_KEY` turns the chat on; without it the app shows none. The model is settable (`FREUNDEBUCH_ANTHROPIC_MODEL`, default Claude Sonnet 5.5).
-* The tools live in one table (`backend/tools.ts`) that MCP and the chat share, with the MCP instructions, so the chat behaves like Claude over MCP: ask before filing anything sensitive as shared, resolve every person, read back what was filed.
+* The tools live in one table (`backend/mcp/tools.ts`) that MCP and the chat share, with the MCP instructions, so the chat behaves like Claude over MCP: ask before filing anything sensitive as shared, resolve every person, read back what was filed.
 * Every tool call runs as the signed-in user, through the same domain functions; nothing about people goes into the prompt except through tools. Privacy (ADR 0002) holds unchanged.
 * `POST /api/chat` takes only the web app's cookie; scripts and Claude keep REST and MCP.
 * The conversation lives on the device and arrives whole with each message; the server stores only what the tools file.

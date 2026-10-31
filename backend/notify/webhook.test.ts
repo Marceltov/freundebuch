@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { logsOf } from "../log";
+import { logsOf } from "../core/log";
 import { sendWebhook } from "./webhook";
 
 type Call = { url: string; init: RequestInit };

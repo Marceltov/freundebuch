@@ -2,11 +2,11 @@
 // carries an OAuth access token as `Authorization: Bearer`. Either names a user id, which must still be a user. There is
 // no open mode and no password: everything but the sign-in itself, /health and the OAuth endpoints needs one of the two.
 import { createHash, timingSafeEqual } from "node:crypto";
-import { AuthError } from "../errors";
+import { AuthError } from "../core/errors";
 import { cookie, sameOrigin, seeOther } from "../http/request";
-import type { Viewer } from "../types";
-import { apiResource, mcpResource } from "../urls";
-import { viewerById } from "../users";
+import type { Viewer } from "../core/types";
+import { apiResource, mcpResource } from "../core/urls";
+import { viewerById } from "../core/users";
 import { verify } from "./tokens";
 
 export const IDENTITY_COOKIE = "fb_identity";

@@ -18,7 +18,7 @@ A face in freundebuch was a person's initials on a color of their own. A face th
 
 ## Decision Outcome
 
-Chosen option: parts. A look is one value for each of face, skin, hair, hair color, glasses and beard (`LOOK_PARTS` in `backend/types.ts`), plus the user's words for it, kept as JSON in `persons.look`.
+Chosen option: parts. A look is one value for each of face, skin, hair, hair color, glasses and beard (`LOOK_PARTS` in `backend/core/types.ts`), plus the user's words for it, kept as JSON in `persons.look`.
 
 * **Claude chooses the parts.** The user describes someone ("kurze lockige braune Haare, Brille"); Claude maps it onto the parts and files it with `remember` (`looks`). The schema lists every value; `next` has Claude say which parts it chose and give the link to the person's page, where the user checks it and switches a part by hand ("…" → Aussehen).
 * **The description is kept with the choices**, so Claude can choose again when the parts change, and the editor shows what was said.

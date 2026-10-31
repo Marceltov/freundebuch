@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE, viewerFromRequest } from "../auth/session";
 import { resetTokensForTests, sign, verify } from "../auth/tokens";
 import { db, resetDbForTests } from "../db/testing";
-import { resetRateLimitsForTests } from "../limits";
-import { logTo } from "../log";
+import { resetRateLimitsForTests } from "../chat/limits";
+import { logTo } from "../core/log";
 import { registerRoute } from "../oauth/routes";
-import { resetSecretForTests } from "../secret";
+import { resetSecretForTests } from "../core/secret";
 import { resetDiscoveryForTests } from "./flow";
 import { oidcCallbackRoute, oidcStartRoute } from "./routes";
 

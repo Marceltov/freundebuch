@@ -1,10 +1,10 @@
 // The API's wire shapes. Named ones (.meta({ id })) become components of the generated OpenAPI
 // document; handlers build their bodies as z.infer of these, and the dispatcher checks them. The
-// vocabularies come from backend/types.ts; the rules on the values stay in the domain functions,
+// vocabularies come from backend/core/types.ts; the rules on the values stay in the domain functions,
 // which answer a bad value with `invalid_input`.
 import * as z from "zod";
-import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, LANGUAGES, LOOK_PARTS, SEARCH_KINDS, VISIBILITIES } from "../types";
-import type { PlaceRef } from "../places";
+import { CONVERSATION_KINDS, EXCHANGE_KINDS, FACT_CATEGORIES, FACT_KINDS, GENDERS, LANGUAGES, LOOK_PARTS, SEARCH_KINDS, VISIBILITIES } from "../core/types";
+import type { PlaceRef } from "../experiences/places";
 import { ERROR_CODES } from "./errors";
 
 export const ErrorJson = z

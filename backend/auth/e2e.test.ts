@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { resetDbForTests } from "../db/testing";
-import { resetSecretForTests } from "../secret";
+import { resetSecretForTests } from "../core/secret";
 import { e2eLoginRoute } from "./e2e";
 import { viewerFromCookie } from "./session";
 

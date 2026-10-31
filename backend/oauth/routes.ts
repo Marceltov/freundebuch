@@ -5,8 +5,8 @@
 import { createHash } from "node:crypto";
 import { cid, newJti, sign, spendOnce, TTL, verify } from "../auth/tokens";
 import { parseForm, readCapped, seeOther } from "../http/request";
-import { logger } from "../log";
-import { mcpResource, publicUrl, resources } from "../urls";
+import { logger } from "../core/log";
+import { mcpResource, publicUrl, resources } from "../core/urls";
 
 const log = logger("oauth");
 

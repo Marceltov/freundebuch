@@ -1,6 +1,6 @@
 // One push message to a user-supplied URL, ntfy-style: the text as the body, Title, Tags and Click as headers. The URL is the
 // user's secret (ntfy topics are unguessable names), so neither it nor the reply is ever logged.
-import { errorFields, logger } from "../log";
+import { errorFields, logger } from "../core/log";
 
 const log = logger("notify");
 

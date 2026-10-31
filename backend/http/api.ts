@@ -2,8 +2,8 @@
 // through it, and openApiDocument() generates the OpenAPI 3.1 description. Each handler is typed from
 // its own declared responses (see op() in dispatch.ts). Adding a route is adding an entry to OPS.
 import * as z from "zod";
-import { briefing } from "../briefing";
-import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../calendar";
+import { briefing } from "../reading/briefing";
+import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../sharing/calendar";
 import { IDENTITY_COOKIE } from "../auth/session";
 import {
   deleteItem,
@@ -16,10 +16,10 @@ import {
   setVisibility,
   shareTranscript,
   type ItemTable,
-} from "../corrections";
-import { getConversation, record } from "../conversations";
-import { whatsDue } from "../due";
-import { InvalidInputError, InvalidRequestError, NotFoundError } from "../errors";
+} from "../conversations/corrections";
+import { getConversation, record } from "../conversations/conversations";
+import { whatsDue } from "../reading/due";
+import { InvalidInputError, InvalidRequestError, NotFoundError } from "../core/errors";
 import {
   addGroupAlias,
   addToGroupById,
@@ -31,23 +31,23 @@ import {
   removeFromGroup,
   removeGroupAlias,
   renameGroup,
-} from "../groups";
-import { setCheckInInterval } from "../intervals";
-import { orbit } from "../orbit";
-import { traitsFor } from "../traits";
-import { cardPath, deleteOwnCard, ownCards, publishCard, setOwnCard, subscribeCard, unpublishCard, unsubscribeCard } from "../cards";
-import { birthdayMessage } from "../greetings";
-import { journalEntries } from "../journal";
-import { search } from "../search";
-import { experienceKinds, getPlace, getSeries, listExperiences, listSeries } from "../experiences";
-import { findPlaces, placesInside, placesOf } from "../places";
-import { setLook } from "../looks";
-import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people";
-import { getSettings, putSettings, setLanguage, testWebhook } from "../settings";
-import { getReflection, putReflection } from "../reflection";
-import { deleteRamble } from "../rambles";
-import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../files";
-import { API_PREFIX, publicUrl } from "../urls";
+} from "../people/groups";
+import { setCheckInInterval } from "../people/intervals";
+import { orbit } from "../people/orbit";
+import { traitsFor } from "../people/traits";
+import { cardPath, deleteOwnCard, ownCards, publishCard, setOwnCard, subscribeCard, unpublishCard, unsubscribeCard } from "../sharing/cards";
+import { birthdayMessage } from "../sharing/greetings";
+import { journalEntries } from "../journal/journal";
+import { search } from "../reading/search";
+import { experienceKinds, getPlace, getSeries, listExperiences, listSeries } from "../experiences/experiences";
+import { findPlaces, placesInside, placesOf } from "../experiences/places";
+import { setLook } from "../people/looks";
+import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people/people";
+import { getSettings, putSettings, setLanguage, testWebhook } from "../core/settings";
+import { getReflection, putReflection } from "../journal/reflection";
+import { deleteRamble } from "../conversations/rambles";
+import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../conversations/files";
+import { API_PREFIX, publicUrl } from "../core/urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
   AliasJson,

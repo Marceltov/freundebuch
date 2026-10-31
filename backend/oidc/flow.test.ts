@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { AuthError } from "../errors";
-import { logTo } from "../log";
+import { AuthError } from "../core/errors";
+import { logTo } from "../core/log";
 import type { Provider } from "./config";
 import { authorizeUrl, discover, exchange, resetDiscoveryForTests } from "./flow";
 

@@ -5,13 +5,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import { IDENTITY_COOKIE, safeEqual } from "../auth/session";
 import { type Payloads, sign, TTL, verify } from "../auth/tokens";
-import { AuthError } from "../errors";
+import { AuthError } from "../core/errors";
 import { cookie, readFields, sameOrigin, seeOther } from "../http/request";
-import { authFailed, authWait, clientIp } from "../limits";
-import { logger } from "../log";
+import { authFailed, authWait, clientIp } from "../chat/limits";
+import { logger } from "../core/log";
 import { checkAuthorize, issueCode } from "../oauth/routes";
-import { publicUrl, safeNext } from "../urls";
-import { userFromOidc } from "../users";
+import { publicUrl, safeNext } from "../core/urls";
+import { userFromOidc } from "../core/users";
 import { missingVars, type Provider, provider } from "./config";
 import { authorizeUrl, discover, exchange, type Person } from "./flow";
 import { errorCode, fail, log } from "./log";

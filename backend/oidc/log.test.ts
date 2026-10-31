@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { logTo } from "../log";
+import { logTo } from "../core/log";
 import { logFailure } from "./log";
 
 let lines: string[];

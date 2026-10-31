@@ -1,7 +1,7 @@
 // GET /health: is this instance able to answer? The database is asked once, by a trivial query. 200 `{"status":"ok"}` when it
 // answers, 503 `{"status":"unavailable"}` when not; nothing of the error is in the answer (it is logged). Open and without a
 // switch: it says nothing but that, and a probe (Docker, a monitor) has no credential.
-import { logger } from "../log";
+import { logger } from "../core/log";
 
 const log = logger("health");
 

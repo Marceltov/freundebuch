@@ -3,10 +3,10 @@
 // the dispatcher enforces the same at runtime for what types can't see (thrown errors, formats).
 import * as z from "zod";
 import { requireViewer } from "../auth/session";
-import { InvalidRequestError, NotFoundError } from "../errors";
-import { logger } from "../log";
-import type { Viewer } from "../types";
-import { absoluteUrls, publicUrl } from "../urls";
+import { InvalidRequestError, NotFoundError } from "../core/errors";
+import { logger } from "../core/log";
+import type { Viewer } from "../core/types";
+import { absoluteUrls, publicUrl } from "../core/urls";
 import { errorReply } from "./errors";
 import { readCapped } from "./request";
 

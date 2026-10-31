@@ -1,7 +1,7 @@
 // The one OIDC provider: authentik (any OIDC provider works), from FREUNDEBUCH_OIDC_{ISSUER,CLIENT_ID,CLIENT_SECRET,ALLOW}.
 // Sign-in is the only way in, so there is no "off": without the three required variables nobody can sign in, and the start
 // route logs which ones are missing. ALLOW is an optional extra restriction; unset, authentik decides who gets in.
-import { config } from "../config";
+import { config } from "../core/config";
 
 export type Provider = { issuer: string; clientId: string; clientSecret: string; allow: string[] };
 

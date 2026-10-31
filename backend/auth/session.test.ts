@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { db, resetDbForTests } from "../db/testing";
-import { AuthError } from "../errors";
-import { resetSecretForTests } from "../secret";
-import { userFromOidc } from "../users";
-import type { Viewer } from "../types";
+import { AuthError } from "../core/errors";
+import { resetSecretForTests } from "../core/secret";
+import { userFromOidc } from "../core/users";
+import type { Viewer } from "../core/types";
 import { IDENTITY_COOKIE, identityOk, logoutRoute, requireViewer, viewerFromCookie, viewerFromRequest } from "./session";
 import { sign } from "./tokens";
 

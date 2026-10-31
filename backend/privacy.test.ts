@@ -1,20 +1,20 @@
 // The partner must never see a private item, through any read function. One fixture, every read, as the other user (B on A's
 // recordings). Every later task that adds a read function adds its assertions here.
 import { beforeEach, expect, test } from "vitest";
-import { briefing } from "./briefing";
-import { calendarFeed } from "./calendar";
-import { getConversation, listConversations, recordConversation } from "./conversations";
-import { deleteItem, setVisibility, shareTranscript } from "./corrections";
+import { briefing } from "./reading/briefing";
+import { calendarFeed } from "./sharing/calendar";
+import { getConversation, listConversations, recordConversation } from "./conversations/conversations";
+import { deleteItem, setVisibility, shareTranscript } from "./conversations/corrections";
 import { db } from "./db/testing";
-import { ForbiddenError, InvalidInputError, NotFoundError } from "./errors";
-import { whatsDue } from "./due";
-import { lastSeen, setCheckInInterval } from "./intervals";
-import { orbit } from "./orbit";
-import { addToGroupById, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup } from "./groups";
-import { findPeople, getPerson, listPeople, peopleOverview } from "./people";
-import { addRelationship, addToGroup } from "./relationships";
+import { ForbiddenError, InvalidInputError, NotFoundError } from "./core/errors";
+import { whatsDue } from "./reading/due";
+import { lastSeen, setCheckInInterval } from "./people/intervals";
+import { orbit } from "./people/orbit";
+import { addToGroupById, deleteGroup, getGroup, listGroups, mergeGroups, removeFromGroup } from "./people/groups";
+import { findPeople, getPerson, listPeople, peopleOverview } from "./people/people";
+import { addRelationship, addToGroup } from "./people/relationships";
 import { DINNER_TRANSCRIPT, seed, type Seed } from "./testing/fixtures";
-import type { Viewer } from "./types";
+import type { Viewer } from "./core/types";
 import { visible } from "./visibility";
 
 let s: Seed;

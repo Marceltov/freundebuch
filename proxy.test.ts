@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "@/backend";
 import { sign } from "@/backend/auth/tokens";
-import { resetSecretForTests } from "@/backend/secret";
+import { resetSecretForTests } from "@/backend/core/secret";
 import { config, proxy } from "./proxy";
 
 beforeEach(() => {
