@@ -3,7 +3,7 @@
 import { newId, now } from "../db";
 import { instance, scope, type InstanceDb } from "../db/scope";
 import { HOUSEHOLD_GROUP, KEYED_TABLES, SEEDED_GROUPS } from "../db/tables";
-import { InvalidInputError, NotFoundError } from "../core/errors";
+import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
 import { isHouseholdWord } from "./household";
 import type { Role, Viewer } from "../core/types";
 import { norm } from "./names";
@@ -136,4 +136,17 @@ export async function inBookOf(v: Viewer, ids: readonly (string | undefined | nu
 
 export async function bookRef(bookId: string): Promise<BookRef> {
   return (await instance()).from("books").select(["id", "name"]).where("id", "=", bookId).executeTakeFirstOrThrow();
+}
+
+/** The viewer's role in their book, or null when they aren't in it. */
+export async function roleOf(v: Viewer): Promise<Role | null> {
+  const m = await (await instance()).from("members").select("role").where("book_id", "=", v.bookId).where("user_id", "=", v.userId).executeTakeFirst();
+  return m?.role ?? null;
+}
+
+/** Throws ForbiddenError unless the viewer has one of `roles` in their book. */
+export async function requireRole(v: Viewer, roles: readonly Role[], what: string): Promise<Role> {
+  const role = await roleOf(v);
+  if (!role || !roles.includes(role)) throw new ForbiddenError(`Only the book's ${roles.join(" or ")} may ${what}`);
+  return role;
 }
