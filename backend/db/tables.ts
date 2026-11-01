@@ -25,6 +25,35 @@ export const KEYED_TABLES = [
   "groups",
 ] as const satisfies readonly BookTable[];
 
+/** Every reference from one book table to another (column → table), as the composite keys in the baseline make them. */
+export const REFS: Readonly<Record<BookTable, Readonly<Record<string, BookTable>>>> = {
+  aliases: { person_id: "persons" },
+  card_subscriptions: { person_id: "persons" },
+  conversations: { experience_id: "experiences", place_id: "places", ramble_id: "rambles" },
+  dates: { ramble_id: "rambles", conversation_id: "conversations", person_id: "persons" },
+  exchanges: { ramble_id: "rambles", conversation_id: "conversations", person_id: "persons" },
+  experience_people: { person_id: "persons", experience_id: "experiences" },
+  experiences: { place_id: "places", series_id: "series", ramble_id: "rambles" },
+  facts: { file_id: "files", ramble_id: "rambles", conversation_id: "conversations", superseded_by: "facts", person_id: "persons" },
+  files: {},
+  group_aliases: { group_id: "groups" },
+  group_members: { ramble_id: "rambles", conversation_id: "conversations", person_id: "persons", group_id: "groups" },
+  groups: {},
+  journal_entries: { ramble_id: "rambles" },
+  journal_mentions: { person_id: "persons", entry_id: "journal_entries" },
+  participants: { person_id: "persons", conversation_id: "conversations" },
+  person_settings: { person_id: "persons" },
+  persons: { created_from: "conversations" },
+  place_aliases: { place_id: "places" },
+  place_owners: { ramble_id: "rambles", person_id: "persons", place_id: "places" },
+  places: { parent_id: "places" },
+  promises: { ramble_id: "rambles", conversation_id: "conversations", person_id: "persons" },
+  rambles: {},
+  relationships: { ramble_id: "rambles", conversation_id: "conversations", to_id: "persons", from_id: "persons" },
+  series: { place_id: "places" },
+  series_skips: { series_id: "series" },
+};
+
 /** The name a book's own group starts with. */
 export const HOUSEHOLD_GROUP = "Haushalt";
 

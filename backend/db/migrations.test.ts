@@ -2,7 +2,7 @@ import { sql, type Kysely } from "kysely";
 import { expect, test } from "vitest";
 import { connect } from "./connect";
 import { MIGRATION_NAMES, NEWER, migrate, migrateTo } from "./migrations";
-import { INSTANCE_TABLES, KEYED_TABLES } from "./tables";
+import { INSTANCE_TABLES, KEYED_TABLES, REFS } from "./tables";
 import { now } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -186,4 +186,15 @@ test("KEYED_TABLES are the book tables with an id of their own", async () => {
     if (cols.some((c) => c.name === "id" && c.pk === 1)) keyed.push(t);
   }
   expect(keyed.sort()).toEqual([...KEYED_TABLES].sort());
+});
+
+test("REFS matches the schema's references between book tables", async () => {
+  const d = await fresh();
+  const books = await bookTables(d);
+  const found: Record<string, Record<string, string>> = {};
+  for (const t of books) {
+    const fks = (await sql<{ table: string; from: string }>`select * from pragma_foreign_key_list(${t})`.execute(d)).rows;
+    found[t] = Object.fromEntries(fks.filter((f) => f.from !== "book_id" && books.includes(f.table)).map((f) => [f.from, f.table]));
+  }
+  expect(found).toEqual(REFS);
 });
