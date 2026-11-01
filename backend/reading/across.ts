@@ -15,7 +15,6 @@ import { today } from "../people/dates";
 import { listRambles, type RambleSummary } from "../conversations/rambles";
 import { search, type SearchHit } from "./search";
 import { journalEntries } from "../journal/journal";
-import { listPending, type PendingFile } from "../conversations/files";
 import { looks } from "../people/looks";
 import type { LookParts } from "../core/types";
 
@@ -145,11 +144,6 @@ export async function searchAcross(v: Viewer, query: string, limit = 20): Promis
 /** The journal of every book, newest first. */
 export async function journalAcross(v: Viewer, q: Parameters<typeof journalEntries>[1]) {
   return newestFirst(await acrossBooks(v, (w) => journalEntries(w, q)));
-}
-
-/** The user's waiting files in every book, newest first. */
-export async function pendingAcross(v: Viewer): Promise<InBook<PendingFile>[]> {
-  return (await acrossBooks(v, listPending)).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** The faces of every book's people. */

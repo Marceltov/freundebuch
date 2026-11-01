@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { BookOpen, Cake, Coffee, Gift, Info, Lock, MapPin, MessageSquareText, NotebookPen, Pin, Ticket, type LucideIcon } from "lucide-react";
-import { listRambles, markMatches, search, today, type RambleSummary, type SearchHit } from "@/backend";
+import { markMatches, ramblesAcross, searchAcross, today, type RambleSummary, type SearchHit } from "@/backend";
 import type { Copy } from "@/components/copy";
 import { getCopy } from "@/components/serverCopy";
 import { shortDay } from "@/components/format";
 import { HistorySearch } from "@/components/HistorySearch";
+import { BookMark } from "@/components/BookMark";
 import { KIND_ICON } from "@/components/icons";
 import { pageCopy, pageViewer } from "../viewer";
 
@@ -26,14 +27,16 @@ const monthYear = (copy: Copy, day: string) =>
 
 // Every ramble the viewer may see a part of, newest first: this week, last week, then by month. A ramble shows its conversations,
 // each linking to its page, where what Claude filed can be checked and fixed, and its journal entries the viewer may see; a
-// ramble told in parts links to its own page. With a search (?q=), what holds every word instead, the words marked.
+// ramble told in parts links to its own page. With a search (?q=), what holds every word instead, the words marked. All the
+// user's books, each ramble and hit marked with its book when there are several.
 export default async function HistoryPage({ searchParams }: PageProps<"/verlauf">) {
   const v = await pageViewer();
   const copy = getCopy();
   const q = (await searchParams).q;
   const query = typeof q === "string" ? q.trim() : "";
   const now = today();
-  const rambles = await listRambles(v);
+  const several = v.books.length > 1;
+  const rambles = await ramblesAcross(v);
   const thisWeek = mondayOf(now);
   const heading = (day: string) => {
     const weeks = (thisWeek - mondayOf(day)) / 7;
@@ -52,7 +55,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
       </div>
       {rambles.length > 0 && <HistorySearch query={query} />}
       {query ? (
-        <Hits query={query} hits={await search(v, query)} />
+        <Hits query={query} hits={(await searchAcross(v, query)).map((h) => ({ ...h, bookName: several ? h.book.name : undefined }))} />
       ) : (
         <>
           {rambles.length === 0 && <p className="mt-6 rounded-2xl bg-surface p-4 shadow-card">{copy.nothingFiled}</p>}
@@ -62,6 +65,11 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
               <ul className="space-y-2">
                 {rs.map((r) => (
                   <li key={r.id} data-ramble={r.id}>
+                    {several && (
+                      <div className="mb-1 flex justify-end">
+                        <BookMark name={r.book.name} />
+                      </div>
+                    )}
                     <ul
                       className={
                         r.conversations.length + r.experiences.length + r.journal.length + (r.items.length ? 1 : 0) > 1
@@ -145,7 +153,7 @@ const HIT_ICON: Record<SearchHit["kind"], LucideIcon> = {
   place: MapPin,
 };
 
-function Hits({ query, hits }: { query: string; hits: SearchHit[] }) {
+function Hits({ query, hits }: { query: string; hits: (SearchHit & { bookName?: string })[] }) {
   const copy = getCopy();
   if (!hits.length) return <p className="mt-6 rounded-2xl bg-surface p-4 shadow-card">{copy.searchNothing.replace("{q}", query)}</p>;
   return (
@@ -159,8 +167,9 @@ function Hits({ query, hits }: { query: string; hits: SearchHit[] }) {
                 <Icon aria-label={copy.searchKind[h.kind]} className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-semibold">
+                <span className="flex items-center gap-1.5 font-semibold">
                   {[h.date && shortDay(copy, h.date), copy.searchKind[h.kind], h.people.join(", ")].filter(Boolean).join(" · ")}
+                  {h.bookName && <BookMark name={h.bookName} />}
                 </span>
                 <span className="line-clamp-3 block text-sm text-muted">
                   {markMatches(h.text, query).map((piece, i) =>

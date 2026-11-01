@@ -22,15 +22,18 @@ const write = (id: string | null) => {
   } catch {}
 };
 
-// The group chips above the orbit. The choice lives in the URL (?gruppe=<id>) and is remembered on this device: opening the start
+// The group chips above the orbit, one per group name across the books (`id` the name's key, `ids` its groups in each book).
+// The choice lives in the URL (?gruppe=<key>) and is remembered on this device: opening the start
 // page without one brings back the last group chosen here. Choosing the active group again clears the filter.
-export function GroupFilter({ groups, current }: { groups: { id: string; name: string; count: number }[]; current: string | null }) {
+export function GroupFilter({ groups, current }: { groups: { id: string; ids?: string[]; name: string; count: number }[]; current: string | null }) {
   const copy = useCopy();
   const router = useRouter();
   useEffect(() => {
     if (current) return write(current);
+    // A group remembered before the books merged is a group's id: it finds the group of its name.
     const last = read();
-    if (last && groups.some((g) => g.id === last)) router.replace(`/?gruppe=${last}`);
+    const g = last && groups.find((x) => x.id === last || x.ids?.includes(last));
+    if (g) router.replace(`/?gruppe=${g.id}`);
   }, [current, groups, router]);
 
   const chip = (on: boolean) =>

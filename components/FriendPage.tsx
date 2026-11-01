@@ -38,6 +38,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { PersonCardBox } from "@/components/Cards";
 import { WishButton } from "@/components/WishButton";
 import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
+import { BookMark } from "@/components/BookMark";
 
 // One friend, as a page of the friendship book: the sticker, the name and who they are to us, the chips (last seen, birthday, interval, dates,
 // groups), then the fields filled in: what's going on (a situation to ask about first), what stays true, what was promised, gift ideas, what's still open, the conversations and
@@ -56,6 +57,7 @@ export function FriendPage({
   today,
   viewerPersonId = "",
   bookId,
+  bookName,
   chat = false,
 }: {
   b: Briefing;
@@ -66,6 +68,8 @@ export function FriendPage({
   viewerPersonId?: string;
   /** The book the person is in. */
   bookId?: string;
+  /** The name of the person's book, when the user has two or more. */
+  bookName?: string;
   /** Whether the in-app chat is on, which drafts birthday wishes. */
   chat?: boolean;
 }) {
@@ -106,6 +110,7 @@ export function FriendPage({
           <Face id={b.person.id} name={b.person.name} size={80} ratio={b.freshness.ratio} />
           <div className="min-w-0">
             <h1 className="font-display text-3xl leading-tight font-bold">{b.person.name}</h1>
+            {bookName && <BookMark name={bookName} />}
             {roles && (
               <p data-role-line className="mt-0.5 font-display text-lg leading-snug text-carbon italic">
                 {roles}

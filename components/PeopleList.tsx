@@ -6,8 +6,10 @@ import { useState } from "react";
 import { useCopy } from "@/components/i18n";
 import { Face } from "@/components/Face";
 import { groupTint } from "@/components/Tiles";
+import { BookMark } from "@/components/BookMark";
 
-export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[] };
+/** `book`: the name of the person's book, only when the user has two or more. */
+export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[]; book?: string };
 
 /** The chip for the people in no group. */
 export const NO_GROUP = "none";
@@ -74,7 +76,10 @@ export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { 
                     <Face id={p.id} name={p.name} size={38} />
                     <span className="min-w-0 flex-1">
                       <span className="block font-display text-lg leading-tight font-semibold">{p.name}</span>
-                      <span className="block text-sm text-muted">{p.seen}</span>
+                      <span className="flex items-center gap-1.5 text-sm text-muted">
+                        {p.seen}
+                        {p.book && <BookMark name={p.book} />}
+                      </span>
                     </span>
                   </Link>
                 </li>

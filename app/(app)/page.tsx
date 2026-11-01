@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { getPerson, hasRecorded, listGroups, mcpResource, orbit, whatsDue } from "@/backend";
+import { dueAcross, getPerson, groupIdsFor, groupsAcross, hasRecorded, mcpResource, orbitAcross } from "@/backend";
 import { getCopy } from "@/components/serverCopy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupFilter } from "@/components/GroupFilter";
@@ -11,14 +11,15 @@ import { pageViewer } from "./viewer";
 export const dynamic = "force-dynamic";
 
 // The start page: a greeting that says who would be glad to hear from the viewer, the viewer's orbit, filtered by a group when
-// one is chosen (?gruppe=<id>), with that group's due people below, then the situations to ask about; before anything is recorded, how to connect Claude.
+// one is chosen (?gruppe=<key>, a group of that name in every book; an older link's group id still works), with that group's due people below, then the situations to ask about; before anything is recorded, how to connect Claude.
 export default async function OrbitPage({ searchParams }: PageProps<"/">) {
   const v = await pageViewer();
   const copy = getCopy();
-  const groups = (await listGroups(v)).filter((g) => g.count > 0);
+  const groups = (await groupsAcross(v)).filter((g) => g.count > 0);
   const wanted = (await searchParams).gruppe;
-  const group = groups.find((g) => g.id === wanted) ?? null;
-  const faces = await orbit(v, undefined, group?.id);
+  const found = typeof wanted === "string" ? await groupIdsFor(v, wanted) : null;
+  const group = groups.find((g) => g.key === found?.key) ?? null;
+  const faces = await orbitAcross(v, group?.key);
   if (!faces.length)
     return (
       <div className="mt-8 rounded-2xl bg-surface p-5 shadow-card">
@@ -28,7 +29,7 @@ export default async function OrbitPage({ searchParams }: PageProps<"/">) {
       </div>
     );
   const due = group ? faces.filter((f) => f.inGroup && f.ring === 2) : [];
-  const [me, dueItems, recorded] = await Promise.all([getPerson(v, v.personId).catch(() => null), whatsDue(v), hasRecorded(v)]);
+  const [me, dueItems, recorded] = await Promise.all([getPerson(v, v.personId).catch(() => null), dueAcross(v), hasRecorded(v)]);
   const waiting = dueItems.filter((i) => i.kind === "overdue").length;
   const first = me?.name.trim().split(/\s+/)[0];
   return (
@@ -37,7 +38,7 @@ export default async function OrbitPage({ searchParams }: PageProps<"/">) {
       <p className="mb-3 text-muted">
         {waiting === 0 ? copy.nobodyWaiting : waiting === 1 ? copy.oneWaiting : copy.manyWaiting.replace("{n}", String(waiting))}
       </p>
-      {groups.length > 0 && <GroupFilter groups={groups.map((g) => ({ id: g.id, name: g.name, count: g.count }))} current={group?.id ?? null} />}
+      {groups.length > 0 && <GroupFilter groups={groups.map((g) => ({ id: g.key, ids: g.ids, name: g.name, count: g.count }))} current={group?.key ?? null} />}
       <Orbit faces={faces} />
       {!recorded && (
         <div className="mt-4 rounded-2xl bg-surface p-4 shadow-card">

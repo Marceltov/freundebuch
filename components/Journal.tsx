@@ -5,13 +5,15 @@ import type { Copy } from "@/components/copy";
 import { getCopy } from "@/components/serverCopy";
 import { shortDay } from "@/components/format";
 import { ItemActions } from "@/components/ItemActions";
+import { BookMark } from "@/components/BookMark";
 
 const monthYear = (copy: Copy, day: string) =>
   new Intl.DateTimeFormat(copy.locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
 
 // One journal entry: its day, its words, the people it names (links), the ramble it was told in, a lock while it is private, and
 // its actions (edit, share or make private, delete) for the one who wrote it. `ramble`: false on the ramble's own page.
-export function JournalItem({ e, ramble = true }: { e: JournalEntry; ramble?: boolean }) {
+// `bookName`: its book, when the user has several.
+export function JournalItem({ e, ramble = true }: { e: JournalEntry & { bookName?: string }; ramble?: boolean }) {
   const copy = getCopy();
   return (
     <li id={`journal-${e.id}`} className="rounded-2xl bg-surface p-3 shadow-card target:ring-2 target:ring-carbon">
@@ -22,13 +24,14 @@ export function JournalItem({ e, ramble = true }: { e: JournalEntry; ramble?: bo
         </p>
         {e.mine && <ItemActions table="journal_entries" id={e.id} mine visibility={e.visibility} text={e.text} />}
       </div>
-      {(e.people.length > 0 || ramble) && (
+      {(e.people.length > 0 || ramble || e.bookName) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {e.people.map((p) => (
             <Link key={p.id} href={p.url} className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-carbon hover:bg-rule">
               {p.name}
             </Link>
           ))}
+          {e.bookName && <BookMark name={e.bookName} />}
           {ramble && (
             <Link href={`/r/${e.rambleId}`} className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-0.5 text-xs hover:bg-rule">
               <Mic aria-hidden className="h-3 w-3" />
@@ -42,7 +45,7 @@ export function JournalItem({ e, ramble = true }: { e: JournalEntry; ramble?: bo
 }
 
 // The journal, newest first, by month.
-export function Journal({ entries }: { entries: JournalEntry[] }) {
+export function Journal({ entries }: { entries: (JournalEntry & { bookName?: string })[] }) {
   const copy = getCopy();
   if (!entries.length) return <p className="mt-6 rounded-2xl bg-surface p-4 shadow-card">{copy.journalEmpty}</p>;
   const months = new Map<string, JournalEntry[]>();

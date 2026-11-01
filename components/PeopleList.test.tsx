@@ -32,3 +32,17 @@ test("the chip shows with its count only when someone is in no group", () => {
   expect(html).toMatch(/Ohne Gruppe <span[^>]*>1<\/span>/);
   expect(renderToStaticMarkup(<PeopleList people={[people[0], people[2]]} groups={[{ id: "g1", name: "Uni", count: 1 }]} />)).not.toContain("Ohne Gruppe");
 });
+
+test("shows a book mark only on rows that carry a book", () => {
+  const html = renderToStaticMarkup(<PeopleList people={[{ ...row("Anna", []), book: "Arbeit" }, row("Lena", [])]} groups={[]} />);
+  expect(html.match(/aria-label="Buch: /g)).toHaveLength(1);
+  expect(html).toContain("Arbeit");
+});
+
+test("a group chip filters by key across books", () => {
+  const two = [
+    { ...row("Anna", ["freunde"]), book: "Unser Buch" },
+    { ...row("Lena", ["freunde"]), book: "Arbeit" },
+  ];
+  expect(two.filter((p) => inGroup(p, "freunde")).map((p) => p.name)).toEqual(["Anna", "Lena"]);
+});

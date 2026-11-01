@@ -32,7 +32,6 @@ export {
   onceEach,
   orbitAcross,
   peopleAcross,
-  pendingAcross,
   ramblesAcross,
   searchAcross,
   type GroupAcross,

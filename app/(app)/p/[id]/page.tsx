@@ -1,4 +1,4 @@
-import { briefing, chatEnabled, daysBetween, listGroups, peopleOverview, today } from "@/backend";
+import { briefing, chatEnabled, daysBetween, listBooks, listGroups, peopleOverview, today } from "@/backend";
 import { FriendPage } from "@/components/FriendPage";
 import { orNotFound, pageViewer } from "../../viewer";
 
@@ -14,6 +14,7 @@ export default async function PersonPage({ params }: PageProps<"/p/[id]">) {
   const b = await orNotFound(briefing(v, (await params).id));
   const seen = b.freshness.lastSeen;
   const groups = (await listGroups(v)).map((g) => ({ id: g.id, name: g.name }));
+  const books = await listBooks(v);
   const others = (await peopleOverview(v)).filter((p) => p.id !== b.person.id).map((p) => ({ id: p.id, name: p.name }));
   return (
     <FriendPage
@@ -24,6 +25,7 @@ export default async function PersonPage({ params }: PageProps<"/p/[id]">) {
       today={today()}
       viewerPersonId={v.personId}
       bookId={v.bookId}
+      bookName={books.length > 1 ? books.find((x) => x.id === v.bookId)?.name : undefined}
       chat={chatEnabled()}
     />
   );
