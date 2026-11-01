@@ -135,7 +135,6 @@ async function atBaseline(): Promise<Kysely<any>> {
       { id: "b", oidc_sub: "b", name: "B", created_at: 0 },
     ])
     .execute();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const book = async (id: string, by: string, users: string[], t: number) => {
     await d.insertInto("books").values({ id, name: id, created_by: by, created_at: t }).execute();
     for (const u of users) {
