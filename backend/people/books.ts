@@ -61,7 +61,7 @@ export async function viewerOf(i: InstanceDb, userId: string): Promise<Viewer | 
 
 export type BookRef = { id: string; name: string };
 
-const BOOK_NAME_MAX = 60;
+export const BOOK_NAME_MAX = 60;
 
 /** The user's books, oldest first, with their role and the names of the members. */
 export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; members: string[] })[]> {

@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { resetDbForTests } from "../db/testing";
+import { resetDbForTests, unchecked } from "../db/testing";
 import { instance, scope } from "../db/scope";
 import { userFromOidc, viewerById } from "../core/users";
 import { householdPersons } from "./household";
 import { createBook, inBook, inBookOf, listBooks, newBook, viewerIn, viewerOf } from "./books";
-import { InvalidInputError, NotFoundError } from "../core/errors";
+import { deleteBook, handOver, leaveBook, removeMember, renameBook, setRole } from "./manage";
+import { getPerson } from "./people";
+import type { Viewer } from "../core/types";
+import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
 import { seed, seedOtherBook, seedWorkBook, type Seed, signInInvited } from "../testing/fixtures";
 
 beforeEach(resetDbForTests);
@@ -127,5 +130,86 @@ describe("books for a viewer", () => {
     // An item's id finds its book as well as a person's.
     const fact = await (await scope(w.work)).from("facts").select("id").where("person_id", "=", w.boss).executeTakeFirstOrThrow();
     expect((await inBookOf(w.a, [fact.id]))?.bookId).toBe(w.work.bookId);
+  });
+});
+
+describe("managing a book", () => {
+  let s: Seed;
+  let w: Awaited<ReturnType<typeof seedWorkBook>>;
+  beforeEach(async () => {
+    s = await seed();
+    w = await seedWorkBook(s);
+  });
+  const role = async (v: Viewer, userId: string) =>
+    (await (await instance()).from("members").select("role").where("book_id", "=", v.bookId).where("user_id", "=", userId).executeTakeFirst())?.role;
+  const carol = async () => signInInvited(s.a, { sub: "c", name: "Carol" });
+  const asMember = async (userId: string) =>
+    (await instance()).update("members").set({ role: "member" }).where("user_id", "=", userId).where("book_id", "=", s.a.bookId).execute();
+
+  test("roles decide who renames, sets roles, removes and deletes", async () => {
+    const c = await carol();
+    await asMember(c.userId);
+    await expect(renameBook(c, "Unseres")).rejects.toBeInstanceOf(ForbiddenError);
+    await renameBook(s.b, "Unser Zuhause");
+    expect((await listBooks(s.a))[0].name).toBe("Unser Zuhause");
+    await expect(setRole(s.b, c.userId, "admin")).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(removeMember(s.b, s.a.userId)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(removeMember(c, s.b.userId)).rejects.toBeInstanceOf(ForbiddenError);
+    await setRole(s.a, c.userId, "admin");
+    await expect(removeMember(s.b, c.userId)).rejects.toBeInstanceOf(ForbiddenError);
+    await setRole(s.a, c.userId, "member");
+    await removeMember(s.b, c.userId);
+    expect(await role(s.a, c.userId)).toBeUndefined();
+    await expect(deleteBook(s.b)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(setRole(s.a, s.a.userId, "member")).rejects.toBeInstanceOf(InvalidInputError);
+  });
+
+  test("leaving deletes the leaver's private items in that book only", async () => {
+    const other = await newBook(s.b, "Bobs Buch");
+    const bobs = (await inBook((await viewerById(s.b.userId))!, other.id))!;
+    const { remember } = await import("../conversations/conversations");
+    await remember(s.b, { visibility: "private", facts: [{ person: s.anna, text: "b private", category: "other" }] });
+    await remember(s.b, { visibility: "shared", facts: [{ person: s.anna, text: "b shared", category: "other" }] });
+    await remember(s.a, { visibility: "private", facts: [{ person: s.anna, text: "a private", category: "other" }] });
+    const { recordConversation } = await import("../conversations/conversations");
+    await recordConversation(bobs, {
+      date: "2026-10-30",
+      kind: "call",
+      summary: "x",
+      transcript: "x",
+      visibility: "private",
+      people: [{ name: "Zora", present: true }],
+      facts: [{ person: 0, text: "b elsewhere", category: "other" }],
+    });
+    await leaveBook(s.b);
+    const texts = (await unchecked().selectFrom("facts").select("text").execute()).map((f) => f.text);
+    expect(texts).not.toContain("b private");
+    expect(texts).toEqual(expect.arrayContaining(["b shared", "a private", "b elsewhere"]));
+    expect(await role(s.a, s.b.userId)).toBeUndefined();
+    // Bob's person stays in the book, as anyone else.
+    expect((await getPerson(s.a, s.b.personId)).name).toBe("Bob");
+  });
+
+  test("the owner hands over before leaving", async () => {
+    await expect(leaveBook(s.a)).rejects.toBeInstanceOf(InvalidInputError);
+    await expect(handOver(s.b, s.a.userId)).rejects.toBeInstanceOf(ForbiddenError);
+    await handOver(s.a, s.b.userId);
+    expect([await role(s.a, s.a.userId), await role(s.a, s.b.userId)]).toEqual(["admin", "owner"]);
+    const a = await inBook((await viewerById(s.a.userId))!, s.a.bookId);
+    await leaveBook(a);
+    expect(await role(s.a, s.a.userId)).toBeUndefined();
+  });
+
+  test("deleting a book removes everything in it and nothing else", async () => {
+    await deleteBook(w.work);
+    expect(await unchecked().selectFrom("books").select("id").where("id", "=", w.work.bookId).execute()).toEqual([]);
+    expect(await unchecked().selectFrom("persons").select("id").where("book_id", "=", w.work.bookId).execute()).toEqual([]);
+    expect((await getPerson(s.a, s.anna)).name).toBe("Anna");
+  });
+
+  test("a user can't leave or delete their only book", async () => {
+    await expect(leaveBook(s.b)).rejects.toThrow(/only book/);
+    await deleteBook(w.work);
+    await expect(deleteBook(await inBook((await viewerById(s.a.userId))!, s.a.bookId))).rejects.toThrow(/only book/);
   });
 });
