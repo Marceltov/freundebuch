@@ -111,8 +111,9 @@ export function PendingList({ items }: { items: PendingFile[] }) {
 export const idOfHash = (hash: string): string => (/^#[A-Za-z0-9_-]+$/.test(hash) ? hash.slice(1) : "");
 
 // Next's router doesn't see a change of the hash alone (opened again on another file) and puts its own, older URL back on the
-// next refresh, selecting the old file again. Replacing the history entry tells it the new one; a refresh already under way
-// still puts the old one back, so the file the page was opened on is the one the hashchange said (`opened`), not the address.
+// next refresh, selecting the old file again. Replacing the history entry tells it the new one, but until its restore has caught
+// up it may write the old one back, and a render in between would read that; so the file the page was opened on is the one the
+// hashchange said (`opened`), not the address.
 let opened: string | null = null;
 const onHashChange = (then: () => void) => {
   const changed = () => {

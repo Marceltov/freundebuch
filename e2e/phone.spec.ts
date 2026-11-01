@@ -725,6 +725,37 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   await expect(page.locator(`[id="${two}"]`)).toHaveCount(1);
 });
 
+test("Prüfen opened again on another file keeps it while Next puts its older address back", async ({ page, baseURL }) => {
+  const sharp = (await import("sharp")).default;
+  const salt = Math.floor(Math.random() * 256);
+  const up = async (n: number, batch?: string) => {
+    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 50, b: salt } } })
+      .png()
+      .toBuffer();
+    const r = await page.request.post("/api/share", {
+      headers: { origin: baseURL!, ...(batch ? { "x-freundebuch-batch": batch } : {}) },
+      multipart: { file: { name: `s${n}.png`, mimeType: "image/png", buffer } },
+    });
+    expect(r.status()).toBe(202);
+    return ((await r.json()) as { id: string }).id;
+  };
+  const batch = `e2e-again-${Date.now()}`;
+  const [one, two] = [await up(1, batch), await up(2, batch)];
+  const alone = await up(3);
+  const box = (id: string) => page.locator(`[id="${id}"]`).getByRole("checkbox", { name: "Auswählen" });
+  await page.goto(`/pruefen#${two}`);
+  await expect(box(one)).toBeChecked();
+  await box(alone).check();
+  await page.goto(`/pruefen#${alone}`);
+  await expect(box(one)).not.toBeChecked();
+  // What Next's router does for a while after a change of the hash alone (seen in the traces of the flaky test above): it writes
+  // the address it knew back, with its own history state, until its restore catches up.
+  await page.evaluate((old) => window.history.replaceState(window.history.state, "", `/pruefen#${old}`), two);
+  await box(one).check();
+  await expect(page.getByRole("button", { name: "Auswahl verwerfen (2)" })).toBeVisible();
+  await expect(box(two)).not.toBeChecked();
+});
+
 test("settings make one Zugang (address and key), and the key hands in a screenshot", async ({ page, baseURL }) => {
   await page.goto("/einstellungen");
   await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();
