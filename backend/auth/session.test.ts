@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { resetDbForTests, unchecked } from "../db/testing";
 import { AuthError } from "../core/errors";
 import { resetSecretForTests } from "../core/secret";
+import { signInInvited } from "../testing/fixtures";
 import { userFromOidc } from "../core/users";
 import type { Viewer } from "../core/types";
 import { IDENTITY_COOKIE, identityOk, logoutRoute, requireViewer, viewerFromCookie, viewerFromRequest } from "./session";
@@ -17,7 +18,7 @@ beforeEach(async () => {
   resetSecretForTests();
   await resetDbForTests();
   a = await userFromOidc({ sub: "a", name: "Alice" });
-  b = await userFromOidc({ sub: "b", name: "Bob" });
+  b = await signInInvited(a, { sub: "b", name: "Bob" });
 });
 afterEach(() => {
   vi.unstubAllEnvs();

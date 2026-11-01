@@ -24,11 +24,18 @@ export type Seed = {
 export const DINNER_TRANSCRIPT =
   "Dinner with Anna at Luigi's. She starts a new job at the museum next month. In confidence: she and Tom are getting divorced. Tom's birthday is on 24 October.";
 
+/** Signs a second user in through an admin invitation to `into`'s book, as the household's partner joins it. */
+export async function signInInvited(into: Viewer, c: { sub: string; name: string; email?: string }): Promise<Viewer> {
+  const { invite } = await import("../people/invitations");
+  const { url } = await invite(into, "admin");
+  return userFromOidc(c, { invitation: url.split("/").pop() });
+}
+
 /** Resets the database and records the fixture. */
 export async function seed(): Promise<Seed> {
   await resetDbForTests();
   const a = await userFromOidc({ sub: "a", name: "Alice" });
-  const b = await userFromOidc({ sub: "b", name: "Bob" });
+  const b = await signInInvited(a, { sub: "b", name: "Bob" });
   const dinner = await recordConversation(a, {
     date: "2026-10-20",
     kind: "in_person",

@@ -10,17 +10,15 @@
 
 items:
   # ---- open --------------------------------------------------------------------------------------------------------------
-  - id: households
+  - id: books-web
     status: next
     when: Next
-    icon: home-group
-    title: Several books per person, and a hosted freundebuch
-    summary: A book for the household and one of your own for work; Claude files into the right one and reads across all of them. Next, inviting others into a book, and a hosted instance where anyone can sign up.
+    icon: book-multiple-outline
+    title: Books in the web app
+    summary: Switching between your books on the phone, managing a book's members and invitations, and moving people between books there too. Over MCP all of it works already.
     links:
       - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
-      - { label: "#116", url: "https://github.com/Marceltov/freundebuch/pull/116" }
-      - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household" }
-      - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
+      - { label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first" }
 
   - id: map
     status: later
@@ -33,6 +31,19 @@ items:
       - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
 
   # ---- done, newest first ------------------------------------------------------------------------------------------------
+  - id: households
+    status: done
+    date: 2026-11-01
+    icon: home-group
+    title: Several books per person, and a hosted freundebuch
+    summary: A book for the household and one of your own for work; Claude files into the right one and reads across all of them, and moves people between them. Others join a book by invitation, with a role; whether strangers may sign up is a setting, so the same freundebuch can be hosted.
+    links:
+      - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
+      - { label: "#116", url: "https://github.com/Marceltov/freundebuch/pull/116" }
+      - { label: "#117", url: "https://github.com/Marceltov/freundebuch/pull/117" }
+      - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-the-people-who-keep-it" }
+      - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
+
   - id: own-cards
     status: done
     date: 2026-10-31
@@ -65,7 +76,7 @@ items:
     summary: Each of you chooses the language of the app and your notifications; Claude writes the chat, the reflection and its file suggestions in it.
     links:
       - { label: "#72", url: "https://github.com/Marceltov/freundebuch/issues/72" }
-      - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household" }
+      - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-the-people-who-keep-it" }
       - { label: "ADR 0021", url: "https://marceltov.github.io/freundebuch/adr/0021-a-language-per-user/" }
       - { label: "PR #106", url: "https://github.com/Marceltov/freundebuch/pull/106" }
 

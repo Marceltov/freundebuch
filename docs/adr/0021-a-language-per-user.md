@@ -8,7 +8,7 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
-freundebuch spoke only German: the web app, the notifications and what Claude wrote for the app (the chat's answers, the weekly reflection, the pre-read of a shared file). A household that doesn't speak German couldn't keep its book ([#72](https://github.com/Marceltov/freundebuch/issues/72), [V1](../values.md#v1-a-book-for-each-household)). The copy was one German object read as a module constant in about fifty files, in server and client components alike.
+freundebuch spoke only German: the web app, the notifications and what Claude wrote for the app (the chat's answers, the weekly reflection, the pre-read of a shared file). A household that doesn't speak German couldn't keep its book ([#72](https://github.com/Marceltov/freundebuch/issues/72), [V1](../values.md#v1-a-book-for-the-people-who-keep-it)). The copy was one German object read as a module constant in about fifty files, in server and client components alike.
 
 ## Considered Options
 

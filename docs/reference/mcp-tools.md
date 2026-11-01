@@ -26,7 +26,7 @@ Every call works in one book ([ADR 0026](../adr/0026-a-call-works-in-one-book.md
 | `cards` | destructive | [Own cards](../using/cards.md): lists, writes and deletes your own cards (several, each with a name), makes or ends a card's link (a new link ends that card's old one), and subscribes a person to the card link they gave you, or drops it. Not in the in-app chat. |
 | `birthday_message` | read | What birthday wishes to someone can be written from: the birthday, the age, who they are to you and what you know about them, never their health. With the final `text`, links that open WhatsApp, Telegram, SMS or email with it filled in; you send it yourself ([ADR 0023](../adr/0023-birthday-wishes-the-user-sends.md)). |
 | `calendar_feed` | destructive | Gives you the secret URL of your [calendar feed](../using/calendar.md) for one book (`book`), making one when you have none; replaces or revokes it, which ends the old URL. Not in the in-app chat. |
-| `books` | write | Your books, with your role and their members (`list`), or a new book of your own (`create`, e.g. Arbeit), whose owner and only member you are. |
+| `books` | destructive | Your books, with your role and their members (`list`), a new book of your own (`create`), and, for one book named in `book`: `rename`, `invite` (a link that works once, for 7 days, as member, or as admin when the owner makes it), `invitations` and `revoke`, `set_role`, `remove`, `leave` (what you marked private there is deleted, and your transcripts that held it are emptied), `hand_over` and `delete`. What each may do depends on your role ([ADR 0027](../adr/0027-invitations-and-roles.md)). Not in the in-app chat. |
 | `move` | destructive | Moves people (by id, or a group's members) into another of your books, with what you may see about them; conversations, experiences and journal entries come along when everyone in them does. What another member keeps private stays behind with a remaining entry. Moved people get new links. |
 
 ## What a result tells Claude
@@ -50,7 +50,7 @@ Every tool result carries `next`: short instructions, built by the server from w
 | `search` | Answer from the hits with their days and links, reading the whole transcript when a snippet isn't enough; nothing found: try once with another or shorter word. |
 | `get_transcript` | A transcript private to whoever recorded it: answer from the summary. |
 | `move` | Read back who moved, with the new links; that what other members keep private stayed behind; what stayed because it is about people who stay. |
-| `books` | `create`: the book is there; from now on name the book when filing. |
+| `books` | `create`: the book is there; from now on name the book when filing. `invite`: give the link only to you, it works once for 7 days. Everything else: that it is done. |
 | `set_interval`, `groups` | Nothing. |
 
 The write tools also return what they filed (`filed` for `record` and `remember`, `relationships` for `relate` and `to_relationship`): each item with its id and link, each situation's `checkAfter` and `defaultCheckAfter`, and whether each relationship was new (`created`). `next` and these details are built only from what you may see: the other user's private items never show, not even in a count.

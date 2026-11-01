@@ -411,6 +411,24 @@ const migrations: Record<string, Migration> = {
       await db.schema.alterTable("user_settings_new").renameTo("user_settings").execute();
     },
   },
+  "003_invitations": {
+    // An invitation to a book: a link that works once, until it expires; only the token's hash is kept.
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("invitations")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("book_id", "text", (c) => c.notNull().references("books.id").onDelete("cascade"))
+        .addColumn("token_hash", "text", (c) => c.notNull().unique())
+        .addColumn("role", "text", (c) => c.notNull().check(oneOf("role", ["member", "admin"])))
+        .addColumn("created_by", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .addColumn("expires_at", "bigint", (c) => c.notNull())
+        .addColumn("used_by", "text", (c) => c.references("users.id").onDelete("set null"))
+        .addColumn("used_at", "bigint")
+        .execute();
+      await db.schema.createIndex("invitations_by_book").on("invitations").column("book_id").execute();
+    },
+  },
 };
 
 /** The migrations themselves, for the Postgres compile test. */

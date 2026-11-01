@@ -1,6 +1,6 @@
 # What freundebuch stands for
 
-freundebuch is a personal CRM for a household: after you meet someone, you tell Claude about it, and before you meet them again, Claude tells you what is going on in their life. This page says what it will stay, whoever runs it and whatever it grows into. Everything else follows from it: the features and the design decisions in [docs/adr](https://github.com/Marceltov/freundebuch/tree/main/docs/adr).
+freundebuch is a personal keep-in-touch book, for a household, for yourself or for your work: after you meet someone, you tell Claude about it, and before you meet them again, Claude tells you what is going on in their life. This page says what it will stay, whoever runs it and whatever it grows into. Everything else follows from it: the features and the design decisions in [docs/adr](https://github.com/Marceltov/freundebuch/tree/main/docs/adr).
 
 It is written for you, if you are deciding whether to trust freundebuch with what you know about the people in your life. It is also the yardstick for every change: a contribution, from a person or an AI, is judged against these points, and a review names the one it touches ("this breaks V2"). Each point says what it rules out, so that it can be used that way.
 
@@ -8,11 +8,13 @@ It is written for you, if you are deciding whether to trust freundebuch with wha
 
 These three come first. When a feature would be easier, or would sell better, by bending one of them, the feature changes or is not built.
 
-### V1. A book for each household
+### V1. A book for the people who keep it
 
-A book belongs to the people who live together and sign in to it: you and your partner, the household. Everyone who signs in to it is in it, and only they are. It is your memory of the people you know, not a place where those people are. An instance can hold several households, as a hosted one would; each has a book of its own, and no household sees into another's.
+A book belongs to its members: the people who keep it and sign in to it. A household is one kind (you and your partner), a book of your own for work another; you can keep several. Everyone in a book made it or was invited into it by someone in it, and only they are in it. It is your memory of the people you know, not a place where those people are. An instance can hold many books, as a hosted one would, and no book sees into another, not even two of your own.
 
-**Rules out:** accounts for the people in the book, sharing a book beyond its household, anything one household can see of another's, people or groups shared across households, public profiles, a directory of books.
+freundebuch is about people, not deals: it keeps what is going on in someone's life, never a pipeline to sell to them.
+
+**Rules out:** accounts for the people in the book, someone in a book who neither made it nor was invited into it, anything one book can see of another's, people or groups shared across books, public profiles, a directory of books, pipelines, deal stages or amounts per person.
 
 ADRs: [0001](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0001-ai-first-app-with-built-in-mcp.md), [0003](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0003-authentik-sign-in-and-own-oauth-server.md), [0013](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0013-the-household-is-a-group.md).
 
@@ -78,11 +80,11 @@ What is shared belongs to both of you: either may correct, complete or delete it
 
 ADRs: [0011](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0011-either-user-edits-shared-items.md).
 
-### V9. Everything is seen from the household
+### V9. Everything is seen from the book's members
 
-Who someone is, is said from your side ("our landlady", "Sybille's colleague"), in your own words and in each one's gender. The household is a group like any other, so no list needs an exception for the two of you.
+Who someone is, is said from your side ("our landlady", "Sybille's colleague", "my client"), in your own words and in each one's gender. The members of a book are a group like any other (Haushalt to start with), so no list needs an exception for them.
 
-**Rules out:** a fixed list of relationship types, roles filed as plain facts, special cases for the partner outside the household group.
+**Rules out:** a fixed list of relationship types, roles filed as plain facts, special cases for a member outside the book's own group.
 
 ADRs: [0009](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0009-household-members-in-the-relationship-graph.md), [0013](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0013-the-household-is-a-group.md).
 

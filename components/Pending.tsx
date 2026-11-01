@@ -21,7 +21,7 @@ export function PendingList({ items }: { items: PendingFile[] }) {
   const [ticked, setTicked] = useState<{ hash: string; ids: Set<string> } | null>(null);
   const hash = useSyncExternalStore(
     onHashChange,
-    () => idOfHash(window.location.hash),
+    () => opened ?? idOfHash(window.location.hash),
     () => "",
   );
   const target = items.find((i) => i.id === hash);
@@ -111,14 +111,21 @@ export function PendingList({ items }: { items: PendingFile[] }) {
 export const idOfHash = (hash: string): string => (/^#[A-Za-z0-9_-]+$/.test(hash) ? hash.slice(1) : "");
 
 // Next's router doesn't see a change of the hash alone (opened again on another file) and puts its own, older URL back on the
-// next refresh, selecting the old file again. Replacing the history entry tells it the new one.
+// next refresh, selecting the old file again. Replacing the history entry tells it the new one, but until its restore has caught
+// up it may write the old one back, and a render in between would read that; so the file the page was opened on is the one the
+// hashchange said (`opened`), not the address.
+let opened: string | null = null;
 const onHashChange = (then: () => void) => {
   const changed = () => {
+    opened = idOfHash(window.location.hash);
     window.history.replaceState(null, "", window.location.href);
     then();
   };
   window.addEventListener("hashchange", changed);
-  return () => window.removeEventListener("hashchange", changed);
+  return () => {
+    opened = null;
+    window.removeEventListener("hashchange", changed);
+  };
 };
 
 const button = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold disabled:opacity-50";

@@ -667,8 +667,10 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
 
 test("Prüfen: files shared together come pre-selected and are worked through together; a selection is thrown away at once", async ({ page, baseURL }) => {
   const sharp = (await import("sharp")).default;
+  // Different pixels on every run, so a repeated run doesn't share the same files again.
+  const salt = Math.floor(Math.random() * 256);
   const up = async (n: number, batch?: string) => {
-    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 10, b: 10 } } })
+    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 10, b: salt } } })
       .png()
       .toBuffer();
     const r = await page.request.post("/api/share", {
@@ -696,10 +698,10 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   await expect(chat.getByText("Zu diesen 4 Dateien")).toBeVisible();
   await expect(chat.locator("[data-shown-file]")).toHaveCount(4);
   // A missing screenshot added with the paperclip joins them, it doesn't replace them.
-  const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: 10 } } })
+  const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: salt } } })
     .png()
     .toBuffer();
-  const sixth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 90, b: 10 } } })
+  const sixth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 90, b: salt } } })
     .png()
     .toBuffer();
   await chat.locator('input[type="file"]').setInputFiles([
@@ -721,6 +723,37 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   await expect(page.locator(`[id="${alone}"]`)).toHaveCount(0);
   await expect(page.locator(`[id="${one}"]`)).toHaveCount(0);
   await expect(page.locator(`[id="${two}"]`)).toHaveCount(1);
+});
+
+test("Prüfen opened again on another file keeps it while Next puts its older address back", async ({ page, baseURL }) => {
+  const sharp = (await import("sharp")).default;
+  const salt = Math.floor(Math.random() * 256);
+  const up = async (n: number, batch?: string) => {
+    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 50, b: salt } } })
+      .png()
+      .toBuffer();
+    const r = await page.request.post("/api/share", {
+      headers: { origin: baseURL!, ...(batch ? { "x-freundebuch-batch": batch } : {}) },
+      multipart: { file: { name: `s${n}.png`, mimeType: "image/png", buffer } },
+    });
+    expect(r.status()).toBe(202);
+    return ((await r.json()) as { id: string }).id;
+  };
+  const batch = `e2e-again-${Date.now()}`;
+  const [one, two] = [await up(1, batch), await up(2, batch)];
+  const alone = await up(3);
+  const box = (id: string) => page.locator(`[id="${id}"]`).getByRole("checkbox", { name: "Auswählen" });
+  await page.goto(`/pruefen#${two}`);
+  await expect(box(one)).toBeChecked();
+  await box(alone).check();
+  await page.goto(`/pruefen#${alone}`);
+  await expect(box(one)).not.toBeChecked();
+  // What Next's router does for a while after a change of the hash alone (seen in the traces of the flaky test above): it writes
+  // the address it knew back, with its own history state, until its restore catches up.
+  await page.evaluate((old) => window.history.replaceState(window.history.state, "", `/pruefen#${old}`), two);
+  await box(one).check();
+  await expect(page.getByRole("button", { name: "Auswahl verwerfen (2)" })).toBeVisible();
+  await expect(box(two)).not.toBeChecked();
 });
 
 test("settings make one Zugang (address and key), and the key hands in a screenshot", async ({ page, baseURL }) => {
@@ -1092,4 +1125,27 @@ test.describe("voice", () => {
     await expect(card.getByText("Anna Reise war in Lissabon im Urlaub")).toBeVisible({ timeout: 15_000 });
     await expectNoSideScroll(page);
   });
+});
+
+test("an invitation link takes a signed-in user into the book, once", async ({ page, browser }) => {
+  // From the page itself, as the app's own requests are (the REST API takes a cookie only with the page's origin).
+  const made = await page.evaluate(async () => {
+    const res = await fetch("/api/v1/invitations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "member" }),
+    });
+    return { status: res.status, url: (await res.json()).url as string };
+  });
+  expect(made.status).toBe(201);
+  const path = new URL(made.url).pathname;
+  const other = await browser.newPage();
+  await other.goto("/api/e2e/login?name=Ines Eigen&own=1");
+  await other.goto(path);
+  await expect(other.getByText("Erika Muster lädt dich ein", { exact: false })).toBeVisible();
+  await other.getByRole("button", { name: "Beitreten" }).click();
+  await expect(other).toHaveURL("/");
+  await other.goto(path);
+  await expect(other.getByText("Diese Einladung gilt nicht mehr", { exact: false })).toBeVisible();
+  await other.close();
 });

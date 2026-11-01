@@ -3,7 +3,7 @@
 import { newId, now } from "../db";
 import { instance, scope, type InstanceDb } from "../db/scope";
 import { HOUSEHOLD_GROUP, KEYED_TABLES, SEEDED_GROUPS } from "../db/tables";
-import { InvalidInputError, NotFoundError } from "../core/errors";
+import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
 import { isHouseholdWord } from "./household";
 import type { Role, Viewer } from "../core/types";
 import { norm } from "./names";
@@ -61,10 +61,10 @@ export async function viewerOf(i: InstanceDb, userId: string): Promise<Viewer | 
 
 export type BookRef = { id: string; name: string };
 
-const BOOK_NAME_MAX = 60;
+export const BOOK_NAME_MAX = 60;
 
-/** The user's books, oldest first, with their role and the names of the members. */
-export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; members: string[] })[]> {
+/** The user's books, oldest first, with their role and the members (user id, name, role). */
+export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; members: { id: string; name: string; role: Role }[] })[]> {
   const i = await instance();
   const mine = await i
     .from("members")
@@ -78,7 +78,7 @@ export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; mem
   const names = await i
     .from("members")
     .innerJoin("users", "users.id", "members.user_id")
-    .select(["members.book_id", "users.name"])
+    .select(["members.book_id", "members.user_id", "members.role", "users.name"])
     .where(
       "members.book_id",
       "in",
@@ -87,7 +87,12 @@ export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; mem
     .orderBy("members.created_at")
     .orderBy("members.user_id")
     .execute();
-  return mine.map((b) => ({ id: b.id, name: b.name, role: b.role, members: names.filter((n) => n.book_id === b.id).map((n) => n.name) }));
+  return mine.map((b) => ({
+    id: b.id,
+    name: b.name,
+    role: b.role,
+    members: names.filter((n) => n.book_id === b.id).map((n) => ({ id: n.user_id, name: n.name, role: n.role })),
+  }));
 }
 
 /** A new book of the viewer's, its maker the owner. */
@@ -136,4 +141,17 @@ export async function inBookOf(v: Viewer, ids: readonly (string | undefined | nu
 
 export async function bookRef(bookId: string): Promise<BookRef> {
   return (await instance()).from("books").select(["id", "name"]).where("id", "=", bookId).executeTakeFirstOrThrow();
+}
+
+/** The viewer's role in their book, or null when they aren't in it. */
+export async function roleOf(v: Viewer): Promise<Role | null> {
+  const m = await (await instance()).from("members").select("role").where("book_id", "=", v.bookId).where("user_id", "=", v.userId).executeTakeFirst();
+  return m?.role ?? null;
+}
+
+/** Throws ForbiddenError unless the viewer has one of `roles` in their book. */
+export async function requireRole(v: Viewer, roles: readonly Role[], what: string): Promise<Role> {
+  const role = await roleOf(v);
+  if (!role || !roles.includes(role)) throw new ForbiddenError(`Only the book's ${roles.join(" or ")} may ${what}`);
+  return role;
 }

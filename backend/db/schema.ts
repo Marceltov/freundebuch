@@ -26,6 +26,18 @@ export interface Schema {
     role: ColumnType<Role, Role | undefined, Role>;
     calendar_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
   };
+  /** An invitation to a book: the hash of a one-time token, the role it gives, until when, and who used it. */
+  invitations: {
+    id: string;
+    book_id: string;
+    token_hash: string;
+    role: "member" | "admin";
+    created_by: string;
+    created_at: number;
+    expires_at: number;
+    used_by: ColumnType<string | null, string | null | undefined, string | null>;
+    used_at: ColumnType<number | null, number | null | undefined, number | null>;
+  };
   users: {
     id: string;
     oidc_sub: string;

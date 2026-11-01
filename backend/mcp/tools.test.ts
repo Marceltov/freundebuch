@@ -797,7 +797,17 @@ describe("tools run in a book", () => {
 describe("books and move", () => {
   test("books lists and creates", async () => {
     const list = await toolByName("books")!.run(s.a, { action: "list" });
-    expect(list.books).toEqual([{ id: s.a.bookId, name: "Unser Buch", role: "owner", members: ["Alice", "Bob"] }]);
+    expect(list.books).toEqual([
+      {
+        id: s.a.bookId,
+        name: "Unser Buch",
+        role: "owner",
+        members: [
+          { id: s.a.userId, name: "Alice", role: "owner" },
+          { id: s.b.userId, name: "Bob", role: "admin" },
+        ],
+      },
+    ]);
     const made = await toolByName("books")!.run(s.a, { action: "create", name: "Arbeit" });
     expect(made.created).toEqual({ id: expect.any(String), name: "Arbeit" });
     expect((made.next as string[]).join(" ")).toContain("name the book");
@@ -849,4 +859,26 @@ describe("review fixes", () => {
     expect(JSON.stringify(r.next)).not.toMatch(/private/i);
     expect(JSON.stringify(toolByName("move")!.output.toJSONSchema())).not.toMatch(/another member/i);
   });
+});
+
+test("books manages a book by its role", async () => {
+  const books = (v: Seed["a"], args: object) => toolByName("books")!.run(v, args);
+  const inv = await books(s.a, { action: "invite", book: "Unser Buch", role: "member" });
+  expect((inv.invitation as { url: string }).url).toMatch(/^\/einladung\/fbi_/);
+  expect((inv.next as string[]).join(" ")).toContain("works once");
+  expect(((await books(s.a, { action: "invitations", book: "Unser Buch" })).invitations as unknown[]).length).toBe(1);
+  await books(s.a, { action: "revoke", book: "Unser Buch", id: (inv.invitation as { id: string }).id });
+  await books(s.b, { action: "rename", book: "Unser Buch", name: "Zuhause" });
+  const list = (await books(s.a, { action: "list" })).books as { name: string; members: { id: string; name: string; role: string }[] }[];
+  expect(list[0]).toMatchObject({
+    name: "Zuhause",
+    members: [
+      { id: s.a.userId, name: "Alice", role: "owner" },
+      { id: s.b.userId, name: "Bob", role: "admin" },
+    ],
+  });
+  await books(s.a, { action: "set_role", book: "Zuhause", user: s.b.userId, role: "member" });
+  await expect(books(s.b, { action: "invite", book: "Zuhause" })).rejects.toThrow(/owner or admin/);
+  await expect(books(s.b, { action: "leave", book: "Zuhause" })).rejects.toThrow(/only book/);
+  expect(toolByName("books")!.description).toMatch(/confirm/i);
 });

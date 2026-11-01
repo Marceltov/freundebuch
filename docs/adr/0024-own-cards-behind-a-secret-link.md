@@ -8,7 +8,7 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
-What freundebuch knows about someone comes from what the user tells it. Some things the person knows best themselves and changes now and then: their number, their address, their birthday. They could say it themselves, once, for everyone they want to have it ([#70](https://github.com/Marceltov/freundebuch/issues/70)). This must stay the only thing that crosses from one person to another. There is no federation, nobody is told they are in a book, and nothing is synced into other services ([V3](../values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it), [V1](../values.md#v1-a-book-for-each-household)).
+What freundebuch knows about someone comes from what the user tells it. Some things the person knows best themselves and changes now and then: their number, their address, their birthday. They could say it themselves, once, for everyone they want to have it ([#70](https://github.com/Marceltov/freundebuch/issues/70)). This must stay the only thing that crosses from one person to another. There is no federation, nobody is told they are in a book, and nothing is synced into other services ([V3](../values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it), [V1](../values.md#v1-a-book-for-the-people-who-keep-it)).
 
 ## Considered Options
 

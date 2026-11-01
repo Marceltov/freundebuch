@@ -16,9 +16,8 @@ import {
   resolveOrCreateGroup,
 } from "./groups";
 import { setCheckInInterval } from "./intervals";
-import { userFromOidc } from "../core/users";
 import { addToGroup } from "./relationships";
-import { seed, type Seed } from "../testing/fixtures";
+import { seed, type Seed, signInInvited } from "../testing/fixtures";
 
 let s: Seed;
 
@@ -161,7 +160,7 @@ test("Haushalt holds everyone who signs in, and can't be deleted, merged away or
   const g = await getGroup(s.a, haushalt);
   expect(g.members.map((m) => m.personId).sort()).toEqual([s.a.personId, s.b.personId].sort());
   expect(g.household).toBe(true);
-  const newcomer = await userFromOidc({ sub: "c", name: "Carla" });
+  const newcomer = await signInInvited(s.a, { sub: "c", name: "Carla" });
   expect((await getGroup(s.a, haushalt)).members.map((m) => m.personId)).toContain(newcomer.personId);
   await expect(deleteGroup(s.a, haushalt)).rejects.toThrow(InvalidInputError);
   await expect(mergeGroups(s.a, await idOf("Freunde"), haushalt)).rejects.toThrow(InvalidInputError);

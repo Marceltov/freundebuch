@@ -31,6 +31,13 @@ export default defineConfig({
     url: `http://localhost:${PORT}/health`,
     reuseExistingServer: false,
     timeout: 120_000,
-    env: { DATA_DIR, FREUNDEBUCH_E2E: "1", FREUNDEBUCH_SECRET: "e2e-secret-".padEnd(40, "x"), FREUNDEBUCH_LOG_LEVEL: "warn", TZ: "Europe/Berlin" },
+    env: {
+      DATA_DIR,
+      FREUNDEBUCH_E2E: "1",
+      FREUNDEBUCH_REGISTRATION: "open",
+      FREUNDEBUCH_SECRET: "e2e-secret-".padEnd(40, "x"),
+      FREUNDEBUCH_LOG_LEVEL: "warn",
+      TZ: "Europe/Berlin",
+    },
   },
 });

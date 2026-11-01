@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE, viewerFromRequest } from "../auth/session";
 import { resetTokensForTests, sign, verify } from "../auth/tokens";
+import { userFromOidc } from "../core/users";
+import { invite } from "../people/invitations";
 import { resetDbForTests, unchecked } from "../db/testing";
 import { resetRateLimitsForTests } from "../chat/limits";
 import { logTo } from "../core/log";
@@ -272,6 +274,24 @@ describe("callback", () => {
     const s = await start(fields);
     const res = await callback(`error=access_denied&state=${s.state}`, s.cookie);
     expect(res.headers.get("location")).toBe(`/oauth/authorize?${new URLSearchParams(fields)}&error=sign_in_failed`);
+  });
+
+  test("not invited goes back to the authorize page with not_invited, and no code", async () => {
+    await userFromOidc({ sub: "owner", name: "Owner" });
+    const fields = await mcpFields();
+    const s = await start(fields);
+    const res = await callback(`code=c&state=${s.state}`, s.cookie);
+    expect(res.headers.get("location")).toBe(`/oauth/authorize?${new URLSearchParams(fields)}&error=not_invited`);
+    expect((await users()).map((u) => u.oidc_sub)).toEqual(["owner"]);
+  });
+
+  test("a sign-in through an invitation link joins its book", async () => {
+    const owner = await userFromOidc({ sub: "owner", name: "Owner" });
+    const { url } = await invite(owner, "member");
+    const s = await start(`next=${encodeURIComponent(url)}`);
+    const res = await callback(`code=c&state=${s.state}`, s.cookie);
+    expect(res.headers.get("location")).toBe(url);
+    expect((await users()).length).toBe(2);
   });
 
   test("a failed web sign-in keeps next", async () => {
