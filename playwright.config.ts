@@ -10,6 +10,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
+  // The dev server compiles each page on its first visit, which on CI's runners can take longer than the default 5 seconds.
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
   projects: [
     {

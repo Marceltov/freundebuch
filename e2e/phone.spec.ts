@@ -91,8 +91,7 @@ test("orbit → friend page → conversation", async ({ page, baseURL }) => {
   await expectNoSideScroll(page);
 
   await face.click();
-  // The first friend page of a run may be compiled by the dev server on the way, which takes CI about five seconds.
-  await expect(page.getByRole("heading", { name: "Anna Weber" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "Anna Weber" })).toBeVisible();
   await expect(page.getByText("Neuer Job im Museum")).toBeVisible();
   await expect(page.getByText("Umzugsfirma schicken")).toBeVisible();
   await expect(page.getByLabel("Privat: nur du siehst das")).toHaveCount(1);
