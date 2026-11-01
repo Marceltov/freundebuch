@@ -612,6 +612,10 @@ test("GET /files lists the caller's waiting files of every book", async () => {
   const w = await seedWorkBook(s);
   const { shareFile } = await import("../conversations/files");
   const { unchecked } = await import("../db/testing");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-api-files-")));
   const f = await shareFile(w.a, new TextEncoder().encode("eins"), "text/plain");
   await unchecked().updateTable("files").set({ book_id: w.work.bookId }).where("id", "=", f.id).execute();
   const r = await call(s.a, "GET", "/files");
