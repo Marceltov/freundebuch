@@ -19,6 +19,9 @@ async function meet(page: Page, origin: string, name: string, book?: string) {
 }
 
 test.beforeEach(async ({ page, baseURL }) => {
+  // Erika first: on a fresh instance the first sign-in makes the household book, which the phone tests share, whichever file
+  // runs first.
+  await page.goto("/api/e2e/login?name=Erika Muster");
   await page.goto(`/api/e2e/login?own=1&name=Bea ${Math.random().toString(36).slice(2, 8)}`);
   await expect(page).toHaveURL("/");
   const made = await page.request.post("/api/v1/books", { headers: { origin: baseURL! }, data: { name: "Arbeit" } });
