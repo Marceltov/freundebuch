@@ -221,3 +221,67 @@ describe("managing a book", () => {
     await expect(deleteBook(await inBook((await viewerById(s.a.userId))!, s.a.bookId))).rejects.toThrow(/only book/);
   });
 });
+
+describe("review fixes", () => {
+  let s: Seed;
+  beforeEach(async () => {
+    s = await seed();
+  });
+
+  test("an invitation stops working when its maker is removed or no longer an admin", async () => {
+    const { invite, invitationFor } = await import("./invitations");
+    const c = await signInInvited(s.a, { sub: "c", name: "Carol" });
+    const left = await invite(c, "admin");
+    const kept = await invite(s.b, "member");
+    await removeMember(s.a, c.userId);
+    expect(await invitationFor(left.url.split("/").pop()!)).toBeNull();
+    await setRole(s.a, s.b.userId, "member");
+    expect(await invitationFor(kept.url.split("/").pop()!)).toBeNull();
+  });
+
+  test("leaving keeps the files the leaver's shared facts show", async () => {
+    await unchecked()
+      .insertInto("files")
+      .values({ id: "f1", book_id: s.a.bookId, user_id: s.b.userId, sha256: "x", status: "filed", reading: null, created_at: 1, blob_key: "k1" })
+      .execute();
+    const other = await newBook(s.b, "Bobs Buch");
+    expect(other.name).toBe("Bobs Buch");
+    await leaveBook(await inBook((await viewerById(s.b.userId))!, s.a.bookId));
+    expect(await unchecked().selectFrom("files").select("id").where("id", "=", "f1").execute()).toEqual([{ id: "f1" }]);
+  });
+
+  test("leaving and deleting touch only the one book, whatever viewer they get", async () => {
+    const { remember } = await import("../conversations/conversations");
+    const other = await newBook(s.b, "Bobs Buch");
+    const bob = (await viewerById(s.b.userId))!;
+    const bobs = await inBook(bob, other.id);
+    const { recordConversation } = await import("../conversations/conversations");
+    await recordConversation(bobs, {
+      date: "2026-10-30",
+      kind: "call",
+      summary: "x",
+      transcript: "x",
+      visibility: "private",
+      people: [{ name: "Zora", present: true }],
+      facts: [{ person: 0, text: "b elsewhere", category: "other" }],
+    });
+    await remember(s.b, { visibility: "private", facts: [{ person: s.anna, text: "b here", category: "other" }] });
+    await leaveBook({ ...bob, bookId: s.a.bookId, personId: s.b.personId });
+    const texts = (await unchecked().selectFrom("facts").select("text").execute()).map((f) => f.text);
+    expect(texts).toContain("b elsewhere");
+    expect(texts).not.toContain("b here");
+  });
+
+  test("a leaver is out of the book's own group", async () => {
+    await newBook(s.b, "Bobs Buch");
+    await leaveBook(await inBook((await viewerById(s.b.userId))!, s.a.bookId));
+    const haushalt = await unchecked()
+      .selectFrom("group_members")
+      .innerJoin("groups", "groups.id", "group_members.group_id")
+      .select("group_members.person_id")
+      .where("groups.household", "=", 1)
+      .where("groups.book_id", "=", s.a.bookId)
+      .execute();
+    expect(haushalt.map((m) => m.person_id)).toEqual([s.a.personId]);
+  });
+});

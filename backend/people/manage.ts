@@ -82,18 +82,26 @@ export async function leaveBook(v: Viewer): Promise<void> {
   await dropMember(v, v.userId);
 }
 
-// The member row goes, with their settings, waiting files and private rows in this book; one transaction.
+// Only the viewer's one book, whichever books the viewer handed in can read.
+const onlyThis = (v: Viewer): Viewer => ({ ...v, books: [v.bookId] });
+
+// The member row goes, with their settings, waiting files, private rows and place in the book's own group, in this book only;
+// one transaction. Files that facts show (filed) stay with the facts.
 async function dropMember(v: Viewer, userId: string): Promise<void> {
   const blobs: string[] = [];
   await (
     await instance()
   ).transaction(async (i) => {
-    const s = i.scope(v);
+    const s = i.scope(onlyThis(v));
+    const member = await i.from("members").select("person_id").where("book_id", "=", v.bookId).where("user_id", "=", userId).executeTakeFirstOrThrow();
     for (const t of PRIVATE_TABLES) await s.delete(t).where("recorded_by", "=", userId).where("visibility", "=", "private").execute();
     await s.delete("person_settings").where("user_id", "=", userId).execute();
-    const files = await s.from("files").select("blob_key").where("user_id", "=", userId).execute();
+    const waiting = ["reading", "pending", "failed"] as const;
+    const files = await s.from("files").select("blob_key").where("user_id", "=", userId).where("status", "in", waiting).execute();
     blobs.push(...files.map((f) => f.blob_key));
-    await s.delete("files").where("user_id", "=", userId).execute();
+    await s.delete("files").where("user_id", "=", userId).where("status", "in", waiting).execute();
+    const household = await s.from("groups").select("id").where("household", "=", 1).executeTakeFirstOrThrow();
+    await s.delete("group_members").where("group_id", "=", household.id).where("person_id", "=", member.person_id).execute();
     await i.delete("members").where("book_id", "=", v.bookId).where("user_id", "=", userId).execute();
   });
   await dropBlobs(blobs);
@@ -104,7 +112,7 @@ export async function deleteBook(v: Viewer): Promise<void> {
   await requireRole(v, ["owner"], "delete it");
   if (await onlyBook(v)) throw new InvalidInputError("This is your only book: you can't delete it");
   const i = await instance();
-  const blobs = (await i.scope(v).from("files").select("blob_key").execute()).map((f) => f.blob_key);
+  const blobs = (await i.scope(onlyThis(v)).from("files").select("blob_key").execute()).map((f) => f.blob_key);
   await i.delete("books").where("id", "=", v.bookId).execute();
   await dropBlobs(blobs);
 }

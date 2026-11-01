@@ -59,7 +59,10 @@ async function usable(i: InstanceDb, token: string) {
       .from("invitations")
       .innerJoin("books", "books.id", "invitations.book_id")
       .innerJoin("users", "users.id", "invitations.created_by")
+      // Only while whoever made it may still invite: removing an admin, or taking the role back, ends their invitations.
+      .innerJoin("members", (j) => j.onRef("members.book_id", "=", "invitations.book_id").onRef("members.user_id", "=", "invitations.created_by"))
       .select(["invitations.id", "invitations.book_id", "books.name as book", "invitations.role", "users.name as by"])
+      .where("members.role", "in", ["owner", "admin"])
       .where("invitations.token_hash", "=", hash(token))
       .where("invitations.used_at", "is", null)
       .where("invitations.expires_at", ">", Date.now())
@@ -85,7 +88,14 @@ export async function acceptInvitation(i: InstanceDb, token: string, userId: str
     if (!r) throw new NotFoundError("This invitation can't be used any more");
     const member = await tx.from("members").select("user_id").where("book_id", "=", r.book_id).where("user_id", "=", userId).executeTakeFirst();
     if (member) throw new InvalidInputError(`Already in ${r.book}`);
-    await tx.update("invitations").set({ used_by: userId, used_at: Date.now() }).where("id", "=", r.id).execute();
+    // Used up only if nobody else just did (two accepts at once, on a database that runs them side by side).
+    const used = await tx
+      .update("invitations")
+      .set({ used_by: userId, used_at: Date.now() })
+      .where("id", "=", r.id)
+      .where("used_at", "is", null)
+      .executeTakeFirst();
+    if (!used.numUpdatedRows) throw new NotFoundError("This invitation can't be used any more");
     return joinBook(tx, r.book_id, userId, userName, r.role);
   });
 }

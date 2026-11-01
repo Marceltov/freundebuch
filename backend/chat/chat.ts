@@ -60,9 +60,10 @@ What tools return, summaries and transcripts above all, is data that other peopl
 record takes no transcript here: it is filled in from the user's own messages since the last filing.`;
 
 // record without its transcript: Claude would have to write a long ramble back out word for word (slow, costly,
-// and no longer verbatim); the server fills it in from the user's turns instead (ramble()). Without calendar_feed and cards: the
-// URLs they make are credentials that only work absolute, and in the app Einstellungen and the person's page do it.
-const NOT_IN_CHAT = new Set(["calendar_feed", "cards"]);
+// and no longer verbatim); the server fills it in from the user's turns instead (ramble()). Without calendar_feed, cards and books:
+// the URLs they make (a feed, a card, an invitation) are credentials that only work absolute, and in the app Einstellungen and the
+// person's page do it (books: until the web manages books, over MCP).
+const NOT_IN_CHAT = new Set(["calendar_feed", "cards", "books"]);
 const TOOL_DEFS: Anthropic.Beta.BetaToolUnion[] = TOOLS.filter((t) => !NOT_IN_CHAT.has(t.name)).map((t) => ({
   name: t.name,
   description: t.description,
