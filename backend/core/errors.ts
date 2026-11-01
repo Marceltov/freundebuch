@@ -21,6 +21,13 @@ export class ForbiddenError extends FreundebuchError {
   }
 }
 
+/** A new user signing in without an invitation while registration is closed. */
+export class NotInvitedError extends ForbiddenError {
+  constructor() {
+    super("Signing up needs an invitation");
+  }
+}
+
 export class InvalidInputError extends FreundebuchError {
   constructor(message: string) {
     super("invalid_input", message);

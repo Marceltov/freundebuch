@@ -5,7 +5,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { IDENTITY_COOKIE, safeEqual } from "../auth/session";
 import { type Payloads, sign, TTL, verify } from "../auth/tokens";
-import { AuthError } from "../core/errors";
+import { AuthError, NotInvitedError } from "../core/errors";
 import { cookie, readFields, sameOrigin, seeOther } from "../http/request";
 import { authFailed, authWait, clientIp } from "../chat/limits";
 import { logger } from "../core/log";
@@ -114,7 +114,16 @@ export async function oidcCallbackRoute(req: Request): Promise<Response> {
     authFailed(ip);
     return failed(flight, "sign_in_failed", h);
   }
-  const { userId } = await userFromOidc(person); // the first sign-in creates the user
+  // A sign-in that started on an invitation's page joins its book; a stranger without one is turned away.
+  const invitation = /^\/einladung\/(fbi_[\w-]+)$/.exec(safeNext(flight!.next))?.[1];
+  let userId: string;
+  try {
+    ({ userId } = await userFromOidc(person, { invitation })); // the first sign-in creates the user
+  } catch (e) {
+    if (!(e instanceof NotInvitedError)) throw e;
+    log.info("sign-in refused: not invited");
+    return failed(flight, "not_invited", h);
+  }
   log.info("sign-in succeeded"); // never who
   if (flight!.authorize) logger("oauth").info("authorization granted"); // never the client's self-chosen name
   const res = flight!.authorize

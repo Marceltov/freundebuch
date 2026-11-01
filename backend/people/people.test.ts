@@ -3,6 +3,7 @@ import type { Scope } from "../db/scope";
 import { newId, now, resetDbForTests, firstBook } from "../db/testing";
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import { addAlias, createPerson, findPeople, getPerson, listPeople, setGender } from "./people";
+import { signInInvited } from "../testing/fixtures";
 import { userFromOidc } from "../core/users";
 import type { Viewer } from "../core/types";
 
@@ -18,7 +19,7 @@ let b: Viewer;
 beforeEach(async () => {
   await resetDbForTests();
   a = await userFromOidc({ sub: "a", name: "Alice" });
-  b = await userFromOidc({ sub: "b", name: "Bob" });
+  b = await signInInvited(a, { sub: "b", name: "Bob" });
 });
 
 const names = async (v: Viewer, q: string) => (await findPeople(v, q)).map((c) => c.name);

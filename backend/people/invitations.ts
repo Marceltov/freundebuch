@@ -73,6 +73,11 @@ export async function invitationFor(token: string): Promise<{ id: string; bookId
   return r ? { id: r.id, bookId: r.book_id, bookName: r.book, role: r.role, by: r.by } : null;
 }
 
+/** Whether the invitation can be used, on a given handle (inside a transaction). */
+export async function invitationUsable(i: InstanceDb, token: string): Promise<boolean> {
+  return !!(await usable(i, token));
+}
+
 /** Joins the user to the invitation's book and uses the invitation up, in one transaction. */
 export async function acceptInvitation(i: InstanceDb, token: string, userId: string, userName: string): Promise<Viewer> {
   return i.transaction(async (tx) => {

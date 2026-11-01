@@ -25,6 +25,7 @@ test("no password form, ever", async () => {
 test("a failed sign-in shows its German message; too many attempts names the wait", async () => {
   expect(alert(await render({}))).toBe("");
   expect(alert(await render({ error: "sign_in_failed" }))).toBe("Die Anmeldung hat nicht geklappt. Versuch es noch einmal.");
+  expect(alert(await render({ error: "not_invited" }))).toContain("nur mit einer Einladung");
   expect(alert(await render({ error: "too_many_attempts", retry: "9" }))).toBe("Zu viele Versuche. Versuch es in 9 Sekunden noch einmal.");
   expect(alert(await render({ error: "too_many_attempts", retry: "<b>" }))).toBe("Zu viele Versuche. Versuch es gleich noch einmal.");
   expect(alert(await render({ error: "something_else" }))).toBe("Die Anmeldung hat nicht geklappt. Versuch es noch einmal.");

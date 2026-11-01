@@ -5,7 +5,7 @@ import { userFromOidc, viewerById } from "../core/users";
 import { householdPersons } from "./household";
 import { createBook, inBook, inBookOf, listBooks, newBook, viewerIn, viewerOf } from "./books";
 import { InvalidInputError, NotFoundError } from "../core/errors";
-import { seed, seedOtherBook, seedWorkBook, type Seed } from "../testing/fixtures";
+import { seed, seedOtherBook, seedWorkBook, type Seed, signInInvited } from "../testing/fixtures";
 
 beforeEach(resetDbForTests);
 
@@ -37,7 +37,7 @@ test("the first sign-in on a fresh instance makes a book with Haushalt and the s
 
 test("the second user joins the same book and Haushalt; us is both, in sign-in order", async () => {
   const a = await userFromOidc({ sub: "a", name: "Alice" });
-  const b = await userFromOidc({ sub: "b", name: "Bob" });
+  const b = await signInInvited(a, { sub: "b", name: "Bob" });
   expect(b.bookId).toBe(a.bookId);
   expect(b.personId).not.toBe(a.personId);
   expect(await viewerById(b.userId)).toEqual(b);
@@ -72,7 +72,7 @@ test("a user as a member of one book reads only that book", async () => {
 
 test("createBook makes its maker the owner; who joins through sign-in is an admin", async () => {
   const a = await userFromOidc({ sub: "a", name: "Alice" });
-  const b = await userFromOidc({ sub: "b", name: "Bob" });
+  const b = await signInInvited(a, { sub: "b", name: "Bob" });
   const roles = await (await instance()).from("members").select(["user_id", "role"]).where("book_id", "=", a.bookId).orderBy("created_at").execute();
   expect(roles).toEqual([
     { user_id: a.userId, role: "owner" },

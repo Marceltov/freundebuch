@@ -13,6 +13,7 @@ Everything is an environment variable. [`.env.example`](https://github.com/Marce
 | `FREUNDEBUCH_OIDC_CLIENT_ID` | none, required | Client ID. |
 | `FREUNDEBUCH_OIDC_CLIENT_SECRET` | none, required | Client secret. |
 | `FREUNDEBUCH_OIDC_ALLOW` | `*` | Optional extra restriction, comma-separated: addresses or `@domain` (verified email). By default authentik alone decides who gets in. |
+| `FREUNDEBUCH_REGISTRATION` | `closed` | `open` lets someone without an invitation sign up, with an empty book of their own. Closed, a first sign-in needs an invitation to a book, except the very first on a fresh instance, which gets a book. |
 | `FREUNDEBUCH_NOTIFY_AT` | `08:00` | Time of day (HH:MM, `TZ`) the daily reminders go out. |
 | `FREUNDEBUCH_TRUST_PROXY` | off | Set to `1` behind a reverse proxy that sets `X-Forwarded-For/-Proto/-Host`. Without it those headers are ignored and every client shares one failed-sign-in bucket. |
 | `FREUNDEBUCH_RATE_LIMIT` | `60` | Failed sign-ins per minute and client IP; `0` turns the limit off. |

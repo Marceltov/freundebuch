@@ -3,6 +3,7 @@ import { recordConversation, getConversation, type NewConversation } from "./con
 import { resetDbForTests, unchecked } from "../db/testing";
 import { AmbiguousError, InvalidInputError, NotFoundError } from "../core/errors";
 import { getPerson } from "../people/people";
+import { signInInvited } from "../testing/fixtures";
 import { userFromOidc } from "../core/users";
 import type { Viewer } from "../core/types";
 
@@ -274,7 +275,7 @@ test("a conversation can't be dated after today", async () => {
 });
 
 test("a conversation files a role to us", async () => {
-  const b = await userFromOidc({ sub: "b", name: "Bob" });
+  const b = await signInInvited(a, { sub: "b", name: "Bob" });
   const r = await recordConversation(a, base({ relationships: [{ from: 0, to: "us", label: "Vermieter:in", inverse: "Mieter:in" }] }));
   expect(r.counts.relationships).toBe(2);
   const rows = await unchecked().selectFrom("relationships").select(["from_id", "to_id", "conversation_id"]).execute();

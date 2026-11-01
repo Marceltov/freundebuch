@@ -72,6 +72,8 @@ export const config = {
       allow: allow.length ? allow : ["*"],
     };
   },
+  // Whether someone without an invitation may sign up (getting an empty book of their own): `open`; anything else is closed.
+  registration: (): "open" | "closed" => (env("FREUNDEBUCH_REGISTRATION").trim().toLowerCase() === "open" ? "open" : "closed"),
   // X-Forwarded-For/-Proto/-Host are believed only behind a proxy that sets them (see limits.ts and urls.ts).
   trustProxy: () => env("FREUNDEBUCH_TRUST_PROXY") === "1",
   // Failed sign-ins per minute and IP; 0 or below turns the limit off. Unset or not a number → 60.
