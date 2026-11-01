@@ -24,7 +24,7 @@ Chosen: the call names its book, or its ids do.
 * **MCP** (`backend/mcp/tools.ts`): every tool has a rule. `record` and `calendar_feed` take `book` (optional with one book; with several and none, the call fails and lists them), and the ids they are given must be in it. A tool given ids (`briefing`, `correct`, `relate`, …) runs in their book, and ids from two books are refused. A list (`find_person`, `whats_due`, `search`, …) runs once per book and answers `{ books: [{ book, … }] }`, oldest first. Every result names its book, and a write says where it went once there are two.
 * **REST and the web**: the book of the id in the path, else `?book=`, else the user's oldest book, which is also where the web's lists are until it can switch books.
 * **Moving** people between books is a tool of its own (`move`): rows are copied with new ids and leave the source when nothing there holds them, so another member's private items keep a remaining entry and never land in a book they aren't in.
-* **Per book and member**: the calendar feed and the daily message. The share key stays one per user; a shared file waits in the oldest book and goes where it is filed.
+* **Per book and member**: the calendar feed and the daily message. The share key stays one per user; a shared file waits in the oldest book, the inbox (and `/api/v1/files`) lists the user's files of every book, and a file goes into the book it is filed in, in the same transaction.
 
 ### Consequences
 

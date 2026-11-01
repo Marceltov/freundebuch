@@ -7,7 +7,7 @@
 // unattended. Waiting files belong to the user who shared them. Facts filed by the screenshot reading before files still show
 // their image, to whoever may see the fact.
 import { eachBook, instance, scope, type Scope } from "../db/scope";
-import { viewerIn } from "../people/books";
+import { viewerIn, viewerOf } from "../people/books";
 import { createHash, randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { config } from "../core/config";
@@ -457,20 +457,20 @@ export async function takeFiles(tx: Scope, v: Viewer, ids: string[]): Promise<{ 
 }
 
 /**
- * Brings the user's waiting files into the viewer's book, from whichever of their books they wait in (a shared file lands in the
- * oldest), so a ramble filed in another book can take them. Files that aren't the user's waiting ones stay where they are.
+ * Brings the user's waiting files into the scope's book, from whichever of their books they wait in (a shared file lands in the
+ * oldest), so a ramble filed in another book can take them; in the ramble's transaction, so a refused ramble leaves them where
+ * they were. Files that aren't the user's waiting ones stay where they are.
  */
-export async function moveFiles(v: Viewer, ids: string[]): Promise<void> {
+export async function moveFiles(tx: Scope, ids: string[]): Promise<void> {
   if (!ids.length) return;
-  const all = await viewerById(v.userId);
+  const all = await viewerOf(tx.instance, tx.v.userId);
   if (!all) return;
-  await (
-    await scope(all)
-  )
+  await tx.instance
+    .scope(all)
     .update("files")
-    .set({ book_id: v.bookId })
+    .set({ book_id: tx.v.bookId })
     .where("id", "in", [...new Set(ids)])
-    .where("user_id", "=", v.userId)
+    .where("user_id", "=", tx.v.userId)
     .where("status", "in", ["reading", "pending", "failed"])
     .execute();
 }

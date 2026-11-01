@@ -161,3 +161,47 @@ test("a journal entry that stays leaves no transcript behind in the other book",
   expect(JSON.stringify(after)).not.toContain("an Lena und Tom");
   expect(after.length - before).toBe(r.moved.rambles ?? 0);
 });
+
+test("what stays counts journal entries, experiences, memberships and homes too", async () => {
+  const { record } = await import("../conversations/conversations");
+  await record(s.a, {
+    date: "2026-10-25",
+    transcript: "Ich habe an Lena und Tom gedacht.",
+    visibility: "shared",
+    people: [{ id: s.lena }, { id: s.tom }],
+    journal: [{ text: "Gedanken an Lena und Tom", mentions: [0, 1], shared: true }],
+  } as never);
+  const r = await movePeople(w.a, [s.lena], "Arbeit");
+  expect(r.stayed.journal_entries).toBe(1);
+});
+
+test("the partner's check-in interval keeps an entry for the person in the old book", async () => {
+  const { setCheckInInterval: setEvery } = await import("./intervals");
+  await setEvery(s.b, s.lena, 30, true);
+  const r = await movePeople(w.a, [s.lena], "Arbeit");
+  expect(r.people[0].remains).toBe(true);
+  const kept = await (await scope(s.b)).from("person_settings").select(["user_id", "interval_days"]).where("person_id", "=", s.lena).execute();
+  expect(kept).toEqual([{ user_id: s.b.userId, interval_days: 30 }]);
+});
+
+test("a copied group keeps its other names, a copied place where it sits", async () => {
+  const { addGroupAlias } = await import("./groups");
+  const uni = await addToGroup(s.a, { name: "Uni", members: [s.lena], visibility: "shared" });
+  await addGroupAlias(s.a, uni.id, "Hochschule");
+  await recordConversation(s.a, {
+    date: "2026-10-23",
+    kind: "in_person",
+    place: { name: "Mensa", in: { name: "Campus", confirmedNew: true }, confirmedNew: true },
+    summary: "Lunch with Lena in the Mensa.",
+    transcript: "Lunch with Lena in der Mensa.",
+    visibility: "shared",
+    people: [{ id: s.lena, present: true }],
+  });
+  await movePeople(w.a, [s.lena], "Arbeit");
+  const ws = await scope(w.work);
+  const g = await ws.from("groups").select("id").where("name", "=", "Uni").executeTakeFirstOrThrow();
+  expect((await ws.from("group_aliases").select("alias").where("group_id", "=", g.id).execute()).map((a) => a.alias)).toEqual(["Hochschule"]);
+  const mensa = await ws.from("places").select(["parent_id"]).where("name", "=", "Mensa").executeTakeFirstOrThrow();
+  const campus = await ws.from("places").select(["id"]).where("name", "=", "Campus").executeTakeFirstOrThrow();
+  expect(mensa.parent_id).toBe(campus.id);
+});

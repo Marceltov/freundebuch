@@ -2,7 +2,7 @@
 
 The MCP endpoint is `POST ${PUBLIC_URL}/mcp`: stateless, protocol version 2026-07-28. Every call carries the signed-in person's access token, and every tool acts as that person. Privacy is decided by the server, never by Claude.
 
-Every call works in one book ([ADR 0026](../adr/0026-a-call-works-in-one-book.md)). `record` and `calendar_feed` take `book`, by name; it may be left out when you have one. A tool about a person or an item runs in that one's book. A tool that lists (`find_person`, `people`, `whats_due`, `search`, `journal`, `experiences`, `places`, `groups`, `traits`, `inbox`) answers once per book: `{ books: [{ book, … }] }`. Every other result carries its `book`.
+Every call works in one book ([ADR 0026](../adr/0026-a-call-works-in-one-book.md)). `record` and `calendar_feed` take `book`, by name; it may be left out when you have one. A tool about a person or an item runs in that one's book. A tool that lists (`find_person`, `people`, `whats_due`, `search`, `journal`, `experiences`, `places`, `groups`, `traits`) answers once per book: `{ books: [{ book, … }] }`. `inbox`, `books` and `move` are about you across your books; every other result carries its `book`.
 
 | Tool | Kind | What it does |
 | --- | --- | --- |

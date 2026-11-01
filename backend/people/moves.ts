@@ -107,7 +107,7 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
           const same = named.find((x) => norm(x.name) === norm(p.name))?.id ?? aliases[0]?.place_id;
           if (same) return same;
           const copy = newId();
-          await into.insert("places", { ...unbooked(p), id: copy, parent_id: null }).execute();
+          await into.insert("places", { ...unbooked(p), id: copy, parent_id: await placeThere(p.parent_id) }).execute();
           count("places");
           return copy;
         })(),
@@ -366,7 +366,18 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
   await dropUnheld(from, "experiences", movedExperiences, ["experience_people"]);
   await dropUnheld(from, "journal_entries", movedEntries, ["journal_mentions"]);
   await dropUnheld(from, "rambles", [...rambles.keys()], []);
-  const gone = await dropUnheld(from, "persons", ids, [...FOLLOWS_PERSON]);
+  // A check-in interval of a member who isn't in the target book is theirs: it keeps an entry for the person.
+  const theirs = new Set(
+    (await from.from("person_settings").select(["person_id", "user_id"]).where("person_id", "in", ids).execute())
+      .filter((x) => !dstUsers.has(x.user_id))
+      .map((x) => x.person_id),
+  );
+  const gone = await dropUnheld(
+    from,
+    "persons",
+    ids.filter((id) => !theirs.has(id)),
+    [...FOLLOWS_PERSON],
+  );
 
   // ---- what stayed, of what the mover may see -----------------------------------------------------------------------------
   const stayed: Record<string, number> = {};
@@ -385,6 +396,18 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
       ).execute()
     ).length,
   );
+  const expLeft = (await from.from("experience_people").select("experience_id").where("person_id", "in", ids).execute()).map((r) => r.experience_id);
+  left(
+    "experiences",
+    expLeft.length ? (await visible(from.from("experiences").select("id").where("id", "in", expLeft), v, "experiences").execute()).length : 0,
+  );
+  const entriesLeft = (await from.from("journal_mentions").select("entry_id").where("person_id", "in", ids).execute()).map((r) => r.entry_id);
+  left(
+    "journal_entries",
+    entriesLeft.length ? (await visible(from.from("journal_entries").select("id").where("id", "in", entriesLeft), v, "journal_entries").execute()).length : 0,
+  );
+  left("group_members", (await visible(from.from("group_members").select("group_id").where("person_id", "in", ids), v, "group_members").execute()).length);
+  left("place_owners", (await visible(from.from("place_owners").select("place_id").where("person_id", "in", ids), v, "place_owners").execute()).length);
   const stillIn = (await from.from("participants").select("conversation_id").where("person_id", "in", ids).execute()).map((r) => r.conversation_id);
   left(
     "conversations",
@@ -408,6 +431,15 @@ async function groupThere(from: Scope, into: Scope, id: string): Promise<string>
   if (same) return same;
   const copy = newId();
   await into.insert("groups", { id: copy, name: g.name, created_by: from.v.userId, created_at: g.created_at, seeded: 0, household: 0 }).execute();
+  const aliases = await from.from("group_aliases").select(["alias", "norm"]).where("group_id", "=", id).execute();
+  if (aliases.length)
+    await into
+      .insert(
+        "group_aliases",
+        aliases.map((a) => ({ group_id: copy, alias: a.alias, norm: a.norm })),
+      )
+      .onConflict((oc) => oc.doNothing())
+      .execute();
   return copy;
 }
 

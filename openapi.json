@@ -3341,17 +3341,6 @@
             "cookie": []
           }
         ],
-        "parameters": [
-          {
-            "name": "book",
-            "in": "query",
-            "required": false,
-            "description": "The book to work in, by name or id; without one, the caller's oldest book",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Waiting files",

@@ -449,3 +449,38 @@ test("a shared file waits in the oldest book and is filed into Arbeit", async ()
   expect((await getConversation(w.work, c.conversationId)).transcript).toContain("Chefin: Launch am Montag");
   expect(await fileContent(w.a, f.id)).toBeNull();
 });
+
+test("a refused record leaves its files where they waited", async () => {
+  const w = await seedWorkBook(s);
+  const f = await shareFile(w.a, new TextEncoder().encode("Chefin: Launch"), "text/plain");
+  await unchecked()
+    .updateTable("files")
+    .set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript: "Chefin: Launch", people: [] }) })
+    .where("id", "=", f.id)
+    .execute();
+  const home = (await unchecked().selectFrom("files").select("book_id").where("id", "=", f.id).executeTakeFirstOrThrow()).book_id;
+  await expect(
+    recordConversation(w.work, {
+      date: "2026-10-30",
+      kind: "message",
+      summary: "x",
+      transcript: "x",
+      visibility: "shared",
+      fileIds: [f.id],
+      people: [{ id: "nope", present: true }],
+    }),
+  ).rejects.toThrow();
+  expect((await unchecked().selectFrom("files").select("book_id").where("id", "=", f.id).executeTakeFirstOrThrow()).book_id).toBe(home);
+});
+
+test("the inbox is the user's: it lists and closes files of every book at once", async () => {
+  const w = await seedWorkBook(s);
+  const one = await shareFile(w.a, new TextEncoder().encode("eins"), "text/plain");
+  const two = await shareFile(w.a, new TextEncoder().encode("zwei"), "text/plain");
+  await unchecked().updateTable("files").set({ book_id: w.work.bookId }).where("id", "=", two.id).execute();
+  const { toolByName } = await import("../mcp/tools");
+  const listed = await toolByName("inbox")!.run(w.a, { action: "list" });
+  expect(((listed.files ?? []) as { id: string }[]).map((x) => x.id).sort()).toEqual([one.id, two.id].sort());
+  await toolByName("inbox")!.run(w.a, { action: "done", ids: [one.id, two.id] });
+  expect(await listPending(w.a)).toEqual([]);
+});

@@ -117,7 +117,8 @@ const ok = <S extends z.ZodType>(_schema: S, body: z.input<S>, next: Next = []) 
 // Which book a call runs in. `create`: the book the call names (`book`), the ids it gives must be in it. `one`: the book of the
 // ids it gives, or the user's only book. `each`: the book of the ids it gives, else every book, the result grouped by book.
 // `user`: the book of the ids it gives, else the user as they are (what the call reaches is the user's, not a book's).
-// `books`: the user as they are, whatever ids it gives: the call is about the books themselves.
+// `books`: the user as they are, whatever ids it gives: the call is about the books themselves, or what is the user's
+// across them (the inbox).
 type BookRule = "create" | "one" | "each" | "user" | "books";
 
 const BookJson = z.object({ id: z.string(), name: z.string() }).describe("The book it is in");
@@ -889,8 +890,8 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: InboxJson,
     annotations: { destructiveHint: true },
-    books: "each",
-    each: { field: "files" },
+    // The inbox is the user's: their waiting files, whichever book they wait in; record moves each into its book.
+    books: "books",
     handler: async (v, { action, id, ids }) => {
       if (action === "list") {
         const files = await listPending(v);
@@ -933,7 +934,7 @@ export const TOOLS: readonly Tool[] = [
       return ok(InboxJson, { done: true });
     },
     attach: async (v, out) => {
-      const files = ((out.books ?? []) as Array<{ files?: { id: string }[] }>).flatMap((b) => b.files ?? []);
+      const files = (out.files ?? []) as Array<{ id: string }>;
       const all = await Promise.all(files.map(async (f) => ({ id: f.id, ...(await fileContent(v, f.id)) })));
       // A voice note is its transcript, in the list: an MCP client can't hand audio to its model.
       return all.filter((f): f is Attachment => !!f.bytes && f.bytes.byteLength <= MAX_ATTACH && !isAudio(f.type!));

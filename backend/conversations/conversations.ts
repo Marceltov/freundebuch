@@ -671,10 +671,10 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
 
   // The shared files it was told from: their transcripts join the ramble's, and the files go once it has committed.
   let blobs: string[] = [];
-  await moveFiles(v, r.fileIds ?? []);
   const recorded = await (
     await scope(v)
   ).transaction(async (tx) => {
+    await moveFiles(tx, r.fileIds ?? []);
     const taken = await takeFiles(tx, v, r.fileIds ?? []);
     blobs = taken.blobs;
     const transcript = [r.transcript, ...taken.transcripts.map((x) => `${FROM_FILE}\n${x}`)].join("\n\n");

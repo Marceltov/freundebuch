@@ -808,6 +808,7 @@ const ROUTES: AnyOp[] = [
     description: "Being read, waiting for a decision, or failed; newest first. Only the caller's own: the other user's never show.",
     tags: ["Files"],
     auth: true,
+    allBooks: true,
     params: {},
     responses: { 200: { description: "Waiting files", schema: PendingFileListJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: await listPending(viewer) })),
@@ -820,6 +821,7 @@ const ROUTES: AnyOp[] = [
     description: "For a file with nothing worth filing: it is deleted, like a discarded one. Filing a conversation with fileIds closes it on its own.",
     tags: ["Files"],
     auth: true,
+    allBooks: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => {
@@ -834,6 +836,7 @@ const ROUTES: AnyOp[] = [
     summary: "Read a failed file again",
     tags: ["Files"],
     auth: true,
+    allBooks: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => {
@@ -850,6 +853,7 @@ const ROUTES: AnyOp[] = [
     summary: "Throw a waiting file away",
     tags: ["Files"],
     auth: true,
+    allBooks: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => {
@@ -968,7 +972,7 @@ export function openApiDocument(serverUrl: string): Json {
   const paths: Record<string, Json> = {};
   for (const entry of OPS) {
     const parameters = [
-      ...(entry.auth && !Object.keys(entry.params).length
+      ...(entry.auth && !entry.allBooks && !Object.keys(entry.params).length
         ? [
             {
               name: "book",

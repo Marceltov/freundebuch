@@ -36,6 +36,8 @@ type Meta<R, Q, B> = {
   description?: string;
   tags: string[];
   auth: true; // every entry needs a signed-in viewer; the dispatcher resolves it before anything else
+  /** Runs on the user across all their books (their own waiting files), not narrowed to one. */
+  allBooks?: true;
   params: Record<string, z.ZodType>;
   query?: Q;
   body?: B; // a JSON object, read and checked before the handler runs
@@ -148,7 +150,8 @@ export function createDispatcher(ops: AnyOp[], prefix: string): (req: Request, s
     let reply: AnyReply;
     try {
       // Who is asking comes first: a stranger learns nothing, not even that their parameters are wrong.
-      const viewer = await inBookOfRequest(await requireViewer(req, "api"), m.params, queryOf(req).book);
+      const signedIn = await requireViewer(req, "api");
+      const viewer = entry.allBooks ? signedIn : await inBookOfRequest(signedIn, m.params, queryOf(req).book);
       let query: Record<string, unknown> = {};
       if (entry.query) {
         const parsed = entry.query.safeParse(queryOf(req));

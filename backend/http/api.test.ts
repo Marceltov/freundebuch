@@ -607,3 +607,14 @@ test("a group made from an Arbeit person's page with ?book lands in Arbeit and t
   expect((await call(s.a, "PUT", `/groups/${g.json.id}/members/${w.boss}`)).status).toBe(204);
   expect(JSON.stringify((await call(s.a, "GET", "/groups")).json)).not.toContain("Launch-Team");
 });
+
+test("GET /files lists the caller's waiting files of every book", async () => {
+  const w = await seedWorkBook(s);
+  const { shareFile } = await import("../conversations/files");
+  const { unchecked } = await import("../db/testing");
+  const f = await shareFile(w.a, new TextEncoder().encode("eins"), "text/plain");
+  await unchecked().updateTable("files").set({ book_id: w.work.bookId }).where("id", "=", f.id).execute();
+  const r = await call(s.a, "GET", "/files");
+  expect(r.status).toBe(200);
+  expect(JSON.stringify(r.json)).toContain(f.id);
+});
