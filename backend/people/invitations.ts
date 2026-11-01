@@ -1,4 +1,4 @@
-// Invitations to a book: a link that works once, for a week, made by the book's owner or an admin. Only the token's hash is kept;
+// Invitations to a book: a link that works once, for a week, made by the book's owner or an admin (admins only by the owner). Only the token's hash is kept;
 // whoever signs in through the link (a new user) or opens it signed in (an existing one) joins the book in the role it names.
 import { createHash, randomBytes } from "node:crypto";
 import { newId, now } from "../db";
@@ -16,7 +16,7 @@ export const invitationPath = (token: string) => `/einladung/${token}`;
 
 /** A new invitation to the viewer's book; the link is shown once. */
 export async function invite(v: Viewer, role: "member" | "admin"): Promise<{ id: string; url: string; expiresAt: number }> {
-  await requireRole(v, ["owner", "admin"], "invite people");
+  await requireRole(v, role === "admin" ? ["owner"] : ["owner", "admin"], role === "admin" ? "invite admins" : "invite people");
   const token = PREFIX + randomBytes(32).toString("base64url");
   const id = newId();
   const expiresAt = Date.now() + INVITATION_DAYS * 86_400_000;

@@ -1,13 +1,15 @@
 // Managing a book: its name, its members and their roles, leaving it and deleting it. The owner made it and does everything;
 // an admin renames it and removes members (not the owner or other admins); every member may leave. Whoever leaves, or is
 // removed, takes what they marked private in the book with them (it is deleted); what they shared stays (V8), and so does
-// their person, as anyone else the others know.
+// their person, as anyone else the others know. Whoever loses their last book by a removal or a deletion gets an empty one of
+// their own, so they can still sign in.
 import { instance, type InstanceDb } from "../db/scope";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
 import type { Viewer } from "../core/types";
 import type { VisibleTable } from "../visibility";
 import { dropBlobs } from "../conversations/files";
-import { BOOK_NAME_MAX, listBooks, requireRole, roleOf } from "./books";
+import { BOOK_NAME_MAX, createBook, listBooks, requireRole, roleOf } from "./books";
+import { OWN_BOOK } from "../core/users";
 import { norm } from "./names";
 
 const PRIVATE_TABLES: readonly VisibleTable[] = [
@@ -82,11 +84,21 @@ export async function leaveBook(v: Viewer): Promise<void> {
   await dropMember(v, v.userId);
 }
 
+// Each of the users who is now in no book gets an empty one of their own.
+async function giveOwnBooks(i: InstanceDb, userIds: readonly string[]): Promise<void> {
+  for (const id of userIds) {
+    if (await i.from("members").select("book_id").where("user_id", "=", id).executeTakeFirst()) continue;
+    const user = await i.from("users").select("name").where("id", "=", id).executeTakeFirstOrThrow();
+    await createBook(i, id, user.name, OWN_BOOK);
+  }
+}
+
 // Only the viewer's one book, whichever books the viewer handed in can read.
 const onlyThis = (v: Viewer): Viewer => ({ ...v, books: [v.bookId] });
 
 // The member row goes, with their settings, waiting files, private rows and place in the book's own group, in this book only;
-// one transaction. Files that facts show (filed) stay with the facts.
+// one transaction. Files that facts show (filed) stay with the facts. A shared transcript of theirs that holds something private
+// is emptied: nobody else could read it, and it would come back if they rejoined.
 async function dropMember(v: Viewer, userId: string): Promise<void> {
   const blobs: string[] = [];
   await (
@@ -95,6 +107,7 @@ async function dropMember(v: Viewer, userId: string): Promise<void> {
     const s = i.scope(onlyThis(v));
     const member = await i.from("members").select("person_id").where("book_id", "=", v.bookId).where("user_id", "=", userId).executeTakeFirstOrThrow();
     for (const t of PRIVATE_TABLES) await s.delete(t).where("recorded_by", "=", userId).where("visibility", "=", "private").execute();
+    await s.update("rambles").set({ transcript: "" }).where("recorded_by", "=", userId).where("transcript_private", "=", 1).execute();
     await s.delete("person_settings").where("user_id", "=", userId).execute();
     const waiting = ["reading", "pending", "failed"] as const;
     const files = await s.from("files").select("blob_key").where("user_id", "=", userId).where("status", "in", waiting).execute();
@@ -103,6 +116,7 @@ async function dropMember(v: Viewer, userId: string): Promise<void> {
     const household = await s.from("groups").select("id").where("household", "=", 1).executeTakeFirstOrThrow();
     await s.delete("group_members").where("group_id", "=", household.id).where("person_id", "=", member.person_id).execute();
     await i.delete("members").where("book_id", "=", v.bookId).where("user_id", "=", userId).execute();
+    await giveOwnBooks(i, [userId]);
   });
   await dropBlobs(blobs);
 }
@@ -113,6 +127,13 @@ export async function deleteBook(v: Viewer): Promise<void> {
   if (await onlyBook(v)) throw new InvalidInputError("This is your only book: you can't delete it");
   const i = await instance();
   const blobs = (await i.scope(onlyThis(v)).from("files").select("blob_key").execute()).map((f) => f.blob_key);
-  await i.delete("books").where("id", "=", v.bookId).execute();
+  await i.transaction(async (tx) => {
+    const members = await tx.from("members").select("user_id").where("book_id", "=", v.bookId).execute();
+    await tx.delete("books").where("id", "=", v.bookId).execute();
+    await giveOwnBooks(
+      tx,
+      members.map((m) => m.user_id),
+    );
+  });
   await dropBlobs(blobs);
 }

@@ -667,8 +667,10 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
 
 test("Prüfen: files shared together come pre-selected and are worked through together; a selection is thrown away at once", async ({ page, baseURL }) => {
   const sharp = (await import("sharp")).default;
+  // Different pixels on every run, so a repeated run doesn't share the same files again.
+  const salt = Math.floor(Math.random() * 256);
   const up = async (n: number, batch?: string) => {
-    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 10, b: 10 } } })
+    const buffer = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: n * 40, g: 10, b: salt } } })
       .png()
       .toBuffer();
     const r = await page.request.post("/api/share", {
@@ -696,10 +698,10 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   await expect(chat.getByText("Zu diesen 4 Dateien")).toBeVisible();
   await expect(chat.locator("[data-shown-file]")).toHaveCount(4);
   // A missing screenshot added with the paperclip joins them, it doesn't replace them.
-  const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: 10 } } })
+  const fifth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 10, b: salt } } })
     .png()
     .toBuffer();
-  const sixth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 90, b: 10 } } })
+  const sixth = await sharp({ create: { width: 100, height: 200, channels: 3, background: { r: 250, g: 90, b: salt } } })
     .png()
     .toBuffer();
   await chat.locator('input[type="file"]').setInputFiles([

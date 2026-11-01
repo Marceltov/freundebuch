@@ -231,7 +231,7 @@ describe("review fixes", () => {
   test("an invitation stops working when its maker is removed or no longer an admin", async () => {
     const { invite, invitationFor } = await import("./invitations");
     const c = await signInInvited(s.a, { sub: "c", name: "Carol" });
-    const left = await invite(c, "admin");
+    const left = await invite(c, "member");
     const kept = await invite(s.b, "member");
     await removeMember(s.a, c.userId);
     expect(await invitationFor(left.url.split("/").pop()!)).toBeNull();
@@ -283,5 +283,53 @@ describe("review fixes", () => {
       .where("groups.book_id", "=", s.a.bookId)
       .execute();
     expect(haushalt.map((m) => m.person_id)).toEqual([s.a.personId]);
+  });
+
+  test("whoever loses their last book by a removal or a deletion gets an empty one of their own", async () => {
+    const c = await signInInvited(s.a, { sub: "c", name: "Carol" });
+    await setRole(s.a, c.userId, "member");
+    await removeMember(s.a, c.userId);
+    expect((await listBooks(c)).map((b) => [b.name, b.role])).toEqual([["Mein Buch", "owner"]]);
+    expect(await viewerById(c.userId)).not.toBeNull();
+    const ours = await newBook(s.a, "Zweites");
+    const a = (await viewerById(s.a.userId))!;
+    await deleteBook(await inBook(a, s.a.bookId));
+    expect((await listBooks(s.b)).map((b) => b.name)).toEqual(["Mein Buch"]);
+    expect((await listBooks(s.a)).map((b) => b.id)).toEqual([ours.id]);
+  });
+
+  test("a leaver's shared transcripts lose what was private in them", async () => {
+    await unchecked()
+      .insertInto("rambles")
+      .values([
+        {
+          id: "r1",
+          book_id: s.a.bookId,
+          date: "2026-10-30",
+          transcript: "secret and not",
+          transcript_private: 1,
+          visibility: "shared",
+          recorded_by: s.b.userId,
+          created_at: 1,
+        },
+        {
+          id: "r2",
+          book_id: s.a.bookId,
+          date: "2026-10-30",
+          transcript: "all shared",
+          transcript_private: 0,
+          visibility: "shared",
+          recorded_by: s.b.userId,
+          created_at: 1,
+        },
+      ])
+      .execute();
+    await newBook(s.b, "Bobs Buch");
+    await leaveBook(await inBook((await viewerById(s.b.userId))!, s.a.bookId));
+    const rows = await unchecked().selectFrom("rambles").select(["id", "transcript"]).where("id", "in", ["r1", "r2"]).orderBy("id").execute();
+    expect(rows).toEqual([
+      { id: "r1", transcript: "" },
+      { id: "r2", transcript: "all shared" },
+    ]);
   });
 });

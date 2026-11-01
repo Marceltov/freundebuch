@@ -55,6 +55,11 @@ test("a member can't invite; an admin and the owner can", async () => {
   await expect(revokeInvitation(s.b, "nope")).rejects.toBeInstanceOf(NotFoundError);
 });
 
+test("only the owner invites admins", async () => {
+  await expect(invite(s.b, "admin")).rejects.toBeInstanceOf(ForbiddenError);
+  await expect(invite(s.a, "admin")).resolves.toMatchObject({ url: expect.any(String) });
+});
+
 test("an existing user joins a second book through it, once", async () => {
   const w = await seedWorkBook(s);
   const inv = await invite(w.work, "member");
