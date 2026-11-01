@@ -27,7 +27,8 @@ export async function userFromOidc(c: { sub: string; name: string; email?: strin
     if (user) await i.update("users").set({ name: c.name }).where("id", "=", userId).execute();
     else await i.insert("users", { id: userId, oidc_sub: c.sub, name: c.name, email: c.email ?? null, created_at: now() }).execute();
     const book = await i.from("books").select("id").orderBy("created_at").orderBy("id").executeTakeFirst();
-    return book ? joinBook(i, book.id, userId, c.name) : createBook(i, userId, c.name, FIRST_BOOK);
+    // Until invitations (2b) whoever signs in joins the instance's book, as the household's second admin.
+    return book ? joinBook(i, book.id, userId, c.name, "admin") : createBook(i, userId, c.name, FIRST_BOOK);
   });
 }
 

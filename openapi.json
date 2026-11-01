@@ -63,6 +63,15 @@
         ],
         "parameters": [
           {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "q",
             "in": "query",
             "required": false,
@@ -95,6 +104,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -397,6 +416,15 @@
         ],
         "parameters": [
           {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "people",
             "in": "query",
             "required": false,
@@ -477,6 +505,15 @@
         ],
         "parameters": [
           {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "q",
             "in": "query",
             "required": true,
@@ -516,6 +553,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -537,6 +584,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "from",
             "in": "query",
@@ -595,6 +651,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -616,6 +682,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "from",
             "in": "query",
@@ -692,6 +767,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -840,6 +925,15 @@
           }
         ],
         "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "q",
             "in": "query",
@@ -1150,6 +1244,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Groups by name",
@@ -1163,6 +1268,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1186,6 +1301,17 @@
           },
           {
             "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1221,6 +1347,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1766,6 +1902,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Due items, most pressing first",
@@ -1779,6 +1926,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1806,6 +1963,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Faces, most urgent first",
@@ -1819,6 +1987,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1844,6 +2022,17 @@
           },
           {
             "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2315,6 +2504,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The settings",
@@ -2328,6 +2528,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2350,6 +2560,17 @@
           },
           {
             "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2385,6 +2606,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2405,6 +2636,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The cards",
@@ -2418,6 +2660,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2489,6 +2741,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2783,6 +3045,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2801,6 +3073,17 @@
           },
           {
             "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2836,6 +3119,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2853,6 +3146,17 @@
           },
           {
             "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2875,6 +3179,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -2890,6 +3204,17 @@
           },
           {
             "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -2925,6 +3250,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2945,6 +3280,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Whether it was sent",
@@ -2958,6 +3304,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2998,6 +3354,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3195,6 +3561,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The new key",
@@ -3208,6 +3585,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3232,12 +3619,33 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "204": {
             "description": "Done"
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3265,6 +3673,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The feed's state; `url` is always null here",
@@ -3278,6 +3697,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3303,6 +3732,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The new feed URL",
@@ -3316,6 +3756,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3340,12 +3790,33 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "204": {
             "description": "Done"
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3373,6 +3844,17 @@
             "cookie": []
           }
         ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OpenAPI 3.1",
@@ -3390,6 +3872,16 @@
           },
           "401": {
             "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
             "content": {
               "application/json": {
                 "schema": {

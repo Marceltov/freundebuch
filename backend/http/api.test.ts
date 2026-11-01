@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { sign } from "../auth/tokens";
 import { resetSecretForTests } from "../core/secret";
-import { asRamble, seed, type Seed } from "../testing/fixtures";
+import { asRamble, seed, seedWorkBook, type Seed } from "../testing/fixtures";
 import type { Viewer } from "../core/types";
 import { dispatch } from "./api";
 
@@ -588,4 +588,37 @@ describe("series and places", () => {
     expect((await call(s.a, "GET", "/places")).status).toBe(400);
     expect((await call(s.a, "GET", `/places?q=x&person=${s.anna}`)).status).toBe(400);
   });
+});
+
+test("a REST call on an Arbeit person works, and lists show the oldest book unless a book is named", async () => {
+  const w = await seedWorkBook(s);
+  expect((await call(s.a, "GET", `/people/${w.boss}`)).status).toBe(200);
+  const names = async (path: string) => ((await call(s.a, "GET", path)).json as { name: string }[]).map((p) => p.name);
+  expect(await names("/people")).not.toContain("Chefin");
+  expect(await names("/people?book=Arbeit")).toContain("Chefin");
+  expect((await call(s.a, "GET", "/people?book=Nope")).status).toBe(404);
+  expect((await call(s.b, "GET", `/people/${w.boss}`)).status).toBe(404);
+});
+
+test("a group made from an Arbeit person's page with ?book lands in Arbeit and takes the person", async () => {
+  const w = await seedWorkBook(s);
+  const g = await call(s.a, "POST", `/groups?book=${w.work.bookId}`, { name: "Launch-Team" });
+  expect(g.status).toBe(201);
+  expect((await call(s.a, "PUT", `/groups/${g.json.id}/members/${w.boss}`)).status).toBe(204);
+  expect(JSON.stringify((await call(s.a, "GET", "/groups")).json)).not.toContain("Launch-Team");
+});
+
+test("GET /files lists the caller's waiting files of every book", async () => {
+  const w = await seedWorkBook(s);
+  const { shareFile } = await import("../conversations/files");
+  const { unchecked } = await import("../db/testing");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  vi.stubEnv("DATA_DIR", mkdtempSync(join(tmpdir(), "fb-api-files-")));
+  const f = await shareFile(w.a, new TextEncoder().encode("eins"), "text/plain");
+  await unchecked().updateTable("files").set({ book_id: w.work.bookId }).where("id", "=", f.id).execute();
+  const r = await call(s.a, "GET", "/files");
+  expect(r.status).toBe(200);
+  expect(JSON.stringify(r.json)).toContain(f.id);
 });

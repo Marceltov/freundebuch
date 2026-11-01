@@ -18,7 +18,7 @@ export const generateMetadata = async () => ({ title: (await pageCopy()).ramble 
 // A ramble: what was told in one go, the conversations and journal entries filed from it that the viewer may see, and the
 // verbatim transcript, or a lock when it is private to the other user.
 export default async function RamblePage({ params }: PageProps<"/r/[id]">) {
-  const v = await pageViewer();
+  const v = await pageViewer((await params).id);
   const copy = getCopy();
   const r = await orNotFound(getRamble(v, (await params).id));
   return (

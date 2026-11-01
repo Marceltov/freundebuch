@@ -23,7 +23,7 @@ import {
   type Viewer,
   type Visibility,
 } from "../core/types";
-import { dropBlobs, takeFiles } from "./files";
+import { dropBlobs, moveFiles, takeFiles } from "./files";
 import { resolveOrCreateGroup } from "../people/groups";
 import { isHouseholdWord, memberPersons, resolvePairs, type Target } from "../people/household";
 import { conversationPath, groupPath, itemPath, journalPath, personPath, type AnchoredTable } from "../core/urls";
@@ -674,6 +674,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
   const recorded = await (
     await scope(v)
   ).transaction(async (tx) => {
+    await moveFiles(tx, r.fileIds ?? []);
     const taken = await takeFiles(tx, v, r.fileIds ?? []);
     blobs = taken.blobs;
     const transcript = [r.transcript, ...taken.transcripts.map((x) => `${FROM_FILE}\n${x}`)].join("\n\n");

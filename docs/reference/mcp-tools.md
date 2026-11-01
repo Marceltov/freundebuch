@@ -2,6 +2,8 @@
 
 The MCP endpoint is `POST ${PUBLIC_URL}/mcp`: stateless, protocol version 2026-07-28. Every call carries the signed-in person's access token, and every tool acts as that person. Privacy is decided by the server, never by Claude.
 
+Every call works in one book ([ADR 0026](../adr/0026-a-call-works-in-one-book.md)). `record` and `calendar_feed` take `book`, by name; it may be left out when you have one. A tool about a person or an item runs in that one's book. A tool that lists (`find_person`, `people`, `whats_due`, `search`, `journal`, `experiences`, `places`, `groups`, `traits`) answers once per book: `{ books: [{ book, … }] }`. `inbox`, `books` and `move` are about you across your books; every other result carries its `book`.
+
 | Tool | Kind | What it does |
 | --- | --- | --- |
 | `record` | write | Files a ramble, its verbatim transcript, split into its parts: conversations (each with a summary, who was there, the place, and `at` the experience it happened at; a place may say `in` the place it sits inside, its `address` and its `owners`, whose home it is), experiences (a kind, a title, the place, who was there, and the series a session belongs to), [journal entries](../using/journal.md) (private unless `shared`), and the facts, promises, exchanges, dates, relationships and groups learned, each optionally naming the conversation it came from (`in`). A fact is `lasting`, a `situation` with a `checkAfter` day, or a trait (`need` or `personality`); a relationship says in words what each end is (`label`, `inverse`) and may go to `"me"` or `"us"` (a role: "our landlady"); a new person may get a gender. |
@@ -23,7 +25,9 @@ The MCP endpoint is `POST ${PUBLIC_URL}/mcp`: stateless, protocol version 2026-0
 | `get_transcript` | read | The verbatim ramble, by the ramble's id (`rambleId`, as `record` and `journal` return it) or one of its conversations' (`conversationId`). |
 | `cards` | destructive | [Own cards](../using/cards.md): lists, writes and deletes your own cards (several, each with a name), makes or ends a card's link (a new link ends that card's old one), and subscribes a person to the card link they gave you, or drops it. Not in the in-app chat. |
 | `birthday_message` | read | What birthday wishes to someone can be written from: the birthday, the age, who they are to you and what you know about them, never their health. With the final `text`, links that open WhatsApp, Telegram, SMS or email with it filled in; you send it yourself ([ADR 0023](../adr/0023-birthday-wishes-the-user-sends.md)). |
-| `calendar_feed` | destructive | Gives you the secret URL of your [calendar feed](../using/calendar.md), making one when you have none; replaces or revokes it, which ends the old URL. Not in the in-app chat. |
+| `calendar_feed` | destructive | Gives you the secret URL of your [calendar feed](../using/calendar.md) for one book (`book`), making one when you have none; replaces or revokes it, which ends the old URL. Not in the in-app chat. |
+| `books` | write | Your books, with your role and their members (`list`), or a new book of your own (`create`, e.g. Arbeit), whose owner and only member you are. |
+| `move` | destructive | Moves people (by id, or a group's members) into another of your books, with what you may see about them; conversations, experiences and journal entries come along when everyone in them does. What another member keeps private stays behind with a remaining entry. Moved people get new links. |
 
 ## What a result tells Claude
 
@@ -45,6 +49,8 @@ Every tool result carries `next`: short instructions, built by the server from w
 | `calendar_feed` | Give the URL only to you; an existing feed can't be shown again, so offer `replace`; a replaced or revoked URL has stopped working. |
 | `search` | Answer from the hits with their days and links, reading the whole transcript when a snippet isn't enough; nothing found: try once with another or shorter word. |
 | `get_transcript` | A transcript private to whoever recorded it: answer from the summary. |
+| `move` | Read back who moved, with the new links; that what other members keep private stayed behind; what stayed because it is about people who stay. |
+| `books` | `create`: the book is there; from now on name the book when filing. |
 | `set_interval`, `groups` | Nothing. |
 
 The write tools also return what they filed (`filed` for `record` and `remember`, `relationships` for `relate` and `to_relationship`): each item with its id and link, each situation's `checkAfter` and `defaultCheckAfter`, and whether each relationship was new (`created`). `next` and these details are built only from what you may see: the other user's private items never show, not even in a count.

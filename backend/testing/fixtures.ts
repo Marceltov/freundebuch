@@ -2,7 +2,7 @@
 // dinner with Anna that holds private parts, and a private coffee with Lena; Bob (B) records a shared call with Anna.
 import { resetDbForTests } from "../db/testing";
 import { recordConversation } from "../conversations/conversations";
-import { userFromOidc } from "../core/users";
+import { userFromOidc, viewerById } from "../core/users";
 import { instance } from "../db/scope";
 import { createBook } from "../people/books";
 import type { Viewer } from "../core/types";
@@ -87,6 +87,28 @@ export async function seedOtherBook(): Promise<{ c: Viewer; carl: string; carlCa
     facts: [{ person: 0, text: "loves museums", category: "hobby" }],
   });
   return { c, carl: call.people[0].id, carlCall: call.conversationId };
+}
+
+/** Alice's own work book, Arbeit, next to the household's: a second Lena and her boss, each with a shared fact. `a` reads both books. */
+export async function seedWorkBook(s: Seed): Promise<{ a: Viewer; work: Viewer; lena2: string; boss: string }> {
+  const work = await createBook(await instance(), s.a.userId, "Alice", "Arbeit");
+  const call = await recordConversation(work, {
+    date: "2026-10-21",
+    kind: "call",
+    summary: "Planning call with Lena and the boss.",
+    transcript: "Call with Lena and Chefin about the launch.",
+    visibility: "shared",
+    people: [
+      { name: "Lena", present: true },
+      { name: "Chefin", present: true },
+    ],
+    facts: [
+      { person: 0, text: "leads the launch", category: "work" },
+      { person: 1, text: "wants weekly updates", category: "work" },
+    ],
+  });
+  const [lena2, boss] = call.people.map((p) => p.id);
+  return { a: (await viewerById(s.a.userId))!, work, lena2, boss };
 }
 
 /** A conversation in the shape record_conversation took, as the ramble record files it: one conversation, everything in it. */

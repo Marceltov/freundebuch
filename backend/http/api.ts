@@ -123,7 +123,7 @@ const ids = (list?: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-const OPS: AnyOp[] = [
+const ROUTES: AnyOp[] = [
   op({
     method: "GET",
     path: `${API_PREFIX}/people`,
@@ -808,6 +808,7 @@ const OPS: AnyOp[] = [
     description: "Being read, waiting for a decision, or failed; newest first. Only the caller's own: the other user's never show.",
     tags: ["Files"],
     auth: true,
+    allBooks: true,
     params: {},
     responses: { 200: { description: "Waiting files", schema: PendingFileListJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: await listPending(viewer) })),
@@ -820,6 +821,7 @@ const OPS: AnyOp[] = [
     description: "For a file with nothing worth filing: it is deleted, like a discarded one. Filing a conversation with fileIds closes it on its own.",
     tags: ["Files"],
     auth: true,
+    allBooks: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => {
@@ -834,6 +836,7 @@ const OPS: AnyOp[] = [
     summary: "Read a failed file again",
     tags: ["Files"],
     auth: true,
+    allBooks: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => {
@@ -850,6 +853,7 @@ const OPS: AnyOp[] = [
     summary: "Throw a waiting file away",
     tags: ["Files"],
     auth: true,
+    allBooks: true,
     params: { id: IdParam },
     responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params }) => {
@@ -935,6 +939,11 @@ const OPS: AnyOp[] = [
   }).handle(async ({ req }) => ({ status: 200, body: openApiDocument(publicUrl(req.headers)) })),
 ];
 
+// Every signed-in request runs in one book: the book of the ids in its path, else `?book=`, else the user's oldest. A book the
+// user isn't in is 404 like anything else they can't see.
+const BOOK_404 = err("No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)");
+const OPS: AnyOp[] = ROUTES.map((o) => (o.auth ? { ...o, responses: { 404: BOOK_404, ...o.responses } } : o));
+
 export const dispatch = createDispatcher(OPS, API_PREFIX);
 
 // --- The OpenAPI document. ---
@@ -963,6 +972,17 @@ export function openApiDocument(serverUrl: string): Json {
   const paths: Record<string, Json> = {};
   for (const entry of OPS) {
     const parameters = [
+      ...(entry.auth && !entry.allBooks && !Object.keys(entry.params).length
+        ? [
+            {
+              name: "book",
+              in: "query",
+              required: false,
+              description: "The book to work in, by name or id; without one, the caller's oldest book",
+              schema: { type: "string" },
+            },
+          ]
+        : []),
       ...Object.entries(entry.params).map(([name, s]) => {
         const { description, ...schema } = jsonSchema(s);
         return { name, in: "path", required: true, description, schema };

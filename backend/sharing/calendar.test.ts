@@ -1,7 +1,8 @@
 import { beforeEach, expect, test } from "vitest";
 import { calendarFeed, calendarRoute, createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey, viewerFromCalendarKey } from "./calendar";
 import { remember } from "../conversations/conversations";
-import { seed, type Seed } from "../testing/fixtures";
+import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
+import { inBook } from "../people/books";
 
 let s: Seed;
 
@@ -124,4 +125,25 @@ test("the route answers a live key with the feed and anything else with 404", as
   expect((await calendarRoute(new Request(`${BASE}/api/calendar/x.ics`), "fbc_nope.ics")).status).toBe(404);
   await revokeCalendarKey(s.a);
   expect((await calendarRoute(new Request(`${BASE}/api/calendar/${key}.ics`), `${key}.ics`)).status).toBe(404);
+});
+
+test("one calendar key per book and member, each feed only its book", async () => {
+  const w = await seedWorkBook(s);
+  await remember(w.work, { visibility: "shared", dates: [{ person: w.boss, kind: "birthday", date: "--03-02", yearly: true }] });
+  const home = await inBook(w.a, "Unser Buch");
+  const homeKey = await createCalendarKey(home);
+  const workKey = await createCalendarKey(w.work);
+  expect(await hasCalendarKey(home)).toBe(true);
+  expect(await hasCalendarKey(s.b)).toBe(false);
+  expect((await viewerFromCalendarKey(homeKey))?.bookId).toBe(home.bookId);
+  const work = (await viewerFromCalendarKey(workKey))!;
+  expect(work).toEqual(w.work);
+  const workFeed = await calendarFeed(work, BASE, NOW);
+  expect(events(workFeed).map((e) => e.SUMMARY)).toContain("🎂 Chefin");
+  expect(workFeed).not.toContain("Tom");
+  expect(workFeed).toContain("X-WR-CALNAME:freundebuch · Arbeit");
+  expect(await calendarFeed(home, BASE, NOW)).not.toContain("Chefin");
+  await revokeCalendarKey(w.work);
+  expect(await viewerFromCalendarKey(workKey)).toBeNull();
+  expect(await viewerFromCalendarKey(homeKey)).not.toBeNull();
 });

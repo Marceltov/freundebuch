@@ -12,11 +12,14 @@ export function GroupPicker({
   personName,
   groups,
   member,
+  bookId,
 }: {
   personId: string;
   personName: string;
   groups: { id: string; name: string }[];
   member: string[];
+  /** The person's book: a group made here is made there, not in the user's oldest book. */
+  bookId?: string;
 }) {
   const copy = useCopy();
   const router = useRouter();
@@ -28,7 +31,7 @@ export function GroupPicker({
 
   async function call(method: string, path: string, body?: object): Promise<Response | null> {
     setFailed(false);
-    const res = await fetch(`/api/v1${path}`, {
+    const res = await fetch(`/api/v1${path}${bookId ? `?book=${encodeURIComponent(bookId)}` : ""}`, {
       method,
       headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,

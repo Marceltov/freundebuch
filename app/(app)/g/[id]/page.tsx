@@ -10,14 +10,14 @@ import { orNotFound, pageViewer } from "../../viewer";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/g/[id]">) {
-  const g = await orNotFound(getGroup(await pageViewer(), (await params).id));
+  const g = await orNotFound(getGroup(await pageViewer((await params).id), (await params).id));
   return { title: g.name };
 }
 
 // One group: its name and other names, and everyone in it the viewer may see, never seen or most overdue first, each with the
 // orbit's freshness ring and when the viewer last saw them; then what those of them with traits need and how they are.
 export default async function GroupPage({ params }: PageProps<"/g/[id]">) {
-  const viewer = await pageViewer();
+  const viewer = await pageViewer((await params).id);
   const copy = getCopy();
   const g = await orNotFound(getGroup(viewer, (await params).id));
   // Who to keep in mind when planning something with the group: only the members with a trait, needs first.

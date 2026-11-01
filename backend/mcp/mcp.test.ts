@@ -60,8 +60,17 @@ async function rpc(as: Viewer | null, method: string, params: Record<string, unk
     }),
   );
 }
-const call = async (as: Viewer, tool: string, args: Record<string, unknown>): Promise<Json> =>
-  (await (await rpc(as, "tools/call", { name: tool, arguments: args })).json()).result;
+// A tool that reads every book answers grouped by book, and every other one names its book; for a viewer with one book, the
+// tests read the one group, without the book.
+const call = async (as: Viewer, tool: string, args: Record<string, unknown>): Promise<Json> => {
+  const result = (await (await rpc(as, "tools/call", { name: tool, arguments: args })).json()).result;
+  const sc = result?.structuredContent;
+  if (as.books.length === 1 && sc) {
+    const { book, ...rest } = sc.books?.length === 1 ? { ...sc.books[0], next: sc.next } : sc; // eslint-disable-line @typescript-eslint/no-unused-vars
+    result.structuredContent = rest;
+  }
+  return result;
+};
 
 const ramble = (over: object = {}) => ({
   date: "2026-10-22",
@@ -78,10 +87,11 @@ const ramble = (over: object = {}) => ({
 });
 
 describe("protocol", () => {
-  test("tools/list names the nineteen tools with their annotations", async () => {
+  test("tools/list names the twenty-two tools with their annotations", async () => {
     const tools = (await (await rpc(s.a, "tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
       "birthday_message",
+      "books",
       "briefing",
       "calendar_feed",
       "cards",
@@ -92,6 +102,7 @@ describe("protocol", () => {
       "groups",
       "inbox",
       "journal",
+      "move",
       "people",
       "places",
       "record",
@@ -120,9 +131,11 @@ describe("protocol", () => {
         ].includes(t.name),
       );
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
-      // calendar_feed, which can end a calendar's subscription.
-      const writes = ["record", "relate", "remember", "set_interval"].includes(t.name);
-      expect(t.annotations?.destructiveHint, t.name).toBe(["correct", "calendar_feed", "cards", "inbox"].includes(t.name) ? true : writes ? false : undefined);
+      // calendar_feed, which can end a calendar's subscription, and move, which takes people out of the other members' sight.
+      const writes = ["record", "relate", "remember", "set_interval", "books"].includes(t.name);
+      expect(t.annotations?.destructiveHint, t.name).toBe(
+        ["correct", "calendar_feed", "cards", "inbox", "move"].includes(t.name) ? true : writes ? false : undefined,
+      );
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");
       // The Anthropic API refuses a tool whose input schema combines schemas at its root.
@@ -212,7 +225,7 @@ describe("tools", () => {
     const r = await call(s.a, "record", asRamble(ramble()));
     expect(r.isError).toBeUndefined();
     expect(r.structuredContent).toMatchObject({ people: [{ ref: 0, id: s.anna, name: "Anna", created: false }], counts: { facts: 2 } });
-    expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
+    expect(JSON.parse(r.content[0].text)).toEqual({ ...r.structuredContent, book: { id: s.a.bookId, name: "Unser Buch" } });
   });
 
   test("a result's filed items link absolutely, and next reaches clients that read only text", async () => {
@@ -544,4 +557,5 @@ test("the instructions say what to do with a file pasted into the conversation",
   const { INSTRUCTIONS } = await import("./mcp");
   expect(INSTRUCTIONS).toContain("write out what it shows");
   expect(INSTRUCTIONS).toContain("only their transcripts are kept");
+  expect(INSTRUCTIONS).toContain("several books");
 });

@@ -6,6 +6,8 @@ import { requireViewer } from "../auth/session";
 import { InvalidRequestError, NotFoundError } from "../core/errors";
 import { logger } from "../core/log";
 import type { Viewer } from "../core/types";
+import { isId } from "../db";
+import { inBook, inBookOf } from "../people/books";
 import { absoluteUrls, publicUrl } from "../core/urls";
 import { errorReply } from "./errors";
 import { readCapped } from "./request";
@@ -34,6 +36,8 @@ type Meta<R, Q, B> = {
   description?: string;
   tags: string[];
   auth: true; // every entry needs a signed-in viewer; the dispatcher resolves it before anything else
+  /** Runs on the user across all their books (their own waiting files), not narrowed to one. */
+  allBooks?: true;
   params: Record<string, z.ZodType>;
   query?: Q;
   body?: B; // a JSON object, read and checked before the handler runs
@@ -81,6 +85,12 @@ export function matchOps(ops: AnyOp[], prefix: string, segments: string[]): { op
     }
   }
   return found.length ? { ops: found, params } : null;
+}
+
+/** A request runs in one book: the book of the ids in its path, else the one `?book=` names, else the user's oldest. */
+async function inBookOfRequest(v: Viewer, params: Record<string, string>, book?: string): Promise<Viewer> {
+  const ids = Object.values(params).filter(isId);
+  return (await inBookOf(v, ids)) ?? inBook(v, book ?? v.bookId);
 }
 
 // Empty values count as absent; of repeated keys, the last wins.
@@ -140,7 +150,8 @@ export function createDispatcher(ops: AnyOp[], prefix: string): (req: Request, s
     let reply: AnyReply;
     try {
       // Who is asking comes first: a stranger learns nothing, not even that their parameters are wrong.
-      const viewer = await requireViewer(req, "api");
+      const signedIn = await requireViewer(req, "api");
+      const viewer = entry.allBooks ? signedIn : await inBookOfRequest(signedIn, m.params, queryOf(req).book);
       let query: Record<string, unknown> = {};
       if (entry.query) {
         const parsed = entry.query.safeParse(queryOf(req));

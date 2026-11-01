@@ -1,15 +1,15 @@
 // The calendar feed: birthdays, other dates and the viewer's own promises with a due date as an ICS file that Google Calendar or
 // any other calendar app subscribes to. Calendar apps fetch a subscribed feed without signing in, so the feed is reached by a
-// secret URL per user (ADR 0008). Only the key's hash is stored; the feed is read as its user, through `visible`, so the partner's
+// secret URL per book and member (ADR 0008). Only the key's hash is stored; the feed is read as its user, through `visible`, so the partner's
 // private items are never in it, not even as a busy slot.
 import { instance, scope } from "../db/scope";
+import { bookRef, viewerIn } from "../people/books";
 import { createHash, randomBytes } from "node:crypto";
 import { ageOn, nextOccurrence, today } from "../people/dates";
 import { notifyCopy } from "../notify/copy";
 import { userLanguage } from "../core/settings";
 import type { Viewer } from "../core/types";
 import { itemPath, personPath, publicUrl } from "../core/urls";
-import { viewerById } from "../core/users";
 import { visible } from "../visibility";
 
 // The key: a credential that can only read this one feed. A new key replaces the old one, which stops working at once.
@@ -19,33 +19,42 @@ const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
 /** Where the feed of `key` is served, as a path. */
 export const feedPath = (key: string) => `/api/calendar/${key}.ics`;
 
-/** A new calendar key for the viewer; the previous one stops working. Shown once: only its hash is kept. */
+/** A new calendar key for the viewer's book; the previous one stops working. Shown once: only its hash is kept. */
 export async function createCalendarKey(v: Viewer): Promise<string> {
   const key = KEY_PREFIX + randomBytes(32).toString("base64url");
-  const hash = hashKey(key);
   await (
-    await scope(v)
-  ).instance
-    .insert("user_settings", { user_id: v.userId, webhook_url: null, calendar_key_hash: hash })
-    .onConflict((oc) => oc.column("user_id").doUpdateSet({ calendar_key_hash: hash }))
+    await instance()
+  )
+    .update("members")
+    .set({ calendar_key_hash: hashKey(key) })
+    .where("book_id", "=", v.bookId)
+    .where("user_id", "=", v.userId)
     .execute();
   return key;
 }
 
 export async function hasCalendarKey(v: Viewer): Promise<boolean> {
-  const r = await (await instance()).from("user_settings").select("calendar_key_hash").where("user_id", "=", v.userId).executeTakeFirst();
+  const r = await (
+    await instance()
+  )
+    .from("members")
+    .select("calendar_key_hash")
+    .where("book_id", "=", v.bookId)
+    .where("user_id", "=", v.userId)
+    .executeTakeFirst();
   return !!r?.calendar_key_hash;
 }
 
 export async function revokeCalendarKey(v: Viewer): Promise<void> {
-  await (await scope(v)).instance.update("user_settings").set({ calendar_key_hash: null }).where("user_id", "=", v.userId).execute();
+  await (await instance()).update("members").set({ calendar_key_hash: null }).where("book_id", "=", v.bookId).where("user_id", "=", v.userId).execute();
 }
 
-/** The user a calendar key belongs to, or null. */
+/** The member a calendar key belongs to, in that one book, or null. */
 export async function viewerFromCalendarKey(key: string): Promise<Viewer | null> {
   if (!key.startsWith(KEY_PREFIX)) return null;
-  const r = await (await instance()).from("user_settings").select("user_id").where("calendar_key_hash", "=", hashKey(key)).executeTakeFirst();
-  return r ? viewerById(r.user_id) : null;
+  const i = await instance();
+  const r = await i.from("members").select(["user_id", "book_id"]).where("calendar_key_hash", "=", hashKey(key)).executeTakeFirst();
+  return r ? viewerIn(i, r.user_id, r.book_id) : null;
 }
 
 // A yearly date is written out year by year, from last year to five years ahead, so each birthday can carry the age it is.
@@ -116,7 +125,7 @@ export async function calendarFeed(v: Viewer, base: string, now = Date.now()): P
     "PRODID:-//freundebuch//DE",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    `X-WR-CALNAME:${text(copy.calendarName)}`,
+    `X-WR-CALNAME:${text(fill(copy.calendarName, { book: (await bookRef(v.bookId)).name }))}`,
     "REFRESH-INTERVAL;VALUE=DURATION:PT4H",
     "X-PUBLISHED-TTL:PT4H",
     ...events.flatMap((e) => [

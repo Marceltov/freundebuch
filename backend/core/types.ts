@@ -7,6 +7,9 @@ export type Visibility = (typeof VISIBILITIES)[number];
  * `books` every book they may read.
  */
 export type Viewer = { userId: string; personId: string; bookId: string; books: readonly string[] };
+/** A member's role in a book: the owner made it, an admin manages its members, a member reads and writes. */
+export const ROLES = ["owner", "admin", "member"] as const;
+export type Role = (typeof ROLES)[number];
 export const CONVERSATION_KINDS = ["in_person", "call", "message", "video", "event"] as const;
 export type ConversationKind = (typeof CONVERSATION_KINDS)[number];
 export const FACT_CATEGORIES = ["work", "home", "family", "health", "hobby", "travel", "other"] as const;

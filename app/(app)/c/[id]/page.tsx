@@ -19,7 +19,7 @@ export const generateMetadata = async () => ({ title: (await pageCopy()).convers
 // everything filed from it as sentences (done and outdated items too, so a link to any of them lands on its row; an open item
 // also opens on the person's page), and the verbatim transcript, or a lock when it is private to the other user.
 export default async function ConversationPage({ params }: PageProps<"/c/[id]">) {
-  const v = await pageViewer();
+  const v = await pageViewer((await params).id);
   const copy = getCopy();
   const c = await orNotFound(getConversation(v, (await params).id));
   const Icon = KIND_ICON[c.kind] ?? Coffee;

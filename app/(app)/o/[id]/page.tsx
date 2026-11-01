@@ -15,7 +15,7 @@ export const generateMetadata = async () => ({ title: (await pageCopy()).place }
 // A place: its other names, where it sits, its address and whose home it is, the places inside it, and everything at it or inside
 // it the viewer may see: series, experiences and conversations, newest first.
 export default async function PlacePage({ params }: PageProps<"/o/[id]">) {
-  const v = await pageViewer();
+  const v = await pageViewer((await params).id);
   const copy = getCopy();
   const p = await orNotFound(getPlace(v, (await params).id));
   return (

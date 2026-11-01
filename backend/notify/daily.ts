@@ -11,6 +11,7 @@ import { errorFields, logger } from "../core/log";
 import { processState } from "../core/state";
 import { upcomingDates, whatsDue, type DueItem } from "../reading/due";
 import { viewerById } from "../core/users";
+import { bookRef, inBook } from "../people/books";
 import type { Viewer } from "../core/types";
 import { sendWebhook, type WebhookMessage } from "./webhook";
 import { runReflectionsDue } from "../journal/reflection";
@@ -77,14 +78,25 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
         const mark = await d.from("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
         if (mark?.value === from) continue;
       }
-      const v = await viewerById(row.user_id);
-      if (!v) continue;
+      const all = await viewerById(row.user_id);
+      if (!all) continue;
       users++;
-      // A missed session goes out once, the morning after its day.
-      const items = (await whatsDue(v, from, 1)).filter((i) => i.kind !== "session" || i.date === addDays(from, -1));
+      const copy = notifyCopy(await userLanguage(all));
+      // Each book is read on its own; with several, every message says which book it is from.
+      const items: { v: Viewer; book: string; item: DueItem }[] = [];
+      for (const b of all.books) {
+        const v = await inBook(all, b);
+        const book = (await bookRef(b)).name;
+        // A missed session goes out once, the morning after its day.
+        for (const item of await whatsDue(v, from, 1)) if (item.kind !== "session" || item.date === addDays(from, -1)) items.push({ v, book, item });
+      }
       const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
-      const copy = notifyCopy(await userLanguage(v));
-      const messages = await Promise.all(shown.map((i) => message(v, copy, i, from, click)));
+      const messages = await Promise.all(
+        shown.map(async ({ v, book, item }) => {
+          const m = await message(v, copy, item, from, click);
+          return all.books.length > 1 ? { ...m, title: fill(copy.inBook, { book, title: m.title }) } : m;
+        }),
+      );
       if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });
       for (const m of messages) if (await sendWebhook(row.webhook_url!, m, fetchFn)) sent++;
       if (onlyNew)

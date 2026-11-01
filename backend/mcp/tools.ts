@@ -28,6 +28,9 @@ import {
 import { whatsDue } from "../reading/due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../people/groups";
 import { InvalidInputError } from "../core/errors";
+import { bookRef, inBook, inBookOf, listBooks, newBook, type BookRef } from "../people/books";
+import { movePeople } from "../people/moves";
+import { isId } from "../db";
 import {
   BriefingJson,
   CalendarFeedJson,
@@ -81,7 +84,7 @@ import {
 import { discardFiles, fileContent, isAudio, listPending } from "../conversations/files";
 import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "../people/people";
 import { addRelationship, addToGroup } from "../people/relationships";
-import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "../core/types";
+import { EXCHANGE_KINDS, FACT_CATEGORIES, ROLES, isTrait, type TraitKind, type Viewer } from "../core/types";
 import { conversationPath, personPath } from "../core/urls";
 
 export type Tool = {
@@ -111,24 +114,88 @@ type Next = string[];
 // A handler's result, typed by its output schema, with its `next`; `tool` parses it.
 const ok = <S extends z.ZodType>(_schema: S, body: z.input<S>, next: Next = []) => ({ ...(body as object), next }) as z.input<S> & { next: Next };
 
+// Which book a call runs in. `create`: the book the call names (`book`), the ids it gives must be in it. `one`: the book of the
+// ids it gives, or the user's only book. `each`: the book of the ids it gives, else every book, the result grouped by book.
+// `user`: the book of the ids it gives, else the user as they are (what the call reaches is the user's, not a book's).
+// `books`: the user as they are, whatever ids it gives: the call is about the books themselves, or what is the user's
+// across them (the inbox).
+type BookRule = "create" | "one" | "each" | "user" | "books";
+
+const BookJson = z.object({ id: z.string(), name: z.string() }).describe("The book it is in");
+const BOOK_INPUT = z
+  .string()
+  .optional()
+  .describe(
+    "The book to file into, by name, as books lists them. Leave it out only when the user has one book; with several, pick the one from what was said (a client, a colleague, the conference → the work book), say which, and ask when unsure",
+  );
+
+/** Every id in a call's arguments, wherever it sits; files wait in any book and move with the call (fileIds). */
+function idsIn(x: unknown, key?: string): string[] {
+  if (key === "fileIds") return [];
+  if (typeof x === "string") return isId(x) ? [x] : [];
+  if (Array.isArray(x)) return x.flatMap((y) => idsIn(y, key));
+  if (x && typeof x === "object") return Object.entries(x).flatMap(([k, y]) => idsIn(y, k));
+  return [];
+}
+
+async function bookOfCall(v: Viewer, rule: BookRule, args: Record<string, unknown>): Promise<Viewer | null> {
+  if (rule === "books") return null;
+  const ids = idsIn(args);
+  if (rule !== "create") return (await inBookOf(v, ids)) ?? (rule === "one" ? inBook(v) : null);
+  const w = await inBook(v, args.book as string | undefined);
+  const at = await inBookOf(v, ids);
+  if (at && at.bookId !== w.bookId) {
+    const [there, here] = await Promise.all([bookRef(at.bookId), bookRef(w.bookId)]);
+    throw new InvalidInputError(`What this call names is in the book ${there.name}, not ${here.name}: file it there, or move it first`);
+  }
+  return w;
+}
+
 function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
   name: string;
   description: string;
   input: I;
   output: O;
   annotations: Tool["annotations"];
+  books: BookRule;
+  /** For `each`: the list a book's result is about, so a book with nothing in it doesn't say "none" while another has some;
+   * or `next` worked out over every book's result at once. */
+  each?: { field: keyof z.input<O> & string; next?: (books: { book: BookRef; out: z.input<O> }[], args: z.output<I>) => Next };
   handler: (v: Viewer, args: z.output<I>) => Promise<z.input<O> & { next: Next }>;
   attach?: Tool["attach"];
 }): Tool {
-  const output = t.output.extend({ next: Next });
+  const input = t.books === "create" ? t.input.extend({ book: BOOK_INPUT }) : t.input;
+  const inBookOut = t.books === "books" ? t.output : t.output.extend({ book: t.books === "user" ? BookJson.optional() : BookJson });
+  const output =
+    t.books === "each"
+      ? z.object({ books: z.array(t.output.extend({ book: BookJson })).describe("The result in each of the user's books, oldest first"), next: Next })
+      : inBookOut.extend({ next: Next });
+  const writes = !t.annotations.readOnlyHint;
   return {
     name: t.name,
     description: t.description,
-    input: t.input,
+    input,
     output,
     annotations: t.annotations,
-    async run(v, args) {
-      return output.parse(await t.handler(v, check(t.input, args))) as Record<string, unknown>;
+    async run(v, raw) {
+      const args = check(input, raw) as z.output<I>;
+      const w = await bookOfCall(v, t.books, args as Record<string, unknown>);
+      if (t.books === "each") {
+        const viewers = w ? [w] : await Promise.all(v.books.map(async (b) => (await inBook(v, b))!));
+        const results = [];
+        for (const x of viewers) {
+          const { next: n, ...out } = await t.handler(x, args);
+          results.push({ book: await bookRef(x.bookId), out: out as z.input<O>, next: n });
+        }
+        const field = t.each?.field;
+        const some = field ? results.filter((r) => ((r.out as Record<string, unknown>)[field] as unknown[] | undefined)?.length) : results;
+        const next = t.each?.next ? t.each.next(results, args) : [...new Set((some.length ? some : results.slice(0, 1)).flatMap((r) => r.next))];
+        return output.parse({ books: results.map((r) => ({ ...r.out, book: r.book })), next }) as Record<string, unknown>;
+      }
+      const out = await t.handler(w ?? v, args);
+      const book = w ? await bookRef(w.bookId) : undefined;
+      const next = book && writes && v.books.length > 1 ? [...out.next, `Say that it went to the book ${book.name}.`] : out.next;
+      return output.parse({ ...out, ...(book && { book }), next }) as Record<string, unknown>;
     },
     ...(t.attach ? { attach: t.attach } : {}),
   };
@@ -206,9 +273,11 @@ function briefingNext(b: Briefing): Next {
   return next;
 }
 
-function foundNext(name: string, people: Candidate[]): Next {
+function foundNext(name: string, people: Candidate[], books = false): Next {
   if (!people.length)
-    return [`No one in the book is called "${name}". Ask the user whether this is someone new; if so, file them as a new person with record.`];
+    return [
+      `No one in ${books ? "any of the user's books" : "the book"} is called "${name}". Ask the user whether this is someone new; if so, file them as a new person with record${books ? ", in the book they belong to" : ""}.`,
+    ];
   if (people.length === 1) return [];
   const list = people.map((p) => `${p.name} (id ${p.id}${p.context.length ? `; ${p.context.join(", ")}` : ""})`).join(", ");
   return [`${people.length} people match "${name}": ${list}. Ask the user which one they mean; never guess.`];
@@ -643,6 +712,32 @@ const RememberedJson = z.object({
   relabel: Relabels.describe("genders: the relationships the user may edit of each person given a gender, whose words are written in each end's gender"),
 });
 
+const BooksJson = z.object({
+  books: z
+    .array(z.object({ id: z.string(), name: z.string(), role: z.enum(ROLES), members: z.array(z.string()).describe("Who is in it, by name") }))
+    .optional()
+    .describe("list: the user's books, oldest first"),
+  created: BookJson.optional().describe("create: the new book"),
+});
+const MovedJson = z.object({
+  book: BookJson.describe("The book they are in now"),
+  people: z
+    .array(
+      z.object({
+        from: z.string().describe("The old id"),
+        id: z.string(),
+        name: z.string(),
+        url: z.string(),
+        remains: z.boolean().describe("Whether an entry for them stays in the old book, for what is filed there that didn't move"),
+      }),
+    )
+    .describe("Who moved, with the new links"),
+  moved: z.record(z.string(), z.number()).describe("How many of each kind moved"),
+  stayed: z
+    .record(z.string(), z.number())
+    .describe("What the user may see that stayed behind, by kind: relationships to people who stay, conversations with them"),
+});
+
 export const TOOLS: readonly Tool[] = [
   tool({
     name: "record",
@@ -651,6 +746,7 @@ export const TOOLS: readonly Tool[] = [
     input: NewRamble,
     output: RecordedRamble,
     annotations: { destructiveHint: false },
+    books: "create",
     handler: async (v, r) => {
       const out = await record(v, r);
       const journal = out.journal.length
@@ -686,6 +782,7 @@ export const TOOLS: readonly Tool[] = [
     input: RememberInput,
     output: RememberedJson,
     annotations: { destructiveHint: false },
+    books: "one",
     handler: async (v, r) => {
       const out = await remember(v, r);
       // A relationship between two people given a gender is listed once; `next` still names each end's word.
@@ -711,6 +808,18 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: FoundJson,
     annotations: { readOnlyHint: true },
+    books: "each",
+    each: {
+      field: "people",
+      next: (books, { name }) =>
+        books.length === 1
+          ? foundNext(name, books[0].out.people as Candidate[])
+          : foundNext(
+              name,
+              books.flatMap((b) => (b.out.people as Candidate[]).map((p) => ({ ...p, context: [`in ${b.book.name}`, ...p.context] }))),
+              true,
+            ),
+    },
     handler: async (v, { name }) => {
       const people = await findPeople(v, name);
       return ok(FoundJson, { people }, foundNext(name, people));
@@ -725,6 +834,8 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: PeopleJson,
     annotations: { readOnlyHint: true },
+    books: "each",
+    each: { field: "people" },
     handler: async (v, { withoutGroup }) => {
       const [all, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
       const named = new Map(groups.map((g) => [g.id, g.name]));
@@ -745,6 +856,7 @@ export const TOOLS: readonly Tool[] = [
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },
+    books: "one",
     handler: async (v, { personId }) => {
       const b = await briefing(v, personId);
       return ok(BriefingOut, b, briefingNext(b));
@@ -760,6 +872,8 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: TraitsJson,
     annotations: { readOnlyHint: true },
+    books: "each",
+    each: { field: "people" },
     handler: async (v, q) => {
       const people = await traitsFor(v, q);
       return ok(TraitsJson, { people }, needsNext(people));
@@ -776,6 +890,8 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: InboxJson,
     annotations: { destructiveHint: true },
+    // The inbox is the user's: their waiting files, whichever book they wait in; record moves each into its book.
+    books: "books",
     handler: async (v, { action, id, ids }) => {
       if (action === "list") {
         const files = await listPending(v);
@@ -835,6 +951,8 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: JournalJson,
     annotations: { readOnlyHint: true },
+    books: "each",
+    each: { field: "entries" },
     handler: async (v, q) => {
       const entries = await journalEntries(v, q);
       return ok(
@@ -858,6 +976,8 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: SearchJson,
     annotations: { readOnlyHint: true },
+    books: "each",
+    each: { field: "hits" },
     handler: async (v, { query, limit }) => {
       const hits = await search(v, query, limit);
       return ok(
@@ -878,6 +998,8 @@ export const TOOLS: readonly Tool[] = [
     input: ExperienceQuery,
     output: ExperiencesJson,
     annotations: { readOnlyHint: true },
+    books: "each",
+    each: { field: "experiences" },
     handler: async (v, q) => {
       const [experiences, kinds, series] = await Promise.all([listExperiences(v, q), experienceKinds(v), listSeries(v)]);
       return ok(
@@ -900,6 +1022,8 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: z.object({ places: z.array(PlaceHit).describe("name: best match first; person: newest first") }),
     annotations: { readOnlyHint: true },
+    books: "each",
+    each: { field: "places" },
     handler: async (v, { name, person, inside }) => {
       if ([name, person, inside].filter((x) => x !== undefined).length !== 1) throw new InvalidInputError("Give exactly one of name, person or inside");
       const places = name !== undefined ? await findPlaces(v, name) : person !== undefined ? await placesOf(v, person) : await placesInside(v, inside!);
@@ -922,6 +1046,8 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: DueJson,
     annotations: { readOnlyHint: true },
+    books: "each",
+    each: { field: "items" },
     handler: async (v, { from, horizonDays }) => {
       const items = await whatsDue(v, from, horizonDays);
       return ok(DueJson, { items }, [
@@ -939,6 +1065,7 @@ export const TOOLS: readonly Tool[] = [
     input: RelateInput,
     output: RelatedJson,
     annotations: { destructiveHint: false },
+    books: "one",
     handler: async (v, input) => {
       const a = check(RelateArgs, input);
       if (a.kind === "group") {
@@ -970,6 +1097,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: BirthdayMessageJson,
     annotations: { readOnlyHint: true },
+    books: "one",
     handler: async (v, { personId, text }) => {
       const m = await birthdayMessage(v, personId, text);
       if (m.send.length)
@@ -994,6 +1122,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: SetIntervalJson,
     annotations: { destructiveHint: false, idempotentHint: true },
+    books: "one",
     handler: async (v, { personId, days, confirmed }) => {
       await setCheckInInterval(v, personId, days, confirmed);
       return ok(SetIntervalJson, {
@@ -1017,6 +1146,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: CardsJson,
     annotations: { destructiveHint: true },
+    books: "user",
     handler: async (v, { action, label, card, personId, url }) => {
       if (action === "mine") {
         const mine = await ownCards(v);
@@ -1072,6 +1202,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: CalendarFeed,
     annotations: { destructiveHint: true },
+    books: "create",
     handler: async (v, { action }) => {
       if (action === "revoke") {
         await revokeCalendarKey(v);
@@ -1095,6 +1226,7 @@ export const TOOLS: readonly Tool[] = [
     input: CorrectInput,
     output: CorrectedJson,
     annotations: { destructiveHint: true },
+    books: "one",
     handler: async (v, input) => {
       const a = check(CorrectArgs, input);
       const corrected = true as const;
@@ -1217,6 +1349,7 @@ export const TOOLS: readonly Tool[] = [
     input: z.object({}),
     output: GroupsJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v) => ok(GroupsJson, { groups: await listGroups(v) }),
   }),
   tool({
@@ -1226,6 +1359,7 @@ export const TOOLS: readonly Tool[] = [
     input: z.object({ conversationId: ConversationId.optional(), rambleId: RambleId.optional() }),
     output: TranscriptJson,
     annotations: { readOnlyHint: true },
+    books: "one",
     handler: async (v, { conversationId, rambleId }) => {
       if (!conversationId && !rambleId) throw new InvalidInputError("Give conversationId or rambleId");
       const t = conversationId
@@ -1238,6 +1372,53 @@ export const TOOLS: readonly Tool[] = [
           }))
         : { ...(await rambleTranscript(v, rambleId!)), conversationId: null };
       return ok(TranscriptJson, t, t.transcript === null ? ["The transcript is private to whoever recorded it: answer from the summary instead."] : []);
+    },
+  }),
+  tool({
+    name: "books",
+    description:
+      "The user's books: the household's, one of their own for work, and so on. list: each book with the user's role and its members. create: a new book of the user's own, with a name (e.g. Arbeit); they are its owner and its only member. Books never see into each other.",
+    input: z.object({
+      action: z.enum(["list", "create"]),
+      name: z.string().optional().describe("create: the new book's name"),
+    }),
+    output: BooksJson,
+    annotations: { destructiveHint: false },
+    books: "books",
+    handler: async (v, a) => {
+      if (a.action === "list") return ok(BooksJson, { books: await listBooks(v) });
+      if (!a.name) throw new InvalidInputError("create needs a name");
+      const created = await newBook(v, a.name);
+      return ok(BooksJson, { created }, [`Tell the user the book ${created.name} is there. From now on name the book whenever you file something.`]);
+    },
+  }),
+  tool({
+    name: "move",
+    description:
+      "Move people into another of the user's books (e.g. work contacts from the household's book into Arbeit), with what the user may see about them: their facts, dates, promises, exchanges, groups, homes, the relationships whose other end comes along or is the user, and the conversations, experiences and journal entries everyone in them comes along to. What can't move stays behind in the old book, with an entry for the person. Moved people get new links. Moving takes them out of the other members' sight: confirm with the user first, naming the people and the book.",
+    input: z.object({
+      people: z.array(PersonId).optional().describe("The people to move, as find_person returns them"),
+      group: z.string().optional().describe("Or a group by name: everyone in it moves"),
+      to: z.string().describe("The book to move them into, by name, as books lists them"),
+    }),
+    output: MovedJson,
+    annotations: { destructiveHint: true },
+    books: "books",
+    handler: async (v, a) => {
+      if (!a.people?.length === !a.group) throw new InvalidInputError("Give either people or a group");
+      const r = await movePeople(v, a.people?.length ? a.people : { group: a.group! }, a.to);
+      return ok(MovedJson, r, [
+        `Read back who moved into ${r.book.name}, with their new links; the old links don't work any more.`,
+        ...(r.people.filter((p) => p.remains).length
+          ? [
+              `An entry for ${r.people
+                .filter((p) => p.remains)
+                .map((p) => p.name)
+                .join(", ")} stays in the old book, for what is filed there that didn't move.`,
+            ]
+          : []),
+        ...(Object.keys(r.stayed).length ? ["Say what stayed behind because it is about people who stay (relationships, conversations with them)."] : []),
+      ]);
     },
   }),
 ];
