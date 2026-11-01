@@ -14,7 +14,7 @@ export default defineConfig({
   projects: [
     {
       name: "phone",
-      testMatch: "phone.spec.ts",
+      testMatch: ["phone.spec.ts", "books.spec.ts"],
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },

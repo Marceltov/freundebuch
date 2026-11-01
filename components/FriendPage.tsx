@@ -58,6 +58,9 @@ export function FriendPage({
   viewerPersonId = "",
   bookId,
   bookName,
+  books = [],
+  movable = false,
+  stayedIn,
   chat = false,
 }: {
   b: Briefing;
@@ -70,6 +73,12 @@ export function FriendPage({
   bookId?: string;
   /** The name of the person's book, when the user has two or more. */
   bookName?: string;
+  /** Every book of the user's, to move the person into another. */
+  books?: { id: string; name: string }[];
+  /** Whether the person can move: not the user, not a member of the book. */
+  movable?: boolean;
+  /** Right after a move: the old book, where an entry for them stayed too. */
+  stayedIn?: string;
   /** Whether the in-app chat is on, which drafts birthday wishes. */
   chat?: boolean;
 }) {
@@ -105,6 +114,11 @@ export function FriendPage({
   );
   return (
     <article>
+      {stayedIn && (
+        <p role="status" className="mb-3 rounded-2xl bg-surface-2 p-3 text-sm">
+          {copy.movedRemains.replaceAll("{name}", b.person.name).replace("{book}", stayedIn)}
+        </p>
+      )}
       <header>
         <div className="flex items-center gap-4">
           <Face id={b.person.id} name={b.person.name} size={80} ratio={b.freshness.ratio} />
@@ -135,6 +149,9 @@ export function FriendPage({
             intervalDays={b.freshness.intervalDays}
             hasCard={!!b.card}
             others={others}
+            books={books}
+            bookId={bookId}
+            movable={movable}
           />
         </div>
         <div>
