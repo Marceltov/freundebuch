@@ -18,6 +18,7 @@ items:
     summary: A book for the household and one of your own for work; Claude files into the right one and reads across all of them. Next, inviting others into a book, and a hosted instance where anyone can sign up.
     links:
       - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
+      - { label: "#116", url: "https://github.com/Marceltov/freundebuch/pull/116" }
       - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-each-household" }
       - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
 
