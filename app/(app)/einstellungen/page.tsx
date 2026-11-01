@@ -1,9 +1,25 @@
 import { headers } from "next/headers";
-import { CalendarDays, IdCard, ImageUp, LogOut, Plug, Sparkles, Users } from "lucide-react";
-import { getReflection, getSettings, hasCalendarKey, hasShareKey, listGroups, ownCards, mcpResource, publicUrl, sharingEnabled } from "@/backend";
+import { BookOpen, CalendarDays, IdCard, ImageUp, LogOut, Plug, Sparkles, Users } from "lucide-react";
+import {
+  acrossBooks,
+  getReflection,
+  getSettings,
+  hasCalendarKey,
+  hasShareKey,
+  inBook,
+  listBooks,
+  listGroups,
+  listInvitations,
+  ownCards,
+  mcpResource,
+  publicUrl,
+  sharingEnabled,
+} from "@/backend";
 import { getCopy } from "@/components/serverCopy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupSettings } from "@/components/GroupSettings";
+import { Books } from "@/components/Books";
+import { BookMark } from "@/components/BookMark";
 import { OwnCardsSettings } from "@/components/Cards";
 import { CalendarSettings, LanguageSettings, ReflectionSettings, ShareSettings, WebhookSettings } from "@/components/Settings";
 import { pageCopy, pageViewer } from "../viewer";
@@ -13,17 +29,30 @@ export const dynamic = "force-dynamic";
 export const generateMetadata = async () => ({ title: (await pageCopy()).settings });
 
 // The viewer's own settings: the webhook for reminders, the weekly reflection, sharing files (when the instance can read them), the calendar
-// feed, the groups with their other names, and the address to connect Claude with. The time of day the reminders go out is the
+// feed, their books (members, roles, invitations), the groups of each book with their other names, and the address to connect Claude with. The time of day the reminders go out is the
 // instance's (FREUNDEBUCH_NOTIFY_AT), not a setting here.
 export default async function SettingsPage() {
   const v = await pageViewer();
   const copy = getCopy();
   const { webhookUrl } = await getSettings(v);
+  const books = await listBooks(v);
+  const invitations = Object.fromEntries(
+    await Promise.all(books.filter((b) => b.role !== "member").map(async (b) => [b.id, await listInvitations(await inBook(v, b.id))] as const)),
+  );
+  const groups = await acrossBooks(v, listGroups);
+  const several = books.length > 1;
   return (
     <div className="space-y-4">
       <h1 className="font-display text-3xl font-bold">{copy.settings}</h1>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <LanguageSettings />
+      </section>
+      <section id="buecher" className="rounded-2xl bg-surface p-5 shadow-card">
+        <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
+          <BookOpen aria-hidden className="h-4 w-4" />
+          {copy.books}
+        </h2>
+        <Books books={books} invitations={invitations} me={v.userId} />
       </section>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <WebhookSettings webhookUrl={webhookUrl} />
@@ -64,7 +93,16 @@ export default async function SettingsPage() {
           {copy.groups}
         </h2>
         <p className="mt-1 mb-3 text-sm text-muted">{copy.groupsHint}</p>
-        <GroupSettings groups={(await listGroups(v)).map((g) => ({ id: g.id, name: g.name, aliases: g.aliases, count: g.count, household: g.household }))} />
+        {books.map((b) => (
+          <div key={b.id} className="mt-3 first:mt-0">
+            {several && <BookMark name={b.name} />}
+            <GroupSettings
+              groups={groups
+                .filter((g) => g.book.id === b.id)
+                .map((g) => ({ id: g.id, name: g.name, aliases: g.aliases, count: g.count, household: g.household }))}
+            />
+          </div>
+        ))}
       </section>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
