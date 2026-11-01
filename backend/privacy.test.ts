@@ -431,3 +431,41 @@ test("a second book's people, conversations and items reach no read path of the 
 });
 
 const groupCounts = async (v: Viewer) => (await listGroups(v)).map((g) => [g.name, g.count]);
+
+test("nothing of Alice's work book reaches Bob through any MCP tool", async () => {
+  const { seedWorkBook } = await import("./testing/fixtures");
+  const { TOOLS } = await import("./mcp/tools");
+  const { remember } = await import("./conversations/conversations");
+  const w = await seedWorkBook(s);
+  await remember(w.work, { visibility: "private", facts: [{ person: w.boss, text: "secret salary talk", category: "work" }] });
+  const reads = TOOLS.filter((t) => t.annotations.readOnlyHint);
+  const args: Record<string, object> = {
+    find_person: { name: "Lena" },
+    search: { query: "launch" },
+    briefing: { personId: s.lena },
+    birthday_message: { personId: s.anna },
+    get_transcript: { conversationId: s.call },
+    traits: { people: [s.anna, s.lena] },
+    places: { person: s.anna },
+  };
+  const out: string[] = [];
+  for (const t of reads) out.push(JSON.stringify(await t.run(s.b, args[t.name] ?? {})));
+  out.push(JSON.stringify(await TOOLS.find((t) => t.name === "books")!.run(s.b, { action: "list" })));
+  const all = out.join("\n");
+  for (const x of [
+    w.work.bookId,
+    w.boss,
+    w.lena2,
+    w.work.personId,
+    "Chefin",
+    "leads the launch",
+    "wants weekly updates",
+    "secret salary talk",
+    "Planning call",
+  ])
+    expect(all).not.toContain(x);
+  // The same reads as Alice do reach it, so the check above can fail.
+  expect(JSON.stringify(await TOOLS.find((t) => t.name === "search")!.run(w.a, { query: "launch" }))).toContain("leads the launch");
+  // Bob's reads by an Arbeit id find nothing.
+  await expect(TOOLS.find((t) => t.name === "briefing")!.run(s.b, { personId: w.boss })).rejects.toBeInstanceOf(NotFoundError);
+});

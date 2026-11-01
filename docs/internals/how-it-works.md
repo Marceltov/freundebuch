@@ -29,6 +29,8 @@ Everything about people lives in a book: its persons, conversations, rambles, it
 
 Only `backend/db` talks to the database. The domain gets a scope from the session (`scope(v)`), which narrows every query to the viewer's books and puts every new row in their book; instance tables go through `instance()`. Lint keeps Kysely out of the rest of the backend, and in tests every query on a book table that doesn't name its book fails ([ADR 0025](../adr/0025-books-in-one-scoped-database.md)). The database is opened and migrated when the server starts; if that fails, the server doesn't start.
 
+A user can keep several books, a member of each with a role (owner, admin or member). A call works in one book: MCP's `record` names it (`book`), a call about something that exists runs in that thing's book, and a list runs once per book and answers grouped by book; REST and the web take the book of the id they show, else the user's oldest. People move between books with `move`, taking what the mover may see. See [ADR 0026](../adr/0026-a-call-works-in-one-book.md).
+
 ## Privacy
 
 Inside a book, every row a person can see is either shared or recorded by them. That single rule is one function in the query layer, and every read path goes through it, including counts, hints, the graph and notifications. [ADR 0002](../adr/0002-privacy-model.md) explains the details.
