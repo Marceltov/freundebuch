@@ -22,7 +22,7 @@ const fold = (s: string) => s.toLowerCase().normalize("NFKD").replace(/\p{M}/gu,
 
 // Leute: everyone, A to Z under their first letter, with a search over names and nicknames and the group chips to narrow it,
 // the last of them for the people in no group yet.
-export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { id: string; name: string; count: number }[] }) {
+export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { id: string; name: string; count: number; bookName?: string }[] }) {
   const copy = useCopy();
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<string | null>(null);
@@ -58,6 +58,12 @@ export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { 
                 className={`shrink-0 rounded-full px-3 py-1 text-xs ${group === g.id ? "bg-carbon font-bold text-on-carbon" : g.id && g.id !== NO_GROUP ? groupTint(g.id) : "bg-surface-2"}`}
               >
                 {g.name} <span className="tabular-nums opacity-70">{g.count}</span>
+                {"bookName" in g && g.bookName && (
+                  <>
+                    {" "}
+                    <BookMark name={g.bookName} />
+                  </>
+                )}
               </button>
             ),
           )}

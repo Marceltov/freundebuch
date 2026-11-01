@@ -38,11 +38,3 @@ test("shows a book mark only on rows that carry a book", () => {
   expect(html.match(/aria-label="Buch: /g)).toHaveLength(1);
   expect(html).toContain("Arbeit");
 });
-
-test("a group chip filters by key across books", () => {
-  const two = [
-    { ...row("Anna", ["n:freunde"]), book: "Unser Buch" },
-    { ...row("Lena", ["n:freunde"]), book: "Arbeit" },
-  ];
-  expect(two.filter((p) => inGroup(p, "n:freunde")).map((p) => p.name)).toEqual(["Anna", "Lena"]);
-});

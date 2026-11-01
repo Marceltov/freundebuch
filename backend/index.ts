@@ -24,7 +24,6 @@ export { whatsDue, type DueItem } from "./reading/due";
 export {
   acrossBooks,
   dueAcross,
-  groupIdsFor,
   groupsAcross,
   journalAcross,
   looksAcross,
@@ -34,7 +33,6 @@ export {
   peopleAcross,
   ramblesAcross,
   searchAcross,
-  type GroupAcross,
   type InBook,
 } from "./reading/across";
 export { looks } from "./people/looks";

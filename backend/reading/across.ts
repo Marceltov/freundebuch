@@ -1,14 +1,12 @@
 // Reading across the user's books, for the web app's lists: each read runs once per book, in that book alone (as the MCP `each`
 // rule does), so privacy and "the viewer's own person" stay what they are within one book; the results are tagged with their
 // book and merged. A co-member (someone in several of the user's books) has a person in each: they show once, from the
-// oldest book. Groups merge by name, and every book's household group is one.
-import { instance, scope } from "../db/scope";
+// oldest book. Groups stay each in its book.
+import { instance } from "../db/scope";
 import type { Viewer } from "../core/types";
 import { bookRef, viewerIn, type BookRef } from "../people/books";
-import { norm } from "../people/names";
 import { peopleOverview, type PersonOverview } from "../people/people";
-import { visible } from "../visibility";
-import { getGroup, listGroups } from "../people/groups";
+import { getGroup, listGroups, type GroupView } from "../people/groups";
 import { layOut, pickFaces, type OrbitFace } from "../people/orbit";
 import { compareDue, whatsDue, type DueItem } from "./due";
 import { today } from "../people/dates";
@@ -49,67 +47,19 @@ export function onceEach<T>(items: readonly T[], key: (t: T) => string): T[] {
   });
 }
 
-/** A group as the merged lists show it: every book's group of that name (`ids`), the households as one. `key`: "h" for the
- * households, "n:" and the normalised name for the others, so no name can stand for the household. */
-export type GroupAcross = { key: string; name: string; ids: string[]; count: number; household: boolean };
-
-// Each group's key. A second group of the same name in one book (one hidden from the partner, see findGroup) keeps its own,
-// with its id: only groups of different books merge.
-function groupKeys(groups: readonly InBook<{ id: string; name: string; household: boolean }>[]): Map<string, string> {
-  const keys = new Map<string, string>();
-  const taken = new Set<string>(); // book id + key
-  for (const g of groups) {
-    const base = g.household ? "h" : `n:${norm(g.name)}`;
-    const key = taken.has(`${g.book.id} ${base}`) ? `${base}:${g.id}` : base;
-    taken.add(`${g.book.id} ${base}`);
-    keys.set(g.id, key);
-  }
-  return keys;
+/** Every book's groups the viewer sees, each with its book; groups never merge across books. `count`: the people in it the
+ * viewer may see. */
+export async function groupsAcross(v: Viewer): Promise<InBook<GroupView>[]> {
+  return (await acrossBooks(v, listGroups)).sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
-/** The groups of every book, merged by name; `count` is the people in them the viewer may see, co-members once. */
-export async function groupsAcross(v: Viewer): Promise<GroupAcross[]> {
-  const [groups, users] = await Promise.all([acrossBooks(v, listGroups), memberUsers(v)]);
-  const keyOf = groupKeys(groups);
-  const byKey = new Map<string, GroupAcross & { people: Set<string> }>();
-  for (const g of groups) {
-    const key = keyOf.get(g.id)!;
-    const got = byKey.get(key) ?? { key, name: g.name, ids: [], count: 0, household: g.household, people: new Set<string>() };
-    got.ids.push(g.id);
-    byKey.set(key, got);
-  }
-  const i = await instance();
-  for (const id of v.books) {
-    const w = (await viewerIn(i, v.userId, id))!;
-    const ids = groups.filter((g) => g.book.id === id).map((g) => g.id);
-    if (!ids.length) continue;
-    const rows = await (
-      await scope(w)
-    )
-      .from("group_members")
-      .select(["group_id", "person_id"])
-      .where("group_id", "in", ids)
-      .$call((qb) => visible(qb, w, "group_members"))
-      .execute();
-    for (const r of rows) byKey.get(keyOf.get(r.group_id)!)!.people.add(users.get(r.person_id) ?? r.person_id);
-  }
-  return [...byKey.values()].map(({ people, ...g }) => ({ ...g, count: people.size })).sort((a, b) => a.name.localeCompare(b.name, "de"));
-}
-
-/** The merged group a filter names, by its key or by the id of any of its books' groups; null when none does. */
-export async function groupIdsFor(v: Viewer, wanted: string | undefined): Promise<GroupAcross | null> {
-  if (!wanted) return null;
-  return (await groupsAcross(v)).find((g) => g.key === wanted || g.ids.includes(wanted)) ?? null;
-}
-
-/** Everyone in the viewer's books but the viewer, co-members once, by name; `groups` are merged group keys, a co-member's
+/** Everyone in the viewer's books but the viewer, co-members once, by name; `groups`: the ids of their groups, a co-member's
  * from every book they are in. */
 export async function peopleAcross(v: Viewer): Promise<InBook<PersonOverview>[]> {
-  const [people, users, groups] = await Promise.all([acrossBooks(v, peopleOverview), memberUsers(v), groupsAcross(v)]);
-  const keyOf = new Map(groups.flatMap((g) => g.ids.map((id) => [id, g.key] as const)));
+  const [people, users] = await Promise.all([acrossBooks(v, peopleOverview), memberUsers(v)]);
   const who = (id: string) => users.get(id) ?? id;
   const groupsOf = new Map<string, Set<string>>();
-  for (const p of people) for (const id of p.groups) if (keyOf.has(id)) groupsOf.set(who(p.id), (groupsOf.get(who(p.id)) ?? new Set()).add(keyOf.get(id)!));
+  for (const p of people) for (const id of p.groups) groupsOf.set(who(p.id), (groupsOf.get(who(p.id)) ?? new Set()).add(id));
   return onceEach(people, (p) => who(p.id))
     .map((p) => ({ ...p, groups: [...(groupsOf.get(who(p.id)) ?? [])] }))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
@@ -117,26 +67,18 @@ export async function peopleAcross(v: Viewer): Promise<InBook<PersonOverview>[]>
 
 const newestFirst = <T extends { date: string | null }>(xs: T[]) => xs.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
 
-/** The orbit of every book as one, co-members once (in the group when they are in it in any book); `group`: a merged group,
- * its key, or the id of one of its groups. */
-export async function orbitAcross(v: Viewer, group?: GroupAcross | string, now = Date.now()): Promise<InBook<OrbitFace>[]> {
-  const [g, users] = await Promise.all([typeof group === "string" ? groupIdsFor(v, group) : (group ?? null), memberUsers(v)]);
-  const all = g ? new Set<string>() : null;
-  const picked = await acrossBooks(v, async (w) => {
-    let members: Set<string> | null = null;
-    if (g) {
-      members = new Set();
-      for (const id of g.ids) {
-        const found = await getGroup(w, id).catch(() => null); // a group of another book isn't found in this one
-        for (const m of found?.members ?? []) members.add(m.personId);
-      }
-      for (const m of members) all!.add(m);
-    }
-    return pickFaces(w, now, members);
-  });
+/** The orbit of every book as one, co-members once; `groupId`: a group of one of the books, whose members show first and are
+ * marked (a co-member when they are in it). */
+export async function orbitAcross(v: Viewer, groupId?: string, now = Date.now()): Promise<InBook<OrbitFace>[]> {
+  const users = await memberUsers(v);
   const who = (id: string) => users.get(id) ?? id;
+  const inGroup = groupId ? new Set<string>() : null;
+  const picked = await acrossBooks(v, async (w) => {
+    const group = groupId ? await getGroup(w, groupId).catch(() => null) : null; // found only in its own book
+    for (const m of group?.members ?? []) inGroup!.add(who(m.personId));
+    return pickFaces(w, now, group ? new Set(group.members.map((m) => m.personId)) : null);
+  });
   const kept = onceEach(picked, (f) => who(f.personId));
-  const inGroup = all && new Set([...all].map(who));
   return layOut(kept, inGroup && new Set(kept.filter((f) => inGroup.has(who(f.personId))).map((f) => f.personId)));
 }
 

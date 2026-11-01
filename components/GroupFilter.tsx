@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useCopy } from "@/components/i18n";
+import { BookMark } from "@/components/BookMark";
 
 const KEY = "freundebuch.gruppe";
 
@@ -22,18 +23,16 @@ const write = (id: string | null) => {
   } catch {}
 };
 
-// The group chips above the orbit, one per group name across the books (`id` the name's key, `ids` its groups in each book).
-// The choice lives in the URL (?gruppe=<key>) and is remembered on this device: opening the start
+// The group chips above the orbit, one per group of each book, with the book's name when the user has several (`bookName`).
+// The choice lives in the URL (?gruppe=<id>) and is remembered on this device: opening the start
 // page without one brings back the last group chosen here. Choosing the active group again clears the filter.
-export function GroupFilter({ groups, current }: { groups: { id: string; ids?: string[]; name: string; count: number }[]; current: string | null }) {
+export function GroupFilter({ groups, current }: { groups: { id: string; name: string; count: number; bookName?: string }[]; current: string | null }) {
   const copy = useCopy();
   const router = useRouter();
   useEffect(() => {
     if (current) return write(current);
-    // A group remembered before the books merged is a group's id: it finds the group of its name.
     const last = read();
-    const g = last && groups.find((x) => x.id === last || x.ids?.includes(last));
-    if (g) router.replace(`/?gruppe=${encodeURIComponent(g.id)}`);
+    if (last && groups.some((g) => g.id === last)) router.replace(`/?gruppe=${encodeURIComponent(last)}`);
   }, [current, groups, router]);
 
   const chip = (on: boolean) =>
@@ -53,6 +52,7 @@ export function GroupFilter({ groups, current }: { groups: { id: string; ids?: s
         >
           {g.name}
           <span className="opacity-70 tabular-nums">{g.count}</span>
+          {g.bookName && <BookMark name={g.bookName} />}
         </Link>
       ))}
     </nav>

@@ -11,16 +11,17 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-test("a group key with & or + survives in the chip's link", () => {
+test("with several books, each group's button carries its book", () => {
   const html = renderToStaticMarkup(
     <GroupFilter
       groups={[
-        { id: "kunst & kultur", name: "Kunst & Kultur", count: 2 },
-        { id: "sport+spiel", name: "Sport+Spiel", count: 1 },
+        { id: "g1", name: "Freunde", count: 2, bookName: "Unser Buch" },
+        { id: "g2", name: "Freunde", count: 1, bookName: "Arbeit" },
       ]}
       current={null}
     />,
   );
-  expect(html).toContain('href="/?gruppe=kunst%20%26%20kultur"');
-  expect(html).toContain('href="/?gruppe=sport%2Bspiel"');
+  expect(html).toContain('href="/?gruppe=g1"');
+  expect(html).toContain('href="/?gruppe=g2"');
+  expect(html).toContain('aria-label="Buch: Arbeit"');
 });
