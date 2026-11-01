@@ -21,6 +21,7 @@ export { e2eLoginRoute } from "./auth/e2e";
 export { briefing, type Briefing } from "./reading/briefing";
 export { getConversation, hasRecorded, listConversations, type ConversationSummary, type ConversationView } from "./conversations/conversations";
 export { whatsDue, type DueItem } from "./reading/due";
+export { acrossBooks, groupIdsFor, groupsAcross, memberUsers, onceEach, peopleAcross, type GroupAcross, type InBook } from "./reading/across";
 export { looks } from "./people/looks";
 export { inBook, inBookOf, listBooks, type BookRef } from "./people/books";
 export { getPerson, peopleOverview, type PersonOverview } from "./people/people";
