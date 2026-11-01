@@ -16,7 +16,6 @@ import {
   resolveOrCreateGroup,
 } from "./groups";
 import { setCheckInInterval } from "./intervals";
-import { userFromOidc } from "../core/users";
 import { addToGroup } from "./relationships";
 import { seed, type Seed, signInInvited } from "../testing/fixtures";
 
