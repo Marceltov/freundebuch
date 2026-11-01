@@ -114,7 +114,7 @@ export function FriendPage({
   );
   return (
     <article>
-      {stayedIn && (
+      {stayedIn && books.some((x) => x.name === stayedIn) && (
         <p role="status" className="mb-3 rounded-2xl bg-surface-2 p-3 text-sm">
           {copy.movedRemains.replaceAll("{name}", b.person.name).replace("{book}", stayedIn)}
         </p>

@@ -6,10 +6,9 @@ import {
   getSettings,
   hasCalendarKey,
   hasShareKey,
-  inBook,
   listBooks,
   listGroups,
-  listInvitations,
+  openInvitations,
   ownCards,
   mcpResource,
   publicUrl,
@@ -36,9 +35,7 @@ export default async function SettingsPage() {
   const copy = getCopy();
   const { webhookUrl } = await getSettings(v);
   const books = await listBooks(v);
-  const invitations = Object.fromEntries(
-    await Promise.all(books.filter((b) => b.role !== "member").map(async (b) => [b.id, await listInvitations(await inBook(v, b.id))] as const)),
-  );
+  const invitations = await openInvitations(v, books);
   const groups = await acrossBooks(v, listGroups);
   const several = books.length > 1;
   return (

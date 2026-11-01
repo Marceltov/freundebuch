@@ -698,6 +698,11 @@ describe("books over REST", () => {
     expect(books[1].name).toBe("Arbeit");
   });
 
+  test("a book's routes take its id, not its name", async () => {
+    await seedWorkBook(s);
+    expect((await call(s.a, "PATCH", "/books/Arbeit", { name: "Büro" })).status).toBe(404);
+  });
+
   test("a book id of someone else's book: 404", async () => {
     const { c } = await (await import("../testing/fixtures")).seedOtherBook();
     expect((await call(s.a, "PATCH", `/books/${c.bookId}`, { name: "Mine" })).status).toBe(404);

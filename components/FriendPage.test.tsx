@@ -229,3 +229,14 @@ test("the header says where the person lives, with the address, linking to the p
   expect(html).toContain('href="/o/h1"');
   expect(renderToStaticMarkup(<FriendPage b={b} daysSince={null} />)).not.toContain("Wohnt in");
 });
+
+test("the stayed-behind notice shows only for one of the user's books", () => {
+  const books = [
+    { id: "b1", name: "Unser Buch" },
+    { id: "b2", name: "Arbeit" },
+  ];
+  const real = renderToStaticMarkup(<FriendPage b={b} daysSince={null} books={books} stayedIn="Unser Buch" />);
+  expect(real).toContain('role="status"');
+  const forged = renderToStaticMarkup(<FriendPage b={b} daysSince={null} books={books} stayedIn="Gefälscht" />);
+  expect(forged).not.toContain('role="status"');
+});

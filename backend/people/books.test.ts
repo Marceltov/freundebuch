@@ -333,3 +333,14 @@ describe("review fixes", () => {
     ]);
   });
 });
+
+describe("the viewer of a page", () => {
+  test("a page's id narrows to its book; a household word to the oldest book; none to every book", async () => {
+    const { pageScope } = await import("./books");
+    const s = await seed();
+    const { a, work, lena2 } = await seedWorkBook(s);
+    expect((await pageScope(a, lena2)).books).toEqual([work.bookId]);
+    expect((await pageScope(a, "me")).books).toEqual([s.a.bookId]);
+    expect((await pageScope(a)).books).toEqual(a.books);
+  });
+});

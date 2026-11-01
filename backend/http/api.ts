@@ -146,8 +146,11 @@ const MovedJson = z.object({
 });
 const BOOK_ID = { id: z.string().describe("The book's id") };
 const ROLE_403 = err("The caller's role in the book doesn't allow it (`forbidden`)");
-// A book's routes run on the caller in that book; a book they aren't in is not found.
-const theBook = (viewer: Viewer, id: string) => inBook(viewer, id);
+// A book's routes run on the caller in that book, by its id; a book they aren't in is not found.
+async function theBook(viewer: Viewer, id: string): Promise<Viewer> {
+  if (!(await listBooks(viewer)).some((b) => b.id === id)) throw new NotFoundError("No such book");
+  return inBook(viewer, id);
+}
 /** A comma-separated list of ids from the query, without empty entries. */
 const ids = (list?: string) =>
   list

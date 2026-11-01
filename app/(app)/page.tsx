@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { dueAcross, getPerson, groupIdsFor, groupsAcross, hasRecorded, mcpResource, orbitAcross } from "@/backend";
+import { dueAcross, getPerson, groupsAcross, hasRecorded, mcpResource, orbitAcross } from "@/backend";
 import { getCopy } from "@/components/serverCopy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupFilter } from "@/components/GroupFilter";
@@ -18,9 +18,8 @@ export default async function OrbitPage({ searchParams }: PageProps<"/">) {
   const copy = getCopy();
   const groups = (await groupsAcross(v)).filter((g) => g.count > 0);
   const wanted = (await searchParams).gruppe;
-  const found = typeof wanted === "string" ? await groupIdsFor(v, wanted) : null;
-  const group = groups.find((g) => g.key === found?.key) ?? null;
-  const faces = await orbitAcross(v, group?.key);
+  const group = (typeof wanted === "string" && groups.find((g) => g.key === wanted || g.ids.includes(wanted))) || null;
+  const faces = await orbitAcross(v, group ?? undefined);
   if (!faces.length)
     return (
       <div className="mt-8 rounded-2xl bg-surface p-5 shadow-card">

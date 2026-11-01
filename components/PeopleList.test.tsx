@@ -41,8 +41,8 @@ test("shows a book mark only on rows that carry a book", () => {
 
 test("a group chip filters by key across books", () => {
   const two = [
-    { ...row("Anna", ["freunde"]), book: "Unser Buch" },
-    { ...row("Lena", ["freunde"]), book: "Arbeit" },
+    { ...row("Anna", ["n:freunde"]), book: "Unser Buch" },
+    { ...row("Lena", ["n:freunde"]), book: "Arbeit" },
   ];
-  expect(two.filter((p) => inGroup(p, "freunde")).map((p) => p.name)).toEqual(["Anna", "Lena"]);
+  expect(two.filter((p) => inGroup(p, "n:freunde")).map((p) => p.name)).toEqual(["Anna", "Lena"]);
 });
