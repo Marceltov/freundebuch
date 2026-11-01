@@ -13,7 +13,7 @@ export const generateMetadata = async () => ({ title: (await pageCopy()).session
 // A series (a course, a weekly training): its rhythm, its place, its sessions by date, and the days that weren't sessions: the
 // latest one that passed untold, and those marked skipped.
 export default async function SeriesPage({ params }: PageProps<"/s/[id]">) {
-  const v = await pageViewer();
+  const v = await pageViewer((await params).id);
   const copy = getCopy();
   const s = await orNotFound(getSeries(v, (await params).id));
   const rhythm = s.rhythmDays === 7 ? copy.everyWeek : s.rhythmDays ? copy.everyDays.replace("{n}", String(s.rhythmDays)) : null;

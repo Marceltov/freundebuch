@@ -5,12 +5,12 @@ import { orNotFound, pageViewer } from "../../viewer";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/p/[id]">) {
-  const b = await orNotFound(briefing(await pageViewer(), (await params).id));
+  const b = await orNotFound(briefing(await pageViewer((await params).id), (await params).id));
   return { title: b.person.name };
 }
 
 export default async function PersonPage({ params }: PageProps<"/p/[id]">) {
-  const v = await pageViewer();
+  const v = await pageViewer((await params).id);
   const b = await orNotFound(briefing(v, (await params).id));
   const seen = b.freshness.lastSeen;
   const groups = (await listGroups(v)).map((g) => ({ id: g.id, name: g.name }));

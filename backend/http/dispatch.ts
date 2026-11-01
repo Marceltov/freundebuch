@@ -6,6 +6,8 @@ import { requireViewer } from "../auth/session";
 import { InvalidRequestError, NotFoundError } from "../core/errors";
 import { logger } from "../core/log";
 import type { Viewer } from "../core/types";
+import { isId } from "../db";
+import { inBook, inBookOf } from "../people/books";
 import { absoluteUrls, publicUrl } from "../core/urls";
 import { errorReply } from "./errors";
 import { readCapped } from "./request";
@@ -83,6 +85,12 @@ export function matchOps(ops: AnyOp[], prefix: string, segments: string[]): { op
   return found.length ? { ops: found, params } : null;
 }
 
+/** A request runs in one book: the book of the ids in its path, else the one `?book=` names, else the user's oldest. */
+async function inBookOfRequest(v: Viewer, params: Record<string, string>, book?: string): Promise<Viewer> {
+  const ids = Object.values(params).filter(isId);
+  return (await inBookOf(v, ids)) ?? inBook(v, book ?? v.bookId);
+}
+
 // Empty values count as absent; of repeated keys, the last wins.
 function queryOf(req: Request): Record<string, string> {
   const entries = [...new URL(req.url).searchParams].filter(([, v]) => v !== "");
@@ -140,7 +148,7 @@ export function createDispatcher(ops: AnyOp[], prefix: string): (req: Request, s
     let reply: AnyReply;
     try {
       // Who is asking comes first: a stranger learns nothing, not even that their parameters are wrong.
-      const viewer = await requireViewer(req, "api");
+      const viewer = await inBookOfRequest(await requireViewer(req, "api"), m.params, queryOf(req).book);
       let query: Record<string, unknown> = {};
       if (entry.query) {
         const parsed = entry.query.safeParse(queryOf(req));

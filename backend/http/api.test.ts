@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE } from "../auth/session";
 import { sign } from "../auth/tokens";
 import { resetSecretForTests } from "../core/secret";
-import { asRamble, seed, type Seed } from "../testing/fixtures";
+import { asRamble, seed, seedWorkBook, type Seed } from "../testing/fixtures";
 import type { Viewer } from "../core/types";
 import { dispatch } from "./api";
 
@@ -588,4 +588,14 @@ describe("series and places", () => {
     expect((await call(s.a, "GET", "/places")).status).toBe(400);
     expect((await call(s.a, "GET", `/places?q=x&person=${s.anna}`)).status).toBe(400);
   });
+});
+
+test("a REST call on an Arbeit person works, and lists show the oldest book unless a book is named", async () => {
+  const w = await seedWorkBook(s);
+  expect((await call(s.a, "GET", `/people/${w.boss}`)).status).toBe(200);
+  const names = async (path: string) => ((await call(s.a, "GET", path)).json as { name: string }[]).map((p) => p.name);
+  expect(await names("/people")).not.toContain("Chefin");
+  expect(await names("/people?book=Arbeit")).toContain("Chefin");
+  expect((await call(s.a, "GET", "/people?book=Nope")).status).toBe(404);
+  expect((await call(s.b, "GET", `/people/${w.boss}`)).status).toBe(404);
 });

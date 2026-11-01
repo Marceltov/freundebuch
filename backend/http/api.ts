@@ -123,7 +123,7 @@ const ids = (list?: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
-const OPS: AnyOp[] = [
+const ROUTES: AnyOp[] = [
   op({
     method: "GET",
     path: `${API_PREFIX}/people`,
@@ -935,6 +935,11 @@ const OPS: AnyOp[] = [
   }).handle(async ({ req }) => ({ status: 200, body: openApiDocument(publicUrl(req.headers)) })),
 ];
 
+// Every signed-in request runs in one book: the book of the ids in its path, else `?book=`, else the user's oldest. A book the
+// user isn't in is 404 like anything else they can't see.
+const BOOK_404 = err("No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)");
+const OPS: AnyOp[] = ROUTES.map((o) => (o.auth ? { ...o, responses: { 404: BOOK_404, ...o.responses } } : o));
+
 export const dispatch = createDispatcher(OPS, API_PREFIX);
 
 // --- The OpenAPI document. ---
@@ -963,6 +968,17 @@ export function openApiDocument(serverUrl: string): Json {
   const paths: Record<string, Json> = {};
   for (const entry of OPS) {
     const parameters = [
+      ...(entry.auth && !Object.keys(entry.params).length
+        ? [
+            {
+              name: "book",
+              in: "query",
+              required: false,
+              description: "The book to work in, by name or id; without one, the caller's oldest book",
+              schema: { type: "string" },
+            },
+          ]
+        : []),
       ...Object.entries(entry.params).map(([name, s]) => {
         const { description, ...schema } = jsonSchema(s);
         return { name, in: "path", required: true, description, schema };

@@ -29,6 +29,7 @@ import { whatsDue } from "../reading/due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../people/groups";
 import { InvalidInputError } from "../core/errors";
 import { bookRef, inBook, inBookOf } from "../people/books";
+import { isId } from "../db";
 import {
   BriefingJson,
   CalendarFeedJson,
@@ -125,11 +126,10 @@ const BOOK_INPUT = z
     "The book to file into, by name, as books lists them. Leave it out only when the user has one book; with several, pick the one from what was said (a client, a colleague, the conference → the work book), say which, and ask when unsure",
   );
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Every id in a call's arguments, wherever it sits; files wait in any book and move with the call (fileIds). */
 function idsIn(x: unknown, key?: string): string[] {
   if (key === "fileIds") return [];
-  if (typeof x === "string") return UUID.test(x) ? [x] : [];
+  if (typeof x === "string") return isId(x) ? [x] : [];
   if (Array.isArray(x)) return x.flatMap((y) => idsIn(y, key));
   if (x && typeof x === "object") return Object.entries(x).flatMap(([k, y]) => idsIn(y, k));
   return [];

@@ -44,6 +44,8 @@ export function db(): Promise<Kysely<Schema>> {
 }
 
 export const newId = (): string => randomUUID();
+/** Whether a string has the shape of an id newId makes; names and words never do. */
+export const isId = (s: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 // Strictly increasing within the process, so rows created in one go still order by `created_at, id` (no rowid).
 let last = 0;
 export const now = (): number => (last = Math.max(Date.now(), last + 1));
