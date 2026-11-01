@@ -622,3 +622,22 @@ test("GET /files lists the caller's waiting files of every book", async () => {
   expect(r.status).toBe(200);
   expect(JSON.stringify(r.json)).toContain(f.id);
 });
+
+test("an invitation is accepted once by a signed-in user", async () => {
+  const w = await seedWorkBook(s);
+  const { invite } = await import("../people/invitations");
+  const token = (await invite(w.work, "member")).url.split("/").pop()!;
+  expect((await call(s.b, "POST", `/invitations/${token}`)).status).toBe(200);
+  expect((await call(s.b, "GET", `/people?book=Arbeit`)).status).toBe(200);
+  expect((await call(s.b, "POST", `/invitations/${token}`)).status).toBe(404);
+  expect((await call(null, "POST", `/invitations/${token}`)).status).toBe(401);
+});
+
+test("an admin makes an invitation over REST; a member can't", async () => {
+  const r = await call(s.a, "POST", "/invitations", { role: "admin" });
+  expect(r.status).toBe(201);
+  expect(r.json.url).toMatch(/^http:\/\/localhost:3000\/einladung\/fbi_/);
+  const { unchecked } = await import("../db/testing");
+  await unchecked().updateTable("members").set({ role: "member" }).where("user_id", "=", s.b.userId).execute();
+  expect((await call(s.b, "POST", "/invitations", { role: "member" })).status).toBe(403);
+});

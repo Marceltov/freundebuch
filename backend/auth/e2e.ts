@@ -22,7 +22,9 @@ export async function e2eLoginRoute(req: Request): Promise<Response> {
   const sub = `e2e:${name}`;
   const i = await instance();
   const known = await i.from("users").select("id").where("oidc_sub", "=", sub).executeTakeFirst();
-  const first = known ? undefined : await i.from("books").select(["id", "created_by"]).orderBy("created_at").executeTakeFirst();
+  // ?own=1: a stranger with a book of their own (FREUNDEBUCH_REGISTRATION=open in the e2e server), for the invitation test.
+  const own = new URL(req.url).searchParams.get("own") === "1";
+  const first = known || own ? undefined : await i.from("books").select(["id", "created_by"]).orderBy("created_at").executeTakeFirst();
   const owner = first && (await viewerIn(i, first.created_by, first.id));
   const invitation = owner ? (await invite(owner, "admin")).url.split("/").pop() : undefined;
   const v = await userFromOidc({ sub, name }, { invitation });

@@ -30,6 +30,8 @@ import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, r
 import { InvalidInputError } from "../core/errors";
 import { bookRef, inBook, inBookOf, listBooks, newBook, type BookRef } from "../people/books";
 import { movePeople } from "../people/moves";
+import { INVITATION_DAYS, invite, listInvitations, revokeInvitation } from "../people/invitations";
+import { deleteBook, handOver, leaveBook, removeMember, renameBook, setRole } from "../people/manage";
 import { isId } from "../db";
 import {
   BriefingJson,
@@ -714,10 +716,30 @@ const RememberedJson = z.object({
 
 const BooksJson = z.object({
   books: z
-    .array(z.object({ id: z.string(), name: z.string(), role: z.enum(ROLES), members: z.array(z.string()).describe("Who is in it, by name") }))
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        role: z.enum(ROLES).describe("The user's role in it"),
+        members: z.array(z.object({ id: z.string().describe("The member's user id"), name: z.string(), role: z.enum(ROLES) })).describe("Who is in it"),
+      }),
+    )
     .optional()
     .describe("list: the user's books, oldest first"),
   created: BookJson.optional().describe("create: the new book"),
+  invitation: z
+    .object({
+      id: z.string(),
+      url: z.string().describe("The link to give the invited person"),
+      expiresAt: z.number().describe("Until when it works, ms since the epoch"),
+    })
+    .optional()
+    .describe("invite: the new invitation"),
+  invitations: z
+    .array(z.object({ id: z.string(), role: z.enum(["member", "admin"]), createdBy: z.string(), expiresAt: z.number() }))
+    .optional()
+    .describe("invitations: the book's invitations that still work"),
+  done: z.boolean().optional().describe("rename, revoke, set_role, remove, leave, hand_over, delete: it is done"),
 });
 const MovedJson = z.object({
   book: BookJson.describe("The book they are in now"),
@@ -1377,19 +1399,63 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "books",
     description:
-      "The user's books: the household's, one of their own for work, and so on. list: each book with the user's role and its members. create: a new book of the user's own, with a name (e.g. Arbeit); they are its owner and its only member. Books never see into each other.",
+      "The user's books: the household's, one of their own for work, and so on; books never see into each other. list: each book with the user's role and its members. create: a new book of the user's own (e.g. Arbeit), its owner and only member. The others work on one book, named in `book`: rename (owner, admin); invite (owner, admin: a link that works once, for 7 days, as member or admin); invitations and revoke (owner, admin); set_role (owner: make a member admin or back); remove (owner; an admin removes members); leave (anyone but the owner: what they marked private there is deleted); hand_over (owner, to another member); delete (owner: the book and everything in it). Confirm with the user before remove, leave and delete, saying what goes.",
     input: z.object({
-      action: z.enum(["list", "create"]),
-      name: z.string().optional().describe("create: the new book's name"),
+      action: z.enum(["list", "create", "rename", "invite", "invitations", "revoke", "set_role", "remove", "leave", "hand_over", "delete"]),
+      book: z.string().optional().describe("The book, by name, as list shows it: for every action but list and create"),
+      name: z.string().optional().describe("create, rename: the book's name"),
+      role: z.enum(["member", "admin"]).optional().describe("invite: the role the invited person gets (member when left out); set_role: the new role"),
+      user: z.string().optional().describe("set_role, remove, hand_over: the member's user id, as list shows it"),
+      id: z.string().optional().describe("revoke: the invitation's id"),
     }),
     output: BooksJson,
-    annotations: { destructiveHint: false },
+    annotations: { destructiveHint: true },
     books: "books",
     handler: async (v, a) => {
       if (a.action === "list") return ok(BooksJson, { books: await listBooks(v) });
-      if (!a.name) throw new InvalidInputError("create needs a name");
-      const created = await newBook(v, a.name);
-      return ok(BooksJson, { created }, [`Tell the user the book ${created.name} is there. From now on name the book whenever you file something.`]);
+      if (a.action === "create") {
+        if (!a.name) throw new InvalidInputError("create needs a name");
+        const created = await newBook(v, a.name);
+        return ok(BooksJson, { created }, [`Tell the user the book ${created.name} is there. From now on name the book whenever you file something.`]);
+      }
+      if (!a.book) throw new InvalidInputError(`${a.action} needs the book`);
+      const w = await inBook(v, a.book);
+      const need = <T>(x: T | undefined, what: string): T => {
+        if (x === undefined) throw new InvalidInputError(`${a.action} needs ${what}`);
+        return x;
+      };
+      switch (a.action) {
+        case "invite": {
+          const invitation = await invite(w, a.role ?? "member");
+          return ok(BooksJson, { invitation }, [
+            `Give the link only to the user, to pass on to whoever they invite; it works once, for ${INVITATION_DAYS} days, and whoever opens it joins the book as ${a.role ?? "member"}.`,
+          ]);
+        }
+        case "invitations":
+          return ok(BooksJson, { invitations: await listInvitations(w) });
+        case "revoke":
+          await revokeInvitation(w, need(a.id, "the invitation's id"));
+          break;
+        case "rename":
+          await renameBook(w, need(a.name, "the new name"));
+          break;
+        case "set_role":
+          await setRole(w, need(a.user, "the member's user id"), need(a.role, "the role"));
+          break;
+        case "remove":
+          await removeMember(w, need(a.user, "the member's user id"));
+          break;
+        case "leave":
+          await leaveBook(w);
+          break;
+        case "hand_over":
+          await handOver(w, need(a.user, "the member's user id"));
+          break;
+        case "delete":
+          await deleteBook(w);
+          break;
+      }
+      return ok(BooksJson, { done: true }, [`Tell the user it is done (${a.action}).`]);
     },
   }),
   tool({

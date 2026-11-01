@@ -131,10 +131,11 @@ describe("protocol", () => {
         ].includes(t.name),
       );
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
-      // calendar_feed, which can end a calendar's subscription, and move, which takes people out of the other members' sight.
-      const writes = ["record", "relate", "remember", "set_interval", "books"].includes(t.name);
+      // calendar_feed, which can end a calendar's subscription, move, which takes people out of the other members' sight, and
+      // books, which removes members and deletes books.
+      const writes = ["record", "relate", "remember", "set_interval"].includes(t.name);
       expect(t.annotations?.destructiveHint, t.name).toBe(
-        ["correct", "calendar_feed", "cards", "inbox", "move"].includes(t.name) ? true : writes ? false : undefined,
+        ["correct", "calendar_feed", "cards", "inbox", "move", "books"].includes(t.name) ? true : writes ? false : undefined,
       );
       expect(t.annotations?.idempotentHint === true, t.name).toBe(t.name === "set_interval");
       expect(t.outputSchema?.type, t.name).toBe("object");

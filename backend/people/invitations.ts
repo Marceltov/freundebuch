@@ -89,3 +89,11 @@ export async function acceptInvitation(i: InstanceDb, token: string, userId: str
     return joinBook(tx, r.book_id, userId, userName, r.role);
   });
 }
+
+/** The signed-in user takes the invitation: they join its book. */
+export async function acceptInvitationAs(v: Viewer, token: string): Promise<{ id: string; name: string }> {
+  const i = await instance();
+  const user = await i.from("users").select("name").where("id", "=", v.userId).executeTakeFirstOrThrow();
+  const joined = await acceptInvitation(i, token, v.userId, user.name);
+  return await i.from("books").select(["id", "name"]).where("id", "=", joined.bookId).executeTakeFirstOrThrow();
+}

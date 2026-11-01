@@ -1093,3 +1093,26 @@ test.describe("voice", () => {
     await expectNoSideScroll(page);
   });
 });
+
+test("an invitation link takes a signed-in user into the book, once", async ({ page, browser }) => {
+  // From the page itself, as the app's own requests are (the REST API takes a cookie only with the page's origin).
+  const made = await page.evaluate(async () => {
+    const res = await fetch("/api/v1/invitations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "member" }),
+    });
+    return { status: res.status, url: (await res.json()).url as string };
+  });
+  expect(made.status).toBe(201);
+  const path = new URL(made.url).pathname;
+  const other = await browser.newPage();
+  await other.goto("/api/e2e/login?name=Ines Eigen&own=1");
+  await other.goto(path);
+  await expect(other.getByText("Erika Muster lädt dich ein", { exact: false })).toBeVisible();
+  await other.getByRole("button", { name: "Beitreten" }).click();
+  await expect(other).toHaveURL("/");
+  await other.goto(path);
+  await expect(other.getByText("Diese Einladung gilt nicht mehr", { exact: false })).toBeVisible();
+  await other.close();
+});

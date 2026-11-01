@@ -47,6 +47,7 @@ import { getSettings, putSettings, setLanguage, testWebhook } from "../core/sett
 import { getReflection, putReflection } from "../journal/reflection";
 import { deleteRamble } from "../conversations/rambles";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../conversations/files";
+import { acceptInvitationAs, invite } from "../people/invitations";
 import { API_PREFIX, publicUrl } from "../core/urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
@@ -799,6 +800,45 @@ const ROUTES: AnyOp[] = [
     params: {},
     responses: { 200: { description: "Whether it was sent", schema: SentJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: { sent: await testWebhook(viewer) } })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/invitations`,
+    operationId: "createInvitation",
+    summary: "Invite someone into a book",
+    description: "For the book's owner or an admin: a link that works once, for 7 days; whoever opens it joins the book in `role`.",
+    tags: ["Books"],
+    auth: true,
+    params: {},
+    body: z.object({ role: z.enum(["member", "admin"]).describe("The role the invited person gets") }),
+    responses: {
+      201: {
+        description: "The invitation; its link is shown only now",
+        schema: z.object({ id: z.string(), url: z.string().describe("The link to pass on"), expiresAt: z.number() }),
+      },
+      400: E400,
+      401: E401,
+      403: err("Only the book's owner or an admin may invite (`forbidden`)"),
+    },
+  }).handle(async ({ viewer, body }) => ({ status: 201, body: await invite(viewer, body.role) })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/invitations/{token}`,
+    operationId: "acceptInvitation",
+    summary: "Join a book through an invitation",
+    description: "The caller joins the invitation's book in the role it names; the invitation is used up.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: { token: z.string().describe("The invitation's token, from its link") },
+    responses: {
+      200: { description: "The book joined", schema: z.object({ id: z.string(), name: z.string() }) },
+      400: err("The caller is in that book already (`invalid_input`)"),
+      401: E401,
+      404: err("No such invitation, or it was used, revoked or has expired (`not_found`)"),
+    },
+  }).handle(async ({ viewer, params }) => ({ status: 200, body: await acceptInvitationAs(viewer, params.token) })),
 
   op({
     method: "GET",

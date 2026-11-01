@@ -5,6 +5,7 @@ import { instance } from "./db/scope";
 import { healthRoute, setDbProbe } from "./http/health";
 
 export { healthRoute };
+export { invitationFor } from "./people/invitations";
 export { IDENTITY_COOKIE, identityOk, logoutRoute, requireViewer, type Surface, viewerFromCookie, viewerFromRequest } from "./auth/session";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";

@@ -93,8 +93,16 @@ describe("books for a viewer", () => {
 
   test("listBooks gives the user's books oldest first, with role and members", async () => {
     expect(await listBooks(w.a)).toEqual([
-      { id: s.a.bookId, name: "Unser Buch", role: "owner", members: ["Alice", "Bob"] },
-      { id: w.work.bookId, name: "Arbeit", role: "owner", members: ["Alice"] },
+      {
+        id: s.a.bookId,
+        name: "Unser Buch",
+        role: "owner",
+        members: [
+          { id: s.a.userId, name: "Alice", role: "owner" },
+          { id: s.b.userId, name: "Bob", role: "admin" },
+        ],
+      },
+      { id: w.work.bookId, name: "Arbeit", role: "owner", members: [{ id: s.a.userId, name: "Alice", role: "owner" }] },
     ]);
     expect((await listBooks(s.b)).map((b) => [b.name, b.role])).toEqual([["Unser Buch", "admin"]]);
   });

@@ -63,8 +63,8 @@ export type BookRef = { id: string; name: string };
 
 export const BOOK_NAME_MAX = 60;
 
-/** The user's books, oldest first, with their role and the names of the members. */
-export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; members: string[] })[]> {
+/** The user's books, oldest first, with their role and the members (user id, name, role). */
+export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; members: { id: string; name: string; role: Role }[] })[]> {
   const i = await instance();
   const mine = await i
     .from("members")
@@ -78,7 +78,7 @@ export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; mem
   const names = await i
     .from("members")
     .innerJoin("users", "users.id", "members.user_id")
-    .select(["members.book_id", "users.name"])
+    .select(["members.book_id", "members.user_id", "members.role", "users.name"])
     .where(
       "members.book_id",
       "in",
@@ -87,7 +87,12 @@ export async function listBooks(v: Viewer): Promise<(BookRef & { role: Role; mem
     .orderBy("members.created_at")
     .orderBy("members.user_id")
     .execute();
-  return mine.map((b) => ({ id: b.id, name: b.name, role: b.role, members: names.filter((n) => n.book_id === b.id).map((n) => n.name) }));
+  return mine.map((b) => ({
+    id: b.id,
+    name: b.name,
+    role: b.role,
+    members: names.filter((n) => n.book_id === b.id).map((n) => ({ id: n.user_id, name: n.name, role: n.role })),
+  }));
 }
 
 /** A new book of the viewer's, its maker the owner. */
