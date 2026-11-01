@@ -2,7 +2,7 @@
 // table only through instance(). `members` carries a book_id but decides which books a user may open, so it is the instance's.
 import type { Schema } from "./schema";
 
-export const INSTANCE_TABLES = ["users", "user_settings", "own_cards", "chat_usage", "meta", "books", "members"] as const;
+export const INSTANCE_TABLES = ["users", "user_settings", "own_cards", "chat_usage", "meta", "books", "members", "invitations"] as const;
 export type InstanceTable = (typeof INSTANCE_TABLES)[number];
 export type BookTable = Exclude<keyof Schema, InstanceTable>;
 export const isBookTable = (t: string): t is BookTable => !(INSTANCE_TABLES as readonly string[]).includes(t) && !t.startsWith("kysely_");

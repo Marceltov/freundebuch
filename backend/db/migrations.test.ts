@@ -198,3 +198,17 @@ test("REFS matches the schema's references between book tables", async () => {
   }
   expect(found).toEqual(REFS);
 });
+
+test("003 makes invitations an instance table with a unique token", async () => {
+  expect(INSTANCE_TABLES).toContain("invitations");
+  const d = await fresh();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "U", created_at: 0 }).execute();
+  await d.insertInto("books").values({ id: "b", name: "1", created_by: "u", created_at: 0 }).execute();
+  const invite = (id: string) =>
+    d.insertInto("invitations").values({ id, book_id: "b", token_hash: "h", role: "member", created_by: "u", created_at: 0, expires_at: 1 }).execute();
+  await invite("i1");
+  await expect(invite("i2")).rejects.toThrow(/UNIQUE constraint failed/);
+  await expect(
+    d.insertInto("invitations").values({ id: "i3", book_id: "b", token_hash: "h3", role: "owner", created_by: "u", created_at: 0, expires_at: 1 }).execute(),
+  ).rejects.toThrow(/CHECK constraint failed/);
+});
