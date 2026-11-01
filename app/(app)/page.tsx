@@ -7,6 +7,7 @@ import { GroupFilter } from "@/components/GroupFilter";
 import { Nudges } from "@/components/Nudges";
 import { Orbit } from "@/components/Orbit";
 import { pageViewer } from "./viewer";
+import { withBookName } from "@/components/bookName";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export default async function OrbitPage({ searchParams }: PageProps<"/">) {
           </ul>
         </section>
       )}
-      <Nudges items={dueItems.filter((i) => i.kind === "situation")} />
+      <Nudges items={withBookName(dueItems, v.books.length > 1).filter((i) => i.kind === "situation")} />
     </>
   );
 }

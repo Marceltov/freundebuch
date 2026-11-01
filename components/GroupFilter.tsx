@@ -33,7 +33,7 @@ export function GroupFilter({ groups, current }: { groups: { id: string; ids?: s
     // A group remembered before the books merged is a group's id: it finds the group of its name.
     const last = read();
     const g = last && groups.find((x) => x.id === last || x.ids?.includes(last));
-    if (g) router.replace(`/?gruppe=${g.id}`);
+    if (g) router.replace(`/?gruppe=${encodeURIComponent(g.id)}`);
   }, [current, groups, router]);
 
   const chip = (on: boolean) =>
@@ -46,7 +46,7 @@ export function GroupFilter({ groups, current }: { groups: { id: string; ids?: s
       {groups.map((g) => (
         <Link
           key={g.id}
-          href={current === g.id ? "/" : `/?gruppe=${g.id}`}
+          href={current === g.id ? "/" : `/?gruppe=${encodeURIComponent(g.id)}`}
           onClick={() => current === g.id && write(null)}
           aria-current={current === g.id ? "true" : undefined}
           className={chip(current === g.id)}

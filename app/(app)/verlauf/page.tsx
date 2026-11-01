@@ -8,6 +8,7 @@ import { HistorySearch } from "@/components/HistorySearch";
 import { BookMark } from "@/components/BookMark";
 import { KIND_ICON } from "@/components/icons";
 import { pageCopy, pageViewer } from "../viewer";
+import { withBookName } from "@/components/bookName";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
       </div>
       {rambles.length > 0 && <HistorySearch query={query} />}
       {query ? (
-        <Hits query={query} hits={(await searchAcross(v, query)).map((h) => ({ ...h, bookName: several ? h.book.name : undefined }))} />
+        <Hits query={query} hits={withBookName(await searchAcross(v, query), several)} />
       ) : (
         <>
           {rambles.length === 0 && <p className="mt-6 rounded-2xl bg-surface p-4 shadow-card">{copy.nothingFiled}</p>}

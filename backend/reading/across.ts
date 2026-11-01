@@ -121,12 +121,18 @@ export async function orbitAcross(v: Viewer, group?: string, now = Date.now()): 
   );
 }
 
-/** What is due in every book, in whatsDue's order; the same date or nudge about a co-member once. */
+/** What is due in every book, in whatsDue's order; the same date or nudge about a co-member in a later book is left out, while
+ * two alike in one book both stay, as whatsDue gives them. */
 export async function dueAcross(v: Viewer, from = today(), horizonDays = 14): Promise<InBook<DueItem>[]> {
   const [items, users] = await Promise.all([acrossBooks(v, (w) => whatsDue(w, from, horizonDays)), memberUsers(v)]);
-  const once = onceEach(items, (d) => {
+  const firstIn = new Map<string, string>(); // a co-member's item → the book it was first seen in
+  const once = items.filter((d) => {
     const user = users.get(d.personId);
-    return user && d.kind !== "session" ? `${user}|${d.kind}|${d.date ?? ""}|${d.text ?? ""}` : `${d.book.id}|${d.kind}|${d.itemId ?? d.personId}`;
+    if (!user || d.kind === "session") return true;
+    const key = `${user}|${d.kind}|${d.date ?? ""}|${d.text ?? ""}`;
+    const seen = firstIn.get(key);
+    if (seen === undefined) firstIn.set(key, d.book.id);
+    return seen === undefined || seen === d.book.id;
   });
   return once.sort(compareDue);
 }

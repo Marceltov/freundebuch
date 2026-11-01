@@ -10,6 +10,7 @@ import { Nudges } from "@/components/Nudges";
 import { ago, every, longDay, shortDay } from "@/components/format";
 import { Section } from "@/components/Tiles";
 import { pageCopy, pageViewer } from "../viewer";
+import { withBookName } from "@/components/bookName";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,7 @@ export default async function SoonPage() {
   const v = await pageViewer();
   const copy = getCopy();
   const now = today();
-  const several = v.books.length > 1;
-  const items = (await dueAcross(v)).map((i) => ({ ...i, bookName: several ? i.book.name : undefined }));
+  const items = withBookName(await dueAcross(v), v.books.length > 1);
   const mark = (i: { bookName?: string }) => i.bookName && <BookMark name={i.bookName} />;
   const dates = items.filter((i) => i.kind === "date");
   const promises = items.filter((i) => i.kind === "promise");

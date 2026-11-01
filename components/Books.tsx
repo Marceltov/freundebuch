@@ -6,6 +6,7 @@ import { useState } from "react";
 import type { Role } from "@/backend";
 import { CopyField } from "@/components/CopyButton";
 import { useCopy } from "@/components/i18n";
+import type { Copy } from "@/components/copy";
 import { shortDay } from "@/components/format";
 
 export type BookRow = { id: string; name: string; role: Role; members: { id: string; name: string; role: Role }[] };
@@ -25,6 +26,11 @@ export function memberActions(b: BookRow, me: string, m: Member) {
   return { remove: owner ? m.role !== "owner" : b.role === "admin" && m.role === "member", role: owner, handOver: owner };
 }
 
+/** What a failed action shows: the copy for a role that doesn't allow it, a book that is gone, else that it didn't work. */
+export function failureText(copy: Copy, status: number | null): string {
+  return status === 403 ? copy.notYourRole : status === 404 ? copy.bookGone : copy.actionFailed;
+}
+
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 // Einstellungen → Bücher: each of the viewer's books with its members and their roles, its open invitations, and what the
@@ -42,8 +48,7 @@ export function Books({ books, invitations, me }: { books: BookRow[]; invitation
       ...(body !== undefined && { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
     }).catch(() => null);
     if (!res?.ok) {
-      const text = res ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : null;
-      setError(text ?? copy.actionFailed);
+      setError(failureText(copy, res?.status ?? null));
       return null;
     }
     setError(null);

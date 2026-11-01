@@ -50,3 +50,13 @@ test("the section shows each book with its members and the buttons the role allo
   expect(card("Verein")).not.toContain("Einladen");
   expect(card("Unser Buch")).toContain("Besitzer");
 });
+
+test("a failed action says so in the user's words, not the server's", async () => {
+  const { failureText } = await import("./Books");
+  const { copyFor } = await import("./copy");
+  const de = copyFor("de");
+  expect(failureText(de, 403)).toBe(de.notYourRole);
+  expect(failureText(de, 404)).toBe(de.bookGone);
+  expect(failureText(de, 400)).toBe(de.actionFailed);
+  expect(failureText(de, null)).toBe(de.actionFailed);
+});

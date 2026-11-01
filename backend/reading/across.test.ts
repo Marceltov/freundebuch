@@ -11,6 +11,7 @@ import { instance } from "../db/scope";
 import { viewerIn } from "../people/books";
 import { remember } from "../conversations/conversations";
 import { orbit } from "../people/orbit";
+import { compareDue } from "./due";
 import { dueAcross, groupIdsFor, groupsAcross, memberUsers, orbitAcross, peopleAcross, ramblesAcross, searchAcross } from "./across";
 
 beforeEach(resetDbForTests);
@@ -115,4 +116,18 @@ test("A's private items never show in B's merged lists", async () => {
   expect(await searchAcross(s.b, "divorce")).toEqual([]);
   expect((await ramblesAcross(s.b)).map((r) => r.id)).not.toContain(s.coffee);
   expect(JSON.stringify(await ramblesAcross(s.b))).not.toContain("divorce");
+});
+
+test("within one book, two promises alike both stay due", async () => {
+  const s = await seed();
+  await remember(s.b, {
+    visibility: "shared",
+    promises: [
+      { person: s.a.personId, text: "Brot holen", due: "2026-11-03", byMe: true },
+      { person: s.a.personId, text: "Brot holen", due: "2026-11-03", byMe: true },
+    ],
+  });
+  const due = (await dueAcross(s.b, "2026-11-01")).filter((d) => d.kind === "promise");
+  expect(due).toHaveLength(2);
+  expect(compareDue(due[0], due[1])).toBe(0);
 });
