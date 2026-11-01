@@ -23,7 +23,7 @@ import {
   type Viewer,
   type Visibility,
 } from "../core/types";
-import { dropBlobs, takeFiles } from "./files";
+import { dropBlobs, moveFiles, takeFiles } from "./files";
 import { resolveOrCreateGroup } from "../people/groups";
 import { isHouseholdWord, memberPersons, resolvePairs, type Target } from "../people/household";
 import { conversationPath, groupPath, itemPath, journalPath, personPath, type AnchoredTable } from "../core/urls";
@@ -671,6 +671,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
 
   // The shared files it was told from: their transcripts join the ramble's, and the files go once it has committed.
   let blobs: string[] = [];
+  await moveFiles(v, r.fileIds ?? []);
   const recorded = await (
     await scope(v)
   ).transaction(async (tx) => {

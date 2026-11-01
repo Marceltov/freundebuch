@@ -456,6 +456,25 @@ export async function takeFiles(tx: Scope, v: Viewer, ids: string[]): Promise<{ 
   return { transcripts: transcripts.filter(Boolean), blobs: rows.map((r) => r.blob_key) };
 }
 
+/**
+ * Brings the user's waiting files into the viewer's book, from whichever of their books they wait in (a shared file lands in the
+ * oldest), so a ramble filed in another book can take them. Files that aren't the user's waiting ones stay where they are.
+ */
+export async function moveFiles(v: Viewer, ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const all = await viewerById(v.userId);
+  if (!all) return;
+  await (
+    await scope(all)
+  )
+    .update("files")
+    .set({ book_id: v.bookId })
+    .where("id", "in", [...new Set(ids)])
+    .where("user_id", "=", v.userId)
+    .where("status", "in", ["reading", "pending", "failed"])
+    .execute();
+}
+
 /** Deletes blobs whose rows are gone; a failure leaves a stray blob, never a broken row. */
 export async function dropBlobs(keys: string[]): Promise<void> {
   for (const k of keys)

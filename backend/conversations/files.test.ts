@@ -27,7 +27,8 @@ import {
   shareFile,
   viewerFromShareKey,
 } from "./files";
-import { seed, type Seed } from "../testing/fixtures";
+import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
+import { getConversation, recordConversation } from "./conversations";
 
 const dir = mkdtempSync(join(tmpdir(), "fb-shots-"));
 let s: Seed;
@@ -425,4 +426,26 @@ test("a voice note that can't be transcribed fails saying so; one Claude couldn'
   } finally {
     setTranscriberForTests(null);
   }
+});
+
+test("a shared file waits in the oldest book and is filed into Arbeit", async () => {
+  const w = await seedWorkBook(s);
+  const f = await shareFile(w.a, new TextEncoder().encode("Chefin: Launch am Montag"), "text/plain");
+  await unchecked()
+    .updateTable("files")
+    .set({ status: "pending", reading: JSON.stringify({ summary: "s", transcript: "Chefin: Launch am Montag", people: [] }) })
+    .where("id", "=", f.id)
+    .execute();
+  expect((await listPending(s.a)).map((x) => x.id)).toEqual([f.id]);
+  const c = await recordConversation(w.work, {
+    date: "2026-10-30",
+    kind: "message",
+    summary: "Launch date",
+    transcript: "Message from the boss.",
+    visibility: "shared",
+    fileIds: [f.id],
+    people: [{ id: w.boss, present: true }],
+  });
+  expect((await getConversation(w.work, c.conversationId)).transcript).toContain("Chefin: Launch am Montag");
+  expect(await fileContent(w.a, f.id)).toBeNull();
 });
