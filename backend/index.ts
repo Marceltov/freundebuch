@@ -21,6 +21,7 @@ export { briefing, type Briefing } from "./reading/briefing";
 export { getConversation, hasRecorded, listConversations, type ConversationSummary, type ConversationView } from "./conversations/conversations";
 export { whatsDue, type DueItem } from "./reading/due";
 export { looks } from "./people/looks";
+export { inBook, inBookOf, listBooks, type BookRef } from "./people/books";
 export { getPerson, peopleOverview, type PersonOverview } from "./people/people";
 export { markMatches, search, type SearchHit } from "./reading/search";
 export { traitsFor, type PersonTraits, type Traits } from "./people/traits";

@@ -7,6 +7,24 @@ export type InstanceTable = (typeof INSTANCE_TABLES)[number];
 export type BookTable = Exclude<keyof Schema, InstanceTable>;
 export const isBookTable = (t: string): t is BookTable => !(INSTANCE_TABLES as readonly string[]).includes(t) && !t.startsWith("kysely_");
 
+/** The book tables whose rows have an id of their own: what an id a tool is given can be. */
+export const KEYED_TABLES = [
+  "rambles",
+  "places",
+  "series",
+  "experiences",
+  "conversations",
+  "persons",
+  "journal_entries",
+  "files",
+  "facts",
+  "promises",
+  "dates",
+  "exchanges",
+  "relationships",
+  "groups",
+] as const satisfies readonly BookTable[];
+
 /** The name a book's own group starts with. */
 export const HOUSEHOLD_GROUP = "Haushalt";
 

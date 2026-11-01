@@ -2,7 +2,7 @@ import { sql, type Kysely } from "kysely";
 import { expect, test } from "vitest";
 import { connect } from "./connect";
 import { MIGRATION_NAMES, NEWER, migrate, migrateTo } from "./migrations";
-import { INSTANCE_TABLES } from "./tables";
+import { INSTANCE_TABLES, KEYED_TABLES } from "./tables";
 import { now } from "./index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -177,4 +177,14 @@ test("002 moves a calendar key to the member row of the user's oldest book", asy
   const cols = (await sql<{ name: string }>`select name from pragma_table_info('user_settings')`.execute(d)).rows.map((c) => c.name);
   expect(cols).not.toContain("calendar_key_hash");
   expect(await d.selectFrom("user_settings").select("webhook_url").executeTakeFirst()).toEqual({ webhook_url: "https://x" });
+});
+
+test("KEYED_TABLES are the book tables with an id of their own", async () => {
+  const d = await fresh();
+  const keyed: string[] = [];
+  for (const t of await bookTables(d)) {
+    const cols = (await sql<{ name: string; pk: number }>`select name, pk from pragma_table_info(${t})`.execute(d)).rows;
+    if (cols.some((c) => c.name === "id" && c.pk === 1)) keyed.push(t);
+  }
+  expect(keyed.sort()).toEqual([...KEYED_TABLES].sort());
 });
