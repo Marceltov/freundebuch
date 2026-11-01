@@ -39,6 +39,7 @@ items:
     summary: Every list shows all your books as one, each entry marked with its book; your books, their members, roles and invitations in Einstellungen; moving someone into another book from their page.
     links:
       - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
+      - { label: "#119", url: "https://github.com/Marceltov/freundebuch/pull/119" }
       - { label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first" }
 
   - id: households
