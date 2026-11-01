@@ -28,7 +28,8 @@ import {
 import { whatsDue } from "../reading/due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../people/groups";
 import { InvalidInputError } from "../core/errors";
-import { bookRef, inBook, inBookOf } from "../people/books";
+import { bookRef, inBook, inBookOf, listBooks, newBook } from "../people/books";
+import { movePeople } from "../people/moves";
 import { isId } from "../db";
 import {
   BriefingJson,
@@ -83,7 +84,7 @@ import {
 import { discardFiles, fileContent, isAudio, listPending } from "../conversations/files";
 import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "../people/people";
 import { addRelationship, addToGroup } from "../people/relationships";
-import { EXCHANGE_KINDS, FACT_CATEGORIES, isTrait, type TraitKind, type Viewer } from "../core/types";
+import { EXCHANGE_KINDS, FACT_CATEGORIES, ROLES, isTrait, type TraitKind, type Viewer } from "../core/types";
 import { conversationPath, personPath } from "../core/urls";
 
 export type Tool = {
@@ -116,7 +117,8 @@ const ok = <S extends z.ZodType>(_schema: S, body: z.input<S>, next: Next = []) 
 // Which book a call runs in. `create`: the book the call names (`book`), the ids it gives must be in it. `one`: the book of the
 // ids it gives, or the user's only book. `each`: the book of the ids it gives, else every book, the result grouped by book.
 // `user`: the book of the ids it gives, else the user as they are (what the call reaches is the user's, not a book's).
-type BookRule = "create" | "one" | "each" | "user";
+// `books`: the user as they are, whatever ids it gives: the call is about the books themselves.
+type BookRule = "create" | "one" | "each" | "user" | "books";
 
 const BookJson = z.object({ id: z.string(), name: z.string() }).describe("The book it is in");
 const BOOK_INPUT = z
@@ -136,6 +138,7 @@ function idsIn(x: unknown, key?: string): string[] {
 }
 
 async function bookOfCall(v: Viewer, rule: BookRule, args: Record<string, unknown>): Promise<Viewer | null> {
+  if (rule === "books") return null;
   const ids = idsIn(args);
   if (rule !== "create") return (await inBookOf(v, ids)) ?? (rule === "one" ? inBook(v) : null);
   const w = await inBook(v, args.book as string | undefined);
@@ -158,7 +161,7 @@ function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
   attach?: Tool["attach"];
 }): Tool {
   const input = t.books === "create" ? t.input.extend({ book: BOOK_INPUT }) : t.input;
-  const inBookOut = t.output.extend({ book: t.books === "user" ? BookJson.optional() : BookJson });
+  const inBookOut = t.books === "books" ? t.output : t.output.extend({ book: t.books === "user" ? BookJson.optional() : BookJson });
   const output =
     t.books === "each"
       ? z.object({ books: z.array(t.output.extend({ book: BookJson })).describe("The result in each of the user's books, oldest first"), next: Next })
@@ -187,7 +190,7 @@ function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
       const out = await t.handler(w ?? v, args);
       const book = w ? await bookRef(w.bookId) : undefined;
       const next = book && writes && v.books.length > 1 ? [...out.next, `Say that it went to the book ${book.name}.`] : out.next;
-      return output.parse({ ...out, book, next }) as Record<string, unknown>;
+      return output.parse({ ...out, ...(book && { book }), next }) as Record<string, unknown>;
     },
     ...(t.attach ? { attach: t.attach } : {}),
   };
@@ -700,6 +703,32 @@ const RememberedJson = z.object({
   people: z.array(z.object({ id: PersonId, name: z.string(), url: z.string() })).describe("The people it is about, with a link to each"),
   filed: Filed.describe("Everything filed, with ids and links"),
   relabel: Relabels.describe("genders: the relationships the user may edit of each person given a gender, whose words are written in each end's gender"),
+});
+
+const BooksJson = z.object({
+  books: z
+    .array(z.object({ id: z.string(), name: z.string(), role: z.enum(ROLES), members: z.array(z.string()).describe("Who is in it, by name") }))
+    .optional()
+    .describe("list: the user's books, oldest first"),
+  created: BookJson.optional().describe("create: the new book"),
+});
+const MovedJson = z.object({
+  book: BookJson.describe("The book they are in now"),
+  people: z
+    .array(
+      z.object({
+        from: z.string().describe("The old id"),
+        id: z.string(),
+        name: z.string(),
+        url: z.string(),
+        remains: z.boolean().describe("Whether something of another member's stays behind in the old book with them"),
+      }),
+    )
+    .describe("Who moved, with the new links"),
+  moved: z.record(z.string(), z.number()).describe("How many of each kind moved"),
+  stayed: z
+    .record(z.string(), z.number())
+    .describe("What the user may see that stayed behind, by kind: relationships to people who stay, conversations with them"),
 });
 
 export const TOOLS: readonly Tool[] = [
@@ -1317,6 +1346,46 @@ export const TOOLS: readonly Tool[] = [
           }))
         : { ...(await rambleTranscript(v, rambleId!)), conversationId: null };
       return ok(TranscriptJson, t, t.transcript === null ? ["The transcript is private to whoever recorded it: answer from the summary instead."] : []);
+    },
+  }),
+  tool({
+    name: "books",
+    description:
+      "The user's books: the household's, one of their own for work, and so on. list: each book with the user's role and its members. create: a new book of the user's own, with a name (e.g. Arbeit); they are its owner and its only member. Books never see into each other.",
+    input: z.object({
+      action: z.enum(["list", "create"]),
+      name: z.string().optional().describe("create: the new book's name"),
+    }),
+    output: BooksJson,
+    annotations: { destructiveHint: false },
+    books: "books",
+    handler: async (v, a) => {
+      if (a.action === "list") return ok(BooksJson, { books: await listBooks(v) });
+      if (!a.name) throw new InvalidInputError("create needs a name");
+      const created = await newBook(v, a.name);
+      return ok(BooksJson, { created }, [`Tell the user the book ${created.name} is there. From now on name the book whenever you file something.`]);
+    },
+  }),
+  tool({
+    name: "move",
+    description:
+      "Move people into another of the user's books (e.g. work contacts from the household's book into Arbeit), with what the user may see about them: their facts, dates, promises, exchanges, groups, homes, the relationships whose other end comes along or is the user, and the conversations, experiences and journal entries everyone in them comes along to. What another member keeps private stays behind in the old book with a remaining entry for the person. Moved people get new links. Moving takes them out of the other members' sight: confirm with the user first, naming the people and the book.",
+    input: z.object({
+      people: z.array(PersonId).optional().describe("The people to move, as find_person returns them"),
+      group: z.string().optional().describe("Or a group by name: everyone in it moves"),
+      to: z.string().describe("The book to move them into, by name, as books lists them"),
+    }),
+    output: MovedJson,
+    annotations: { destructiveHint: true },
+    books: "books",
+    handler: async (v, a) => {
+      if (!a.people?.length === !a.group) throw new InvalidInputError("Give either people or a group");
+      const r = await movePeople(v, a.people?.length ? a.people : { group: a.group! }, a.to);
+      return ok(MovedJson, r, [
+        `Read back who moved into ${r.book.name}, with their new links; the old links don't work any more.`,
+        ...(r.people.some((p) => p.remains) ? ["Say that what other members keep private about them stayed behind in the old book."] : []),
+        ...(Object.keys(r.stayed).length ? ["Say what stayed behind because it is about people who stay (relationships, conversations with them)."] : []),
+      ]);
     },
   }),
 ];

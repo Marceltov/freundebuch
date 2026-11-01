@@ -7,6 +7,7 @@ import { fileContent, shareFile } from "../conversations/files";
 import { addDays, today } from "../people/dates";
 import { unchecked } from "../db/testing";
 import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
+import { remember } from "../conversations/conversations";
 import { inBookOf } from "../people/books";
 import { scope } from "../db/scope";
 import { asRamble } from "../testing/fixtures";
@@ -21,6 +22,7 @@ beforeEach(async () => {
 test("one table holds every tool the MCP endpoint offers", () => {
   expect(TOOLS.map((t) => t.name).sort()).toEqual([
     "birthday_message",
+    "books",
     "briefing",
     "calendar_feed",
     "cards",
@@ -31,6 +33,7 @@ test("one table holds every tool the MCP endpoint offers", () => {
     "groups",
     "inbox",
     "journal",
+    "move",
     "people",
     "places",
     "record",
@@ -788,5 +791,27 @@ describe("tools run in a book", () => {
     const fact = await (await scope(w.work)).from("facts").select("id").where("person_id", "=", w.boss).executeTakeFirstOrThrow();
     const r = await run(w.a, "correct", { action: "outdated", id: fact.id });
     expect(r.book).toEqual({ id: w.work.bookId, name: "Arbeit" });
+  });
+});
+
+describe("books and move", () => {
+  test("books lists and creates", async () => {
+    const list = await toolByName("books")!.run(s.a, { action: "list" });
+    expect(list.books).toEqual([{ id: s.a.bookId, name: "Unser Buch", role: "owner", members: ["Alice", "Bob"] }]);
+    const made = await toolByName("books")!.run(s.a, { action: "create", name: "Arbeit" });
+    expect(made.created).toEqual({ id: expect.any(String), name: "Arbeit" });
+    expect((made.next as string[]).join(" ")).toContain("name the book");
+    await expect(toolByName("books")!.run(s.a, { action: "create" })).rejects.toThrow(/name/);
+  });
+
+  test("move moves and gives the new links", async () => {
+    const w = await seedWorkBook(s);
+    await remember(s.b, { visibility: "private", facts: [{ person: s.lena, text: "owes me a book", category: "other" }] });
+    const r = (await toolByName("move")!.run(w.a, { people: [s.lena], to: "Arbeit" })) as Json;
+    expect(r.book).toEqual({ id: w.work.bookId, name: "Arbeit" });
+    expect(r.people[0]).toMatchObject({ name: "Lena", remains: true, url: expect.stringContaining("/p/") });
+    expect((r.next as string[]).join(" ")).toContain("stayed behind");
+    expect(toolByName("move")!.annotations.destructiveHint).toBe(true);
+    await expect(toolByName("move")!.run(w.a, { to: "Arbeit" })).rejects.toThrow();
   });
 });
