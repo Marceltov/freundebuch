@@ -292,3 +292,16 @@ describe("missed sessions", () => {
     expect(sent.map((m) => m.title).join()).not.toContain("Hundeschule");
   });
 });
+
+test("the daily message names the book of each item when there are two", async () => {
+  const { seedWorkBook } = await import("../testing/fixtures");
+  const { remember } = await import("../conversations/conversations");
+  const w = await seedWorkBook(s);
+  await remember(w.work, { visibility: "shared", dates: [{ person: w.boss, kind: "birthday", date: "--10-24", yearly: true }] });
+  await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+  await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
+  await runDaily(NOW, fetchFn);
+  const titles = (end: string) => sent.filter((m) => m.url.endsWith(end)).map((m) => m.title);
+  expect(titles("/a")).toEqual(expect.arrayContaining(["Unser Buch · 🎂 Tom hat morgen Geburtstag", "Arbeit · 🎂 Chefin hat morgen Geburtstag"]));
+  expect(titles("/b").join()).not.toContain("·");
+});

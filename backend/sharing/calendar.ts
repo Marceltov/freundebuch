@@ -3,7 +3,7 @@
 // secret URL per book and member (ADR 0008). Only the key's hash is stored; the feed is read as its user, through `visible`, so the partner's
 // private items are never in it, not even as a busy slot.
 import { instance, scope } from "../db/scope";
-import { viewerIn } from "../people/books";
+import { bookRef, viewerIn } from "../people/books";
 import { createHash, randomBytes } from "node:crypto";
 import { ageOn, nextOccurrence, today } from "../people/dates";
 import { notifyCopy } from "../notify/copy";
@@ -125,7 +125,7 @@ export async function calendarFeed(v: Viewer, base: string, now = Date.now()): P
     "PRODID:-//freundebuch//DE",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    `X-WR-CALNAME:${text(copy.calendarName)}`,
+    `X-WR-CALNAME:${text(fill(copy.calendarName, { book: (await bookRef(v.bookId)).name }))}`,
     "REFRESH-INTERVAL;VALUE=DURATION:PT4H",
     "X-PUBLISHED-TTL:PT4H",
     ...events.flatMap((e) => [
