@@ -38,7 +38,10 @@ test("moving a person to Arbeit opens them there with its book mark", async ({ p
   await page.goto("/leute");
   await page.getByRole("link", { name: /Nachbar Nils/ }).click();
   const old = page.url();
-  await page.getByRole("button", { name: /Mehr zu Nachbar Nils|Nachbar Nils/ }).last().click();
+  await page
+    .getByRole("button", { name: /Mehr zu Nachbar Nils|Nachbar Nils/ })
+    .last()
+    .click();
   await page.getByLabel("In ein anderes Buch").selectOption({ label: "Arbeit" });
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "In ein anderes Buch: Arbeit" }).click();
