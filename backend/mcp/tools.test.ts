@@ -6,7 +6,9 @@ import { SITUATION_DAYS } from "../conversations/conversations";
 import { fileContent, shareFile } from "../conversations/files";
 import { addDays, today } from "../people/dates";
 import { unchecked } from "../db/testing";
-import { seed, type Seed } from "../testing/fixtures";
+import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
+import { inBookOf } from "../people/books";
+import { scope } from "../db/scope";
 import { asRamble } from "../testing/fixtures";
 import { TOOLS, toolByName } from "./tools";
 
@@ -42,7 +44,7 @@ test("one table holds every tool the MCP endpoint offers", () => {
 });
 
 test("a tool runs as the viewer and answers with paths, not absolute urls", async () => {
-  const r = (await toolByName("find_person")!.run(s.a, { name: "Anna" })) as { people: { url: string }[] };
+  const r = (await run(s.a, "find_person", { name: "Anna" })) as { people: { url: string }[] };
   expect(r.people[0].url).toBe(`/p/${s.anna}`);
   expect(toolByName("nope")).toBeUndefined();
 });
@@ -60,7 +62,15 @@ test("the descriptions tell Claude to file roles in words, to agree a situation'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the tests read tool results by shape, which the output schemas check
 type Json = any;
-const run = async (v: Seed["a"], name: string, args: object): Promise<Json> => toolByName(name)!.run(v, args);
+// A tool that reads every book answers grouped by book, and every other one names its book; for a viewer with one book, the
+// tests read the one group, without the book.
+const run = async (v: Seed["a"], name: string, args: object): Promise<Json> => {
+  const r = await toolByName(name)!.run(v, args);
+  const books = r.books as Json[] | undefined;
+  if (v.books.length > 1) return r;
+  const { book, ...rest } = books?.length === 1 ? { ...books[0], next: r.next } : r; // eslint-disable-line @typescript-eslint/no-unused-vars
+  return rest;
+};
 const factId = async (text: string) => (await unchecked().selectFrom("facts").select("id").where("text", "=", text).executeTakeFirstOrThrow()).id;
 const SIX_WEEKS = () => addDays(today(), SITUATION_DAYS);
 const lunch = (over: object = {}) => ({
@@ -721,5 +731,62 @@ describe("missed sessions over MCP", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("tools run in a book", () => {
+  let w: Awaited<ReturnType<typeof seedWorkBook>>;
+  beforeEach(async () => {
+    w = await seedWorkBook(s);
+  });
+  const ramble = (people: object[], book?: string) => ({
+    ...(book ? { book } : {}),
+    date: "2026-10-30",
+    transcript: "Lunch with Jana from the client.",
+    visibility: "shared",
+    conversations: [{ kind: "in_person", summary: "Lunch with Jana.", present: [0] }],
+    people,
+  });
+
+  test("record without a book fails for a user with two books, naming them", async () => {
+    await expect(run(w.a, "record", ramble([{ name: "Jana" }]))).rejects.toThrow(/Unser Buch, Arbeit/);
+  });
+
+  test("record with book Arbeit files there and says so", async () => {
+    const r = await run(w.a, "record", ramble([{ name: "Jana" }], "Arbeit"));
+    expect(r.book).toEqual({ id: w.work.bookId, name: "Arbeit" });
+    expect(r.next).toContain("Say that it went to the book Arbeit.");
+    const jana = (r.people as { id: string }[])[0].id;
+    expect((await inBookOf(w.a, [jana]))?.bookId).toBe(w.work.bookId);
+  });
+
+  test("record into one book with a person of the other is refused with the person's book", async () => {
+    await expect(run(w.a, "record", ramble([{ id: w.boss }], "Unser Buch"))).rejects.toThrow(/in the book Arbeit, not Unser Buch/);
+  });
+
+  test("briefing of a person reads that person's book", async () => {
+    const r = await run(w.a, "briefing", { personId: w.lena2 });
+    expect(r.book).toEqual({ id: w.work.bookId, name: "Arbeit" });
+    expect(JSON.stringify(r)).toContain("leads the launch");
+    expect(JSON.stringify(r)).not.toContain("thinking about quitting");
+    expect(r.next).not.toContain("Say that it went to the book Arbeit.");
+  });
+
+  test("find_person and whats_due read every book, grouped by book", async () => {
+    const r = (await run(w.a, "find_person", { name: "Lena" })) as { books: { book: { name: string }; people: { id: string }[] }[] };
+    expect(r.books.map((b) => [b.book.name, b.people.map((p) => p.id)])).toEqual([
+      ["Unser Buch", [s.lena]],
+      ["Arbeit", [w.lena2]],
+    ]);
+    const b = (await toolByName("find_person")!.run(s.b, { name: "Lena" })) as { books: { book: { name: string } }[] };
+    expect(b.books.map((x) => x.book.name)).toEqual(["Unser Buch"]);
+    const due = (await run(w.a, "whats_due", {})) as { books: { book: { name: string } }[] };
+    expect(due.books.map((x) => x.book.name)).toEqual(["Unser Buch", "Arbeit"]);
+  });
+
+  test("correct on an item takes the item's book", async () => {
+    const fact = await (await scope(w.work)).from("facts").select("id").where("person_id", "=", w.boss).executeTakeFirstOrThrow();
+    const r = await run(w.a, "correct", { action: "outdated", id: fact.id });
+    expect(r.book).toEqual({ id: w.work.bookId, name: "Arbeit" });
   });
 });

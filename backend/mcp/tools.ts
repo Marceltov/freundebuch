@@ -28,6 +28,7 @@ import {
 import { whatsDue } from "../reading/due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../people/groups";
 import { InvalidInputError } from "../core/errors";
+import { bookRef, inBook, inBookOf } from "../people/books";
 import {
   BriefingJson,
   CalendarFeedJson,
@@ -111,24 +112,82 @@ type Next = string[];
 // A handler's result, typed by its output schema, with its `next`; `tool` parses it.
 const ok = <S extends z.ZodType>(_schema: S, body: z.input<S>, next: Next = []) => ({ ...(body as object), next }) as z.input<S> & { next: Next };
 
+// Which book a call runs in. `create`: the book the call names (`book`), the ids it gives must be in it. `one`: the book of the
+// ids it gives, or the user's only book. `each`: the book of the ids it gives, else every book, the result grouped by book.
+// `user`: the book of the ids it gives, else the user as they are (what the call reaches is the user's, not a book's).
+type BookRule = "create" | "one" | "each" | "user";
+
+const BookJson = z.object({ id: z.string(), name: z.string() }).describe("The book it is in");
+const BOOK_INPUT = z
+  .string()
+  .optional()
+  .describe(
+    "The book to file into, by name, as books lists them. Leave it out only when the user has one book; with several, pick the one from what was said (a client, a colleague, the conference → the work book), say which, and ask when unsure",
+  );
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Every id in a call's arguments, wherever it sits; files wait in any book and move with the call (fileIds). */
+function idsIn(x: unknown, key?: string): string[] {
+  if (key === "fileIds") return [];
+  if (typeof x === "string") return UUID.test(x) ? [x] : [];
+  if (Array.isArray(x)) return x.flatMap((y) => idsIn(y, key));
+  if (x && typeof x === "object") return Object.entries(x).flatMap(([k, y]) => idsIn(y, k));
+  return [];
+}
+
+async function bookOfCall(v: Viewer, rule: BookRule, args: Record<string, unknown>): Promise<Viewer | null> {
+  const ids = idsIn(args);
+  if (rule !== "create") return (await inBookOf(v, ids)) ?? (rule === "one" ? inBook(v) : null);
+  const w = await inBook(v, args.book as string | undefined);
+  const at = await inBookOf(v, ids);
+  if (at && at.bookId !== w.bookId) {
+    const [there, here] = await Promise.all([bookRef(at.bookId), bookRef(w.bookId)]);
+    throw new InvalidInputError(`What this call names is in the book ${there.name}, not ${here.name}: file it there, or move it first`);
+  }
+  return w;
+}
+
 function tool<I extends z.ZodObject, O extends z.ZodObject>(t: {
   name: string;
   description: string;
   input: I;
   output: O;
   annotations: Tool["annotations"];
+  books: BookRule;
   handler: (v: Viewer, args: z.output<I>) => Promise<z.input<O> & { next: Next }>;
   attach?: Tool["attach"];
 }): Tool {
-  const output = t.output.extend({ next: Next });
+  const input = t.books === "create" ? t.input.extend({ book: BOOK_INPUT }) : t.input;
+  const inBookOut = t.output.extend({ book: t.books === "user" ? BookJson.optional() : BookJson });
+  const output =
+    t.books === "each"
+      ? z.object({ books: z.array(t.output.extend({ book: BookJson })).describe("The result in each of the user's books, oldest first"), next: Next })
+      : inBookOut.extend({ next: Next });
+  const writes = !t.annotations.readOnlyHint;
   return {
     name: t.name,
     description: t.description,
-    input: t.input,
+    input,
     output,
     annotations: t.annotations,
-    async run(v, args) {
-      return output.parse(await t.handler(v, check(t.input, args))) as Record<string, unknown>;
+    async run(v, raw) {
+      const args = check(input, raw) as z.output<I>;
+      const w = await bookOfCall(v, t.books, args as Record<string, unknown>);
+      if (t.books === "each") {
+        const viewers = w ? [w] : await Promise.all(v.books.map(async (b) => (await inBook(v, b))!));
+        const books = [];
+        const next: Next = [];
+        for (const x of viewers) {
+          const { next: n, ...body } = await t.handler(x, args);
+          books.push({ ...body, book: await bookRef(x.bookId) });
+          for (const line of n) if (!next.includes(line)) next.push(line);
+        }
+        return output.parse({ books, next }) as Record<string, unknown>;
+      }
+      const out = await t.handler(w ?? v, args);
+      const book = w ? await bookRef(w.bookId) : undefined;
+      const next = book && writes && v.books.length > 1 ? [...out.next, `Say that it went to the book ${book.name}.`] : out.next;
+      return output.parse({ ...out, book, next }) as Record<string, unknown>;
     },
     ...(t.attach ? { attach: t.attach } : {}),
   };
@@ -651,6 +710,7 @@ export const TOOLS: readonly Tool[] = [
     input: NewRamble,
     output: RecordedRamble,
     annotations: { destructiveHint: false },
+    books: "create",
     handler: async (v, r) => {
       const out = await record(v, r);
       const journal = out.journal.length
@@ -686,6 +746,7 @@ export const TOOLS: readonly Tool[] = [
     input: RememberInput,
     output: RememberedJson,
     annotations: { destructiveHint: false },
+    books: "one",
     handler: async (v, r) => {
       const out = await remember(v, r);
       // A relationship between two people given a gender is listed once; `next` still names each end's word.
@@ -711,6 +772,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: FoundJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v, { name }) => {
       const people = await findPeople(v, name);
       return ok(FoundJson, { people }, foundNext(name, people));
@@ -725,6 +787,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: PeopleJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v, { withoutGroup }) => {
       const [all, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
       const named = new Map(groups.map((g) => [g.id, g.name]));
@@ -745,6 +808,7 @@ export const TOOLS: readonly Tool[] = [
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },
+    books: "one",
     handler: async (v, { personId }) => {
       const b = await briefing(v, personId);
       return ok(BriefingOut, b, briefingNext(b));
@@ -760,6 +824,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: TraitsJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v, q) => {
       const people = await traitsFor(v, q);
       return ok(TraitsJson, { people }, needsNext(people));
@@ -776,6 +841,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: InboxJson,
     annotations: { destructiveHint: true },
+    books: "each",
     handler: async (v, { action, id, ids }) => {
       if (action === "list") {
         const files = await listPending(v);
@@ -818,7 +884,7 @@ export const TOOLS: readonly Tool[] = [
       return ok(InboxJson, { done: true });
     },
     attach: async (v, out) => {
-      const files = (out.files ?? []) as Array<{ id: string }>;
+      const files = ((out.books ?? []) as Array<{ files?: { id: string }[] }>).flatMap((b) => b.files ?? []);
       const all = await Promise.all(files.map(async (f) => ({ id: f.id, ...(await fileContent(v, f.id)) })));
       // A voice note is its transcript, in the list: an MCP client can't hand audio to its model.
       return all.filter((f): f is Attachment => !!f.bytes && f.bytes.byteLength <= MAX_ATTACH && !isAudio(f.type!));
@@ -835,6 +901,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: JournalJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v, q) => {
       const entries = await journalEntries(v, q);
       return ok(
@@ -858,6 +925,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: SearchJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v, { query, limit }) => {
       const hits = await search(v, query, limit);
       return ok(
@@ -878,6 +946,7 @@ export const TOOLS: readonly Tool[] = [
     input: ExperienceQuery,
     output: ExperiencesJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v, q) => {
       const [experiences, kinds, series] = await Promise.all([listExperiences(v, q), experienceKinds(v), listSeries(v)]);
       return ok(
@@ -900,6 +969,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: z.object({ places: z.array(PlaceHit).describe("name: best match first; person: newest first") }),
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v, { name, person, inside }) => {
       if ([name, person, inside].filter((x) => x !== undefined).length !== 1) throw new InvalidInputError("Give exactly one of name, person or inside");
       const places = name !== undefined ? await findPlaces(v, name) : person !== undefined ? await placesOf(v, person) : await placesInside(v, inside!);
@@ -922,6 +992,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: DueJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v, { from, horizonDays }) => {
       const items = await whatsDue(v, from, horizonDays);
       return ok(DueJson, { items }, [
@@ -939,6 +1010,7 @@ export const TOOLS: readonly Tool[] = [
     input: RelateInput,
     output: RelatedJson,
     annotations: { destructiveHint: false },
+    books: "one",
     handler: async (v, input) => {
       const a = check(RelateArgs, input);
       if (a.kind === "group") {
@@ -970,6 +1042,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: BirthdayMessageJson,
     annotations: { readOnlyHint: true },
+    books: "one",
     handler: async (v, { personId, text }) => {
       const m = await birthdayMessage(v, personId, text);
       if (m.send.length)
@@ -994,6 +1067,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: SetIntervalJson,
     annotations: { destructiveHint: false, idempotentHint: true },
+    books: "one",
     handler: async (v, { personId, days, confirmed }) => {
       await setCheckInInterval(v, personId, days, confirmed);
       return ok(SetIntervalJson, {
@@ -1017,6 +1091,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: CardsJson,
     annotations: { destructiveHint: true },
+    books: "user",
     handler: async (v, { action, label, card, personId, url }) => {
       if (action === "mine") {
         const mine = await ownCards(v);
@@ -1072,6 +1147,7 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: CalendarFeed,
     annotations: { destructiveHint: true },
+    books: "create",
     handler: async (v, { action }) => {
       if (action === "revoke") {
         await revokeCalendarKey(v);
@@ -1095,6 +1171,7 @@ export const TOOLS: readonly Tool[] = [
     input: CorrectInput,
     output: CorrectedJson,
     annotations: { destructiveHint: true },
+    books: "one",
     handler: async (v, input) => {
       const a = check(CorrectArgs, input);
       const corrected = true as const;
@@ -1217,6 +1294,7 @@ export const TOOLS: readonly Tool[] = [
     input: z.object({}),
     output: GroupsJson,
     annotations: { readOnlyHint: true },
+    books: "each",
     handler: async (v) => ok(GroupsJson, { groups: await listGroups(v) }),
   }),
   tool({
@@ -1226,6 +1304,7 @@ export const TOOLS: readonly Tool[] = [
     input: z.object({ conversationId: ConversationId.optional(), rambleId: RambleId.optional() }),
     output: TranscriptJson,
     annotations: { readOnlyHint: true },
+    books: "one",
     handler: async (v, { conversationId, rambleId }) => {
       if (!conversationId && !rambleId) throw new InvalidInputError("Give conversationId or rambleId");
       const t = conversationId

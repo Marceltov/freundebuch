@@ -60,8 +60,17 @@ async function rpc(as: Viewer | null, method: string, params: Record<string, unk
     }),
   );
 }
-const call = async (as: Viewer, tool: string, args: Record<string, unknown>): Promise<Json> =>
-  (await (await rpc(as, "tools/call", { name: tool, arguments: args })).json()).result;
+// A tool that reads every book answers grouped by book, and every other one names its book; for a viewer with one book, the
+// tests read the one group, without the book.
+const call = async (as: Viewer, tool: string, args: Record<string, unknown>): Promise<Json> => {
+  const result = (await (await rpc(as, "tools/call", { name: tool, arguments: args })).json()).result;
+  const sc = result?.structuredContent;
+  if (as.books.length === 1 && sc) {
+    const { book, ...rest } = sc.books?.length === 1 ? { ...sc.books[0], next: sc.next } : sc; // eslint-disable-line @typescript-eslint/no-unused-vars
+    result.structuredContent = rest;
+  }
+  return result;
+};
 
 const ramble = (over: object = {}) => ({
   date: "2026-10-22",
@@ -212,7 +221,7 @@ describe("tools", () => {
     const r = await call(s.a, "record", asRamble(ramble()));
     expect(r.isError).toBeUndefined();
     expect(r.structuredContent).toMatchObject({ people: [{ ref: 0, id: s.anna, name: "Anna", created: false }], counts: { facts: 2 } });
-    expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
+    expect(JSON.parse(r.content[0].text)).toEqual({ ...r.structuredContent, book: { id: s.a.bookId, name: "Unser Buch" } });
   });
 
   test("a result's filed items link absolutely, and next reaches clients that read only text", async () => {
@@ -544,4 +553,5 @@ test("the instructions say what to do with a file pasted into the conversation",
   const { INSTRUCTIONS } = await import("./mcp");
   expect(INSTRUCTIONS).toContain("write out what it shows");
   expect(INSTRUCTIONS).toContain("only their transcripts are kept");
+  expect(INSTRUCTIONS).toContain("several books");
 });
