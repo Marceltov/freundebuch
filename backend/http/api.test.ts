@@ -641,3 +641,66 @@ test("an admin makes an invitation over REST; a member can't", async () => {
   await unchecked().updateTable("members").set({ role: "member" }).where("user_id", "=", s.b.userId).execute();
   expect((await call(s.b, "POST", "/invitations", { role: "member" })).status).toBe(403);
 });
+
+describe("books over REST", () => {
+  test("GET /books lists both books with roles", async () => {
+    await seedWorkBook(s);
+    const r = await call(s.a, "GET", "/books");
+    expect(r.status).toBe(200);
+    expect(r.json.map((b: Json) => [b.name, b.role])).toEqual([
+      ["Unser Buch", "owner"],
+      ["Arbeit", "owner"],
+    ]);
+    expect(r.json[0].members.map((m: Json) => m.role)).toEqual(["owner", "admin"]);
+  });
+
+  test("an admin can't invite an admin over REST: 403", async () => {
+    expect((await call(s.b, "POST", `/books/${s.b.bookId}/invitations`, { role: "admin" })).status).toBe(403);
+    const r = await call(s.b, "POST", `/books/${s.b.bookId}/invitations`, { role: "member" });
+    expect(r.status).toBe(201);
+    const open = await call(s.b, "GET", `/books/${s.b.bookId}/invitations`);
+    expect(open.json.map((i: Json) => i.id)).toEqual([r.json.id]);
+    expect((await call(s.b, "DELETE", `/books/${s.b.bookId}/invitations/${r.json.id}`)).status).toBe(204);
+    expect((await call(s.b, "GET", `/books/${s.b.bookId}/invitations`)).json).toEqual([]);
+  });
+
+  test("leave your only book: 400", async () => {
+    expect((await call(s.b, "POST", `/books/${s.b.bookId}/leave`)).status).toBe(400);
+  });
+
+  test("a new book, renamed, then deleted", async () => {
+    const made = await call(s.a, "POST", "/books", { name: "Verein" });
+    expect(made.status).toBe(201);
+    expect((await call(s.a, "PATCH", `/books/${made.json.id}`, { name: "Sportverein" })).status).toBe(204);
+    expect((await call(s.a, "GET", "/books")).json.map((b: Json) => b.name)).toContain("Sportverein");
+    expect((await call(s.a, "DELETE", `/books/${made.json.id}`)).status).toBe(204);
+    expect((await call(s.a, "GET", "/books")).json.map((b: Json) => b.name)).toEqual(["Unser Buch"]);
+  });
+
+  test("roles, removal and handing over by the owner", async () => {
+    expect((await call(s.a, "PATCH", `/books/${s.a.bookId}/members/${s.b.userId}`, { role: "member" })).status).toBe(204);
+    expect((await call(s.a, "GET", "/books")).json[0].members[1].role).toBe("member");
+    expect((await call(s.b, "POST", `/books/${s.b.bookId}/owner`, { userId: s.b.userId })).status).toBe(403);
+    expect((await call(s.a, "POST", `/books/${s.a.bookId}/owner`, { userId: s.b.userId })).status).toBe(204);
+    expect((await call(s.a, "GET", "/books")).json[0].role).toBe("admin");
+    expect((await call(s.b, "DELETE", `/books/${s.b.bookId}/members/${s.a.userId}`)).status).toBe(204);
+  });
+
+  test("POST /people/{id}/move moves Tom into Arbeit and answers the new id", async () => {
+    await seedWorkBook(s);
+    const books = (await call(s.a, "GET", "/books")).json;
+    const r = await call(s.a, "POST", `/people/${s.tom}/move`, { to: "Arbeit" });
+    expect(r.status).toBe(200);
+    expect(r.json.people[0].from).toBe(s.tom);
+    expect(r.json.people[0].id).not.toBe(s.tom);
+    const there = await call(s.a, "GET", `/people/${r.json.people[0].id}`);
+    expect(there.status).toBe(200);
+    expect(books[1].name).toBe("Arbeit");
+  });
+
+  test("a book id of someone else's book: 404", async () => {
+    const { c } = await (await import("../testing/fixtures")).seedOtherBook();
+    expect((await call(s.a, "PATCH", `/books/${c.bookId}`, { name: "Mine" })).status).toBe(404);
+    expect((await call(s.a, "GET", `/books/${c.bookId}/invitations`)).status).toBe(404);
+  });
+});
