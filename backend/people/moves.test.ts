@@ -124,3 +124,40 @@ test("a conversation at Büro finds Arbeit's Büro", async () => {
   const [lunch] = await inWork("conversations", (q) => q.where("summary", "=", "Lunch with Lena at the office."));
   expect(lunch.place_id).toBe(places[0].id);
 });
+
+test("a transcript that tells of someone who stays doesn't move; what moves loses the link", async () => {
+  await recordConversation(s.b, {
+    date: "2026-10-24",
+    kind: "in_person",
+    summary: "Talk with Tom and Anna.",
+    transcript: "Talk with Tom and Anna. Anna told us a secret about her health.",
+    visibility: "shared",
+    people: [
+      { id: s.tom, present: true },
+      { id: s.anna, present: true },
+    ],
+    facts: [{ person: 0, text: "plays chess", category: "hobby" }],
+  });
+  const r = await movePeople(w.a, [s.tom], "Arbeit");
+  const rambles = await (await scope(w.work)).from("rambles").select("transcript").execute();
+  expect(JSON.stringify(rambles)).not.toContain("health");
+  expect(JSON.stringify(rambles)).not.toContain("Luigi");
+  const [chess] = await inWork("facts", (q) => q.where("text", "=", "plays chess"));
+  expect(chess).toMatchObject({ person_id: r.people[0].id, conversation_id: null, ramble_id: null });
+});
+
+test("a journal entry that stays leaves no transcript behind in the other book", async () => {
+  const before = (await (await scope(w.work)).from("rambles").select("id").execute()).length;
+  const { record } = await import("../conversations/conversations");
+  await record(s.a, {
+    date: "2026-10-25",
+    transcript: "Ich habe an Lena und Tom gedacht.",
+    visibility: "shared",
+    people: [{ id: s.lena }, { id: s.tom }],
+    journal: [{ text: "Gedanken an Lena und Tom", mentions: [0, 1], shared: true }],
+  } as never);
+  const r = await movePeople(w.a, [s.lena], "Arbeit");
+  const after = await (await scope(w.work)).from("rambles").select("transcript").execute();
+  expect(JSON.stringify(after)).not.toContain("an Lena und Tom");
+  expect(after.length - before).toBe(r.moved.rambles ?? 0);
+});

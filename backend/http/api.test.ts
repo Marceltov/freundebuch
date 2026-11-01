@@ -599,3 +599,11 @@ test("a REST call on an Arbeit person works, and lists show the oldest book unle
   expect((await call(s.a, "GET", "/people?book=Nope")).status).toBe(404);
   expect((await call(s.b, "GET", `/people/${w.boss}`)).status).toBe(404);
 });
+
+test("a group made from an Arbeit person's page with ?book lands in Arbeit and takes the person", async () => {
+  const w = await seedWorkBook(s);
+  const g = await call(s.a, "POST", `/groups?book=${w.work.bookId}`, { name: "Launch-Team" });
+  expect(g.status).toBe(201);
+  expect((await call(s.a, "PUT", `/groups/${g.json.id}/members/${w.boss}`)).status).toBe(204);
+  expect(JSON.stringify((await call(s.a, "GET", "/groups")).json)).not.toContain("Launch-Team");
+});

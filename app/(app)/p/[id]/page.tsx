@@ -23,6 +23,7 @@ export default async function PersonPage({ params }: PageProps<"/p/[id]">) {
       others={others}
       today={today()}
       viewerPersonId={v.personId}
+      bookId={v.bookId}
       chat={chatEnabled()}
     />
   );

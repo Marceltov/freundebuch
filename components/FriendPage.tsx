@@ -55,6 +55,7 @@ export function FriendPage({
   others = [],
   today,
   viewerPersonId = "",
+  bookId,
   chat = false,
 }: {
   b: Briefing;
@@ -63,6 +64,8 @@ export function FriendPage({
   others?: { id: string; name: string }[];
   today?: string;
   viewerPersonId?: string;
+  /** The book the person is in. */
+  bookId?: string;
   /** Whether the in-app chat is on, which drafts birthday wishes. */
   chat?: boolean;
 }) {
@@ -170,7 +173,7 @@ export function FriendPage({
                 )}
               </Chip>
             ))}
-            <GroupPicker personId={b.person.id} personName={b.person.name} groups={allGroups} member={b.groups.map((g) => g.id)} />
+            <GroupPicker personId={b.person.id} personName={b.person.name} groups={allGroups} member={b.groups.map((g) => g.id)} bookId={bookId} />
           </div>
         </div>
       </header>

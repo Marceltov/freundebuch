@@ -810,8 +810,43 @@ describe("books and move", () => {
     const r = (await toolByName("move")!.run(w.a, { people: [s.lena], to: "Arbeit" })) as Json;
     expect(r.book).toEqual({ id: w.work.bookId, name: "Arbeit" });
     expect(r.people[0]).toMatchObject({ name: "Lena", remains: true, url: expect.stringContaining("/p/") });
-    expect((r.next as string[]).join(" ")).toContain("stayed behind");
+    expect((r.next as string[]).join(" ")).toContain("stays in the old book");
     expect(toolByName("move")!.annotations.destructiveHint).toBe(true);
     await expect(toolByName("move")!.run(w.a, { to: "Arbeit" })).rejects.toThrow();
+  });
+});
+
+describe("review fixes", () => {
+  test("find_person's next looks across every book", async () => {
+    const w = await seedWorkBook(s);
+    const find = async (name: string) => ((await toolByName("find_person")!.run(w.a, { name })).next as string[]).join(" ");
+    expect(await find("Chefin")).not.toContain("No one");
+    expect(await find("Anna")).not.toContain("No one");
+    const lena = await find("Lena");
+    expect(lena).toContain("2 people match");
+    expect(lena).toContain("in Arbeit");
+    expect(lena).toContain("in Unser Buch");
+    expect(await find("Zacharias")).toContain("No one in any of the user's books");
+  });
+
+  test("a list tool says nothing is there only when no book has anything", async () => {
+    const w = await seedWorkBook(s);
+    const next = ((await toolByName("search")!.run(w.a, { query: "launch" })).next as string[]).join(" ");
+    expect(next).not.toContain("Nothing holds");
+  });
+
+  test("remember about the user's own person runs in that person's book", async () => {
+    const w = await seedWorkBook(s);
+    const r = await toolByName("remember")!.run(w.a, { visibility: "shared", facts: [{ person: w.work.personId, text: "leads the team", category: "work" }] });
+    expect(r.book).toEqual({ id: w.work.bookId, name: "Arbeit" });
+    expect(toolByName("remember")!.input.shape).not.toHaveProperty("book");
+  });
+
+  test("move doesn't claim what another member keeps private", async () => {
+    const w = await seedWorkBook(s);
+    await remember(s.b, { visibility: "private", facts: [{ person: s.lena, text: "owes me a book", category: "other" }] });
+    const r = await toolByName("move")!.run(w.a, { people: [s.lena], to: "Arbeit" });
+    expect(JSON.stringify(r.next)).not.toMatch(/private/i);
+    expect(JSON.stringify(toolByName("move")!.output.toJSONSchema())).not.toMatch(/another member/i);
   });
 });

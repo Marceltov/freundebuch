@@ -132,16 +132,112 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
       );
     return series.get(id)!;
   };
-  // A transcript goes where a part of it goes; one the mover may not see stays, and what came from it loses the link.
+  // Whether everyone in it other than the members moves too, so it can come along.
+  const comesAlong = (people: string[]) => people.every((p) => moving.has(p) || isMember.has(p));
+  const peopleIn = async (
+    table: "experience_people" | "participants" | "journal_mentions",
+    column: "experience_id" | "conversation_id" | "entry_id",
+    id: string,
+  ) =>
+    (
+      (await from
+        .from(table)
+        .select("person_id")
+        .where(column as never, "=", id as never)
+        .execute()) as { person_id: string }[]
+    ).map((r) => r.person_id);
+
+  // ---- what would move ----------------------------------------------------------------------------------------------------
+  const expIds = (await from.from("experience_people").select("experience_id").where("person_id", "in", ids).execute()).map((r) => r.experience_id);
+  let experiences = [];
+  for (const e of expIds.length ? await visible(from.from("experiences").selectAll().where("id", "in", expIds), v, "experiences").execute() : []) {
+    const people = await peopleIn("experience_people", "experience_id", e.id);
+    if (comesAlong(people)) experiences.push({ row: e, people });
+  }
+  const convIds = (await from.from("participants").select("conversation_id").where("person_id", "in", ids).execute()).map((r) => r.conversation_id);
+  let conversations = [];
+  for (const c of convIds.length ? await visible(from.from("conversations").selectAll().where("id", "in", convIds), v, "conversations").execute() : []) {
+    const people = await peopleIn("participants", "conversation_id", c.id);
+    if (comesAlong(people)) conversations.push({ row: c, people });
+  }
+  const entryIds = (await from.from("journal_mentions").select("entry_id").where("person_id", "in", ids).execute()).map((r) => r.entry_id);
+  let entries = [];
+  for (const j of entryIds.length ? await visible(from.from("journal_entries").selectAll().where("id", "in", entryIds), v, "journal_entries").execute() : []) {
+    const people = await peopleIn("journal_mentions", "entry_id", j.id);
+    if (comesAlong(people)) entries.push({ row: j, people });
+  }
+  const items = {
+    facts: await visible(from.from("facts").selectAll().where("person_id", "in", ids), v, "facts").execute(),
+    promises: await visible(from.from("promises").selectAll().where("person_id", "in", ids), v, "promises").execute(),
+    dates: await visible(from.from("dates").selectAll().where("person_id", "in", ids), v, "dates").execute(),
+    exchanges: await visible(from.from("exchanges").selectAll().where("person_id", "in", ids), v, "exchanges").execute(),
+  };
+  const rels = (
+    await visible(
+      from
+        .from("relationships")
+        .selectAll()
+        .where((eb) => eb.or([eb("from_id", "in", ids), eb("to_id", "in", ids)])),
+      v,
+      "relationships",
+    ).execute()
+  ).filter((r) => personThere(r.from_id) && personThere(r.to_id));
+  const memberships = await visible(from.from("group_members").selectAll().where("person_id", "in", ids), v, "group_members").execute();
+  const homes = await visible(from.from("place_owners").selectAll().where("person_id", "in", ids), v, "place_owners").execute();
+
+  // ---- which transcripts move ---------------------------------------------------------------------------------------------
+  // A transcript moves only when everything filed from it moves too, so nothing it tells of people who stay reaches the other
+  // book. What moves without its transcript loses the link to it, as it loses a conversation that stays; a conversation, an
+  // experience or a journal entry can't be without one, so it stays.
+  const keyed = new Set<string>([
+    ...[...experiences, ...conversations, ...entries].map((x) => x.row.id),
+    ...Object.values(items).flatMap((rows) => rows.map((r) => r.id)),
+    ...rels.map((r) => r.id),
+  ]);
+  const seen = (r: { visibility: string; recorded_by: string }) => r.visibility === "shared" || r.recorded_by === v.userId;
+  const movesToo = (r: Record<string, unknown>) =>
+    typeof r.id === "string" ? keyed.has(r.id) : moving.has(r.person_id as string) && seen(r as { visibility: string; recorded_by: string });
+  const holders = Object.entries(REFS).flatMap(([t, cols]) =>
+    Object.entries(cols as Record<string, string>).flatMap(([col, target]) => (target === "rambles" ? [[t as BookTable, col] as const] : [])),
+  );
+  const candidates = new Set(
+    [
+      ...[...experiences, ...conversations, ...entries].map((x) => x.row.ramble_id),
+      ...Object.values(items).flatMap((rows) => rows.map((r) => r.ramble_id)),
+      ...rels.map((r) => r.ramble_id),
+      ...memberships.map((m) => m.ramble_id),
+      ...homes.map((h) => h.ramble_id),
+    ].filter((r): r is string => !!r),
+  );
+  const movable = new Set<string>();
+  for (const r of candidates) {
+    if (!(await visible(from.from("rambles").select("id").where("id", "=", r), v, "rambles").executeTakeFirst())) continue;
+    let all = true;
+    for (const [t, col] of holders) {
+      const rows = (await from
+        .from(t)
+        .selectAll()
+        .where(col as never, "=", r as never)
+        .execute()) as Record<string, unknown>[];
+      if (!rows.every(movesToo)) {
+        all = false;
+        break;
+      }
+    }
+    if (all) movable.add(r);
+  }
+  experiences = experiences.filter((x) => movable.has(x.row.ramble_id));
+  conversations = conversations.filter((x) => movable.has(x.row.ramble_id));
+  entries = entries.filter((x) => movable.has(x.row.ramble_id));
+
   const rambles = new Map<string, Promise<string | null>>();
   const rambleThere = (id: string | null): Promise<string | null> => {
-    if (!id) return Promise.resolve(null);
+    if (!id || !movable.has(id)) return Promise.resolve(null);
     if (!rambles.has(id))
       rambles.set(
         id,
         (async () => {
-          const r = await visible(from.from("rambles").selectAll().where("id", "=", id), v, "rambles").executeTakeFirst();
-          if (!r) return null;
+          const r = await from.from("rambles").selectAll().where("id", "=", id).executeTakeFirstOrThrow();
           const copy = newId();
           map.set(id, copy);
           await into.insert("rambles", { ...unbooked(r), id: copy }).execute();
@@ -151,22 +247,15 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
       );
     return rambles.get(id)!;
   };
-  // Whether everyone in it other than the members moves too, so it can come along.
-  const comesAlong = (people: string[]) => people.every((p) => moving.has(p) || isMember.has(p));
 
   // ---- experiences, conversations and journal entries that come along -----------------------------------------------------
-  const movedExperiences: string[] = [];
-  const expIds = (await from.from("experience_people").select("experience_id").where("person_id", "in", ids).execute()).map((r) => r.experience_id);
-  for (const e of expIds.length ? await visible(from.from("experiences").selectAll().where("id", "in", expIds), v, "experiences").execute() : []) {
-    const people = (await from.from("experience_people").select("person_id").where("experience_id", "=", e.id).execute()).map((r) => r.person_id);
-    const ramble = await rambleThere(e.ramble_id);
-    if (!comesAlong(people) || !ramble) continue;
+  for (const { row: e, people } of experiences) {
     map.set(e.id, newId());
     await into
       .insert("experiences", {
         ...unbooked(e),
         id: map.get(e.id)!,
-        ramble_id: ramble,
+        ramble_id: (await rambleThere(e.ramble_id))!,
         series_id: await seriesThere(e.series_id),
         place_id: await placeThere(e.place_id),
       })
@@ -174,43 +263,30 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
     for (const p of people.flatMap((x) => personThere(x) ?? []))
       await into.insert("experience_people", { experience_id: map.get(e.id)!, person_id: p }).execute();
     count("experiences");
-    movedExperiences.push(e.id);
   }
-
-  const movedConversations: string[] = [];
-  const convIds = (await from.from("participants").select("conversation_id").where("person_id", "in", ids).execute()).map((r) => r.conversation_id);
-  for (const c of convIds.length ? await visible(from.from("conversations").selectAll().where("id", "in", convIds), v, "conversations").execute() : []) {
-    const people = (await from.from("participants").select("person_id").where("conversation_id", "=", c.id).execute()).map((r) => r.person_id);
-    if (!comesAlong(people)) continue;
-    const ramble = await rambleThere(c.ramble_id);
-    if (!ramble) continue;
+  for (const { row: c, people } of conversations) {
     map.set(c.id, newId());
     await into
       .insert("conversations", {
         ...unbooked(c),
         id: map.get(c.id)!,
-        ramble_id: ramble,
+        ramble_id: (await rambleThere(c.ramble_id))!,
         place_id: await placeThere(c.place_id),
         experience_id: c.experience_id ? (map.get(c.experience_id) ?? null) : null,
       })
       .execute();
     for (const p of people.flatMap((x) => personThere(x) ?? [])) await into.insert("participants", { conversation_id: map.get(c.id)!, person_id: p }).execute();
     count("conversations");
-    movedConversations.push(c.id);
   }
-
-  const movedEntries: string[] = [];
-  const entryIds = (await from.from("journal_mentions").select("entry_id").where("person_id", "in", ids).execute()).map((r) => r.entry_id);
-  for (const j of entryIds.length ? await visible(from.from("journal_entries").selectAll().where("id", "in", entryIds), v, "journal_entries").execute() : []) {
-    const people = (await from.from("journal_mentions").select("person_id").where("entry_id", "=", j.id).execute()).map((r) => r.person_id);
-    const ramble = await rambleThere(j.ramble_id);
-    if (!comesAlong(people) || !ramble) continue;
+  for (const { row: j, people } of entries) {
     map.set(j.id, newId());
-    await into.insert("journal_entries", { ...unbooked(j), id: map.get(j.id)!, ramble_id: ramble }).execute();
+    await into.insert("journal_entries", { ...unbooked(j), id: map.get(j.id)!, ramble_id: (await rambleThere(j.ramble_id))! }).execute();
     for (const p of people.flatMap((x) => personThere(x) ?? [])) await into.insert("journal_mentions", { entry_id: map.get(j.id)!, person_id: p }).execute();
     count("journal_entries");
-    movedEntries.push(j.id);
   }
+  const movedExperiences = experiences.map((x) => x.row.id);
+  const movedConversations = conversations.map((x) => x.row.id);
+  const movedEntries = entries.map((x) => x.row.id);
 
   // ---- items, relationships, memberships, homes ---------------------------------------------------------------------------
   const links = async (r: { conversation_id: string | null; ramble_id: string | null }) => ({
@@ -219,11 +295,11 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
   });
   const movedItems: Record<string, string[]> = {};
   for (const table of ITEM_TABLES) {
-    const rows = await visible(from.from(table).selectAll().where("person_id", "in", ids), v, table).execute();
+    const rows = items[table];
     for (const r of rows) {
       map.set(r.id, newId());
       const row = { ...unbooked(r), id: map.get(r.id)!, person_id: map.get(r.person_id)!, ...(await links(r)) };
-      await into.insert(table, table === "facts" ? { ...row, file_id: null, superseded_by: null } : row).execute();
+      await into.insert(table, (table === "facts" ? { ...row, file_id: null, superseded_by: null } : row) as never).execute();
     }
     count(table, rows.length);
     movedItems[table] = rows.map((r) => r.id);
@@ -236,25 +312,16 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
         .where("id", "=", map.get(f.id)!)
         .execute();
 
-  const rels = await visible(
-    from
-      .from("relationships")
-      .selectAll()
-      .where((eb) => eb.or([eb("from_id", "in", ids), eb("to_id", "in", ids)])),
-    v,
-    "relationships",
-  ).execute();
   const movedRels: string[] = [];
   for (const r of rels) {
-    const [a, b] = [personThere(r.from_id), personThere(r.to_id)];
-    if (!a || !b) continue;
     map.set(r.id, newId());
-    await into.insert("relationships", { ...unbooked(r), id: map.get(r.id)!, from_id: a, to_id: b, ...(await links(r)) }).execute();
+    await into
+      .insert("relationships", { ...unbooked(r), id: map.get(r.id)!, from_id: personThere(r.from_id)!, to_id: personThere(r.to_id)!, ...(await links(r)) })
+      .execute();
     count("relationships");
     movedRels.push(r.id);
   }
 
-  const memberships = await visible(from.from("group_members").selectAll().where("person_id", "in", ids), v, "group_members").execute();
   const groupsThere = new Map<string, string>();
   for (const m of memberships) {
     if (!groupsThere.has(m.group_id)) groupsThere.set(m.group_id, await groupThere(from, into, m.group_id));
@@ -265,7 +332,6 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
   }
   count("group_members", memberships.length);
 
-  const homes = await visible(from.from("place_owners").selectAll().where("person_id", "in", ids), v, "place_owners").execute();
   for (const h of homes)
     await into
       .insert("place_owners", {
