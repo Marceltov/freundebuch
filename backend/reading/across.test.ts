@@ -7,7 +7,11 @@ import { addToGroup } from "../people/relationships";
 import { listGroups } from "../people/groups";
 import { peopleOverview } from "../people/people";
 import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
-import { groupIdsFor, groupsAcross, memberUsers, peopleAcross } from "./across";
+import { instance } from "../db/scope";
+import { viewerIn } from "../people/books";
+import { remember } from "../conversations/conversations";
+import { orbit } from "../people/orbit";
+import { dueAcross, groupIdsFor, groupsAcross, memberUsers, orbitAcross, peopleAcross, ramblesAcross, searchAcross } from "./across";
 
 beforeEach(resetDbForTests);
 
@@ -64,4 +68,51 @@ test("a private membership doesn't count", async () => {
   expect((await groupsAcross(a)).find((g) => g.key === "freunde")!.count).toBe(2);
   // B sees their own private membership.
   expect((await groupsAcross(s.b)).find((g) => g.key === "freunde")!.count).toBe(2);
+});
+
+test("orbit across books holds faces of both, each with its book, at most 24", async () => {
+  const s = await seed();
+  const { a, lena2 } = await seedWorkBook(s);
+  const faces = await orbitAcross(a);
+  expect(faces.find((f) => f.personId === lena2)?.book.name).toBe("Arbeit");
+  expect(faces.find((f) => f.personId === s.anna)?.book.name).toBe("Unser Buch");
+  expect(faces.length).toBeLessThanOrEqual(24);
+  for (const f of faces) expect(f.angle >= 0 && f.angle < 360).toBe(true);
+});
+
+test("a one-book orbit is unchanged", async () => {
+  const s = await seed();
+  const now = Date.parse("2026-10-25T12:00:00Z");
+  expect((await orbitAcross(s.a, undefined, now)).map(({ book: _, ...f }) => f)).toEqual(await orbit(s.a, now)); // eslint-disable-line @typescript-eslint/no-unused-vars
+});
+
+test("orbit filtered by Freunde shows the Freunde of both books", async () => {
+  const s = await seed();
+  const { a, work, lena2 } = await seedWorkBook(s);
+  await addToGroup(s.a, { name: "Freunde", members: [s.anna], visibility: "shared" });
+  await addToGroup(work, { name: "Freunde", members: [lena2], visibility: "shared" });
+  const faces = await orbitAcross(a, "freunde");
+  expect(faces.find((f) => f.personId === s.anna)?.inGroup).toBe(true);
+  expect(faces.find((f) => f.personId === lena2)?.inGroup).toBe(true);
+});
+
+test("a co-member's birthday is one reminder", async () => {
+  const s = await seed();
+  const { a, work } = await seedWorkBook(s);
+  await bInWork(work, s);
+  const bThere = (await viewerIn(await instance(), s.b.userId, work.bookId))!.personId;
+  await remember(s.a, { visibility: "shared", dates: [{ person: s.b.personId, kind: "birthday", date: "--11-05", yearly: true }] });
+  await remember(work, { visibility: "shared", dates: [{ person: bThere, kind: "birthday", date: "--11-05", yearly: true }] });
+  const users = await memberUsers(a);
+  const due = (await dueAcross(a, "2026-11-01")).filter((d) => d.kind === "date" && users.get(d.personId) === s.b.userId);
+  expect(due).toHaveLength(1);
+});
+
+test("A's private items never show in B's merged lists", async () => {
+  const s = await seed();
+  expect((await dueAcross(s.a, "2026-10-23")).map((d) => d.personId)).toContain(s.tom);
+  expect((await dueAcross(s.b, "2026-10-23")).map((d) => d.personId)).not.toContain(s.tom);
+  expect(await searchAcross(s.b, "divorce")).toEqual([]);
+  expect((await ramblesAcross(s.b)).map((r) => r.id)).not.toContain(s.coffee);
+  expect(JSON.stringify(await ramblesAcross(s.b))).not.toContain("divorce");
 });

@@ -5,10 +5,19 @@
 import { instance, scope } from "../db/scope";
 import type { Viewer } from "../core/types";
 import { bookRef, viewerIn, type BookRef } from "../people/books";
-import { listGroups } from "../people/groups";
 import { norm } from "../people/names";
 import { peopleOverview, type PersonOverview } from "../people/people";
 import { visible } from "../visibility";
+import { getGroup, listGroups } from "../people/groups";
+import { layOut, pickFaces, type OrbitFace } from "../people/orbit";
+import { compareDue, whatsDue, type DueItem } from "./due";
+import { today } from "../people/dates";
+import { listRambles, type RambleSummary } from "../conversations/rambles";
+import { search, type SearchHit } from "./search";
+import { journalEntries } from "../journal/journal";
+import { listPending, type PendingFile } from "../conversations/files";
+import { looks } from "../people/looks";
+import type { LookParts } from "../core/types";
 
 export type InBook<T> = T & { book: BookRef };
 
@@ -87,4 +96,66 @@ export async function peopleAcross(v: Viewer): Promise<InBook<PersonOverview>[]>
   return onceEach(people, (p) => users.get(p.id) ?? p.id)
     .map((p) => ({ ...p, groups: [...new Set(p.groups.map((id) => keyOf.get(id)!).filter(Boolean))] }))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+
+const newestFirst = <T extends { date: string | null }>(xs: T[]) => xs.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+
+/** The orbit of every book as one, co-members once; `group`: a merged group's key, or the id of one of its groups. */
+export async function orbitAcross(v: Viewer, group?: string, now = Date.now()): Promise<InBook<OrbitFace>[]> {
+  const [g, users] = await Promise.all([groupIdsFor(v, group), memberUsers(v)]);
+  const all = g ? new Set<string>() : null;
+  const picked = await acrossBooks(v, async (w) => {
+    let members: Set<string> | null = null;
+    if (g) {
+      members = new Set();
+      for (const id of g.ids) {
+        const found = await getGroup(w, id).catch(() => null); // a group of another book isn't found in this one
+        for (const m of found?.members ?? []) members.add(m.personId);
+      }
+      for (const m of members) all!.add(m);
+    }
+    return pickFaces(w, now, members);
+  });
+  return layOut(
+    onceEach(picked, (f) => users.get(f.personId) ?? f.personId),
+    all,
+  );
+}
+
+/** What is due in every book, in whatsDue's order; the same date or nudge about a co-member once. */
+export async function dueAcross(v: Viewer, from = today(), horizonDays = 14): Promise<InBook<DueItem>[]> {
+  const [items, users] = await Promise.all([acrossBooks(v, (w) => whatsDue(w, from, horizonDays)), memberUsers(v)]);
+  const once = onceEach(items, (d) => {
+    const user = users.get(d.personId);
+    return user && d.kind !== "session" ? `${user}|${d.kind}|${d.date ?? ""}|${d.text ?? ""}` : `${d.book.id}|${d.kind}|${d.itemId ?? d.personId}`;
+  });
+  return once.sort(compareDue);
+}
+
+/** Every book's rambles, newest first. */
+export async function ramblesAcross(v: Viewer): Promise<InBook<RambleSummary>[]> {
+  return newestFirst(await acrossBooks(v, listRambles));
+}
+
+/** Search in every book, newest first, at most `limit`. */
+export async function searchAcross(v: Viewer, query: string, limit = 20): Promise<InBook<SearchHit>[]> {
+  return newestFirst(await acrossBooks(v, (w) => search(w, query, limit))).slice(0, limit);
+}
+
+/** The journal of every book, newest first. */
+export async function journalAcross(v: Viewer, q: Parameters<typeof journalEntries>[1]) {
+  return newestFirst(await acrossBooks(v, (w) => journalEntries(w, q)));
+}
+
+/** The user's waiting files in every book, newest first. */
+export async function pendingAcross(v: Viewer): Promise<InBook<PendingFile>[]> {
+  return (await acrossBooks(v, listPending)).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** The faces of every book's people. */
+export async function looksAcross(v: Viewer): Promise<Record<string, LookParts>> {
+  const all: Record<string, LookParts> = {};
+  const i = await instance();
+  for (const id of v.books) Object.assign(all, await looks((await viewerIn(i, v.userId, id))!));
+  return all;
 }
