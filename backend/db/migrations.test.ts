@@ -1,7 +1,7 @@
 import { sql, type Kysely } from "kysely";
 import { expect, test } from "vitest";
 import { connect } from "./connect";
-import { MIGRATION_NAMES, NEWER, migrate } from "./migrations";
+import { MIGRATION_NAMES, NEWER, migrate, migrateTo } from "./migrations";
 import { INSTANCE_TABLES } from "./tables";
 import { now } from "./index";
 
@@ -122,4 +122,59 @@ test("a database from a newer freundebuch stops with NEWER", async () => {
 test("now() never repeats", () => {
   const t = Array.from({ length: 1000 }, () => now());
   for (let i = 1; i < t.length; i++) expect(t[i]).toBeGreaterThan(t[i - 1]);
+});
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function atBaseline(): Promise<Kysely<any>> {
+  const d = await connect(":memory:");
+  await migrateTo(d, "001_baseline");
+  await d
+    .insertInto("users")
+    .values([
+      { id: "a", oidc_sub: "a", name: "A", created_at: 0 },
+      { id: "b", oidc_sub: "b", name: "B", created_at: 0 },
+    ])
+    .execute();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const book = async (id: string, by: string, users: string[], t: number) => {
+    await d.insertInto("books").values({ id, name: id, created_by: by, created_at: t }).execute();
+    for (const u of users) {
+      await d
+        .insertInto("persons")
+        .values({ id: `${id}-${u}`, book_id: id, name: u, created_by: u, created_at: t })
+        .execute();
+      await d
+        .insertInto("members")
+        .values({ book_id: id, user_id: u, person_id: `${id}-${u}`, created_at: t })
+        .execute();
+    }
+  };
+  await book("home", "a", ["a", "b"], 1);
+  await book("work", "a", ["a"], 2);
+  return d;
+}
+
+test("002 makes the book's creator its owner and every other member an admin", async () => {
+  const d = await atBaseline();
+  await migrate(d);
+  const rows = await d.selectFrom("members").select(["book_id", "user_id", "role"]).orderBy("book_id").orderBy("user_id").execute();
+  expect(rows).toEqual([
+    { book_id: "home", user_id: "a", role: "owner" },
+    { book_id: "home", user_id: "b", role: "admin" },
+    { book_id: "work", user_id: "a", role: "owner" },
+  ]);
+});
+
+test("002 moves a calendar key to the member row of the user's oldest book", async () => {
+  const d = await atBaseline();
+  await d.insertInto("user_settings").values({ user_id: "a", webhook_url: "https://x", calendar_key_hash: "h" }).execute();
+  await migrate(d);
+  const keys = await d.selectFrom("members").select(["book_id", "calendar_key_hash"]).where("user_id", "=", "a").orderBy("book_id").execute();
+  expect(keys).toEqual([
+    { book_id: "home", calendar_key_hash: "h" },
+    { book_id: "work", calendar_key_hash: null },
+  ]);
+  const cols = (await sql<{ name: string }>`select name from pragma_table_info('user_settings')`.execute(d)).rows.map((c) => c.name);
+  expect(cols).not.toContain("calendar_key_hash");
+  expect(await d.selectFrom("user_settings").select("webhook_url").executeTakeFirst()).toEqual({ webhook_url: "https://x" });
 });

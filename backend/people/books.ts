@@ -3,15 +3,15 @@
 import { newId, now } from "../db";
 import type { InstanceDb } from "../db/scope";
 import { HOUSEHOLD_GROUP, SEEDED_GROUPS } from "../db/tables";
-import type { Viewer } from "../core/types";
+import type { Role, Viewer } from "../core/types";
 import { norm } from "./names";
 
 // The user's person in the book, their member row and their place in Haushalt.
-async function addMember(i: InstanceDb, bookId: string, userId: string, userName: string, householdId: string): Promise<Viewer> {
+async function addMember(i: InstanceDb, bookId: string, userId: string, userName: string, householdId: string, role: Role): Promise<Viewer> {
   const v: Viewer = { userId, personId: newId(), bookId, books: [bookId] };
   const s = i.scope(v);
   await s.insert("persons", { id: v.personId, name: userName, created_by: userId, created_from: null, created_at: now() }).execute();
-  await i.insert("members", { book_id: bookId, user_id: userId, person_id: v.personId, created_at: now() }).execute();
+  await i.insert("members", { book_id: bookId, user_id: userId, person_id: v.personId, created_at: now(), role }).execute();
   await s.insert("group_members", { group_id: householdId, person_id: v.personId, visibility: "shared", recorded_by: userId, conversation_id: null }).execute();
   return v;
 }
@@ -34,14 +34,14 @@ export async function createBook(i: InstanceDb, userId: string, userName: string
       )
       .execute();
   }
-  return addMember(i, bookId, userId, userName, householdId);
+  return addMember(i, bookId, userId, userName, householdId, "owner");
 }
 
-/** Makes the user a member of the book. */
-export async function joinBook(i: InstanceDb, bookId: string, userId: string, userName: string): Promise<Viewer> {
+/** Makes the user a member of the book, in the given role. */
+export async function joinBook(i: InstanceDb, bookId: string, userId: string, userName: string, role: Role): Promise<Viewer> {
   const s = i.scope({ userId, personId: "", bookId, books: [bookId] });
   const household = await s.from("groups").select("id").where("household", "=", 1).executeTakeFirstOrThrow();
-  return addMember(i, bookId, userId, userName, household.id);
+  return addMember(i, bookId, userId, userName, household.id, role);
 }
 
 /** The user as a member of one book, reading and writing only it; null when they aren't in it. */

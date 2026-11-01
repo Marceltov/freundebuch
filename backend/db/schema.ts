@@ -1,7 +1,7 @@
 // The tables, as Kysely sees them. Times are milliseconds since the epoch; booleans are 0/1 integers. An item's `conversation_id`
 // is null when no conversation recorded it.
 import type { ColumnType } from "kysely";
-import type { FactKind } from "../core/types";
+import type { FactKind, Role } from "../core/types";
 
 type Flag = ColumnType<number, number | undefined, number>;
 
@@ -17,8 +17,15 @@ interface Item {
 export interface Schema {
   /** A book: the people, conversations and items its members keep together; nothing in it points into another book. */
   books: { id: string; name: string; created_by: string; created_at: number };
-  /** Who may open a book, and the person who is them in it ("me"). */
-  members: { book_id: string; user_id: string; person_id: string; created_at: number };
+  /** Who may open a book, the person who is them in it ("me"), their role, and their calendar key for it. */
+  members: {
+    book_id: string;
+    user_id: string;
+    person_id: string;
+    created_at: number;
+    role: ColumnType<Role, Role | undefined, Role>;
+    calendar_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
+  };
   users: {
     id: string;
     oidc_sub: string;
@@ -182,7 +189,6 @@ export interface Schema {
     user_id: string;
     webhook_url: string | null;
     share_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
-    calendar_key_hash: ColumnType<string | null, string | null | undefined, string | null>;
     /** The weekly reflection: weekday (0 Sunday … 6 Saturday) and hour, local time; null is off. */
     reflection_day: ColumnType<number | null, number | null | undefined, number | null>;
     reflection_hour: ColumnType<number | null, number | null | undefined, number | null>;

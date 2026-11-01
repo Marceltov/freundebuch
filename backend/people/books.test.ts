@@ -67,3 +67,13 @@ test("a user as a member of one book reads only that book", async () => {
   expect((await viewerOf(i, a.userId))?.books).toEqual([a.bookId, other.bookId]);
   expect(await viewerIn(i, a.userId, other.bookId)).toEqual({ userId: a.userId, personId: other.personId, bookId: other.bookId, books: [other.bookId] });
 });
+
+test("createBook makes its maker the owner; who joins through sign-in is an admin", async () => {
+  const a = await userFromOidc({ sub: "a", name: "Alice" });
+  const b = await userFromOidc({ sub: "b", name: "Bob" });
+  const roles = await (await instance()).from("members").select(["user_id", "role"]).where("book_id", "=", a.bookId).orderBy("created_at").execute();
+  expect(roles).toEqual([
+    { user_id: a.userId, role: "owner" },
+    { user_id: b.userId, role: "admin" },
+  ]);
+});

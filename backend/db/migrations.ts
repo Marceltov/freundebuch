@@ -363,6 +363,54 @@ const migrations: Record<string, Migration> = {
       await index("group_members_by_ramble", "group_members", ["ramble_id"]);
     },
   },
+  "002_books": {
+    // A role for each member, and the calendar key per book and member: whoever made a book owns it, everyone else who is in it
+    // already is an admin. A user's key from before is their oldest book's, so a subscribed calendar keeps working.
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("members")
+        .addColumn("role", "text", (c) =>
+          c
+            .notNull()
+            .defaultTo("member")
+            .check(oneOf("role", ["owner", "admin", "member"])),
+        )
+        .execute();
+      await db.schema.alterTable("members").addColumn("calendar_key_hash", "text").execute();
+      await db.schema.createIndex("members_calendar_key").unique().on("members").column("calendar_key_hash").execute();
+      await db.updateTable("members").set({ role: "admin" }).execute();
+      for (const b of await db.selectFrom("books").select(["id", "created_by"]).execute())
+        await db.updateTable("members").set({ role: "owner" }).where("book_id", "=", b.id).where("user_id", "=", b.created_by).execute();
+
+      const members = await db.selectFrom("members").select(["user_id", "book_id"]).orderBy("created_at").orderBy("book_id").execute();
+      const oldest = new Map<string, string>();
+      for (const m of members) if (!oldest.has(m.user_id)) oldest.set(m.user_id, m.book_id);
+      for (const k of await db.selectFrom("user_settings").select(["user_id", "calendar_key_hash"]).where("calendar_key_hash", "is not", null).execute()) {
+        const book = oldest.get(k.user_id);
+        if (book)
+          await db
+            .updateTable("members")
+            .set({ calendar_key_hash: k.calendar_key_hash })
+            .where("user_id", "=", k.user_id)
+            .where("book_id", "=", book)
+            .execute();
+      }
+
+      // SQLite can't drop a UNIQUE column, so user_settings is made again without it.
+      const kept = ["user_id", "webhook_url", "share_key_hash", "reflection_day", "reflection_hour"];
+      await db.schema
+        .createTable("user_settings_new")
+        .addColumn("user_id", "text", (c) => c.primaryKey().references("users.id").onDelete("cascade"))
+        .addColumn("webhook_url", "text")
+        .addColumn("share_key_hash", "text", (c) => c.unique())
+        .addColumn("reflection_day", "integer")
+        .addColumn("reflection_hour", "integer")
+        .execute();
+      await db.insertInto("user_settings_new").columns(kept).expression(db.selectFrom("user_settings").select(kept)).execute();
+      await db.schema.dropTable("user_settings").execute();
+      await db.schema.alterTable("user_settings_new").renameTo("user_settings").execute();
+    },
+  },
 };
 
 /** The migrations themselves, for the Postgres compile test. */
