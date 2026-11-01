@@ -10,15 +10,15 @@
 
 items:
   # ---- open --------------------------------------------------------------------------------------------------------------
-  - id: books-web
+  - id: one-person-across-books
     status: next
     when: Next
-    icon: book-multiple-outline
-    title: Books in the web app
-    summary: Switching between your books on the phone, managing a book's members and invitations, and moving people between books there too. Over MCP all of it works already.
+    icon: account-multiple-check-outline
+    title: One person across your books
+    summary: Anna in your work book and Anna in the household's are the same person, when you say so; Claude asks, and then she is one entry, one page and one birthday for you. The link is yours alone; the other members of either book see nothing of it.
     links:
       - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
-      - { label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first" }
+      - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-the-people-who-keep-it" }
 
   - id: map
     status: later
@@ -31,6 +31,17 @@ items:
       - { label: "V6", url: "https://marceltov.github.io/freundebuch/values/#v6-self-hosting-has-everything" }
 
   # ---- done, newest first ------------------------------------------------------------------------------------------------
+  - id: books-web
+    status: done
+    date: 2026-11-01
+    icon: book-multiple-outline
+    title: Books in the web app
+    summary: Every list shows all your books as one, each entry marked with its book; your books, their members, roles and invitations in Einstellungen; moving someone into another book from their page.
+    links:
+      - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
+      - { label: "#119", url: "https://github.com/Marceltov/freundebuch/pull/119" }
+      - { label: "V7", url: "https://marceltov.github.io/freundebuch/values/#v7-ai-native-claude-first" }
+
   - id: households
     status: done
     date: 2026-11-01

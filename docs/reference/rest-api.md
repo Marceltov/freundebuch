@@ -60,3 +60,7 @@ The same privacy rules apply as everywhere else: a request sees what the token's
 - `GET /api/v1/experiences?from=&to=&kind=&placeId=&seriesId=&personId=` lists experiences, with the kinds and series in use. `GET /api/v1/series/{id}` is a series with its sessions, skipped days and the latest missed one; `GET /api/v1/places/{id}` a place with where it sits, its address, whose home it is, the places inside it and everything at it or inside it; `GET /api/v1/places` takes exactly one of `q` (find by name), `person` (the places of a person, with `times` and `last`) or `inside` (the places inside a place).
 - Experiences and series are changed through `/api/v1/items/experiences/{id}` and `/api/v1/items/series/{id}` like other items (`PATCH` a field or `visibility`, `DELETE`), their recorder only; a series ends with `{ patch: { endsOn } }`. `/due` has items of kind `session`: a missed session day of a series.
 - A conversation has `placeId` next to `place` (the place's name) since 0.5.
+
+## Books
+
+`GET /books` lists the caller's books with their role and the members. `POST /books` makes one. Under `/books/{id}`: `PATCH` renames, `DELETE` deletes, `POST /leave` leaves, `GET` and `POST /invitations` list and make invitations, `DELETE /invitations/{invitationId}` revokes one, `PATCH` and `DELETE /members/{userId}` change a role or remove a member, and `POST /owner` hands the book over. What each role may do is the same as over MCP (`books`). `POST /people/{id}/move` with `{ "to": "<book>" }` moves someone, as `move` does, and answers the new id.

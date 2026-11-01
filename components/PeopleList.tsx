@@ -6,8 +6,10 @@ import { useState } from "react";
 import { useCopy } from "@/components/i18n";
 import { Face } from "@/components/Face";
 import { groupTint } from "@/components/Tiles";
+import { BookMark } from "@/components/BookMark";
 
-export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[] };
+/** `book`: the name of the person's book, only when the user has two or more. */
+export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[]; book?: string };
 
 /** The chip for the people in no group. */
 export const NO_GROUP = "none";
@@ -20,7 +22,7 @@ const fold = (s: string) => s.toLowerCase().normalize("NFKD").replace(/\p{M}/gu,
 
 // Leute: everyone, A to Z under their first letter, with a search over names and nicknames and the group chips to narrow it,
 // the last of them for the people in no group yet.
-export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { id: string; name: string; count: number }[] }) {
+export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { id: string; name: string; count: number; bookName?: string }[] }) {
   const copy = useCopy();
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<string | null>(null);
@@ -56,6 +58,12 @@ export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { 
                 className={`shrink-0 rounded-full px-3 py-1 text-xs ${group === g.id ? "bg-carbon font-bold text-on-carbon" : g.id && g.id !== NO_GROUP ? groupTint(g.id) : "bg-surface-2"}`}
               >
                 {g.name} <span className="tabular-nums opacity-70">{g.count}</span>
+                {"bookName" in g && g.bookName && (
+                  <>
+                    {" "}
+                    <BookMark name={g.bookName} />
+                  </>
+                )}
               </button>
             ),
           )}
@@ -74,7 +82,10 @@ export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { 
                     <Face id={p.id} name={p.name} size={38} />
                     <span className="min-w-0 flex-1">
                       <span className="block font-display text-lg leading-tight font-semibold">{p.name}</span>
-                      <span className="block text-sm text-muted">{p.seen}</span>
+                      <span className="flex items-center gap-1.5 text-sm text-muted">
+                        {p.seen}
+                        {p.book && <BookMark name={p.book} />}
+                      </span>
                     </span>
                   </Link>
                 </li>

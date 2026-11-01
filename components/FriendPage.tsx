@@ -38,6 +38,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { PersonCardBox } from "@/components/Cards";
 import { WishButton } from "@/components/WishButton";
 import { Chip, Section, Tile, groupTint } from "@/components/Tiles";
+import { BookMark } from "@/components/BookMark";
 
 // One friend, as a page of the friendship book: the sticker, the name and who they are to us, the chips (last seen, birthday, interval, dates,
 // groups), then the fields filled in: what's going on (a situation to ask about first), what stays true, what was promised, gift ideas, what's still open, the conversations and
@@ -56,6 +57,10 @@ export function FriendPage({
   today,
   viewerPersonId = "",
   bookId,
+  bookName,
+  books = [],
+  movable = false,
+  stayedIn,
   chat = false,
 }: {
   b: Briefing;
@@ -66,6 +71,14 @@ export function FriendPage({
   viewerPersonId?: string;
   /** The book the person is in. */
   bookId?: string;
+  /** The name of the person's book, when the user has two or more. */
+  bookName?: string;
+  /** Every book of the user's, to move the person into another. */
+  books?: { id: string; name: string }[];
+  /** Whether the person can move: not the user, not a member of the book. */
+  movable?: boolean;
+  /** Right after a move: the old book, where an entry for them stayed too. */
+  stayedIn?: string;
   /** Whether the in-app chat is on, which drafts birthday wishes. */
   chat?: boolean;
 }) {
@@ -101,11 +114,17 @@ export function FriendPage({
   );
   return (
     <article>
+      {stayedIn && books.some((x) => x.name === stayedIn) && (
+        <p role="status" className="mb-3 rounded-2xl bg-surface-2 p-3 text-sm">
+          {copy.movedRemains.replaceAll("{name}", b.person.name).replace("{book}", stayedIn)}
+        </p>
+      )}
       <header>
         <div className="flex items-center gap-4">
           <Face id={b.person.id} name={b.person.name} size={80} ratio={b.freshness.ratio} />
           <div className="min-w-0">
             <h1 className="font-display text-3xl leading-tight font-bold">{b.person.name}</h1>
+            {bookName && <BookMark name={bookName} />}
             {roles && (
               <p data-role-line className="mt-0.5 font-display text-lg leading-snug text-carbon italic">
                 {roles}
@@ -130,6 +149,9 @@ export function FriendPage({
             intervalDays={b.freshness.intervalDays}
             hasCard={!!b.card}
             others={others}
+            books={books}
+            bookId={bookId}
+            movable={movable}
           />
         </div>
         <div>
