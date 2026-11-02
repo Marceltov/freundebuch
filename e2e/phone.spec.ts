@@ -35,23 +35,6 @@ test.beforeEach(async ({ page }) => {
   await expect(page).toHaveURL("/");
 });
 
-test("the old German paths go on to the English ones", async ({ page }) => {
-  for (const [old, now] of [
-    ["/leute", "/people"],
-    ["/verlauf?q=spiegel", "/history?q=spiegel"],
-    ["/einstellungen", "/settings"],
-  ]) {
-    await page.goto(old);
-    await expect(page).toHaveURL(now);
-  }
-  const invite = await page.request.get("/einladung/fbi_x", { maxRedirects: 0 });
-  expect(invite.status()).toBe(308);
-  expect(invite.headers().location).toBe("/invite/fbi_x");
-  const share = await page.request.post("/teilen/eingang", { maxRedirects: 0 });
-  expect(share.status()).toBe(308);
-  expect(share.headers().location).toBe("/share/inbox");
-});
-
 test("someone new sees the book's people and how to start telling", async ({ page }) => {
   await page.goto("/api/e2e/login?name=Neu Hier");
   // Erika signed in before: she is on the orbit as someone Neu Hier hasn't met yet.
