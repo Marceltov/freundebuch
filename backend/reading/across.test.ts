@@ -12,7 +12,9 @@ import { viewerIn } from "../people/books";
 import { remember } from "../conversations/conversations";
 import { orbit } from "../people/orbit";
 import { compareDue } from "./due";
-import { dueAcross, groupsAcross, memberUsers, orbitAcross, peopleAcross, ramblesAcross, searchAcross } from "./across";
+import { dueAcross, findAcross, groupsAcross, memberUsers, orbitAcross, peopleAcross, ramblesAcross, searchAcross } from "./across";
+import { linkPeople } from "../people/links";
+import { createPerson } from "../people/people";
 
 beforeEach(resetDbForTests);
 
@@ -139,4 +141,59 @@ test("a co-member in a group of a newer book only is in it on the merged lists",
   expect(b.groups).toContain(workFriends.id);
   const face = (await orbitAcross(a, workFriends.id)).find((f) => users.get(f.personId) === s.b.userId);
   expect(face?.inGroup).toBe(true);
+});
+
+test("a linked person shows once in Leute, with both parts and both books' groups", async () => {
+  const s = await seed();
+  const { a, work, lena2 } = await seedWorkBook(s);
+  await addToGroup(s.a, { name: "Freunde", members: [s.lena], visibility: "shared" });
+  await addToGroup(work, { name: "Freunde", members: [lena2], visibility: "shared" });
+  await linkPeople(a, [s.lena, lena2]);
+  const lenas = (await peopleAcross(a)).filter((p) => p.name === "Lena");
+  expect(lenas).toHaveLength(1);
+  expect(lenas[0].id).toBe(s.lena);
+  expect(lenas[0].parts.map((p) => [p.book.name, p.id])).toEqual([
+    ["Unser Buch", s.lena],
+    ["Arbeit", lena2],
+  ]);
+  const freunde = (await groupsAcross(a)).filter((g) => g.name === "Freunde").map((g) => g.id);
+  expect(lenas[0].groups.sort()).toEqual(freunde.sort());
+  // Unlinked, everyone has one part.
+  expect((await peopleAcross(a)).find((p) => p.name === "Anna")!.parts).toHaveLength(1);
+});
+
+test("a linked person's birthday in both books is one reminder; two different birthdays are two, each with its book", async () => {
+  const s = await seed();
+  const { a, work, lena2 } = await seedWorkBook(s);
+  await linkPeople(a, [s.lena, lena2]);
+  await remember(s.a, { visibility: "shared", dates: [{ person: s.lena, kind: "birthday", date: "--11-05", yearly: true }] });
+  await remember(work, { visibility: "shared", dates: [{ person: lena2, kind: "birthday", date: "--11-05", yearly: true }] });
+  const lena = (d: { personId: string }) => d.personId === s.lena || d.personId === lena2;
+  expect((await dueAcross(a, "2026-11-01")).filter((d) => d.kind === "date" && lena(d))).toHaveLength(1);
+  await remember(work, { visibility: "shared", dates: [{ person: lena2, kind: "anniversary", date: "--11-06", yearly: true, label: "Jahrestag" }] });
+  const two = (await dueAcross(a, "2026-11-01")).filter((d) => d.kind === "date" && lena(d));
+  expect(two.map((d) => d.book.name)).toEqual(["Unser Buch", "Arbeit"]);
+});
+
+test("the orbit holds a linked person once", async () => {
+  const s = await seed();
+  const { a, work } = await seedWorkBook(s);
+  const anna2 = await createPerson(work, { name: "Anna" });
+  const isAnna = (f: { personId: string }) => f.personId === s.anna || f.personId === anna2;
+  expect((await orbitAcross(a)).filter(isAnna)).toHaveLength(2);
+  await linkPeople(a, [s.anna, anna2]);
+  expect((await orbitAcross(a)).filter(isAnna).map((f) => f.personId)).toEqual([s.anna]);
+});
+
+test("findAcross gives Lena once when linked, twice (each with her book) when not", async () => {
+  const s = await seed();
+  const { a, lena2 } = await seedWorkBook(s);
+  expect((await findAcross(a, "Lena")).map((c) => [c.id, c.book.name])).toEqual([
+    [s.lena, "Unser Buch"],
+    [lena2, "Arbeit"],
+  ]);
+  await linkPeople(a, [s.lena, lena2]);
+  const once = await findAcross(a, "Lena");
+  expect(once.map((c) => c.id)).toEqual([s.lena]);
+  expect(once[0].parts.map((p) => p.id)).toEqual([s.lena, lena2]);
 });

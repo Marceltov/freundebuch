@@ -28,6 +28,7 @@ export {
   journalAcross,
   looksAcross,
   memberUsers,
+  findAcross,
   onceEach,
   orbitAcross,
   peopleAcross,
