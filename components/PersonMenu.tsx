@@ -22,8 +22,19 @@ const intervals = (copy: Copy): { days: number | null; label: string }[] => [
   { days: null, label: copy.never },
 ];
 
+/** The books someone can be moved into: the user's others, when the person isn't a member of their book (or the user). */
+export function moveTargets(books: { id: string; name: string }[], bookId: string | undefined, movable: boolean) {
+  return movable ? books.filter((b) => b.id !== bookId) : [];
+}
+
+/** Where the page goes after a move: the person's new id, telling the page when an entry stayed in the old book too. */
+export function movedTo(p: { url: string; remains: boolean }, from: string): string {
+  return p.remains ? `${p.url}?blieb=${encodeURIComponent(from)}` : p.url;
+}
+
 // The round "…" on a friend's page: a sheet with what only Claude could do before. How often to see them, a new name, their
-// gender (which the role labels follow), how they look (the parts of their avatar), a nickname that finds them too, and merging a duplicate into them. Each change closes the sheet and reloads the page.
+// gender (which the role labels follow), how they look (the parts of their avatar), a nickname that finds them too, merging a duplicate into them, and
+// moving them into another of the user's books. Each change closes the sheet and reloads the page.
 export function PersonMenu({
   id,
   name,
@@ -32,6 +43,9 @@ export function PersonMenu({
   intervalDays,
   hasCard = false,
   others,
+  books = [],
+  bookId,
+  movable = false,
 }: {
   id: string;
   name: string;
@@ -40,6 +54,11 @@ export function PersonMenu({
   intervalDays: number | null;
   hasCard?: boolean;
   others: { id: string; name: string }[];
+  /** Every book of the user's, and the person's own. */
+  books?: { id: string; name: string }[];
+  bookId?: string;
+  /** Whether they can move: not the user, not a member of the book. */
+  movable?: boolean;
 }) {
   const copy = useCopy();
   const router = useRouter();
@@ -48,6 +67,7 @@ export function PersonMenu({
   const [alias, setAlias] = useState("");
   const [cardUrl, setCardUrl] = useState("");
   const [drop, setDrop] = useState("");
+  const [to, setTo] = useState("");
   const [failed, setFailed] = useState(false);
   const label = copy.moreAbout.replace("{name}", name);
 
@@ -66,6 +86,22 @@ export function PersonMenu({
   }
 
   const dropName = others.find((o) => o.id === drop)?.name ?? "";
+  const targets = moveTargets(books, bookId, movable);
+
+  async function move() {
+    const target = targets.find((b) => b.id === to);
+    if (!target || !window.confirm(copy.confirmMove.replaceAll("{name}", name).replace("{book}", target.name))) return;
+    setFailed(false);
+    const res = await fetch(`/api/v1/people/${id}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: target.id }),
+    }).catch(() => null);
+    if (!res?.ok) return setFailed(true);
+    const { people } = (await res.json()) as { people: { url: string; remains: boolean }[] };
+    setOpen(false);
+    router.push(movedTo(people[0], books.find((b) => b.id === bookId)?.name ?? ""));
+  }
   return (
     <>
       <button
@@ -212,6 +248,29 @@ export function PersonMenu({
                     className="mt-2 w-full rounded-xl bg-carbon px-3 py-2 font-bold text-on-carbon"
                   >
                     {copy.confirmMergePerson.replace("{drop}", dropName).replace("{keep}", name)}
+                  </button>
+                )}
+              </Part>
+            )}
+
+            {targets.length > 0 && (
+              <Part title={copy.moveTo}>
+                <select
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  aria-label={copy.moveTo}
+                  className="w-full rounded-xl border border-rule bg-paper px-3 py-2"
+                >
+                  <option value="">{copy.moveTo}</option>
+                  {targets.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                {to && (
+                  <button type="button" onClick={move} className="mt-2 w-full rounded-xl bg-carbon px-3 py-2 font-bold text-on-carbon">
+                    {copy.moveTo}: {targets.find((b) => b.id === to)?.name}
                   </button>
                 )}
               </Part>

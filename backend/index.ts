@@ -5,7 +5,7 @@ import { instance } from "./db/scope";
 import { healthRoute, setDbProbe } from "./http/health";
 
 export { healthRoute };
-export { invitationFor } from "./people/invitations";
+export { invitationFor, listInvitations, openInvitations } from "./people/invitations";
 export { IDENTITY_COOKIE, identityOk, logoutRoute, requireViewer, type Surface, viewerFromCookie, viewerFromRequest } from "./auth/session";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
@@ -21,8 +21,22 @@ export { e2eLoginRoute } from "./auth/e2e";
 export { briefing, type Briefing } from "./reading/briefing";
 export { getConversation, hasRecorded, listConversations, type ConversationSummary, type ConversationView } from "./conversations/conversations";
 export { whatsDue, type DueItem } from "./reading/due";
+export {
+  acrossBooks,
+  dueAcross,
+  groupsAcross,
+  journalAcross,
+  looksAcross,
+  memberUsers,
+  onceEach,
+  orbitAcross,
+  peopleAcross,
+  ramblesAcross,
+  searchAcross,
+  type InBook,
+} from "./reading/across";
 export { looks } from "./people/looks";
-export { inBook, inBookOf, listBooks, type BookRef } from "./people/books";
+export { inBook, inBookOf, listBooks, pageScope, type BookRef } from "./people/books";
 export { getPerson, peopleOverview, type PersonOverview } from "./people/people";
 export { markMatches, search, type SearchHit } from "./reading/search";
 export { traitsFor, type PersonTraits, type Traits } from "./people/traits";
@@ -39,7 +53,7 @@ export { journalEntries, type JournalEntry } from "./journal/journal";
 export { getPlace, getSeries, listExperiences, type ExperienceView, type PlaceView, type SeriesView } from "./experiences/experiences";
 export { hasShareKey, listPending, pendingCount, type PendingFile } from "./conversations/files";
 
-export type { FactKind, Language, Look, LookPart, LookParts, Viewer } from "./core/types";
+export type { FactKind, Language, Look, LookPart, LookParts, Role, Viewer } from "./core/types";
 
 // The health probe asks the database a trivial question; the server opened and migrated it at start.
 setDbProbe(async () => (await instance()).ping());

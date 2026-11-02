@@ -47,7 +47,11 @@ import { getSettings, putSettings, setLanguage, testWebhook } from "../core/sett
 import { getReflection, putReflection } from "../journal/reflection";
 import { deleteRamble } from "../conversations/rambles";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../conversations/files";
-import { acceptInvitationAs, invite } from "../people/invitations";
+import { acceptInvitationAs, invite, listInvitations, revokeInvitation } from "../people/invitations";
+import { inBook, listBooks, newBook } from "../people/books";
+import { deleteBook, handOver, leaveBook, removeMember, renameBook, setRole } from "../people/manage";
+import type { Viewer } from "../core/types";
+import { movePeople } from "../people/moves";
 import { API_PREFIX, publicUrl } from "../core/urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
@@ -117,6 +121,36 @@ const E = {
 } as const;
 const { 400: E400, 401: E401, 403: E403, 404: E404 } = E;
 const NO_CONTENT = { description: "Done" } satisfies ResponseSpec;
+
+const RoleJson = z.enum(["owner", "admin", "member"]);
+const BookRefJson = z.object({ id: z.string(), name: z.string() });
+const BookViewJson = BookRefJson.extend({
+  role: RoleJson.describe("The caller's role in it"),
+  members: z.array(z.object({ id: z.string().describe("The member's user id"), name: z.string(), role: RoleJson })),
+});
+const InvitationJson = z.object({ id: z.string(), role: z.enum(["member", "admin"]), createdBy: z.string(), expiresAt: z.number() });
+const NewInvitationJson = z.object({ id: z.string(), url: z.string().describe("The link to pass on"), expiresAt: z.number() });
+const MovedJson = z.object({
+  book: BookRefJson.describe("The book they are in now"),
+  people: z.array(
+    z.object({
+      from: z.string().describe("The old id"),
+      id: z.string().describe("The new id"),
+      name: z.string(),
+      url: z.string(),
+      remains: z.boolean().describe("Whether an entry for them stays in the old book, for what is filed there that didn't move"),
+    }),
+  ),
+  moved: z.record(z.string(), z.number()),
+  stayed: z.record(z.string(), z.number()),
+});
+const BOOK_ID = { id: z.string().describe("The book's id") };
+const ROLE_403 = err("The caller's role in the book doesn't allow it (`forbidden`)");
+// A book's routes run on the caller in that book, by its id; a book they aren't in is not found.
+async function theBook(viewer: Viewer, id: string): Promise<Viewer> {
+  if (!(await listBooks(viewer)).some((b) => b.id === id)) throw new NotFoundError("No such book");
+  return inBook(viewer, id);
+}
 /** A comma-separated list of ids from the query, without empty entries. */
 const ids = (list?: string) =>
   list
@@ -839,6 +873,195 @@ const ROUTES: AnyOp[] = [
       404: err("No such invitation, or it was used, revoked or has expired (`not_found`)"),
     },
   }).handle(async ({ viewer, params }) => ({ status: 200, body: await acceptInvitationAs(viewer, params.token) })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/books`,
+    operationId: "listBooks",
+    summary: "The caller's books",
+    description: "Oldest first, each with the caller's role and its members.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: {},
+    responses: { 200: { description: "The books", schema: z.array(BookViewJson) }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: await listBooks(viewer) })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/books`,
+    operationId: "createBook",
+    summary: "A new book of the caller's",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: {},
+    body: z.object({ name: z.string() }),
+    responses: { 201: { description: "The book, the caller its owner", schema: BookRefJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => ({ status: 201, body: await newBook(viewer, body.name) })),
+
+  op({
+    method: "PATCH",
+    path: `${API_PREFIX}/books/{id}`,
+    operationId: "renameBook",
+    summary: "Rename a book",
+    description: "For its owner or an admin.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: BOOK_ID,
+    body: z.object({ name: z.string() }),
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 403: ROLE_403, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await renameBook(await theBook(viewer, params.id), body.name);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/books/{id}`,
+    operationId: "deleteBook",
+    summary: "Delete a book and everything in it",
+    description: "For its owner, and not their only book. Whoever is left in no book gets an empty one of their own.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: BOOK_ID,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 403: ROLE_403, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await deleteBook(await theBook(viewer, params.id));
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/books/{id}/leave`,
+    operationId: "leaveBook",
+    summary: "Leave a book",
+    description: "Not the owner (they hand it over first), and not the caller's only book. What the caller marked private there is deleted.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: BOOK_ID,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await leaveBook(await theBook(viewer, params.id));
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/books/{id}/invitations`,
+    operationId: "listInvitations",
+    summary: "A book's invitations that still work",
+    description: "For its owner or an admin.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: BOOK_ID,
+    responses: { 200: { description: "The open invitations", schema: z.array(InvitationJson) }, 401: E401, 403: ROLE_403, 404: E404 },
+  }).handle(async ({ viewer, params }) => ({ status: 200, body: await listInvitations(await theBook(viewer, params.id)) })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/books/{id}/invitations`,
+    operationId: "inviteIntoBook",
+    summary: "Invite someone into this book",
+    description: "Members by the owner or an admin, admins only by the owner: a link that works once, for 7 days.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: BOOK_ID,
+    body: z.object({ role: z.enum(["member", "admin"]).describe("The role the invited person gets") }),
+    responses: {
+      201: { description: "The invitation; its link is shown only now", schema: NewInvitationJson },
+      400: E400,
+      401: E401,
+      403: ROLE_403,
+      404: E404,
+    },
+  }).handle(async ({ viewer, params, body }) => ({ status: 201, body: await invite(await theBook(viewer, params.id), body.role) })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/books/{id}/invitations/{invitationId}`,
+    operationId: "revokeInvitation",
+    summary: "End an invitation",
+    description: "Its link stops working. For the book's owner or an admin.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: { ...BOOK_ID, invitationId: z.string() },
+    responses: { 204: NO_CONTENT, 401: E401, 403: ROLE_403, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await revokeInvitation(await theBook(viewer, params.id), params.invitationId);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "PATCH",
+    path: `${API_PREFIX}/books/{id}/members/{userId}`,
+    operationId: "setMemberRole",
+    summary: "Make a member an admin, or an admin a member",
+    description: "For the book's owner; the owner's own role changes only by handing the book over.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: { ...BOOK_ID, userId: z.string().describe("The member's user id") },
+    body: z.object({ role: z.enum(["admin", "member"]) }),
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 403: ROLE_403, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await setRole(await theBook(viewer, params.id), params.userId, body.role);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/books/{id}/members/{userId}`,
+    operationId: "removeMember",
+    summary: "Remove someone from a book",
+    description: "For the owner (anyone but themselves) or an admin (members only). What they marked private there is deleted.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: { ...BOOK_ID, userId: z.string().describe("The member's user id") },
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 403: ROLE_403, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await removeMember(await theBook(viewer, params.id), params.userId);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/books/{id}/owner`,
+    operationId: "handOverBook",
+    summary: "Hand a book over to another member",
+    description: "For its owner, who stays as an admin.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: BOOK_ID,
+    body: z.object({ userId: z.string().describe("The new owner's user id") }),
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 403: ROLE_403, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await handOver(await theBook(viewer, params.id), body.userId);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/people/{id}/move`,
+    operationId: "movePerson",
+    summary: "Move someone into another of the caller's books",
+    description:
+      "With what is filed about them, under a new id. An entry stays in the old book (`remains`) while another member's private item there still points at them.",
+    tags: ["Books"],
+    auth: true,
+    allBooks: true,
+    params: { id: z.string().describe("The person's id") },
+    body: z.object({ to: z.string().describe("The book to move them into, by id or name") }),
+    responses: { 200: { description: "Who moved, with the new ids", schema: MovedJson }, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => ({ status: 200, body: await movePeople(viewer, [params.id], body.to) })),
 
   op({
     method: "GET",

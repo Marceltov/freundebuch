@@ -3,9 +3,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { newId, now } from "../db";
 import { instance, type InstanceDb } from "../db/scope";
-import { InvalidInputError, NotFoundError } from "../core/errors";
+import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
 import type { Viewer } from "../core/types";
-import { joinBook, requireRole } from "./books";
+import { inBook, joinBook, requireRole } from "./books";
 
 export const INVITATION_DAYS = 7;
 const PREFIX = "fbi_";
@@ -43,6 +43,23 @@ export async function listInvitations(v: Viewer): Promise<{ id: string; role: "m
     .orderBy("invitations.created_at")
     .execute();
   return rows.map((r) => ({ id: r.id, role: r.role, createdBy: r.name, expiresAt: r.expires_at }));
+}
+
+/** The open invitations of each of `books` the viewer manages, by book id. A book where the viewer lost the role, or which
+ * they left, since `books` was read is left out. */
+export async function openInvitations(
+  v: Viewer,
+  books: readonly { id: string; role: string }[],
+): Promise<Record<string, Awaited<ReturnType<typeof listInvitations>>>> {
+  const out: Record<string, Awaited<ReturnType<typeof listInvitations>>> = {};
+  for (const b of books.filter((x) => x.role !== "member")) {
+    try {
+      out[b.id] = await listInvitations(await inBook(v, b.id));
+    } catch (e) {
+      if (!(e instanceof ForbiddenError || e instanceof NotFoundError)) throw e;
+    }
+  }
+  return out;
 }
 
 /** Ends an invitation: its link stops working. */

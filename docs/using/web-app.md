@@ -51,6 +51,8 @@ Opened on someone's page, the chat knows who you probably mean ("Es geht um Marv
 
 ## Verlauf, Leute, Bald
 
+With several books (the household's and one of your own for work, say), every list shows what is in all of them, as one: Start, Verlauf, Leute, Bald and the Tagebuch. Each entry then carries a small mark with its book's name, and so does a friend's page. Someone who is in two of your books, like your partner, shows once. Groups stay in their book: with two books you have two **Freunde**, each filter button marked with its book.
+
 - **Verlauf**: every ramble, newest first, by week and month, with the conversations and your journal entries filed from it. The search field finds what was told by a word you remember ("Spiegel"): every hit with its day, who it was about and the matching words marked; only what you may see, never the other's private items. The **Tagebuch** button opens your [journal](journal.md); a ramble opens on its own page (**Erzählung**) with its transcript. **Weitererzählen** there opens Erzählen on it: add what you forgot ("Anna war auch da") or correct what was filed, and Claude fixes the conversations and items filed from it.
 - **Leute**: everyone, A to Z, with a search over names and nicknames and the group chips; **Ohne Gruppe** narrows to those in no group yet.
 - **Bald**: the next two weeks: birthdays and other dates, your promises with a due day (tick them off right there), who would be glad to hear from you, and what to ask about.
@@ -61,4 +63,16 @@ The share button next to a person's, conversation's or group's name sends its li
 
 ## Settings
 
-The gear icon opens **Einstellungen**: your language (**Sprache**: Deutsch or English, for the app and your notifications; each of you chooses their own, and what is filed keeps the words it was filed in), your webhook for [notifications](notifications.md), your [calendar feed](calendar.md), your groups and their other names, and signing out. **Haushalt** is the group of everyone who signs in: rename it (Herziis, say), but it can't be deleted or merged away.
+The gear icon opens **Einstellungen**: your language (**Sprache**: Deutsch or English, for the app and your notifications; each of you chooses their own, and what is filed keeps the words it was filed in), your webhook for [notifications](notifications.md), your [calendar feed](calendar.md), your **Bücher** (below), your groups and their other names, book by book, and signing out. **Haushalt** is the group of everyone who signs in: rename it (Herziis, say), but it can't be deleted or merged away.
+
+### Bücher
+
+**Bücher** in Einstellungen lists your books, your role in each and who else is in it. What you can do there follows your role:
+
+- Everyone can **leave** a book, except their only one. The owner hands it over first.
+- The owner and the admins **rename** the book, **invite** members, see the open invitations and revoke them, and **remove** members. An invitation is a link that works once, for 7 days: pass it on however you like.
+- Only the owner invites admins, makes someone an admin or a member again, **hands the book over** (and stays an admin), and **deletes** it.
+- Leaving, or being removed, deletes what that person marked private in the book. What they shared stays.
+- **Neues Buch** makes a book of your own.
+
+To move someone into another of your books, open the **…** on their page and choose **In ein anderes Buch**. They go with what is filed about them, under a new address; if someone else's private entry in the old book still points at them, an entry for them stays there too, and the page says so.

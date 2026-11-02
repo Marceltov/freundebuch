@@ -44,9 +44,17 @@ function ringOf(ratio: number | null, intervalDays: number | null, daysSince: nu
  * group's members the viewer may see are shown whatever their urgency and come first, each face marked `inGroup`.
  */
 export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Promise<OrbitFace[]> {
+  const members = groupId ? new Set((await getGroup(v, groupId)).members.map((m) => m.personId)) : null;
+  return layOut(await pickFaces(v, now, members), members);
+}
+
+/** A face before it is placed: how urgent it is decides whether it is among the 24 shown. */
+export type PickedFace = Omit<OrbitFace, "angle" | "url"> & { urgency: number };
+
+/** The faces of one book worth showing, unordered and not yet placed; `members`: the filtered group's people in this book. */
+export async function pickFaces(v: Viewer, now: number, members: ReadonlySet<string> | null): Promise<PickedFace[]> {
   const from = today(now);
   const d = await scope(v);
-  const members = groupId ? new Set((await getGroup(v, groupId)).members.map((m) => m.personId)) : null;
   const [persons, birthdays, promised, gifts] = await Promise.all([
     d.from("persons").select(["id", "name"]).where("id", "!=", v.personId).execute(),
     upcomingDates(v, from, SOON_DAYS).then((ds) => ds.filter((x) => x.kind === "birthday")),
@@ -68,7 +76,7 @@ export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Prom
   const withPromise = new Set(promised.map((p) => p.person_id));
   const withGift = new Set(gifts.map((g) => g.person_id));
 
-  const picked: Array<Omit<OrbitFace, "angle" | "url"> & { urgency: number }> = [];
+  const picked: PickedFace[] = [];
   for (const p of persons) {
     const { lastSeen, intervalDays, ratio } = await freshness(v, p.id, from);
     const daysSince = lastSeen ? daysBetween(lastSeen, from) : null;
@@ -84,23 +92,27 @@ export async function orbit(v: Viewer, now = Date.now(), groupId?: string): Prom
     const urgency = unseen ? -1 : Math.max(ratio ?? 0, promise ? 1 : 0, birthday !== undefined ? 1 + (SOON_DAYS - birthday) / SOON_DAYS : 0);
     picked.push({ personId: p.id, name: p.name, ring: ringOf(ratio, intervalDays, daysSince), badges, urgency, ...(unseen ? { unseen } : {}) });
   }
+  return picked;
+}
+
+/** The 24 most urgent of `picked` (the group's members first), each placed on its ring. */
+export function layOut<F extends PickedFace>(picked: readonly F[], members: ReadonlySet<string> | null): Array<Omit<F, "urgency"> & OrbitFace> {
   const first = (f: { personId: string }) => (members?.has(f.personId) ? 1 : 0);
-  picked.sort((a, b) => first(b) - first(a) || b.urgency - a.urgency || a.name.localeCompare(b.name) || a.personId.localeCompare(b.personId));
-  const shown = picked.slice(0, MAX_FACES);
+  const sorted = [...picked].sort(
+    (a, b) => first(b) - first(a) || b.urgency - a.urgency || a.name.localeCompare(b.name) || a.personId.localeCompare(b.personId),
+  );
+  const shown = sorted.slice(0, MAX_FACES);
 
   const angle = new Map<string, number>();
   for (const ring of [0, 1, 2] as const) {
     const onRing = shown.filter((f) => f.ring === ring).sort((a, b) => hash(a.personId) - hash(b.personId));
     onRing.forEach((f, i) => angle.set(f.personId, (RING_OFFSET[ring] + (i * 360) / onRing.length) % 360));
   }
-  return shown.map((f) => ({
-    personId: f.personId,
-    name: f.name,
-    ring: f.ring,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  return shown.map(({ urgency: _, ...f }) => ({
+    ...f,
     angle: angle.get(f.personId)!,
-    badges: f.badges,
     url: personPath(f.personId),
-    ...(f.unseen ? { unseen: true } : {}),
     ...(members ? { inGroup: members.has(f.personId) } : {}),
   }));
 }

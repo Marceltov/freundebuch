@@ -139,6 +139,13 @@ export async function inBookOf(v: Viewer, ids: readonly (string | undefined | nu
   return viewerIn(s.instance, v.userId, books[0]);
 }
 
+/** The viewer of a web page: in the book of the page's id; for an id that names no book ("me", "us"), the oldest book; without
+ * an id, the user in every book, which a page reads only one book at a time (backend/reading/across.ts). */
+export async function pageScope(v: Viewer, id?: string): Promise<Viewer> {
+  if (id === undefined) return v;
+  return (await inBookOf(v, [id])) ?? (await viewerIn(await instance(), v.userId, v.bookId))!;
+}
+
 export async function bookRef(bookId: string): Promise<BookRef> {
   return (await instance()).from("books").select(["id", "name"]).where("id", "=", bookId).executeTakeFirstOrThrow();
 }

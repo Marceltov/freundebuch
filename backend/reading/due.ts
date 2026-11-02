@@ -68,6 +68,15 @@ export async function upcomingDates(v: Viewer, from: string, horizonDays: number
   return out.sort((a, b) => a.inDays - b.inDays || a.id.localeCompare(b.id));
 }
 
+const DUE_ORDER: Record<DueItem["kind"], number> = { date: 0, overdue: 1, situation: 2, session: 3, promise: 4 };
+
+/** The order whatsDue gives its items, for merging several books' lists: by kind, then the most overdue or the soonest first. */
+export function compareDue(a: DueItem, b: DueItem): number {
+  if (a.kind !== b.kind) return DUE_ORDER[a.kind] - DUE_ORDER[b.kind];
+  if (a.kind === "overdue") return b.ratio! - a.ratio! || a.name.localeCompare(b.name);
+  return (a.date ?? "").localeCompare(b.date ?? "");
+}
+
 /**
  * Dates by closeness, then people past their interval by how far past (ratio, largest first), then situations to ask about (their
  * checkAfter has come, oldest first), then promises by due date. Only the viewer's own promises count: one the partner recorded is

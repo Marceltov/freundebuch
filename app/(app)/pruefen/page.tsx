@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 
 export const generateMetadata = async () => ({ title: (await pageCopy()).pending });
 
-// The viewer's own shared files that wait for them (backend/conversations/files.ts). The partner's never show here.
+// The viewer's own shared files that wait for them, in all their books (backend/conversations/files.ts). The partner's never show
+// here. No book mark: Claude files each into the book it belongs to, whichever it waits in.
 export default async function PendingPage() {
   const pending = await listPending(await pageViewer());
   const copy = getCopy();

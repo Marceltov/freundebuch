@@ -70,3 +70,14 @@ test("an existing user joins a second book through it, once", async () => {
   await expect(acceptInvitation(await instance(), tokenOf(again.url), s.b.userId, "Bob")).rejects.toBeInstanceOf(InvalidInputError);
   expect(await invitationFor(tokenOf(again.url))).not.toBeNull();
 });
+
+test("the open invitations of the books someone manages: a role lost meanwhile gives none, not an error", async () => {
+  const { openInvitations } = await import("./invitations");
+  const { listBooks } = await import("./books");
+  const { setRole } = await import("./manage");
+  await invite(s.b, "member");
+  const books = await listBooks(s.b); // B is an admin here
+  await setRole(s.a, s.b.userId, "member");
+  expect(await openInvitations(s.b, books)).toEqual({});
+  expect(Object.values(await openInvitations(s.a, await listBooks(s.a)))[0]).toHaveLength(1);
+});
