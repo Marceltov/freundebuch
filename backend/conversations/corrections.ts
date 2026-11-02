@@ -17,7 +17,7 @@ import {
   SITUATION_DAYS,
   type FiledRelationship,
 } from "./conversations";
-import { memberPersons, resolveTarget, type Target } from "../people/household";
+import { memberPersons, resolveTarget, type Target } from "../people/writers";
 import { now } from "../db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
 import { norm } from "../people/names";

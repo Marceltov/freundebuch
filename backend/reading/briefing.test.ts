@@ -218,7 +218,7 @@ test("the suggested interval appears until the interval is confirmed", async () 
   expect("suggestedInterval" in (await briefing(s.a, s.tom, "2026-10-23"))).toBe(false);
 });
 
-test("no interval is suggested for one of the household: the viewer's own person or the partner's", async () => {
+test("no interval is suggested for one of the book's writers: the viewer's own person or the partner's", async () => {
   for (const date of ["2026-08-01", "2026-08-15", "2026-08-29"]) await record(s.a, { date });
   expect((await briefing(s.a, s.anna, "2026-10-23")).suggestedInterval).toBe(14);
   expect("suggestedInterval" in (await briefing(s.a, s.a.personId, "2026-10-23"))).toBe(false);
@@ -288,8 +288,8 @@ test("the network is one hop with us on top", async () => {
   const n = (await briefing(s.a, s.anna)).network;
   expect(n.nodes.map((x) => [x.id, x.role])).toEqual([
     [s.anna, "self"],
-    [s.a.personId, "household"],
-    [s.b.personId, "household"],
+    [s.a.personId, "writer"],
+    [s.b.personId, "writer"],
     [s.tom, "other"],
   ]);
   expect(n.nodes[0]).toMatchObject({ name: "Anna", url: `/p/${s.anna}` });
@@ -297,7 +297,7 @@ test("the network is one hop with us on top", async () => {
   expect(n.edges.find((e) => e.to === s.tom)).toMatchObject({ from: s.anna, label: "Partner:in", inverse: "Partner:in" });
 });
 
-test("buildNetwork leaves out household persons without an edge and keeps each person once", () => {
+test("buildNetwork leaves out writers without an edge and keeps each person once", () => {
   const rel = (id: string, from_id: string, to_id: string, label = "Freundin") => ({ id, from_id, to_id, label, inverse: label });
   const n = buildNetwork(
     "p",

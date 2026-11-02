@@ -319,7 +319,7 @@ export const de = {
   merge: "Übernehmen",
   confirmMerge: "{drop} wird Teil von {keep}. Sicher?",
   groupNameTaken: "Diesen Namen hat schon eine andere Gruppe. Führe die beiden zusammen.",
-  mergeRefused: "Die andere Person in deinem Haushalt sieht diese Gruppe nicht. Übernimm sie andersherum.",
+  mergeRefused: "Jemand anderes in diesem Buch sieht diese Gruppe nicht. Übernimm sie andersherum.",
 
   // Item actions
   actions: "Aktionen",

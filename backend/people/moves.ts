@@ -12,7 +12,7 @@ import { InvalidInputError, NotFoundError } from "../core/errors";
 import type { Viewer } from "../core/types";
 import { personPath } from "../core/urls";
 import { bookRef, inBook, inBookOf, type BookRef } from "./books";
-import { memberPersons } from "./household";
+import { memberPersons } from "./writers";
 import { norm } from "./names";
 
 export type Moved = {
@@ -421,16 +421,16 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
   };
 }
 
-/** The target's group for a source group: the household's own, else one of the same name or other name, else a new one. */
+/** The target's group for a source group: the book's own (its writers), else one of the same name or other name, else a new one. */
 async function groupThere(from: Scope, into: Scope, id: string): Promise<string> {
   const g = await from.from("groups").selectAll().where("id", "=", id).executeTakeFirstOrThrow();
-  if (g.household) return (await into.from("groups").select("id").where("household", "=", 1).executeTakeFirstOrThrow()).id;
+  if (g.writers) return (await into.from("groups").select("id").where("writers", "=", 1).executeTakeFirstOrThrow()).id;
   const named = (await into.from("groups").select(["id", "name"]).execute()).find((x) => norm(x.name) === norm(g.name));
   const alias = named ? undefined : await into.from("group_aliases").select("group_id").where("norm", "=", norm(g.name)).executeTakeFirst();
   const same = named?.id ?? alias?.group_id;
   if (same) return same;
   const copy = newId();
-  await into.insert("groups", { id: copy, name: g.name, created_by: from.v.userId, created_at: g.created_at, seeded: 0, household: 0 }).execute();
+  await into.insert("groups", { id: copy, name: g.name, created_by: from.v.userId, created_at: g.created_at, seeded: 0, writers: 0 }).execute();
   const aliases = await from.from("group_aliases").select(["alias", "norm"]).where("group_id", "=", id).execute();
   if (aliases.length)
     await into

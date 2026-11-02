@@ -15,7 +15,7 @@ export type SendLink = { app: SendApp; url: string };
 
 /**
  * What a birthday message can be written from. `birthday`: when it is next (`inDays` from today) and the age then, when the year
- * is known; null when none is filed. `roles`: who the person is to the household. `news` and `known`: what is going on and what
+ * is known; null when none is filed. `roles`: who the person is to us. `news` and `known`: what is going on and what
  * stays true, what the viewer may see and nothing about health. `lastSeen`: the day the viewer last spoke to them.
  */
 export type BirthdayMessage = {

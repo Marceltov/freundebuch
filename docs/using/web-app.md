@@ -9,7 +9,7 @@ The web app is in German, or in English for whoever chooses it in **Einstellunge
 ![The start page in dark mode](../assets/orbit-dark.png)
 </div>
 
-A greeting tells you how many people would be glad to hear from you, and **Frag mal nach** below the orbit lists the situations nobody has heard about for a while. Below it, you're in the middle ("Du"), and everyone sits on one of three rings with their first name under them: the inner ring for people you saw recently, the outer ring for people you're due to see. People you haven't met yourself yet (someone your partner filed, or someone who was only mentioned) fill the free places on the outer ring with a faded face, so a new member of the household sees its people right away. Small badges show what's waiting:
+A greeting tells you how many people would be glad to hear from you, and **Frag mal nach** below the orbit lists the situations nobody has heard about for a while. Below it, you're in the middle ("Du"), and everyone sits on one of three rings with their first name under them: the inner ring for people you saw recently, the outer ring for people you're due to see. People you haven't met yourself yet (someone your partner filed, or someone who was only mentioned) fill the free places on the outer ring with a faded face, so someone new to a book sees its people right away. Small badges show what's waiting:
 
 - 🎂 a birthday coming up,
 - 📌 an open promise,
@@ -51,7 +51,7 @@ Opened on someone's page, the chat knows who you probably mean ("Es geht um Marv
 
 ## Verlauf, Leute, Bald
 
-With several books (the household's and one of your own for work, say), every list shows what is in all of them, as one: Start, Verlauf, Leute, Bald and the Tagebuch. Each entry then carries a small mark with its book's name, and so does a friend's page. Someone who is in two of your books, like your partner, shows once. Groups stay in their book: with two books you have two **Freunde**, each filter button marked with its book.
+With several books (one you share with your partner and one of your own for work, say), every list shows what is in all of them, as one: Start, Verlauf, Leute, Bald and the Tagebuch. Each entry then carries a small mark with its book's name, and so does a friend's page. Someone who is in two of your books, like your partner, shows once. Groups stay in their book: with two books you have two **Freunde**, each filter button marked with its book.
 
 - **Verlauf**: every ramble, newest first, by week and month, with the conversations and your journal entries filed from it. The search field finds what was told by a word you remember ("Spiegel"): every hit with its day, who it was about and the matching words marked; only what you may see, never the other's private items. The **Tagebuch** button opens your [journal](journal.md); a ramble opens on its own page (**Erzählung**) with its transcript. **Weitererzählen** there opens Erzählen on it: add what you forgot ("Anna war auch da") or correct what was filed, and Claude fixes the conversations and items filed from it.
 - **Leute**: everyone, A to Z, with a search over names and nicknames and the group chips; **Ohne Gruppe** narrows to those in no group yet.

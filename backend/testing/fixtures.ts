@@ -1,4 +1,4 @@
-// One household, recorded through the real write path, for the privacy tests of every read function. Alice (A) records a shared
+// One book of two writers, recorded through the real write path, for the privacy tests of every read function. Alice (A) records a shared
 // dinner with Anna that holds private parts, and a private coffee with Lena; Bob (B) records a shared call with Anna.
 import { resetDbForTests } from "../db/testing";
 import { recordConversation } from "../conversations/conversations";
@@ -24,7 +24,7 @@ export type Seed = {
 export const DINNER_TRANSCRIPT =
   "Dinner with Anna at Luigi's. She starts a new job at the museum next month. In confidence: she and Tom are getting divorced. Tom's birthday is on 24 October.";
 
-/** Signs a second user in through an admin invitation to `into`'s book, as the household's partner joins it. */
+/** Signs a second user in through an admin invitation to `into`'s book, as the partner joins the shared book. */
 export async function signInInvited(into: Viewer, c: { sub: string; name: string; email?: string }): Promise<Viewer> {
   const { invite } = await import("../people/invitations");
   const { url } = await invite(into, "admin");
@@ -96,7 +96,7 @@ export async function seedOtherBook(): Promise<{ c: Viewer; carl: string; carlCa
   return { c, carl: call.people[0].id, carlCall: call.conversationId };
 }
 
-/** Alice's own work book, Arbeit, next to the household's: a second Lena and her boss, each with a shared fact. `a` reads both books. */
+/** Alice's own work book, Arbeit, next to us's: a second Lena and her boss, each with a shared fact. `a` reads both books. */
 export async function seedWorkBook(s: Seed): Promise<{ a: Viewer; work: Viewer; lena2: string; boss: string }> {
   const work = await createBook(await instance(), s.a.userId, "Alice", "Arbeit");
   const call = await recordConversation(work, {

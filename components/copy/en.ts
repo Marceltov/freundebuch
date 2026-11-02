@@ -303,7 +303,7 @@ export const en: Copy = {
   merge: "Take in",
   confirmMerge: "{drop} becomes part of {keep}. Sure?",
   groupNameTaken: "Another group has this name already. Merge the two.",
-  mergeRefused: "The other person in your household doesn't see this group. Merge it the other way round.",
+  mergeRefused: "Someone else in this book doesn't see this group. Merge it the other way round.",
 
   actions: "Actions",
   done: "Done",

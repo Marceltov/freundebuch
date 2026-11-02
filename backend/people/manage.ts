@@ -113,8 +113,8 @@ async function dropMember(v: Viewer, userId: string): Promise<void> {
     const files = await s.from("files").select("blob_key").where("user_id", "=", userId).where("status", "in", waiting).execute();
     blobs.push(...files.map((f) => f.blob_key));
     await s.delete("files").where("user_id", "=", userId).where("status", "in", waiting).execute();
-    const household = await s.from("groups").select("id").where("household", "=", 1).executeTakeFirstOrThrow();
-    await s.delete("group_members").where("group_id", "=", household.id).where("person_id", "=", member.person_id).execute();
+    const writers = await s.from("groups").select("id").where("writers", "=", 1).executeTakeFirstOrThrow();
+    await s.delete("group_members").where("group_id", "=", writers.id).where("person_id", "=", member.person_id).execute();
     await i.delete("members").where("book_id", "=", v.bookId).where("user_id", "=", userId).execute();
     await giveOwnBooks(i, [userId]);
   });

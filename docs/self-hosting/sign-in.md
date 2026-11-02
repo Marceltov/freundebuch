@@ -9,7 +9,7 @@ There is no password and no open mode: without the OIDC variables nobody can sig
     - Redirect URI (strict): `https://freundebuch.example.com/api/oidc/callback`
     - Scopes: the defaults (`openid`, `email`, `profile`).
 2. **Applications → Applications → Create**, slug `freundebuch`, with that provider.
-3. Bind the application to the household's users or to a group. Only they can sign in.
+3. Bind the application to the people who may sign in, or to a group. Only they can sign in.
 
 ## In freundebuch
 

@@ -1,7 +1,7 @@
 // Voice notes become words before anything else sees them: Claude takes no audio, so a shared voice note is sent to a Whisper
-// server the household runs itself (FREUNDEBUCH_TRANSCRIBE_URL, any server with the OpenAI-compatible
+// server you run yourself (FREUNDEBUCH_TRANSCRIBE_URL, any server with the OpenAI-compatible
 // POST /v1/audio/transcriptions, such as speaches), and its transcript is what Claude pre-reads and what is kept once filed.
-// The voice note never leaves the household's own servers. Behind Transcriber, so tests and e2e stand in for Whisper.
+// The voice note never leaves your own servers. Behind Transcriber, so tests and e2e stand in for Whisper.
 import type { Logger } from "pino";
 import { config } from "../core/config";
 import { logger } from "../core/log";

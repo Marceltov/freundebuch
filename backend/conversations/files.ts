@@ -1,6 +1,6 @@
 // Files shared into freundebuch (a screenshot, a photo, a PDF, a text such as a chat export, a voice note), from the phone or
 // from Erzählen. One goes: stored (images shrunk to WebP, the rest as it came, in the blob store) → a voice note transcribed by
-// the household's own Whisper (transcribe.ts) → pre-read by Claude (file-model.ts) into a suggestion and a transcript (its text
+// the own Whisper (transcribe.ts) → pre-read by Claude (file-model.ts) into a suggestion and a transcript (its text
 // word for word, what a photo shows, what a voice note says) → waits under "Prüfen" until the user works it
 // through with Claude (Erzählen opened on it, or the MCP tool inbox). Filing it with record keeps only its
 // transcript, in the conversation's; the file itself goes once it is reviewed (filed, done or discarded). Nothing is filed

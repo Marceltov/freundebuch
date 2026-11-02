@@ -53,14 +53,14 @@ test("group memberships without a conversation; adding the same one again is a n
   expect(await addToGroup(s.a, { name: "Uni", members: [s.anna], visibility: "shared" })).toMatchObject({ added: 0 });
   // B's own membership of the same person is a row of its own.
   expect(await addToGroup(s.b, { name: "Uni", members: [s.anna], visibility: "shared" })).toMatchObject({ added: 1 });
-  // Haushalt, the household's own group, holds Alice and Bob from the start; this is about Uni.
+  // The book's writers group holds Alice and Bob from the start; this is about Uni.
   const rows = await (
     await firstBook()
   )
     .from("group_members")
     .innerJoin("groups", "groups.id", "group_members.group_id")
     .selectAll()
-    .where("groups.household", "=", 0)
+    .where("groups.writers", "=", 0)
     .execute();
   expect(rows.map((r) => [r.name, r.recorded_by === s.a.userId ? "a" : "b", r.visibility, r.conversation_id])).toEqual([
     ["Uni", "a", "private", null],
@@ -109,7 +109,7 @@ test("a shared relationship of the partner counts; a private one doesn't, and is
 const towards = async (id: string) =>
   await (await firstBook()).from("relationships").select(["from_id", "to_id", "label"]).where("to_id", "=", id).orderBy("created_at").execute();
 
-test("us files the role to both household persons, once each", async () => {
+test("us files the role to both writers, once each", async () => {
   const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
   expect(ids).toHaveLength(2);
   const rows = await (await firstBook()).from("relationships").select(["id", "to_id"]).where("id", "in", ids).execute();
@@ -140,21 +140,21 @@ test("me is the viewer's own person", async () => {
   );
 });
 
-test("a household of one", async () => {
+test("a book with one writer", async () => {
   await (await firstBook()).instance.delete("members").where("user_id", "=", s.b.userId).execute();
   const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", label: "Vermieter:in", inverse: "Mieter:in", visibility: "shared" });
   expect(ids).toHaveLength(1);
   expect(await towards(s.a.personId)).toEqual([{ from_id: s.anna, to_id: s.a.personId, label: "Vermieter:in" }]);
 });
 
-test("a role to us from a household person skips that person", async () => {
+test("a role to us from a writer skips that person", async () => {
   const { ids } = await addRelationship(s.a, { from: s.b.personId, to: "us", label: "Nachbar:in", inverse: "Nachbar:in", visibility: "shared" });
   expect(ids).toHaveLength(1);
   expect(await towards(s.a.personId)).toEqual([{ from_id: s.b.personId, to_id: s.a.personId, label: "Nachbar:in" }]);
 });
 
 test("rows filed in one call keep the order they were filed in: no two share a time", async () => {
-  // A role to "us" is one relationship per household person, written together; the briefing lists them in that order.
+  // A role to "us" is one relationship per writer, written together; the briefing lists them in that order.
   for (let i = 0; i < 8; i++) {
     const { ids } = await addRelationship(s.a, { from: s.anna, to: "us", label: `Rolle${i}`, inverse: `Gegenrolle${i}`, visibility: "shared" });
     const rows = await (await firstBook()).from("relationships").select(["id", "created_at"]).where("id", "in", ids).execute();

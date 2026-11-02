@@ -7,7 +7,7 @@ import { upcomingDates, type UpcomingDate } from "./due";
 import { freshness, suggestInterval, type Freshness } from "../people/intervals";
 import { getPerson } from "../people/people";
 import { labelKey } from "../conversations/conversations";
-import { householdPersons, memberPersons } from "../people/household";
+import { writerPersons, memberPersons } from "../people/writers";
 import { buildNetwork, type Network } from "../people/network";
 import { FACT_CATEGORIES, type ExchangeKind, type FactCategory, type Gender, type Look, type Viewer, type Visibility } from "../core/types";
 import { conversationPath, groupPath, itemPath, personPath } from "../core/urls";
@@ -34,8 +34,8 @@ export type Birthday = { id: string; date: string; next: string; age: number | n
 export type Fact = Own & { id: string; text: string; category: FactCategory; url: string; source?: string; happenedOn?: string; imageUrl?: string };
 
 /**
- * Who the person is to the household, read from the viewer's side: `label` what they are, in the words filed ("Vermieterin");
- * `with` is `us` when the viewer sees the relationship to every household person, `me` when only to their own person, `partner`
+ * Who the person is to us, read from the viewer's side: `label` what they are, in the words filed ("Vermieterin");
+ * `with` is `us` when the viewer sees the relationship to every writer, `me` when only to their own person, `partner`
  * when only to the other user's (`partnerName`). `ids` are the relationships it stands for.
  */
 export type Role = { label: string; with: "me" | "partner" | "us"; partnerName?: string; ids: string[] };
@@ -63,7 +63,7 @@ export type Briefing = {
   experiences: ExperienceView[];
   /** Where the person lives: the places the viewer may see are their home. */
   homes: PlaceCandidate[];
-  /** What the person says about themselves on the card the household subscribed to (ADR 0024); null without one. */
+  /** What the person says about themselves on the card the book subscribed to (ADR 0024); null without one. */
   card: PersonCard | null;
   open: {
     /** `byMe`: the viewer made the promise. `by`: the other user's name, when they made it (they recorded it); neither: the person made it. */
@@ -89,9 +89,9 @@ export type Briefing = {
   relationships: Array<
     Own & { id: string; personId: string; name: string; label: string; inverse: string; note: string | null; direction: "out" | "in"; url: string }
   >;
-  /** One hop: the person, the household persons with a visible relationship to them, then their other people. */
+  /** One hop: the person, the writers with a visible relationship to them, then their other people. */
   network: Network;
-  /** Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for a household person. */
+  /** Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for a writer. */
   suggestedInterval?: number;
 };
 
@@ -164,7 +164,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
 
   const persons = await d.from("persons").select(["id", "name", "gender"]).execute();
   const names = new Map(persons.map((p) => [p.id, p.name]));
-  const household = await householdPersons(d);
+  const writers = await writerPersons(d);
   // Promises and exchanges are stored from their recorder's side; one the other user recorded is shown with their own person's name.
   const users = new Map([...(await memberPersons(d))].map(([userId, personId]) => [userId, names.get(personId) ?? ""]));
   const by = (r: { recorded_by: string }) => (r.recorded_by === v.userId ? {} : { by: users.get(r.recorded_by) ?? "" });
@@ -189,7 +189,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
   const page = personPath(personId);
   const own = (r: { visibility: string; recorded_by: string }): Own => ({ visibility: r.visibility as Visibility, mine: r.recorded_by === v.userId });
   // One of us needs no check-in interval: you see each other every day.
-  const suggested = setting?.interval_confirmed || household.includes(personId) ? null : await suggestInterval(v, personId);
+  const suggested = setting?.interval_confirmed || writers.includes(personId) ? null : await suggestInterval(v, personId);
   const bday = birthdays.find((x) => x.recorded_by === v.userId) ?? birthdays[0];
   const next = bday && (bday.yearly ? nextOccurrence(bday.date, from) : bday.date);
   const hidden = await hiddenFiles(
@@ -215,7 +215,7 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
       gender: person.gender,
       look: person.look,
     },
-    roles: roles(v, personId, rels, household, names),
+    roles: roles(v, personId, rels, writers, names),
     groups: [...new Map(groups.map((g) => [g.id, g])).values()].map((g) => ({
       id: g.id,
       name: g.name,
@@ -272,23 +272,23 @@ export async function briefing(v: Viewer, personId: string, from = today()): Pro
         ...own(r),
       };
     }),
-    network: buildNetwork(personId, rels, household, names, new Map(persons.map((p) => [p.id, p.gender]))),
+    network: buildNetwork(personId, rels, writers, names, new Map(persons.map((p) => [p.id, p.gender]))),
     ...(suggested !== null ? { suggestedInterval: suggested } : {}),
   };
 }
 
 /**
- * The person's visible relationships to household persons, one role per relationship however many of us it runs to: "Vermieterin
+ * The person's visible relationships to writers, one role per relationship however many of us it runs to: "Vermieterin
  * of Alice" and "Vermieter:in of Bob" are one role, keyed by both ends' words without their gender endings.
  */
 function roles(
   v: Viewer,
   personId: string,
   rels: { id: string; from_id: string; to_id: string; label: string; inverse: string }[],
-  household: string[],
+  writers: string[],
   names: Map<string, string>,
 ): Role[] {
-  const ours = household.filter((h) => h !== personId);
+  const ours = writers.filter((h) => h !== personId);
   const groups = new Map<string, { label: string; ids: string[]; with: Set<string> }>();
   for (const r of rels) {
     const out = r.from_id === personId;

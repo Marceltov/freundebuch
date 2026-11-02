@@ -429,6 +429,14 @@ const migrations: Record<string, Migration> = {
       await db.schema.createIndex("invitations_by_book").on("invitations").column("book_id").execute();
     },
   },
+  "004_writers": {
+    // The book's own group is its writers, everyone who writes to the book, not a household: the flag and its index say so.
+    async up(db: Kysely<any>) {
+      await db.schema.dropIndex("groups_household").execute();
+      await db.schema.alterTable("groups").renameColumn("household", "writers").execute();
+      await db.schema.createIndex("groups_writers").unique().on("groups").column("book_id").where(sql.ref("writers"), "=", 1).execute();
+    },
+  },
 };
 
 /** The migrations themselves, for the Postgres compile test. */

@@ -1,31 +1,37 @@
 // A book: the people, conversations and items its members keep together. Whoever makes one is its first member; each member is
-// a person in it ("me"), and every member is in its own group, Haushalt.
+// a person in it ("me"), and every member is in its own group of writers, named after the book.
 import { newId, now } from "../db";
 import { instance, scope, type InstanceDb } from "../db/scope";
-import { HOUSEHOLD_GROUP, KEYED_TABLES, SEEDED_GROUPS } from "../db/tables";
+import { KEYED_TABLES, WRITERS_GROUP, SEEDED_GROUPS } from "../db/tables";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
-import { isHouseholdWord } from "./household";
+import { isUsWord } from "./writers";
 import type { Role, Viewer } from "../core/types";
 import { norm } from "./names";
 
-// The user's person in the book, their member row and their place in Haushalt.
-async function addMember(i: InstanceDb, bookId: string, userId: string, userName: string, householdId: string, role: Role): Promise<Viewer> {
+// The user's person in the book, their member row and their place in its writers group.
+async function addMember(i: InstanceDb, bookId: string, userId: string, userName: string, writersId: string, role: Role): Promise<Viewer> {
   const v: Viewer = { userId, personId: newId(), bookId, books: [bookId] };
   const s = i.scope(v);
   await s.insert("persons", { id: v.personId, name: userName, created_by: userId, created_from: null, created_at: now() }).execute();
   await i.insert("members", { book_id: bookId, user_id: userId, person_id: v.personId, created_at: now(), role }).execute();
-  await s.insert("group_members", { group_id: householdId, person_id: v.personId, visibility: "shared", recorded_by: userId, conversation_id: null }).execute();
+  await s.insert("group_members", { group_id: writersId, person_id: v.personId, visibility: "shared", recorded_by: userId, conversation_id: null }).execute();
   return v;
 }
 
-/** Makes a book with Haushalt and the seeded groups, its maker the first member. */
+// The writers group is named after the book, unless a seeded group already goes by that name.
+function writersGroupName(book: string): string {
+  const taken = SEEDED_GROUPS.flatMap((g) => [g.name, ...g.aliases]).map(norm);
+  return taken.includes(norm(book)) ? WRITERS_GROUP : book;
+}
+
+/** Makes a book with its writers group and the seeded groups, its maker the first member. */
 export async function createBook(i: InstanceDb, userId: string, userName: string, name: string): Promise<Viewer> {
   const bookId = newId();
   const t = now();
   await i.insert("books", { id: bookId, name, created_by: userId, created_at: t }).execute();
   const s = i.scope({ userId, personId: "", bookId, books: [bookId] });
-  const householdId = newId();
-  await s.insert("groups", { id: householdId, name: HOUSEHOLD_GROUP, created_by: null, created_at: now(), seeded: 1, household: 1 }).execute();
+  const writersId = newId();
+  await s.insert("groups", { id: writersId, name: writersGroupName(name), created_by: null, created_at: now(), seeded: 1, writers: 1 }).execute();
   for (const g of SEEDED_GROUPS) {
     const id = newId();
     await s.insert("groups", { id, name: g.name, created_by: null, created_at: now(), seeded: 1 }).execute();
@@ -36,14 +42,14 @@ export async function createBook(i: InstanceDb, userId: string, userName: string
       )
       .execute();
   }
-  return addMember(i, bookId, userId, userName, householdId, "owner");
+  return addMember(i, bookId, userId, userName, writersId, "owner");
 }
 
 /** Makes the user a member of the book, in the given role. */
 export async function joinBook(i: InstanceDb, bookId: string, userId: string, userName: string, role: Role): Promise<Viewer> {
   const s = i.scope({ userId, personId: "", bookId, books: [bookId] });
-  const household = await s.from("groups").select("id").where("household", "=", 1).executeTakeFirstOrThrow();
-  return addMember(i, bookId, userId, userName, household.id, role);
+  const writers = await s.from("groups").select("id").where("writers", "=", 1).executeTakeFirstOrThrow();
+  return addMember(i, bookId, userId, userName, writers.id, role);
 }
 
 /** The user as a member of one book, reading and writing only it; null when they aren't in it. */
@@ -121,7 +127,7 @@ export async function inBook(v: Viewer, book?: string): Promise<Viewer> {
 
 /** The viewer narrowed to the one book all `ids` are in ("me" and "us" aside); null when no id is left. */
 export async function inBookOf(v: Viewer, ids: readonly (string | undefined | null)[]): Promise<Viewer | null> {
-  const wanted = [...new Set(ids.filter((id): id is string => typeof id === "string" && !!id && !isHouseholdWord(id)))];
+  const wanted = [...new Set(ids.filter((id): id is string => typeof id === "string" && !!id && !isUsWord(id)))];
   if (!wanted.length) return null;
   const s = await scope(v);
   const found = new Map<string, string>();

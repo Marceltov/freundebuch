@@ -30,7 +30,7 @@ export function clearUnsent(): void {
 export const canRecord = () => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
 
 // A message spoken into Erzählen, as on WhatsApp: start records, send hands the recording to POST /api/chat/voice, which turns
-// it into its words with the household's own Whisper; `onText` gets them, to send as the user's message. Cancel throws the
+// it into its words with the own Whisper; `onText` gets them, to send as the user's message. Cancel throws the
 // recording away. The recording stays in this tab's memory only and is never stored anywhere. Words that come back after the
 // sheet was closed are kept for this tab (takeUnsent), never dropped.
 export function useVoice(onText: (text: string) => void, onError: (message: string) => void) {

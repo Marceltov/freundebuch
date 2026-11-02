@@ -184,7 +184,7 @@ test("a home is a place with owners and an address, private when told in confide
   expect(await find(s.b, "Annas Wohnung")).toBeUndefined();
 });
 
-test("an experience's place takes owners by index, and 'us' is the household", async () => {
+test("an experience's place takes owners by index, and 'us' is the book's writers", async () => {
   const r = await record(s.a, {
     date: "2026-10-28",
     transcript: "t",

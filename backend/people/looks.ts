@@ -1,5 +1,5 @@
 // A person's look: the parts their avatar is put together from, and the user's own words for how they look. Shared like the
-// name, because it is how the person looks, not something the household knows about them. No picture is kept (V4): the
+// name, because it is how the person looks, not something the book knows about them. No picture is kept (V4): the
 // parts are drawn on the fly (components/Avatar.tsx), and `description` lets Claude choose them again when the parts change.
 import { scope } from "../db/scope";
 import { InvalidInputError, NotFoundError } from "../core/errors";

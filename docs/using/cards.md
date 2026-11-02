@@ -12,6 +12,6 @@ Over MCP: "Put my new number on my private card", "Make a work card with my offi
 
 ## A friend's card
 
-When a friend sends you the link to their card, open their page in freundebuch and paste it under **… → Karte verknüpfen**, or give it to Claude. freundebuch fetches it now and again once a day. Their number, email and address show on their page under **Ihre Karte**, and their briefing has them as `card`. The card holds their own words, kept apart from what you told Claude about them, and both of you in the household see it.
+When a friend sends you the link to their card, open their page in freundebuch and paste it under **… → Karte verknüpfen**, or give it to Claude. freundebuch fetches it now and again once a day. Their number, email and address show on their page under **Ihre Karte**, and their briefing has them as `card`. The card holds their own words, kept apart from what you told Claude about them, and everyone in the book sees it.
 
 freundebuch fetches a card only from an `https` address on the internet, follows no redirects and reads at most 64 KB. It never fetches from your own server or the networks behind it, also not when the address behind a name changes between the check and the fetch. If the link stops working (your friend ended it), the page says so and keeps the last card.

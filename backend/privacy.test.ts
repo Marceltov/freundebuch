@@ -377,7 +377,7 @@ test("a private role never shows to the partner, not even as 'us'", async () => 
   expect(JSON.stringify((await briefing(s.b, s.lena)).network)).toBe(network);
 });
 
-test("a household node reachable only through A's private edge is absent for B", async () => {
+test("a writer node reachable only through A's private edge is absent for B", async () => {
   await addRelationship(s.a, { from: s.anna, to: "me", label: "Ärzt:in", inverse: "Patient:in", visibility: "private" });
   const b = await briefing(s.b, s.anna);
   expect(b.roles).toEqual([]);

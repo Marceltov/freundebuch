@@ -8,7 +8,7 @@ hide:
 
 # Remember what's going on with your friends.
 
-<p class="fb-hero__lead">freundebuch is a personal CRM for one household. After you meet someone, you ramble about it to Claude. freundebuch keeps the transcript, the news and the promises, and briefs you before you see them again.</p>
+<p class="fb-hero__lead">freundebuch keeps the people you know and what to keep in mind about them, in your books, with Claude as your personal assistant. You tell Claude what's going on in their lives; Claude files it and briefs you before you meet again.</p>
 
 [Get started](getting-started.md){ .md-button .md-button--primary }
 [How rambling works](using/rambling.md){ .md-button }
@@ -23,7 +23,7 @@ You meet a friend and can't remember whether her new job started yet, what her k
 - **Briefings.** "I'm seeing Sarah tomorrow, what's new?" gives you the last meetings, current facts, open promises and upcoming dates.
 - **Who's overdue.** Each person can have a check-in interval. The start page puts people you haven't seen for too long on the outer rings.
 - **Reminders.** Birthdays, anniversaries, promises and overdue friends, once a day to a webhook such as [ntfy](https://ntfy.sh).
-- **Shared, with private parts.** Two people in a household share one freundebuch. Anything said in confidence can be private to whoever recorded it, down to a single fact, and Claude asks when something sounds sensitive.
+- **Shared, with private parts.** A book can be shared, with your partner for example, and you can keep one of your own for work. Anything said in confidence can be private to whoever recorded it, down to a single fact, and Claude asks when something sounds sensitive.
 
 <div class="fb-shots" markdown>
 ![The orbit: you in the middle, friends on rings by how long ago you saw them](assets/orbit.png)
@@ -35,7 +35,7 @@ The web app is in German or English, each of you choosing, and meant for looking
 ## What it is not
 
 - Not a contact book: no phone numbers or addresses to maintain.
-- Not multi-tenant: one instance per household, everyone signs in through your own identity provider (authentik).
+- Self-hosted: one instance holds your books; everyone signs in through your own identity provider (authentik).
 - Not a form-filling app: the UI only reads, plus a few quick actions (done, share, delete).
 
 freundebuch is a Next.js app with SQLite: one container, one data file. It's licensed AGPL-3.0-only.
