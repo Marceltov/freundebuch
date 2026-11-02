@@ -389,7 +389,7 @@ const ROUTES: AnyOp[] = [
     path: `${API_PREFIX}/groups`,
     operationId: "listGroups",
     summary: "List groups",
-    description: "Every group the caller sees: the ones every household starts with, their own, and any with a member they may see.",
+    description: "Every group the caller sees: the ones every book starts with, their own, and any with a member they may see.",
     tags: ["Groups"],
     auth: true,
     params: {},

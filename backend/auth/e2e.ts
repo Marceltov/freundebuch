@@ -17,7 +17,7 @@ export async function e2eLoginRoute(req: Request): Promise<Response> {
     return Response.json(body, { status });
   }
   const name = new URL(req.url).searchParams.get("name")?.trim() || "E2E";
-  // A second user joins the instance's oldest book, as an admin, through an invitation made for them: the household tests
+  // A second user joins the instance's oldest book, as an admin, through an invitation made for them: the shared-book tests
   // keep two users in one book.
   const sub = `e2e:${name}`;
   const i = await instance();

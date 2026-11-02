@@ -4,12 +4,12 @@ import { GroupSettings } from "./GroupSettings";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {} }) }));
 
-test("Haushalt can be renamed but has no delete button and is never offered to merge away", () => {
+test("the writers group can be renamed but has no delete button and is never offered to merge away", () => {
   const html = renderToStaticMarkup(
     <GroupSettings
       groups={[
-        { id: "h", name: "Herziis", aliases: ["Haushalt"], count: 2, household: true },
-        { id: "f", name: "Freunde", aliases: [], count: 3, household: false },
+        { id: "h", name: "Herziis", aliases: ["Haushalt"], count: 2, writers: true },
+        { id: "f", name: "Freunde", aliases: [], count: 3, writers: false },
       ]}
     />,
   );

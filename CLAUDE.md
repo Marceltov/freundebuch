@@ -18,7 +18,7 @@ freundebuch: a personal keep-in-touch book (a household's, your own, your work's
 ## Architecture
 
 - Three surfaces call the same domain layer in `backend/`: `/mcp` (`backend/mcp/mcp.ts`), `/api/v1` (route table in `backend/http/api.ts`) and the pages in `app/(app)`. Tokens are bound to one surface; an MCP token fails on REST and vice versa. See `docs/internals/how-it-works.md` and `docs/adr/`.
-- Privacy is one function: `visible()` in `backend/visibility.ts`. Every read of a table with `visibility`/`recorded_by` goes through it. Privacy tests use the household seed in `backend/testing/fixtures.ts`.
+- Privacy is one function: `visible()` in `backend/visibility.ts`. Every read of a table with `visibility`/`recorded_by` goes through it. Privacy tests use the two-writer seed in `backend/testing/fixtures.ts`.
 - Everything about people lives in a book (`book_id` on every table, composite keys). Book tables are reached only through `scope(v)` in `backend/db/scope.ts`, instance tables through `instance()`; lint keeps Kysely in `backend/db`, and in tests a query on a book table without its book fails (ADR 0025).
 - Migrations live in code (`backend/db/migrations.ts`), starting from one baseline, and run when the server starts. Never edit one that has shipped; add the next.
 - Next.js is 16.x with breaking changes; check `node_modules/next/dist/docs/` before relying on remembered APIs.

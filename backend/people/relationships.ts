@@ -14,9 +14,9 @@ import {
 import { InvalidInputError, NotFoundError } from "../core/errors";
 import type { Viewer, Visibility } from "../core/types";
 import { groupPath } from "../core/urls";
-import { isHouseholdWord, type Target } from "./household";
+import { isUsWord, type Target } from "./writers";
 
-/** `from` and `to` are person ids, or "me" / "us" (household.ts); `label` is what `from` is to `to`, `inverse` what `to` is to `from`. */
+/** `from` and `to` are person ids, or "me" / "us" (writers.ts); `label` is what `from` is to `to`, `inverse` what `to` is to `from`. */
 export type NewRelationship = { from: Target; to: Target; label: string; inverse: string; note?: string; visibility: Visibility };
 export type NewMembership = { name: string; members: string[]; visibility: Visibility };
 
@@ -29,7 +29,7 @@ async function assertPeople(tx: Scope, ids: string[]): Promise<void> {
 }
 
 /**
- * `ids`: one per pair the targets stand for ("us" is one per household person), an existing one's when the viewer already sees it;
+ * `ids`: one per pair the targets stand for ("us" is one per writer), an existing one's when the viewer already sees it;
  * `relationships` says of each whether it was new.
  */
 export async function addRelationship(v: Viewer, r: NewRelationship): Promise<{ ids: string[]; relationships: FiledRelationship[] }> {
@@ -38,7 +38,7 @@ export async function addRelationship(v: Viewer, r: NewRelationship): Promise<{ 
   return (await scope(v)).transaction(async (tx) => {
     await assertPeople(
       tx,
-      [r.from, r.to].filter((t) => !isHouseholdWord(t)),
+      [r.from, r.to].filter((t) => !isUsWord(t)),
     );
     const relationships = await insertRelationships(tx, v, baseOf(v), r);
     return { ids: relationships.map((x) => x.id), relationships };

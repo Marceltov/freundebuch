@@ -1232,7 +1232,7 @@
       "get": {
         "operationId": "listGroups",
         "summary": "List groups",
-        "description": "Every group the caller sees: the ones every household starts with, their own, and any with a member they may see.",
+        "description": "Every group the caller sees: the ones every book starts with, their own, and any with a member they may see.",
         "tags": [
           "Groups"
         ],
@@ -6110,7 +6110,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Who the person is to the household, in the words filed"
+            "description": "Who the person is to us, in the words filed"
           },
           "news": {
             "type": "array",
@@ -6221,7 +6221,7 @@
                   "me",
                   "us"
                 ],
-                "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                "description": "\"me\": the user's own person; \"us\": every writer of the book, one relationship each"
               }
             ]
           },
@@ -6237,7 +6237,7 @@
                   "me",
                   "us"
                 ],
-                "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                "description": "\"me\": the user's own person; \"us\": every writer of the book, one relationship each"
               }
             ]
           },
@@ -6269,7 +6269,7 @@
             "items": {
               "type": "string"
             },
-            "description": "One per pair; \"us\" is one per household person"
+            "description": "One per pair; \"us\" is one per writer"
           }
         },
         "required": [
@@ -6302,9 +6302,9 @@
             "type": "string",
             "description": "Where it opens in the web app, as an absolute URL"
           },
-          "household": {
+          "writers": {
             "type": "boolean",
-            "description": "The household's own group (Haushalt to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them"
+            "description": "The book's own group of its writers (named after the book to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them"
           }
         },
         "required": [
@@ -6313,7 +6313,7 @@
           "aliases",
           "count",
           "url",
-          "household"
+          "writers"
         ]
       },
       "GroupList": {
@@ -6348,9 +6348,9 @@
             "type": "string",
             "description": "Where it opens in the web app, as an absolute URL"
           },
-          "household": {
+          "writers": {
             "type": "boolean",
-            "description": "The household's own group (Haushalt to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them"
+            "description": "The book's own group of its writers (named after the book to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them"
           },
           "members": {
             "type": "array",
@@ -6403,7 +6403,7 @@
           "aliases",
           "count",
           "url",
-          "household",
+          "writers",
           "members"
         ]
       },
@@ -6723,7 +6723,7 @@
               "properties": {
                 "label": {
                   "type": "string",
-                  "description": "What the person is to the household, in the words filed: Vermieterin, Ärztin, Klempner"
+                  "description": "What the person is to us, in the words filed: Vermieterin, Ärztin, Klempner"
                 },
                 "with": {
                   "type": "string",
@@ -6732,7 +6732,7 @@
                     "partner",
                     "us"
                   ],
-                  "description": "To whom, from the caller's side: `us` both of the household, `me` the caller, `partner` the other user"
+                  "description": "To whom, from the caller's side: `us` all the book's writers, `me` the caller, `partner` the other user"
                 },
                 "partnerName": {
                   "description": "The other user's name, when `with` is `partner`",
@@ -6743,7 +6743,7 @@
                   "items": {
                     "type": "string"
                   },
-                  "description": "The relationships it stands for (table `relationships`), one per household person"
+                  "description": "The relationships it stands for (table `relationships`), one per writer"
                 }
               },
               "required": [
@@ -6752,7 +6752,7 @@
                 "ids"
               ]
             },
-            "description": "Who the person is to the household (\"your landlady\", \"Sybille's colleague\"): the first thing to say about them"
+            "description": "Who the person is to us (\"your landlady\", \"Sybille's colleague\"): the first thing to say about them"
           },
           "groups": {
             "type": "array",
@@ -7472,7 +7472,7 @@
                 "type": "null"
               }
             ],
-            "description": "What the person says about themselves, from the card the household subscribed to; their own words, kept apart from what was told about them. Null without one"
+            "description": "What the person says about themselves, from the card the book subscribed to; their own words, kept apart from what was told about them. Null without one"
           },
           "open": {
             "type": "object",
@@ -7792,10 +7792,10 @@
                       "type": "string",
                       "enum": [
                         "self",
-                        "household",
+                        "writer",
                         "other"
                       ],
-                      "description": "`self` the person, `household` one of us, `other` the person's own people"
+                      "description": "`self` the person, `writer` one of us, `other` the person's own people"
                     },
                     "url": {
                       "type": "string",
@@ -7850,10 +7850,10 @@
               "nodes",
               "edges"
             ],
-            "description": "One hop around the person: the household persons they relate to, and their own people"
+            "description": "One hop around the person: the writers they relate to, and their own people"
           },
           "suggestedInterval": {
-            "description": "Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the household",
+            "description": "Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the book's writers",
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
@@ -9678,7 +9678,7 @@
                   }
                 },
                 "shared": {
-                  "description": "Only when the user says to share this entry with the household; private otherwise",
+                  "description": "Only when the user says to share this entry with the book's other writers; private otherwise",
                   "type": "boolean"
                 }
               },
@@ -9911,7 +9911,7 @@
                         "me",
                         "us"
                       ],
-                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                      "description": "\"me\": the user's own person; \"us\": every writer of the book, one relationship each"
                     }
                   ]
                 },
@@ -9929,7 +9929,7 @@
                         "me",
                         "us"
                       ],
-                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                      "description": "\"me\": the user's own person; \"us\": every writer of the book, one relationship each"
                     }
                   ]
                 },
@@ -10386,7 +10386,7 @@
                     },
                     "url": {
                       "type": "string",
-                      "description": "Its highlighted row on the page of from (of to when from is the household), as an absolute URL"
+                      "description": "Its highlighted row on the page of from (of to when from is us), as an absolute URL"
                     }
                   },
                   "required": [
@@ -10401,7 +10401,7 @@
                     "url"
                   ]
                 },
-                "description": "One per pair: \"us\" is one per household person"
+                "description": "One per pair: \"us\" is one per writer"
               },
               "groups": {
                 "type": "array",
@@ -11011,7 +11011,7 @@
             }
           },
           "relationships": {
-            "description": "How people are related, and who someone is to the household: a role (\"our landlady\") goes to \"us\" or \"me\", never into a fact",
+            "description": "How people are related, and who someone is to us: a role (\"our landlady\") goes to \"us\" or \"me\", never into a fact",
             "type": "array",
             "items": {
               "type": "object",
@@ -11030,7 +11030,7 @@
                         "me",
                         "us"
                       ],
-                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                      "description": "\"me\": the user's own person; \"us\": every writer of the book, one relationship each"
                     }
                   ]
                 },
@@ -11048,7 +11048,7 @@
                         "me",
                         "us"
                       ],
-                      "description": "\"me\": the user's own person; \"us\": everyone in the household, one relationship each"
+                      "description": "\"me\": the user's own person; \"us\": every writer of the book, one relationship each"
                     }
                   ]
                 },
@@ -11502,7 +11502,7 @@
                     },
                     "url": {
                       "type": "string",
-                      "description": "Its highlighted row on the page of from (of to when from is the household), as an absolute URL"
+                      "description": "Its highlighted row on the page of from (of to when from is us), as an absolute URL"
                     }
                   },
                   "required": [
@@ -11517,7 +11517,7 @@
                     "url"
                   ]
                 },
-                "description": "One per pair: \"us\" is one per household person"
+                "description": "One per pair: \"us\" is one per writer"
               },
               "groups": {
                 "type": "array",

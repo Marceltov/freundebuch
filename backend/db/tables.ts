@@ -54,8 +54,8 @@ export const REFS: Readonly<Record<BookTable, Readonly<Record<string, BookTable>
   series_skips: { series_id: "series" },
 };
 
-/** The name a book's own group starts with. */
-export const HOUSEHOLD_GROUP = "Haushalt";
+/** The name a book's writers group starts with when the book's own name is taken by a seeded group. */
+export const WRITERS_GROUP = "Wir";
 
 /** The groups every book starts with, and their other names. */
 export const SEEDED_GROUPS: readonly { name: string; aliases: string[] }[] = [

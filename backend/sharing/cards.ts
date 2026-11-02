@@ -361,7 +361,7 @@ export async function unsubscribeCard(v: Viewer, personId: string): Promise<void
   await (await scope(v)).delete("card_subscriptions").where("person_id", "=", personId).execute();
 }
 
-/** The person's subscribed card, or null when they have none. Shared like the name: every user of the household sees it. */
+/** The person's subscribed card, or null when they have none. Shared like the name: every writer of the book sees it. */
 export async function personCard(v: Viewer, personId: string): Promise<PersonCard | null> {
   return cardOf(await scope(v), personId);
 }

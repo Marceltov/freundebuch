@@ -65,11 +65,11 @@ export const LookJson = z
     "A stylized avatar put together from parts, not a portrait: choose for each part the value closest to how the user described the person, and the usual value (none, oval) for what they didn't say",
   )
   .meta({ id: "Look" });
-/** A relationship's end: a person, or the household. */
+/** A relationship's end: a person, or us (the book's writers). */
 /** The words of a relationship, written by Claude in each end's gender: there is no fixed list of types. */
 export const LABEL = z.string().describe("What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)");
 export const INVERSE = z.string().describe("What `to` is to `from`, the same way: Mieter, Mutter, Kollegin, Nachbar:in");
-export const HOUSEHOLD_TARGET = z.enum(["me", "us"]).describe('"me": the user\'s own person; "us": everyone in the household, one relationship each');
+export const US_TARGET = z.enum(["me", "us"]).describe('"me": the user\'s own person; "us": every writer of the book, one relationship each');
 export const PersonJson = z
   .object({
     id: PersonId,
@@ -329,15 +329,15 @@ export const BriefingJson = z
     roles: z
       .array(
         z.object({
-          label: z.string().describe("What the person is to the household, in the words filed: Vermieterin, Ärztin, Klempner"),
+          label: z.string().describe("What the person is to us, in the words filed: Vermieterin, Ärztin, Klempner"),
           with: z
             .enum(["me", "partner", "us"])
-            .describe("To whom, from the caller's side: `us` both of the household, `me` the caller, `partner` the other user"),
+            .describe("To whom, from the caller's side: `us` all the book's writers, `me` the caller, `partner` the other user"),
           partnerName: z.string().optional().describe("The other user's name, when `with` is `partner`"),
-          ids: z.array(z.string()).describe("The relationships it stands for (table `relationships`), one per household person"),
+          ids: z.array(z.string()).describe("The relationships it stands for (table `relationships`), one per writer"),
         }),
       )
-      .describe('Who the person is to the household ("your landlady", "Sybille\'s colleague"): the first thing to say about them'),
+      .describe('Who the person is to us ("your landlady", "Sybille\'s colleague"): the first thing to say about them'),
     groups: z
       .array(
         z.object({
@@ -366,7 +366,7 @@ export const BriefingJson = z
     experiences: z.array(ExperienceJson.extend({})).describe("The experiences the caller may see that the person was at, the last few, newest first"),
     homes: z.array(PlaceJson.extend({})).describe("Where the person lives: the places that are their home"),
     card: PersonCardJson.nullable().describe(
-      "What the person says about themselves, from the card the household subscribed to; their own words, kept apart from what was told about them. Null without one",
+      "What the person says about themselves, from the card the book subscribed to; their own words, kept apart from what was told about them. Null without one",
     ),
     open: z.object({
       promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
@@ -408,7 +408,7 @@ export const BriefingJson = z
             id: PersonId,
             name: z.string(),
             gender: Gender.nullable(),
-            role: z.enum(["self", "household", "other"]).describe("`self` the person, `household` one of us, `other` the person's own people"),
+            role: z.enum(["self", "writer", "other"]).describe("`self` the person, `writer` one of us, `other` the person's own people"),
             url: Url,
           }),
         ),
@@ -422,12 +422,12 @@ export const BriefingJson = z
           }),
         ),
       })
-      .describe("One hop around the person: the household persons they relate to, and their own people"),
+      .describe("One hop around the person: the writers they relate to, and their own people"),
     suggestedInterval: z
       .number()
       .int()
       .optional()
-      .describe("Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the household"),
+      .describe("Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the book's writers"),
   })
   .meta({ id: "Briefing" });
 
@@ -489,17 +489,15 @@ export const PersonPatchJson = z
 
 export const FactRelationshipJson = z
   .object({
-    from: z.union([PersonId, HOUSEHOLD_TARGET]),
-    to: z.union([PersonId, HOUSEHOLD_TARGET]),
+    from: z.union([PersonId, US_TARGET]),
+    to: z.union([PersonId, US_TARGET]),
     label: LABEL,
     inverse: INVERSE,
     note: z.string().optional(),
   })
   .describe("The relationship a fact becomes; one end is the fact's person")
   .meta({ id: "FactRelationship" });
-export const RelationshipIdsJson = z
-  .object({ ids: z.array(z.string()).describe('One per pair; "us" is one per household person') })
-  .meta({ id: "RelationshipIds" });
+export const RelationshipIdsJson = z.object({ ids: z.array(z.string()).describe('One per pair; "us" is one per writer') }).meta({ id: "RelationshipIds" });
 
 export const AliasJson = z.object({ alias: z.string().describe("Another name the person goes by, e.g. a nickname") }).meta({ id: "Alias" });
 
@@ -587,8 +585,8 @@ export const NewConversationJson = z
     relationships: z
       .array(
         z.object({
-          from: z.union([Ref, HOUSEHOLD_TARGET]),
-          to: z.union([Ref, HOUSEHOLD_TARGET]),
+          from: z.union([Ref, US_TARGET]),
+          to: z.union([Ref, US_TARGET]),
           label: LABEL,
           inverse: INVERSE,
           note: z.string().optional().describe('Anything more about it: "seit der Schulzeit"'),
@@ -596,7 +594,7 @@ export const NewConversationJson = z
         }),
       )
       .optional()
-      .describe('How people are related, and who someone is to the household: a role ("our landlady") goes to "us" or "me", never into a fact'),
+      .describe('How people are related, and who someone is to us: a role ("our landlady") goes to "us" or "me", never into a fact'),
     groups: z.array(z.object({ name: z.string(), members: z.array(Ref), private: Private })).optional(),
   })
   .meta({ id: "NewConversation" });
@@ -661,7 +659,7 @@ export const NewRambleJson = z
           date: Day.optional().describe("The day it is about, when not the ramble's day"),
           text: z.string().describe("The entry in the user's own words: what they think, feel or plan about their own life"),
           mentions: z.array(Ref).optional().describe("The people it names, by index into people"),
-          shared: z.boolean().optional().describe("Only when the user says to share this entry with the household; private otherwise"),
+          shared: z.boolean().optional().describe("Only when the user says to share this entry with the book's other writers; private otherwise"),
         }),
       )
       .optional()
@@ -709,7 +707,7 @@ export const FiledRelationshipJson = z.object({
   label: z.string().describe("What from is to to, as stored: an existing relationship keeps its own words"),
   inverse: z.string().describe("What to is to from, as stored"),
   created: z.boolean().describe("false when the caller already saw the same relationship, which was kept as it was"),
-  url: ItemUrl.describe("Its highlighted row on the page of from (of to when from is the household), as an absolute URL"),
+  url: ItemUrl.describe("Its highlighted row on the page of from (of to when from is us), as an absolute URL"),
 });
 
 export const RecordedJson = z
@@ -726,7 +724,7 @@ export const RecordedJson = z
       groups: z.number().int().describe("The group memberships written"),
     }),
     filed: FiledItemsJson.extend({
-      relationships: z.array(FiledRelationshipJson).describe('One per pair: "us" is one per household person'),
+      relationships: z.array(FiledRelationshipJson).describe('One per pair: "us" is one per writer'),
       groups: z.array(
         z.object({
           id: z.string(),
@@ -850,10 +848,10 @@ export const GroupJson = z
     aliases: z.array(z.string()).describe("Other names that find the group, e.g. Kollegen for Arbeit"),
     count: z.number().int().describe("How many people the caller may see in it"),
     url: Url,
-    household: z
+    writers: z
       .boolean()
       .describe(
-        "The household's own group (Haushalt to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them",
+        "The book's own group of its writers (named after the book to start with): everyone who signs in is in it. It may be renamed, but not deleted, merged into another group or emptied of them",
       ),
   })
   .meta({ id: "Group" });
@@ -949,7 +947,7 @@ export const BirthdayMessageJson = z
       })
       .nullable()
       .describe("Null when no birthday is filed"),
-    roles: z.array(z.string()).describe("Who the person is to the household, in the words filed"),
+    roles: z.array(z.string()).describe("Who the person is to us, in the words filed"),
     news: z.array(z.string()).describe("What is going on in their life: shared situations, nothing about health"),
     known: z.array(z.string()).describe("What stays true about them: shared facts, nothing about health"),
     lastSeen: z.string().nullable().describe("The day the caller last spoke to them"),

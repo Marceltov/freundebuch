@@ -25,7 +25,7 @@ const base = (over: Partial<NewConversation> = {}): NewConversation => ({
 });
 
 const ITEM_TABLES = ["facts", "promises", "dates", "exchanges", "relationships", "group_members"] as const;
-// The rows of an item table a conversation could have filed: everyone who signs in is in Haushalt from the start, without one.
+// The rows of an item table a conversation could have filed: everyone who signs in is in the book's writers group from the start, without one.
 const filedRows = async (t: (typeof ITEM_TABLES)[number] | string) => {
   const rows = await unchecked()
     .selectFrom(t as "group_members")

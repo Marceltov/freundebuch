@@ -89,7 +89,7 @@ export const voiceEnabled = (): boolean => chatEnabled() && !!transcriber();
 const MAX_VOICE = 15 * 1024 * 1024;
 
 // POST /api/chat/voice: a message spoken into Erzählen (the body, as the browser recorded it), turned into its words by the
-// household's own Whisper and handed back, for the app to send as the user's message. The recording is never stored: only
+// own Whisper and handed back, for the app to send as the user's message. The recording is never stored: only
 // its words are kept, as the ramble they become. Same caller rules as the chat.
 export async function voiceRoute(req: Request): Promise<Response> {
   const t = model() ? transcriber() : null;

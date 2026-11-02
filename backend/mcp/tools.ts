@@ -58,13 +58,13 @@ import {
   SearchJson,
   PendingFileJson,
   TraitsJson,
-  HOUSEHOLD_TARGET,
+  US_TARGET,
   Visibility,
   CardJson,
   CardsJson,
   BirthdayMessageJson,
 } from "../http/schemas";
-import { isHouseholdWord } from "../people/household";
+import { isUsWord } from "../people/writers";
 import { setCheckInInterval } from "../people/intervals";
 import { search } from "../reading/search";
 import { traitsFor, type PersonTraits } from "../people/traits";
@@ -261,8 +261,7 @@ function needsNext(people: PersonTraits[]): Next {
 
 function briefingNext(b: Briefing): Next {
   const next: Next = [];
-  if (b.roles.length)
-    next.push(`Lead with who ${b.person.name} is to the household: ${b.roles.map((r) => `${r.label} of ${WITH[r.with](r.partnerName)}`).join("; ")}.`);
+  if (b.roles.length) next.push(`Lead with who ${b.person.name} is to us: ${b.roles.map((r) => `${r.label} of ${WITH[r.with](r.partnerName)}`).join("; ")}.`);
   if (b.traits.needs.length) next.push(`Keep in mind what ${b.person.name} needs: ${b.traits.needs.map((f) => f.text).join("; ")}.`);
   for (const f of b.situations.filter((x) => x.nudge))
     next.push(
@@ -338,7 +337,7 @@ const RelatedJson = z.object({
   ids: z
     .array(z.string())
     .optional()
-    .describe('relationship: one per pair it stands for; "us" is one per household person. An existing one\'s id when it was already there'),
+    .describe('relationship: one per pair it stands for; "us" is one per writer. An existing one\'s id when it was already there'),
   relationships: z.array(FiledRelationshipJson).optional().describe("relationship: each pair, and whether it was new"),
   added: z.number().int().optional().describe("How many group memberships were new; one the user already recorded is kept as it was"),
   already: z.number().int().optional().describe("group: how many of the members the user had put in it before"),
@@ -429,13 +428,13 @@ function check<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
 }
 
 const RELATE_KINDS = ["relationship", "group"] as const;
-const Target = z.union([PersonId, HOUSEHOLD_TARGET]);
+const Target = z.union([PersonId, US_TARGET]);
 const WORDS_DOC =
   "There is no fixed list of types: say in words what each end is, in the user's language and in that person's gender (the ':in' form when it isn't known): label what `from` is to `to`, inverse what `to` is to `from`. \"She is our landlady\": from her, to \"us\", label Vermieterin, inverse Mieter:in; Tom's mother Anna: from Anna, to Tom, label Mutter, inverse Sohn; Lena and Tom next door: label Nachbarin, inverse Nachbar. Use the usual word, so the same relationship is found again; ask the user only when you can't tell who is what";
 const RelateInput = z.object({
   kind: z.enum(RELATE_KINDS).describe("`relationship` takes from, to, label, inverse and an optional note; `group` takes name and members"),
   from: Target.optional().describe('relationship: a person, or "me" / "us"'),
-  to: Target.optional().describe('relationship: the other person, or "me" / "us" for a role to the household'),
+  to: Target.optional().describe('relationship: the other person, or "me" / "us" for a role to us'),
   label: z.string().optional().describe(`relationship: what \`from\` is to \`to\`. ${WORDS_DOC}`),
   inverse: z.string().optional().describe("relationship: what `to` is to `from`"),
   note: z.string().optional().describe('relationship: anything more about it ("seit der Schulzeit")'),
@@ -764,7 +763,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "record",
     description:
-      'File a ramble: what the user told you, with the verbatim ramble as transcript, split into its parts. conversations: each meeting, call or message it tells of, with a short summary and who took part (present), the place, and at = the experience it happened at. A place may say in = the place it sits inside, only as deep as the user said ("the Olympiahalle in München": Olympiahalle in München), its address in words when told, and owners when it is someone\'s home ("at Anna\'s": a place owned by Anna; reuse her home if places shows one). When someone moved, file the new home and drop them as owner of the old one with correct. experiences: what the user lived through that is not a meeting (a concert, a festival, a trip, a dog-school lesson), with a kind in the user\'s language (reuse the kinds in use), a title, a few lines, the place and who was there; a session of something recurring names its series. journal: what the user thinks, feels or plans about their own life ("I keep wondering whether to change jobs"), in their own words, with the people it names; private unless the user says to share an entry. Facts, promises, dates, exchanges, relationships and groups: what was learned, each with in = the index of the conversation it came from, or without in when it came from none. People are named once in people and referred to by index. Use it after every ramble; split one that tells several things (dog school, a call from Anna, a thought about work) into those parts. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise; a conversation on another day gets its own date. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary. Who someone is to the household ("she\'s our landlady", "our neighbour", "my doctor") is a relationship to "us" (everyone in the household, one relationship each) or "me", never a fact: "we rent from her" is from her to "us", label Vermieterin, inverse Mieter:in. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. Set a person\'s gender only when the user states it or uses a pronoun for them ("she is our landlady"), never from the name.',
+      'File a ramble: what the user told you, with the verbatim ramble as transcript, split into its parts. conversations: each meeting, call or message it tells of, with a short summary and who took part (present), the place, and at = the experience it happened at. A place may say in = the place it sits inside, only as deep as the user said ("the Olympiahalle in München": Olympiahalle in München), its address in words when told, and owners when it is someone\'s home ("at Anna\'s": a place owned by Anna; reuse her home if places shows one). When someone moved, file the new home and drop them as owner of the old one with correct. experiences: what the user lived through that is not a meeting (a concert, a festival, a trip, a dog-school lesson), with a kind in the user\'s language (reuse the kinds in use), a title, a few lines, the place and who was there; a session of something recurring names its series. journal: what the user thinks, feels or plans about their own life ("I keep wondering whether to change jobs"), in their own words, with the people it names; private unless the user says to share an entry. Facts, promises, dates, exchanges, relationships and groups: what was learned, each with in = the index of the conversation it came from, or without in when it came from none. People are named once in people and referred to by index. Use it after every ramble; split one that tells several things (dog school, a call from Anna, a thought about work) into those parts. First resolve every person with find_person, ask the user when a name fits more than one person or resembles an existing one, and set confirmedNew on a new person only once the user said they are someone else. date is today unless the user says otherwise; a conversation on another day gets its own date. If anything is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling, and keep it out of the summary. Who someone is to us ("she\'s our landlady", "our neighbour", "my doctor") is a relationship to "us" (every writer of the book, one relationship each) or "me", never a fact: "we rent from her" is from her to "us", label Vermieterin, inverse Mieter:in. Facts: kind `situation` for what is going on and will end (moving, a new dog, looking for a car), with checkAfter estimated from how long it usually takes (a car: a few weeks, a house: months); everything else is `lasting`. News about a situation supersedes it (supersedes) and needs a new checkAfter: suggest one from what the news says and agree it with the user before filing; when the user tells how it ended, mark it outdated with correct. Set a person\'s gender only when the user states it or uses a pronoun for them ("she is our landlady"), never from the name.',
     input: NewRamble,
     output: RecordedRamble,
     annotations: { destructiveHint: false },
@@ -850,7 +849,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "people",
     description:
-      "Everyone in the book but the user, by name, each with the groups the user sees them in. With withoutGroup, only those in no group yet, to sort them into groups (the household is in its own group, Haushalt). To find one person by name, use find_person.",
+      "Everyone in the book but the user, by name, each with the groups the user sees them in. With withoutGroup, only those in no group yet, to sort them into groups (the book's writers are in its own group, named after the book). To find one person by name, use find_person.",
     input: z.object({
       withoutGroup: z.boolean().optional().describe("Only the people in no group"),
     }),
@@ -874,7 +873,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "briefing",
     description:
-      "Everything worth knowing about a person: who they are to the household (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name), what is going on (`situations`, with `nudge` once their day to ask has come), what they need and how they are (`traits`: `needs` to plan around, `personality` to keep in mind), what else stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, when they ask about a person, or \"how do I know X?\".",
+      "Everything worth knowing about a person: who they are to us (`roles`, read from the user's side: `us`, `me`, or `partner` with the partner's name), what is going on (`situations`, with `nudge` once their day to ask has come), what they need and how they are (`traits`: `needs` to plan around, `personality` to keep in mind), what else stays true (`known`), the one-hop `network`, when the user last saw them, recent conversations, open promises and exchanges, gift ideas, upcoming dates and relationships. A fact read from a social media screenshot the user shared carries its `source` (Instagram, LinkedIn, ...) and `happenedOn`. Each relationship has its id, its words (label: what from is to to; inverse: what to is to from) and note, so a wrong or doubled one can be fixed with correct (table `relationships`, patch { label, inverse, note }). Use it before the user meets someone, when they ask about a person, or \"how do I know X?\".",
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },
@@ -1083,7 +1082,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "relate",
     description:
-      'Record how two people are related, or put people in a group, when the user mentions it outside of a conversation to file; pass person ids from find_person. If it is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling. Who someone is to the household ("she\'s our landlady") is a relationship to "us" (everyone in the household, one relationship each) or "me", never a fact: from her, to "us", label Vermieterin, inverse Mieter:in. Filing the same relationship again, either way round or in another gender form, keeps the one there.',
+      'Record how two people are related, or put people in a group, when the user mentions it outside of a conversation to file; pass person ids from find_person. If it is sensitive (health, relationship trouble, money, anything said in confidence), ask the user whether it should be private before calling. Who someone is to us ("she\'s our landlady") is a relationship to "us" (every writer of the book, one relationship each) or "me", never a fact: from her, to "us", label Vermieterin, inverse Mieter:in. Filing the same relationship again, either way round or in another gender form, keeps the one there.',
     input: RelateInput,
     output: RelatedJson,
     annotations: { destructiveHint: false },
@@ -1102,17 +1101,13 @@ export const TOOLS: readonly Tool[] = [
         note: a.note,
         visibility: a.visibility,
       });
-      return ok(
-        RelatedJson,
-        { id: ids[0], ids, relationships, url: personPath(isHouseholdWord(a.from) ? a.to : a.from) },
-        relationships.flatMap(keptRelationship),
-      );
+      return ok(RelatedJson, { id: ids[0], ids, relationships, url: personPath(isUsWord(a.from) ? a.to : a.from) }, relationships.flatMap(keptRelationship));
     },
   }),
   tool({
     name: "birthday_message",
     description:
-      "Help the user write birthday wishes to someone, which they then send themselves: freundebuch never sends anything. First call it without text: it returns when the birthday is, the age, who the person is to the household and what the user knows about them (never anything about health). Draft a short, warm message in the user's own voice from it, show it, and change it as the user asks. Then call it again with the final text: it returns links that open WhatsApp, Telegram, SMS or email with the text filled in, for the user to pick the person and send.",
+      "Help the user write birthday wishes to someone, which they then send themselves: freundebuch never sends anything. First call it without text: it returns when the birthday is, the age, who the person is to us and what the user knows about them (never anything about health). Draft a short, warm message in the user's own voice from it, show it, and change it as the user asks. Then call it again with the final text: it returns links that open WhatsApp, Telegram, SMS or email with the text filled in, for the user to pick the person and send.",
     input: z.object({
       personId: PersonId,
       text: z.string().optional().describe("The final message, once the user is happy with it; leave it out while drafting"),
@@ -1399,7 +1394,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "books",
     description:
-      "The user's books: the household's, one of their own for work, and so on; books never see into each other. list: each book with the user's role and its members. create: a new book of the user's own (e.g. Arbeit), its owner and only member. The others work on one book, named in `book`: rename (owner, admin); invite (owner, admin: a link that works once, for 7 days, as member; as admin only the owner); invitations and revoke (owner, admin); set_role (owner: make a member admin or back); remove (owner; an admin removes members); leave (anyone but the owner: what they marked private there is deleted, and their transcripts that held it are emptied); hand_over (owner, to another member); delete (owner: the book and everything in it). Confirm with the user before remove, leave and delete, saying what goes; a member removed, or whose book is deleted, who has no other book gets an empty book of their own.",
+      "The user's books: a shared one, one of their own for work, and so on; books never see into each other. list: each book with the user's role and its members. create: a new book of the user's own (e.g. Arbeit), its owner and only member. The others work on one book, named in `book`: rename (owner, admin); invite (owner, admin: a link that works once, for 7 days, as member; as admin only the owner); invitations and revoke (owner, admin); set_role (owner: make a member admin or back); remove (owner; an admin removes members); leave (anyone but the owner: what they marked private there is deleted, and their transcripts that held it are emptied); hand_over (owner, to another member); delete (owner: the book and everything in it). Confirm with the user before remove, leave and delete, saying what goes; a member removed, or whose book is deleted, who has no other book gets an empty book of their own.",
     input: z.object({
       action: z.enum(["list", "create", "rename", "invite", "invitations", "revoke", "set_role", "remove", "leave", "hand_over", "delete"]),
       book: z.string().optional().describe("The book, by name, as list shows it: for every action but list and create"),
@@ -1461,7 +1456,7 @@ export const TOOLS: readonly Tool[] = [
   tool({
     name: "move",
     description:
-      "Move people into another of the user's books (e.g. work contacts from the household's book into Arbeit), with what the user may see about them: their facts, dates, promises, exchanges, groups, homes, the relationships whose other end comes along or is the user, and the conversations, experiences and journal entries everyone in them comes along to. What can't move stays behind in the old book, with an entry for the person. Moved people get new links. Moving takes them out of the other members' sight: confirm with the user first, naming the people and the book.",
+      "Move people into another of the user's books (e.g. work contacts from the shared book into Arbeit), with what the user may see about them: their facts, dates, promises, exchanges, groups, homes, the relationships whose other end comes along or is the user, and the conversations, experiences and journal entries everyone in them comes along to. What can't move stays behind in the old book, with an entry for the person. Moved people get new links. Moving takes them out of the other members' sight: confirm with the user first, naming the people and the book.",
     input: z.object({
       people: z.array(PersonId).optional().describe("The people to move, as find_person returns them"),
       group: z.string().optional().describe("Or a group by name: everyone in it moves"),

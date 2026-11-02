@@ -319,8 +319,8 @@ describe("next: what Claude does after a call", () => {
     const names = all.people.map((p: Json) => p.name);
     expect(names).toEqual(["Anna", "Bob", "Lena", "Tom"]);
     expect(all.people.find((p: Json) => p.name === "Anna")).toMatchObject({ id: s.anna, groups: ["Laufgruppe"], url: expect.stringMatching(`/p/${s.anna}$`) });
-    // The partner is in Haushalt, the household's own group, like anyone in a group.
-    expect(all.people.find((p: Json) => p.name === "Bob")).toMatchObject({ id: s.b.personId, groups: ["Haushalt"] });
+    // The partner is in the book's writers group, named after the book, like anyone in a group.
+    expect(all.people.find((p: Json) => p.name === "Bob")).toMatchObject({ id: s.b.personId, groups: ["Unser Buch"] });
     expect(all.next).toEqual([]);
   });
 
@@ -357,7 +357,7 @@ describe("next: what Claude does after a call", () => {
     const b = await run(s.a, "briefing", { personId: s.anna });
     expect(b.suggestedInterval).toBe(14);
     expect(b.next).toEqual([
-      "Lead with who Anna is to the household: Vermieterin of you both.",
+      "Lead with who Anna is to us: Vermieterin of you both.",
       'Ask about "sucht ein Auto" first: its day to ask, 2026-10-01, has come. When the user tells how it went, mark it outdated with correct; news instead supersedes it, with a new checkAfter agreed with the user.',
       "Offer to check in with Anna every 14 days; save it with set_interval once the user agrees.",
     ]);
@@ -375,10 +375,7 @@ describe("next: what Claude does after a call", () => {
     });
     const b = await run(s.a, "briefing", { personId: s.anna });
     expect(b.traits.needs.map((f: { text: string }) => f.text)).toEqual(["vegetarian", "nut allergy"]);
-    expect(b.next.slice(0, 2)).toEqual([
-      "Lead with who Anna is to the household: Vermieterin of you both.",
-      "Keep in mind what Anna needs: vegetarian; nut allergy.",
-    ]);
+    expect(b.next.slice(0, 2)).toEqual(["Lead with who Anna is to us: Vermieterin of you both.", "Keep in mind what Anna needs: vegetarian; nut allergy."]);
   });
 
   test("traits lists people and groups once each and names the needs to keep in mind", async () => {
@@ -400,9 +397,9 @@ describe("next: what Claude does after a call", () => {
     expect(due.next).toEqual(['Suggest asking Lena about "sucht einen Hund": its day to ask, 2026-10-01, has come.']);
   });
 
-  test("groups marks Haushalt as the household's own group", async () => {
+  test("groups marks the book's writers group", async () => {
     const { groups } = await run(s.a, "groups", {});
-    expect(groups.filter((g: Json) => g.household).map((g: Json) => g.name)).toEqual(["Haushalt"]);
+    expect(groups.filter((g: Json) => g.writers).map((g: Json) => g.name)).toEqual(["Unser Buch"]);
   });
 
   test("the read-only tools without anything to follow up answer with an empty next", async () => {

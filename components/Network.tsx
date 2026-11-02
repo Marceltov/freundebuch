@@ -3,9 +3,9 @@ import type { Briefing } from "@/backend";
 import { getCopy } from "@/components/serverCopy";
 import { faceColor, initials } from "@/components/faceStyle";
 
-// Who a person belongs with, drawn in three rows: the household on top (only those of us with a visible relationship to them),
+// Who a person belongs with, drawn in three rows: the book's writers on top (only those of us with a visible relationship to them),
 // the person in the middle, their own people below. Every line carries what it is, on a pill the line doesn't run through: to
-// the household, what the person is to us ("Vermieterin"); below, what the other is to them ("Sohn"). Built only from the
+// the writers, what the person is to us ("Vermieterin"); below, what the other is to them ("Sohn"). Built only from the
 // briefing's network, so a relationship the viewer may not see leaves no node, line or gap. When the labels can't be placed
 // without overlapping, nothing is drawn and the page shows the list instead.
 
@@ -46,15 +46,15 @@ export function layoutNetwork(network: Net, viewerPersonId: string): Layout | nu
   const copy = getCopy();
   const self = network.nodes.find((n) => n.role === "self");
   if (!self) return null;
-  const household = network.nodes.filter((n) => n.role === "household");
+  const writers = network.nodes.filter((n) => n.role === "writer");
   const others = network.nodes.filter((n) => n.role === "other");
   if (others.length > MAX_OTHERS) return null;
 
   const topY = 50;
-  const selfY = household.length ? topY + 118 : 34;
+  const selfY = writers.length ? topY + 118 : 34;
   const othersY = selfY + (others.length > 3 ? 150 : 124);
   const spread = (n: number, from: number, to: number) => (i: number) => (n === 1 ? W / 2 : from + (i * (to - from)) / (n - 1));
-  const hx = spread(household.length, 70, 290);
+  const hx = spread(writers.length, 70, 290);
   const ox = spread(others.length, 36, 324);
   const place = (n: Net["nodes"][number], x: number, y: number, r: number): Placed => ({
     id: n.id,
@@ -67,14 +67,14 @@ export function layoutNetwork(network: Net, viewerPersonId: string): Layout | nu
     color: faceColor(n.id),
     initials: initials(n.name),
   });
-  const nodes = [place(self, W / 2, selfY, 26), ...household.map((n, i) => place(n, hx(i), topY, 18)), ...others.map((n, i) => place(n, ox(i), othersY, 18))];
+  const nodes = [place(self, W / 2, selfY, 26), ...writers.map((n, i) => place(n, hx(i), topY, 18)), ...others.map((n, i) => place(n, ox(i), othersY, 18))];
   const at = new Map(nodes.map((n) => [n.id, n]));
   const center = nodes[0];
 
-  // Names above the household (lines leave them downwards), under the others; cut to the room between neighbours.
+  // Names above the writers (lines leave them downwards), under the others; cut to the room between neighbours.
   const room = others.length > 1 ? 288 / (others.length - 1) - 6 : 120;
   const names = nodes.slice(1).map((n) => {
-    const top = household.some((h) => h.id === n.id);
+    const top = writers.some((h) => h.id === n.id);
     const fit = Math.max(3, Math.floor(room / 6.5));
     const text = n.name.length > fit ? `${n.name.slice(0, fit - 1)}…` : n.name;
     const w = textWidth(text) + 4;

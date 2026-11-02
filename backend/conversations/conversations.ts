@@ -25,7 +25,7 @@ import {
 } from "../core/types";
 import { dropBlobs, moveFiles, takeFiles } from "./files";
 import { resolveOrCreateGroup } from "../people/groups";
-import { isHouseholdWord, memberPersons, resolvePairs, type Target } from "../people/household";
+import { isUsWord, memberPersons, resolvePairs, type Target } from "../people/writers";
 import { conversationPath, groupPath, itemPath, journalPath, personPath, type AnchoredTable } from "../core/urls";
 import { visible } from "../visibility";
 
@@ -57,7 +57,7 @@ export type NewConversation = {
   /** `date` is `YYYY-MM-DD`, or `--MM-DD` for a yearly date without a year. */
   dates?: Array<{ person: PersonRef; kind: DateKind; date: string; label?: string; yearly: boolean; private?: boolean }>;
   exchanges?: Array<{ person: PersonRef; kind: ExchangeKind; direction: Direction; text: string; amount?: number; currency?: string; private?: boolean }>;
-  /** "me" is the viewer's person, "us" every household person (one relationship each): a role to us ("our landlady"). */
+  /** "me" is the viewer's person, "us" every writer (one relationship each): a role to us ("our landlady"). */
   /** `label` is what `from` is to `to`, `inverse` what `to` is to `from`, in words and in each one's gender ("Vermieterin", "Mieter"). */
   relationships?: Array<{ from: PersonRef | "me" | "us"; to: PersonRef | "me" | "us"; label: string; inverse: string; note?: string; private?: boolean }>;
   groups?: Array<{ name: string; members: PersonRef[]; private?: boolean }>;
@@ -410,12 +410,12 @@ export function checkVisibility(visibility: string): void {
   oneOf(visibility, VISIBILITIES, "visibility");
 }
 
-/** `from` and `to` may be "me" or "us" (household.ts), but not both. */
+/** `from` and `to` may be "me" or "us" (writers.ts), but not both. */
 export function checkRelationship<P>(r: { from: P | "me" | "us"; to: P | "me" | "us"; label: string; inverse: string }, ref: (p: P) => void): void {
-  if (isHouseholdWord(r.from) && isHouseholdWord(r.to))
-    throw new InvalidInputError('A relationship needs someone outside the household on one end: "me" and "us" can\'t both be used');
-  if (!isHouseholdWord(r.from)) ref(r.from);
-  if (!isHouseholdWord(r.to)) ref(r.to);
+  if (isUsWord(r.from) && isUsWord(r.to))
+    throw new InvalidInputError('A relationship needs someone other than us on one end: "me" and "us" can\'t both be used');
+  if (!isUsWord(r.from)) ref(r.from);
+  if (!isUsWord(r.to)) ref(r.to);
   checkLabel(r.label, "label");
   checkLabel(r.inverse, "inverse");
   if (r.from === r.to) throw new InvalidInputError("A relationship needs two different people");
@@ -503,7 +503,7 @@ export async function insertRelationship(
 }
 
 /**
- * Records a relationship between targets (household.ts), one per pair they stand for, each deduped by insertRelationship. Each links
+ * Records a relationship between targets (writers.ts), one per pair they stand for, each deduped by insertRelationship. Each links
  * to its row on the page of `from`, or of `to` when from is "me" or "us".
  */
 export async function insertRelationships(
@@ -518,7 +518,7 @@ export async function insertRelationships(
   for (const [fromId, toId] of pairs) {
     const x = await insertRelationship(tx, base, { fromId, toId, label: r.label, inverse: r.inverse, note: r.note, visibility: r.visibility });
     const names = new Map((await tx.from("persons").select(["id", "name"]).where("id", "in", [x.fromId, x.toId]).execute()).map((p) => [p.id, p.name]));
-    const page = isHouseholdWord(r.from) ? toId : fromId;
+    const page = isUsWord(r.from) ? toId : fromId;
     out.push({ ...x, fromName: names.get(x.fromId) ?? "", toName: names.get(x.toId) ?? "", url: itemPath(personPath(page), "relationships", x.id) });
   }
   return out;
@@ -632,7 +632,7 @@ function validateRamble(r: NewRamble): void {
     oneOf(c.kind, CONVERSATION_KINDS, "conversation kind");
     if (c.summary.length > MAX_SUMMARY) throw new InvalidInputError(`The summary holds at most ${MAX_SUMMARY} characters`);
     c.present.forEach(ref);
-    for (const o of ownersOf(c.place)) if (!isHouseholdWord(o)) ref(o);
+    for (const o of ownersOf(c.place)) if (!isUsWord(o)) ref(o);
     if (c.at !== undefined && (!Number.isInteger(c.at) || c.at < 0 || c.at >= (r.experiences ?? []).length))
       throw new InvalidInputError(`Experience ${c.at} is not in experiences`);
   }
@@ -733,7 +733,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
 
     // Whose home a conversation's place is, once the people it names are known.
     for (const [i, c] of (r.conversations ?? []).entries())
-      await fileOwnersOf(tx, v, c.place, placeLevels[i], (o) => (isHouseholdWord(o) ? o : id(o)), r.visibility, rambleId);
+      await fileOwnersOf(tx, v, c.place, placeLevels[i], (o) => (isUsWord(o) ? o : id(o)), r.visibility, rambleId);
 
     const experiences = await insertExperiences(
       tx,
@@ -771,7 +771,7 @@ export async function record(v: Viewer, r: NewRamble): Promise<RecordedRamble> {
     const filed: Filed = { facts: [], promises: [], dates: [], exchanges: [] };
     const relationships: FiledRelationship[] = [];
     const groups: FiledGroup[] = [];
-    const target = (x: PersonRef | "me" | "us") => (isHouseholdWord(x) ? x : id(x));
+    const target = (x: PersonRef | "me" | "us") => (isUsWord(x) ? x : id(x));
     const slots = [undefined, ...conversationIds.keys()] as Array<number | undefined>;
     for (const slot of slots) {
       const conversationId = slot === undefined ? null : conversationIds[slot];

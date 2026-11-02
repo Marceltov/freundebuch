@@ -7,7 +7,7 @@ import { AmbiguousError, InvalidInputError, NotFoundError } from "../core/errors
 import { norm, rank } from "../people/names";
 import type { Viewer } from "../core/types";
 import { personPath, placePath } from "../core/urls";
-import { otherMembers, resolveTarget } from "../people/household";
+import { otherMembers, resolveTarget } from "../people/writers";
 import type { Visibility } from "../core/types";
 import { visible } from "../visibility";
 
@@ -161,7 +161,7 @@ export async function resolvePlace(tx: Scope, v: Viewer, ref: PlaceRef<unknown>,
   const refuse = async (what: string) => {
     if (visibility === "private" && (await othersSee(tx, v, id)))
       throw new InvalidInputError(
-        `The household sees this place, so a private part can't set ${what}: leave it out, or file it shared, or with correct once the user agrees it may be seen`,
+        `The book's other writers see this place, so a private part can't set ${what}: leave it out, or file it shared, or with correct once the user agrees it may be seen`,
       );
   };
   const row = await tx.from("places").select(["parent_id", "address"]).where("id", "=", id).executeTakeFirstOrThrow();
@@ -294,7 +294,7 @@ export async function setPlaceParent(v: Viewer, id: string, parentId: string | n
       // Whoever sees the place would see the one it sits in: refused when they can't see that yet, so its name and address stay.
       if (await othersSee(tx, v, id, parentId))
         throw new InvalidInputError(
-          "The household sees this place but not the one it would sit in, which would show them that place: ask the user before making it seen, e.g. by filing something shared there",
+          "The book's other writers see this place but not the one it would sit in, which would show them that place: ask the user before making it seen, e.g. by filing something shared there",
         );
     }
     await tx.update("places").set({ parent_id: parentId }).where("id", "=", id).execute();
@@ -380,7 +380,7 @@ export async function mergePlaces(v: Viewer, keepId: string, dropId: string): Pr
     // see it yet, so a name from a private context never reaches them. The other way round shows them nothing new.
     if (await othersSee(tx, v, dropId, keepId))
       throw new InvalidInputError(
-        `Merge the other way round: keep "${drop.name}" (${dropId}) and drop "${keep.name}" (${keepId}), so the household doesn't learn a name only you can see`,
+        `Merge the other way round: keep "${drop.name}" (${dropId}) and drop "${keep.name}" (${keepId}), so the book's other writers don't learn a name only you can see`,
       );
     // The other way round, the dropped place's names, address and where it sits would show on one they see: those stay behind.
     const hidden = await othersSee(tx, v, keepId, dropId);

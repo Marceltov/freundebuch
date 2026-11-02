@@ -94,9 +94,7 @@ export default async function SettingsPage() {
           <div key={b.id} className="mt-3 first:mt-0">
             {several && <BookMark name={b.name} />}
             <GroupSettings
-              groups={groups
-                .filter((g) => g.book.id === b.id)
-                .map((g) => ({ id: g.id, name: g.name, aliases: g.aliases, count: g.count, household: g.household }))}
+              groups={groups.filter((g) => g.book.id === b.id).map((g) => ({ id: g.id, name: g.name, aliases: g.aliases, count: g.count, writers: g.writers }))}
             />
           </div>
         ))}

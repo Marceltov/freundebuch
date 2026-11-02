@@ -4,7 +4,7 @@ import type { Briefing } from "@/backend";
 import { layoutNetwork, Network } from "./Network";
 
 type Net = Briefing["network"];
-const node = (id: string, name: string, role: "self" | "household" | "other", gender: "female" | "male" | null = null) => ({
+const node = (id: string, name: string, role: "self" | "writer" | "other", gender: "female" | "male" | null = null) => ({
   id,
   name,
   role,
@@ -15,10 +15,10 @@ const edge = (id: string, from: string, to: string, label: string, inverse: stri
 
 const marina = node("m", "Marina Reichardt", "self", "female");
 const others = (n: number) => Array.from({ length: n }, (_, i) => node(`o${i}`, `Person${i} Langername`, "other"));
-const net = (n: number, household = ["a"]): Net => ({
-  nodes: [marina, ...household.map((h) => node(h, h === "a" ? "Marcel" : "Sybille", "household", "male")), ...others(n)],
+const net = (n: number, writers = ["a"]): Net => ({
+  nodes: [marina, ...writers.map((h) => node(h, h === "a" ? "Marcel" : "Sybille", "writer", "male")), ...others(n)],
   edges: [
-    ...household.map((h) => edge(`h-${h}`, "m", h, "Vermieterin", "Mieter")),
+    ...writers.map((h) => edge(`h-${h}`, "m", h, "Vermieterin", "Mieter")),
     ...others(n).map((o, i) =>
       i % 3 ? edge(`e${i}`, i % 2 ? o.id : "m", i % 2 ? "m" : o.id, "Elternteil", "Kind") : edge(`e${i}`, "m", o.id, "Ehefrau", "Ehemann"),
     ),
@@ -37,25 +37,25 @@ test("draws one line per edge with its label, and leaves out who isn't connected
 });
 
 test("labels never overlap each other, a node or a name", () => {
-  for (const household of [["a"], ["a", "b"]])
+  for (const writers of [["a"], ["a", "b"]])
     for (let n = 0; n <= 5; n++) {
-      const l = layoutNetwork(net(n, household), "a");
+      const l = layoutNetwork(net(n, writers), "a");
       expect(l, `${n} others`).not.toBeNull();
       const boxes = [...l!.pills, ...l!.names, ...l!.nodes.map((x) => ({ x: x.x - x.r, y: x.y - x.r, w: 2 * x.r, h: 2 * x.r }))];
       for (let i = 0; i < boxes.length; i++)
         for (let j = i + 1; j < boxes.length; j++) {
           const [p, q] = [boxes[i], boxes[j]];
           const apart = p.x + p.w + 4 <= q.x || q.x + q.w + 4 <= p.x || p.y + p.h + 4 <= q.y || q.y + q.h + 4 <= p.y;
-          expect(apart, `${household.length} household, ${n} others: ${JSON.stringify([p, q])}`).toBe(true);
+          expect(apart, `${writers.length} writers, ${n} others: ${JSON.stringify([p, q])}`).toBe(true);
         }
       for (const b of boxes) expect(b.x >= 0 && b.x + b.w <= 360).toBe(true);
     }
 });
 
-test("the line to the household names what the person is to us; a line below names what the other is to them", () => {
+test("the line to us names what the person is to us; a line below names what the other is to them", () => {
   const l = layoutNetwork(
     {
-      nodes: [marina, node("a", "Marcel", "household"), node("k", "Leo", "other", "male"), node("t", "Tom", "other")],
+      nodes: [marina, node("a", "Marcel", "writer"), node("k", "Leo", "other", "male"), node("t", "Tom", "other")],
       edges: [edge("1", "a", "m", "Mieter", "Vermieterin"), edge("2", "m", "k", "Mutter", "Sohn"), edge("3", "t", "m", "Patenonkel", "Patenkind")],
     },
     "a",

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// A user with books of their own (?own=1, a new name each run, so the household tests' book stays as it is): the lists merge
+// A user with books of their own (?own=1, a new name each run, so the shared-book tests' book stays as it is): the lists merge
 // every book, each entry with its book; Einstellungen manages the books; a person moves from their page.
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
@@ -19,7 +19,7 @@ async function meet(page: Page, origin: string, name: string, book?: string) {
 }
 
 test.beforeEach(async ({ page, baseURL }) => {
-  // Erika first: on a fresh instance the first sign-in makes the household book, which the phone tests share, whichever file
+  // Erika first: on a fresh instance the first sign-in makes the shared book, which the phone tests share, whichever file
   // runs first.
   await page.goto("/api/e2e/login?name=Erika Muster");
   await page.goto(`/api/e2e/login?own=1&name=Bea ${Math.random().toString(36).slice(2, 8)}`);

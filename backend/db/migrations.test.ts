@@ -76,11 +76,11 @@ test("a row can't point into another book", async () => {
   await expect(fact("b2")).rejects.toThrow(/FOREIGN KEY constraint failed/);
 });
 
-test("a book has one household group", async () => {
+test("a book has one writers group", async () => {
   const d = await fresh();
   await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "U", created_at: 0 }).execute();
   await d.insertInto("books").values({ id: "b", name: "1", created_by: "u", created_at: 0 }).execute();
-  const group = (id: string) => d.insertInto("groups").values({ id, book_id: "b", name: "Haushalt", created_at: 0, household: 1 }).execute();
+  const group = (id: string) => d.insertInto("groups").values({ id, book_id: "b", name: "Haushalt", created_at: 0, writers: 1 }).execute();
   await group("g1");
   await expect(group("g2")).rejects.toThrow(/UNIQUE constraint failed/);
 });
@@ -211,4 +211,17 @@ test("003 makes invitations an instance table with a unique token", async () => 
   await expect(
     d.insertInto("invitations").values({ id: "i3", book_id: "b", token_hash: "h3", role: "owner", created_by: "u", created_at: 0, expires_at: 1 }).execute(),
   ).rejects.toThrow(/CHECK constraint failed/);
+});
+
+test("004 renames the household flag to writers and keeps the group, its name and its one-per-book rule", async () => {
+  const d = await connect(":memory:");
+  await migrateTo(d, "003_invitations");
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "U", created_at: 0 }).execute();
+  await d.insertInto("books").values({ id: "b", name: "1", created_by: "u", created_at: 0 }).execute();
+  await sql`insert into groups (id, book_id, name, created_at, household) values ('g1', 'b', 'Herziis', 0, 1)`.execute(d);
+  await migrate(d);
+  expect(await d.selectFrom("groups").select(["id", "name", "writers"]).execute()).toEqual([{ id: "g1", name: "Herziis", writers: 1 }]);
+  await expect(d.insertInto("groups").values({ id: "g2", book_id: "b", name: "X", created_at: 0, writers: 1 }).execute()).rejects.toThrow(
+    /UNIQUE constraint failed/,
+  );
 });

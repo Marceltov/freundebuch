@@ -184,8 +184,8 @@ export interface Schema {
     settled: Flag;
   };
   relationships: Item & { book_id: string; id: string; from_id: string; to_id: string; label: string; inverse: string; note: string | null };
-  /** `household`: the book's own group of its members (Haushalt), which can't be deleted. */
-  groups: { book_id: string; id: string; name: string; created_by: string | null; created_at: number; seeded: Flag; household: Flag };
+  /** `writers`: the book's own group of everyone who writes to it, which can't be deleted. */
+  groups: { book_id: string; id: string; name: string; created_by: string | null; created_at: number; seeded: Flag; writers: Flag };
   group_aliases: { book_id: string; group_id: string; alias: string; norm: string };
   group_members: {
     book_id: string;

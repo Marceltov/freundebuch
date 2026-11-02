@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, renamed by [ADR 0028](0028-the-books-writers-group.md)
 date: 2026-10-28
 decision-makers: Marcel Bruckner
 ---

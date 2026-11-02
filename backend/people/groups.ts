@@ -4,19 +4,19 @@
 import { scope, type Scope } from "../db/scope";
 import { sql, newId, now } from "../db";
 import { InvalidInputError, NotFoundError } from "../core/errors";
-import { householdPersons, otherMembers } from "./household";
+import { writerPersons, otherMembers } from "./writers";
 import { freshness } from "./intervals";
 import { norm } from "./names";
 import type { Viewer, Visibility } from "../core/types";
 import { groupPath, personPath } from "../core/urls";
 import { visible, visibleGroups } from "../visibility";
 
-/** `household`: Haushalt, the group of everyone who signs in; it can be renamed but not deleted or merged away. */
-export type GroupView = { id: string; name: string; aliases: string[]; count: number; url: string; household: boolean };
+/** `writers`: the book's own group of everyone who writes to it; it can be renamed but not deleted or merged away. */
+export type GroupView = { id: string; name: string; aliases: string[]; count: number; url: string; writers: boolean };
 /** `private`: the viewer's own private membership is the only one they see. */
 export type GroupMember = { personId: string; name: string; url: string; private: boolean; lastSeen: string | null; ratio: number | null };
 
-async function views(d: Scope, v: Viewer, rows: { id: string; name: string; household: number }[]): Promise<GroupView[]> {
+async function views(d: Scope, v: Viewer, rows: { id: string; name: string; writers: number }[]): Promise<GroupView[]> {
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
   const [aliases, counts] = await Promise.all([
@@ -35,7 +35,7 @@ async function views(d: Scope, v: Viewer, rows: { id: string; name: string; hous
     aliases: aliases.filter((a) => a.group_id === r.id).map((a) => a.alias),
     count: Number(counts.find((c) => c.group_id === r.id)?.n ?? 0),
     url: groupPath(r.id),
-    household: r.household === 1,
+    writers: r.writers === 1,
   }));
 }
 
@@ -44,7 +44,7 @@ export async function listGroups(v: Viewer): Promise<GroupView[]> {
   const d = await scope(v);
   const rows = await d
     .from("groups")
-    .select(["id", "name", "household"])
+    .select(["id", "name", "writers"])
     .$call((qb) => visibleGroups(qb, v))
     .orderBy("name")
     .execute();
@@ -60,7 +60,7 @@ export async function getGroup(v: Viewer, id: string): Promise<GroupView & { mem
   const d = await scope(v);
   const row = await d
     .from("groups")
-    .select(["id", "name", "household"])
+    .select(["id", "name", "writers"])
     .where("id", "=", id)
     .$call((qb) => visibleGroups(qb, v))
     .executeTakeFirst();
@@ -189,10 +189,10 @@ export async function moveMembership(tx: Scope, recordedBy: string, from: Slot, 
 }
 
 /** A visible group, or NotFoundError. */
-async function seen(tx: Scope, v: Viewer, id: string): Promise<{ id: string; name: string; created_by: string | null; household: number }> {
+async function seen(tx: Scope, v: Viewer, id: string): Promise<{ id: string; name: string; created_by: string | null; writers: number }> {
   const g = await tx
     .from("groups")
-    .select(["id", "name", "created_by", "household"])
+    .select(["id", "name", "created_by", "writers"])
     .where("id", "=", id)
     .$call((qb) => visibleGroups(qb, v))
     .executeTakeFirst();
@@ -254,7 +254,7 @@ export async function removeGroupAlias(v: Viewer, id: string, alias: string): Pr
   });
 }
 
-/** The other users of the household who don't see the group. */
+/** The book's other writers who don't see the group. */
 async function blindTo(t: Scope, v: Viewer, id: string): Promise<string[]> {
   const blind: string[] = [];
   for (const u of await otherMembers(t)) {
@@ -279,7 +279,7 @@ export async function mergeGroups(v: Viewer, keepId: string, dropId: string): Pr
   await tx(v, async (t) => {
     await seen(t, v, keepId);
     const drop = await seen(t, v, dropId);
-    if (drop.household) throw new InvalidInputError(`${drop.name} is the household's own group: merge the other group into it instead`);
+    if (drop.writers) throw new InvalidInputError(`${drop.name} is the book's own group, its writers: merge the other group into it instead`);
     const [blindToKeep, blindToDrop] = await Promise.all([blindTo(t, v, keepId), blindTo(t, v, dropId)]);
     if (blindToKeep.some((u) => !blindToDrop.includes(u)))
       throw new InvalidInputError("The other user uses this group but can't see the one to keep; merge them the other way round");
@@ -299,7 +299,7 @@ export async function mergeGroups(v: Viewer, keepId: string, dropId: string): Pr
 export async function deleteGroup(v: Viewer, id: string): Promise<void> {
   await tx(v, async (t) => {
     const g = await seen(t, v, id);
-    if (g.household) throw new InvalidInputError(`${g.name} is the household's own group and can't be deleted; it can be renamed`);
+    if (g.writers) throw new InvalidInputError(`${g.name} is the book's own group, its writers, and can't be deleted; it can be renamed`);
     await t.delete("group_members").where("group_id", "=", id).where("recorded_by", "=", v.userId).execute();
     const left = await t.from("group_members").select("person_id").where("group_id", "=", id).executeTakeFirst();
     if (!left) await t.delete("groups").where("id", "=", id).execute();
@@ -327,8 +327,8 @@ export async function addToGroupById(v: Viewer, id: string, personId: string, vi
 export async function removeFromGroup(v: Viewer, id: string, personId: string): Promise<void> {
   await tx(v, async (t) => {
     const g = await seen(t, v, id);
-    if (g.household && (await householdPersons(t)).includes(personId))
-      throw new InvalidInputError(`Everyone who signs in stays in ${g.name}, the household's own group`);
+    if (g.writers && (await writerPersons(t)).includes(personId))
+      throw new InvalidInputError(`Everyone who signs in stays in ${g.name}, the book's own group, its writers`);
     await t
       .delete("group_members")
       .where("group_id", "=", id)

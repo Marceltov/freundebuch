@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { resetDbForTests, unchecked } from "../db/testing";
 import { instance, scope } from "../db/scope";
 import { userFromOidc, viewerById } from "../core/users";
-import { householdPersons } from "./household";
+import { writerPersons } from "./writers";
 import { createBook, inBook, inBookOf, listBooks, newBook, viewerIn, viewerOf } from "./books";
 import { deleteBook, handOver, leaveBook, removeMember, renameBook, setRole } from "./manage";
 import { getPerson } from "./people";
@@ -12,18 +12,18 @@ import { seed, seedOtherBook, seedWorkBook, type Seed, signInInvited } from "../
 
 beforeEach(resetDbForTests);
 
-test("the first sign-in on a fresh instance makes a book with Haushalt and the seeded groups", async () => {
+test("the first sign-in on a fresh instance makes a book with its writers group, named after the book, and the seeded groups", async () => {
   const a = await userFromOidc({ sub: "a", name: "Alice" });
   const books = await (await instance()).from("books").select(["id", "name", "created_by"]).execute();
   expect(books).toEqual([{ id: a.bookId, name: "Unser Buch", created_by: a.userId }]);
   expect(a.books).toEqual([a.bookId]);
   const s = await scope(a);
-  const groups = await s.from("groups").select(["name", "seeded", "household"]).orderBy("name").execute();
+  const groups = await s.from("groups").select(["name", "seeded", "writers"]).orderBy("name").execute();
   expect(groups).toEqual([
-    { name: "Arbeit", seeded: 1, household: 0 },
-    { name: "Familie", seeded: 1, household: 0 },
-    { name: "Freunde", seeded: 1, household: 0 },
-    { name: "Haushalt", seeded: 1, household: 1 },
+    { name: "Arbeit", seeded: 1, writers: 0 },
+    { name: "Familie", seeded: 1, writers: 0 },
+    { name: "Freunde", seeded: 1, writers: 0 },
+    { name: "Unser Buch", seeded: 1, writers: 1 },
   ]);
   expect(await s.from("group_aliases").select("alias").orderBy("alias").execute()).toHaveLength(4);
   const me = await s.from("persons").select(["id", "name"]).execute();
@@ -35,18 +35,26 @@ test("the first sign-in on a fresh instance makes a book with Haushalt and the s
       .select("groups.name")
       .where("person_id", "=", a.personId)
       .execute(),
-  ).toEqual([{ name: "Haushalt" }]);
+  ).toEqual([{ name: "Unser Buch" }]);
 });
 
-test("the second user joins the same book and Haushalt; us is both, in sign-in order", async () => {
+test("a book named like a seeded group or one of its other names gets Wir as its writers group", async () => {
+  const a = await userFromOidc({ sub: "a", name: "Alice" });
+  for (const name of ["Arbeit", "kollegen"]) {
+    const s = await scope(await createBook(await instance(), a.userId, "Alice", name));
+    expect(await s.from("groups").select("name").where("writers", "=", 1).execute()).toEqual([{ name: "Wir" }]);
+  }
+});
+
+test("the second user joins the same book and its writers group; us is both, in sign-in order", async () => {
   const a = await userFromOidc({ sub: "a", name: "Alice" });
   const b = await signInInvited(a, { sub: "b", name: "Bob" });
   expect(b.bookId).toBe(a.bookId);
   expect(b.personId).not.toBe(a.personId);
   expect(await viewerById(b.userId)).toEqual(b);
-  expect(await householdPersons(await scope(b))).toEqual([a.personId, b.personId]);
-  const household = await (await scope(a)).from("group_members").select("person_id").where("recorded_by", "in", [a.userId, b.userId]).execute();
-  expect(household).toHaveLength(2);
+  expect(await writerPersons(await scope(b))).toEqual([a.personId, b.personId]);
+  const writers = await (await scope(a)).from("group_members").select("person_id").where("recorded_by", "in", [a.userId, b.userId]).execute();
+  expect(writers).toHaveLength(2);
 });
 
 test("signing in again keeps the book and person; a new sign-in name renames the person unless the book renamed them", async () => {
@@ -275,14 +283,14 @@ describe("review fixes", () => {
   test("a leaver is out of the book's own group", async () => {
     await newBook(s.b, "Bobs Buch");
     await leaveBook(await inBook((await viewerById(s.b.userId))!, s.a.bookId));
-    const haushalt = await unchecked()
+    const writers = await unchecked()
       .selectFrom("group_members")
       .innerJoin("groups", "groups.id", "group_members.group_id")
       .select("group_members.person_id")
-      .where("groups.household", "=", 1)
+      .where("groups.writers", "=", 1)
       .where("groups.book_id", "=", s.a.bookId)
       .execute();
-    expect(haushalt.map((m) => m.person_id)).toEqual([s.a.personId]);
+    expect(writers.map((m) => m.person_id)).toEqual([s.a.personId]);
   });
 
   test("whoever loses their last book by a removal or a deletion gets an empty one of their own", async () => {
@@ -335,7 +343,7 @@ describe("review fixes", () => {
 });
 
 describe("the viewer of a page", () => {
-  test("a page's id narrows to its book; a household word to the oldest book; none to every book", async () => {
+  test("a page's id narrows to its book; me or us to the oldest book; none to every book", async () => {
     const { pageScope } = await import("./books");
     const s = await seed();
     const { a, work, lena2 } = await seedWorkBook(s);

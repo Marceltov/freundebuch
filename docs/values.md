@@ -82,11 +82,11 @@ ADRs: [0011](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0011-ei
 
 ### V9. Everything is seen from the book's members
 
-Who someone is, is said from your side ("our landlady", "Sybille's colleague", "my client"), in your own words and in each one's gender. The members of a book are a group like any other (Haushalt to start with), so no list needs an exception for them.
+Who someone is, is said from your side ("our landlady", "Sybille's colleague", "my client"), in your own words and in each one's gender. The members of a book, its writers, are a group like any other (named after the book to start with), so no list needs an exception for them.
 
 **Rules out:** a fixed list of relationship types, roles filed as plain facts, special cases for a member outside the book's own group.
 
-ADRs: [0009](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0009-household-members-in-the-relationship-graph.md), [0013](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0013-the-household-is-a-group.md).
+ADRs: [0009](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0009-household-members-in-the-relationship-graph.md), [0013](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0013-the-household-is-a-group.md), [0028](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0028-the-books-writers-group.md).
 
 ## Changing this page
 

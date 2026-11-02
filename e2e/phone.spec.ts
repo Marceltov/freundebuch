@@ -815,7 +815,7 @@ test("settings make a calendar feed that a calendar app can read, and end it", a
 });
 
 test("a role to us shows first and in the network; a situation nudges on the page and on Start", async ({ page, baseURL }) => {
-  // A household of two: the partner signs in once.
+  // A book of two writers: the partner signs in once.
   await page.goto("/api/e2e/login?name=Bodo Gast");
   await page.goto("/api/e2e/login?name=Erika Muster");
   const recorded = await page.request.post("/api/v1/rambles", {
