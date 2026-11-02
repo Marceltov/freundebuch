@@ -34,8 +34,8 @@ export function movedTo(p: { url: string; twin?: string }): string {
 
 type PartRef = { id: string; book: { id: string; name: string } };
 
-/** Whether the person is linked across books, so this part can be unlinked. */
-export const canUnlink = (parts: PartRef[]) => parts.length > 1;
+/** Whether this part can be unlinked: the person is one across books by the user's link, not a writer of several books. */
+export const canUnlink = (parts: PartRef[], linked: boolean) => linked && parts.length > 1;
 
 // The round "…" on a friend's page: a sheet with what only Claude could do before. How often to see them, a new name, their
 // gender (which the role labels follow), how they look (the parts of their avatar), a nickname that finds them too, merging a duplicate into them, and
@@ -53,6 +53,7 @@ export function PersonMenu({
   bookId,
   movable = false,
   parts = [],
+  linked = false,
 }: {
   id: string;
   name: string;
@@ -68,6 +69,8 @@ export function PersonMenu({
   movable?: boolean;
   /** The person's rows in each of the user's books; `id` is one of them. */
   parts?: PartRef[];
+  /** Whether the parts are one by the user's link. */
+  linked?: boolean;
 }) {
   const copy = useCopy();
   const router = useRouter();
@@ -301,7 +304,7 @@ export function PersonMenu({
               </Part>
             )}
 
-            {canUnlink(parts) && (
+            {canUnlink(parts, linked) && (
               <Part title={copy.unlink}>
                 <button type="button" onClick={unlink} className="w-full rounded-xl bg-surface-2 px-3 py-2 font-bold">
                   {copy.unlink}: {here?.book.name}

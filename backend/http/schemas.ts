@@ -446,6 +446,7 @@ export const BriefingJson = z
     parts: z
       .array(PartJson)
       .describe("The person's rows in each of the caller's books, oldest first: one, unless the caller linked them, or they are a writer of several"),
+    linked: z.boolean().describe("Whether the parts are one by the caller's link (people unlink undoes it), not by a writer of several books"),
     sameAsAsk: z
       .array(z.object({ id: PersonId, name: z.string(), book: BookRef }))
       .describe("People of the caller's other books who may be the same person, by name: ask the user, then link (people link) or keep a no (people not_same)"),

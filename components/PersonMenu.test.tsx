@@ -22,14 +22,15 @@ test("the move's address goes to the new id, or to the twin it was merged into",
   expect(movedTo({ url: "/p/new", twin: "p9" })).toBe("/p/p9");
 });
 
-test("PersonMenu offers unlink only with two parts", async () => {
+test("PersonMenu offers unlink only for a link of two parts", async () => {
   const { canUnlink } = await import("./PersonMenu");
   const ub = { id: "b1", name: "Unser Buch" };
-  expect(canUnlink([{ book: ub, id: "p1" }])).toBe(false);
-  expect(
-    canUnlink([
-      { book: ub, id: "p1" },
-      { book: { id: "b2", name: "Arbeit" }, id: "p9" },
-    ]),
-  ).toBe(true);
+  const two = [
+    { book: ub, id: "p1" },
+    { book: { id: "b2", name: "Arbeit" }, id: "p9" },
+  ];
+  expect(canUnlink([{ book: ub, id: "p1" }], true)).toBe(false);
+  expect(canUnlink(two, true)).toBe(true);
+  // A writer of two books is one person by their user, not by a link: nothing to unlink.
+  expect(canUnlink(two, false)).toBe(false);
 });

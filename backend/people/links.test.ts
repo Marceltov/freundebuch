@@ -9,6 +9,7 @@ import { acceptInvitationAs, invite } from "./invitations";
 import { newBook, viewerIn } from "./books";
 import { leaveBook } from "./manage";
 import { createPerson } from "./people";
+import { mergePeople } from "../conversations/corrections";
 import { linkPeople, markNotSame, nameMatches, partsOf, sameAs, unlinkPerson } from "./links";
 
 beforeEach(resetDbForTests);
@@ -142,3 +143,22 @@ async function clubOfAlice(s: Seed): Promise<Viewer> {
   await acceptInvitationAs(s.a, url.split("/").pop()!);
   return (await viewerIn(await instance(), s.a.userId, club.id))!;
 }
+
+test("nameMatches leaves out namesakes in a book the link already has a part in, whichever part asks", async () => {
+  const s = await withWork();
+  await linkPeople(s.a, [s.lena, s.lena2]);
+  await createPerson(s.work, { name: "Lena" });
+  expect(await nameMatches(s.a, s.lena)).toEqual([]);
+  expect(await nameMatches(s.a, s.lena2)).toEqual([]);
+});
+
+test("a merge into someone's own person takes the person out of the link; they stay one by their user", async () => {
+  const s = await withWork();
+  const bobby = await createPerson(s.b, { name: "Bobby" });
+  const bobbyAtWork = await createPerson(s.work, { name: "Bobby" });
+  await linkPeople(s.a, [bobby, bobbyAtWork]);
+  await mergePeople(s.a, s.b.personId, bobby);
+  const keys = await sameAs(s.a);
+  expect(keys.get(s.b.personId)).toBe(`u:${s.b.userId}`);
+  expect(keys.has(bobbyAtWork)).toBe(false);
+});

@@ -15,6 +15,9 @@ import { compareDue } from "./due";
 import { dueAcross, findAcross, groupsAcross, memberUsers, orbitAcross, peopleAcross, ramblesAcross, searchAcross } from "./across";
 import { linkPeople } from "../people/links";
 import { createPerson } from "../people/people";
+import { setCheckInInterval } from "../people/intervals";
+import { today } from "../people/dates";
+import { recordConversation } from "../conversations/conversations";
 
 beforeEach(resetDbForTests);
 
@@ -196,4 +199,30 @@ test("findAcross gives Lena once when linked, twice (each with her book) when no
   const once = await findAcross(a, "Lena");
   expect(once.map((c) => c.id)).toEqual([s.lena]);
   expect(once[0].parts.map((p) => p.id)).toEqual([s.lena, lena2]);
+});
+
+test("findAcross keeps an exact match of a newer book behind five namesakes of the oldest", async () => {
+  const s = await seed();
+  const { a, work } = await seedWorkBook(s);
+  for (const n of ["Lenara", "Lenard", "Lenja", "Lenore", "Lenny"]) await createPerson(s.a, { name: n });
+  const len = await createPerson(work, { name: "Len" });
+  expect((await findAcross(a, "Len")).map((c) => c.id)).toContain(len);
+});
+
+test("a linked person seen lately in one book isn't overdue from the other", async () => {
+  const s = await seed();
+  const { a, work } = await seedWorkBook(s);
+  await setCheckInInterval(s.a, s.anna, 3, true);
+  const met = await recordConversation(work, {
+    date: today(),
+    kind: "call",
+    summary: "Called Anna.",
+    transcript: "Called Anna.",
+    visibility: "shared",
+    people: [{ name: "Anna", present: true, confirmedNew: true }],
+  });
+  const overdueAnna = async () => (await dueAcross(a, today())).filter((d) => d.kind === "overdue" && d.name === "Anna");
+  expect(await overdueAnna()).toHaveLength(1);
+  await linkPeople(a, [s.anna, met.people[0].id]);
+  expect(await overdueAnna()).toEqual([]);
 });

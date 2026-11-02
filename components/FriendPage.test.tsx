@@ -43,6 +43,7 @@ const b: LinkedBriefing = {
   relationships: [],
   network: { nodes: [], edges: [] },
   parts: [{ book: { id: "b1", name: "Unser Buch" }, id: "p1" }],
+  linked: false,
   sameAsAsk: [],
 };
 
@@ -236,6 +237,7 @@ const arbeit = { id: "b2", name: "Arbeit" };
 const linked: LinkedBriefing = {
   ...b,
   parts: [...b.parts, { book: arbeit, id: "p9" }],
+  linked: true,
   open: { ...b.open, promises: [{ ...b.open.promises[0], book: arbeit }] },
 };
 

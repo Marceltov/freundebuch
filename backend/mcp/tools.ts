@@ -343,7 +343,9 @@ const PartsJson = z
   .array(PartJson)
   .describe("The person's rows in each of the user's books, oldest first: one, unless the user linked them, or they are a writer of several");
 const FoundJson = z.object({
-  people: z.array(PersonJson.extend({ book: BookJson, parts: PartsJson })).describe("Best matches first, from every book, each person once, at most 5"),
+  people: z
+    .array(PersonJson.extend({ book: BookJson, parts: PartsJson }))
+    .describe("Best matches first within each book, oldest book first, at most 5 from each book, each person once"),
 });
 const PeopleJson = z.object({
   people: z

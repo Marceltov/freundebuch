@@ -8414,6 +8414,10 @@
             },
             "description": "The person's rows in each of the caller's books, oldest first: one, unless the caller linked them, or they are a writer of several"
           },
+          "linked": {
+            "type": "boolean",
+            "description": "Whether the parts are one by the caller's link (people unlink undoes it), not by a writer of several books"
+          },
           "sameAsAsk": {
             "type": "array",
             "items": {
@@ -8470,6 +8474,7 @@
           "relationships",
           "network",
           "parts",
+          "linked",
           "sameAsAsk"
         ]
       },

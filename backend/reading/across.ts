@@ -10,7 +10,8 @@ import { partsOf, sameAs, type Part } from "../people/links";
 import { getGroup, listGroups, type GroupView } from "../people/groups";
 import { layOut, pickFaces, type OrbitFace } from "../people/orbit";
 import { compareDue, whatsDue, type DueItem } from "./due";
-import { today } from "../people/dates";
+import { daysBetween, today } from "../people/dates";
+import { lastSeen } from "../people/intervals";
 import { listRambles, type RambleSummary } from "../conversations/rambles";
 import { search, type SearchHit } from "./search";
 import { journalEntries } from "../journal/journal";
@@ -70,10 +71,11 @@ export async function peopleAcross(v: Viewer): Promise<InBook<PersonOverview & {
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
-/** People by name or other name in every book, oldest book first, each person once with all their `parts`; at most `limit`. */
+/** People by name or other name in every book, oldest book first, at most `limit` of each book (ranked within it), each
+ * person once with all their `parts`. */
 export async function findAcross(v: Viewer, name: string, limit = 5): Promise<InBook<Candidate & { parts: Part[] }>[]> {
-  const [found, keys] = await Promise.all([acrossBooks(v, (w) => findPeople(w, name)), sameAs(v)]);
-  const kept = onceEach(found, (c) => keys.get(c.id) ?? c.id).slice(0, limit);
+  const [found, keys] = await Promise.all([acrossBooks(v, (w) => findPeople(w, name, limit)), sameAs(v)]);
+  const kept = onceEach(found, (c) => keys.get(c.id) ?? c.id);
   return Promise.all(kept.map(async (c) => ({ ...c, parts: keys.has(c.id) ? await partsOf(v, c.id) : [{ book: c.book, id: c.id }] })));
 }
 
@@ -107,7 +109,22 @@ export async function dueAcross(v: Viewer, from = today(), horizonDays = 14): Pr
     if (seen === undefined) firstIn.set(key, d.book.id);
     return seen === undefined || seen === d.book.id;
   });
-  return once.sort(compareDue);
+  // Someone in several books is overdue only by when the user last saw them in any of them.
+  const i = await instance();
+  const fresh = await Promise.all(
+    once.map(async (d) => {
+      if (d.kind !== "overdue" || !keys.has(d.personId) || !d.intervalDays) return d;
+      const parts = await partsOf(v, d.personId);
+      const seen = (await Promise.all(parts.map(async (p) => lastSeen((await viewerIn(i, v.userId, p.book.id))!, p.id))))
+        .filter((x): x is string => !!x)
+        .sort()
+        .at(-1);
+      if (!seen || seen === d.lastSeen) return d;
+      const ratio = daysBetween(seen, from) / d.intervalDays;
+      return ratio > 1 ? { ...d, lastSeen: seen, ratio } : null;
+    }),
+  );
+  return fresh.filter((d): d is InBook<DueItem> => d !== null).sort(compareDue);
 }
 
 /** Every book's rambles, newest first. */

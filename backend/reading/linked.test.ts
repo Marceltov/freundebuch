@@ -5,6 +5,7 @@ import { linkPeople, markNotSame } from "../people/links";
 import { addRelationship } from "../people/relationships";
 import { seed, seedWorkBook } from "../testing/fixtures";
 import { linkedBriefing } from "./linked";
+import { acceptInvitationAs, invite } from "../people/invitations";
 
 beforeEach(resetDbForTests);
 
@@ -72,4 +73,15 @@ test("the network of a linked person joins both books, the user and a writer in 
 test("a person in none of the user's books is not found", async () => {
   const { a } = await linked();
   await expect(linkedBriefing(a, "00000000-0000-0000-0000-000000000000")).rejects.toThrow();
+});
+
+test("linked says whether the parts come from the user's link, not from a writer of several books", async () => {
+  const { s, a, work, lena2 } = await linked();
+  const { url } = await invite(work, "member");
+  await acceptInvitationAs(s.b, url.split("/").pop()!);
+  const bob = await linkedBriefing(a, s.b.personId);
+  expect(bob.parts).toHaveLength(2);
+  expect(bob.linked).toBe(false);
+  await linkPeople(a, [s.lena, lena2]);
+  expect((await linkedBriefing(a, s.lena)).linked).toBe(true);
 });

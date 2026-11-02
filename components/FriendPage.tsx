@@ -162,6 +162,7 @@ export function FriendPage({
             bookId={target?.book.id ?? bookId}
             movable={movable}
             parts={b.parts}
+            linked={b.linked}
           />
         </div>
         <div>

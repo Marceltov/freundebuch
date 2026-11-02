@@ -24,6 +24,8 @@ export type LinkedBriefing = {
 } & {
   /** The person's rows in each book, oldest first. */
   parts: Part[];
+  /** Whether the parts are one by the user's link (which they may undo), not by a writer of several books. */
+  linked: boolean;
   /** People of the user's other books who may be the same person: ask the user. */
   sameAsAsk: Array<{ id: string; name: string; book: BookRef }>;
 };
@@ -41,12 +43,13 @@ export async function linkedBriefing(v: Viewer, personId: string): Promise<Linke
       return { book: p.book, b: await briefing(w, p.id) };
     }),
   );
-  const sameAsAsk = await nameMatches(v, personId);
-  if (read.length === 1) return { ...read[0].b, parts, sameAsAsk };
-  return { ...merge(read, await sameAs(v)), parts, sameAsAsk };
+  const [sameAsAsk, keys] = await Promise.all([nameMatches(v, personId), sameAs(v)]);
+  const linked = !!keys.get(personId)?.startsWith("l:");
+  if (read.length === 1) return { ...read[0].b, parts, linked, sameAsAsk };
+  return { ...merge(read, keys), parts, linked, sameAsAsk };
 }
 
-function merge(read: { book: BookRef; b: Briefing }[], keys: Map<string, string>): Omit<LinkedBriefing, "parts" | "sameAsAsk"> {
+function merge(read: { book: BookRef; b: Briefing }[], keys: Map<string, string>): Omit<LinkedBriefing, "parts" | "linked" | "sameAsAsk"> {
   const first = read[0].b;
   const all = <T>(pick: (b: Briefing) => T[]) => read.flatMap(({ book, b }) => mark(pick(b), book));
   const seen = read.map((r) => r.b.freshness).reduce((x, y) => ((y.lastSeen ?? "") > (x.lastSeen ?? "") ? y : x));

@@ -35,7 +35,8 @@ async function identities(i: InstanceDb, v: Viewer): Promise<Map<string, { key: 
   const out = new Map(members.map((m) => [m.person_id, { key: `u:${m.user_id}`, book: m.book_id }]));
   const count = new Map<string, number>();
   for (const p of parts) count.set(p.link_id, (count.get(p.link_id) ?? 0) + 1);
-  for (const p of parts) if (count.get(p.link_id)! >= 2) out.set(p.person_id, { key: `l:${p.link_id}`, book: p.book_id });
+  // Someone's own person is one by their user, never by a link.
+  for (const p of parts) if (count.get(p.link_id)! >= 2 && !out.has(p.person_id)) out.set(p.person_id, { key: `l:${p.link_id}`, book: p.book_id });
   return out;
 }
 
@@ -197,28 +198,31 @@ export async function nameMatches(v: Viewer, personId: string): Promise<Array<{ 
   const me = (await personsIn(i, v, [personId])).get(personId);
   if (!me) throw new NotFoundError(`No person with the id ${personId}`);
   const keys = await identities(i, v);
-  if (keys.get(personId)?.key.startsWith("u:")) return [];
-  const others = v.books.filter((b) => b !== me.book_id);
+  const mine = keys.get(personId)?.key;
+  if (mine?.startsWith("u:")) return [];
+  // A linked person asks as a whole: every part's name, and only about books none of the parts is in (one part per book).
+  const ids = mine ? [...keys].filter(([, x]) => x.key === mine).map(([id]) => id) : [personId];
+  const parts = [...(await personsIn(i, v, ids)).values()];
+  const taken = new Set(parts.map((p) => p.book_id));
+  const others = v.books.filter((b) => !taken.has(b));
   if (!others.length) return [];
-  const n = norm(me.name);
+  const names = [...new Set(parts.map((p) => norm(p.name)))];
   const s = i.scope(v);
   const [persons, aliases, no] = await Promise.all([
     s.from("persons").select(["id", "book_id", "name"]).where("book_id", "in", others).execute(),
-    s.from("aliases").select("person_id").where("book_id", "in", others).where("norm", "=", n).execute(),
+    s.from("aliases").select("person_id").where("book_id", "in", others).where("norm", "in", names).execute(),
     i
       .from("person_not_same")
       .select(["a_id", "b_id"])
       .where("user_id", "=", v.userId)
-      .where((eb) => eb.or([eb("a_id", "=", personId), eb("b_id", "=", personId)]))
+      .where((eb) => eb.or([eb("a_id", "in", ids), eb("b_id", "in", ids)]))
       .execute(),
   ]);
   const aliased = new Set(aliases.map((a) => a.person_id));
   const refused = new Set(no.flatMap((r) => [r.a_id, r.b_id]));
-  const mine = keys.get(personId)?.key;
   const hits = persons.filter((p) => {
-    const key = keys.get(p.id)?.key;
-    if (key?.startsWith("u:") || (mine && key === mine) || refused.has(p.id)) return false;
-    return norm(p.name) === n || aliased.has(p.id);
+    if (keys.get(p.id)?.key.startsWith("u:") || refused.has(p.id)) return false;
+    return names.includes(norm(p.name)) || aliased.has(p.id);
   });
   return Promise.all(
     oldestFirst(
@@ -281,6 +285,15 @@ export async function linkLeftBehind(i: InstanceDb, mover: string, fromBook: str
  * that user has the kept one linked too, the two links become one (a part of a book the kept link has already stays out). */
 export async function mergeLinks(i: InstanceDb, book: string, keepId: string, dropId: string): Promise<void> {
   const parts = await i.from("person_link_parts").select(["link_id", "user_id"]).where("book_id", "=", book).where("person_id", "=", dropId).execute();
+  // Kept as someone's own person: they are one by their user, never in a link, so the dropped part leaves its link.
+  if (await i.from("members").select("person_id").where("book_id", "=", book).where("person_id", "=", keepId).executeTakeFirst()) {
+    for (const p of parts) {
+      await i.delete("person_link_parts").where("link_id", "=", p.link_id).where("person_id", "=", dropId).execute();
+      const left = await i.from("person_link_parts").select("person_id").where("link_id", "=", p.link_id).execute();
+      if (left.length < 2) await i.delete("person_links").where("id", "=", p.link_id).execute();
+    }
+    return;
+  }
   for (const p of parts) {
     const kept = await i
       .from("person_link_parts")
