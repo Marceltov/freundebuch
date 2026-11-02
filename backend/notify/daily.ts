@@ -9,9 +9,10 @@ import { addDays, today } from "../people/dates";
 import { lastSeen } from "../people/intervals";
 import { errorFields, logger } from "../core/log";
 import { processState } from "../core/state";
-import { upcomingDates, whatsDue, type DueItem } from "../reading/due";
+import { upcomingDates, type DueItem } from "../reading/due";
+import { dueAcross } from "../reading/across";
 import { viewerById } from "../core/users";
-import { bookRef, inBook } from "../people/books";
+import { inBook } from "../people/books";
 import type { Viewer } from "../core/types";
 import { sendWebhook, type WebhookMessage } from "./webhook";
 import { runReflectionsDue } from "../journal/reflection";
@@ -82,13 +83,15 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
       if (!all) continue;
       users++;
       const copy = notifyCopy(await userLanguage(all));
-      // Each book is read on its own; with several, every message says which book it is from.
+      // Each book is read on its own and the lists merged, someone in several books once (dueAcross); with several books,
+      // every message says which book it is from.
       const items: { v: Viewer; book: string; item: DueItem }[] = [];
-      for (const b of all.books) {
-        const v = await inBook(all, b);
-        const book = (await bookRef(b)).name;
+      const viewers = new Map<string, Viewer>();
+      for (const item of await dueAcross(all, from, 1)) {
         // A missed session goes out once, the morning after its day.
-        for (const item of await whatsDue(v, from, 1)) if (item.kind !== "session" || item.date === addDays(from, -1)) items.push({ v, book, item });
+        if (item.kind === "session" && item.date !== addDays(from, -1)) continue;
+        if (!viewers.has(item.book.id)) viewers.set(item.book.id, await inBook(all, item.book.id));
+        items.push({ v: viewers.get(item.book.id)!, book: item.book.name, item });
       }
       const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
       const messages = await Promise.all(

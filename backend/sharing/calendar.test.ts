@@ -3,6 +3,7 @@ import { calendarFeed, calendarRoute, createCalendarKey, feedPath, hasCalendarKe
 import { remember } from "../conversations/conversations";
 import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
 import { inBook } from "../people/books";
+import { linkPeople } from "../people/links";
 
 let s: Seed;
 
@@ -146,4 +147,16 @@ test("one calendar key per book and member, each feed only its book", async () =
   await revokeCalendarKey(w.work);
   expect(await viewerFromCalendarKey(workKey)).toBeNull();
   expect(await viewerFromCalendarKey(homeKey)).not.toBeNull();
+});
+
+test("the newer book's feed leaves out a linked birthday the older feed has; without a key for the older book it keeps it", async () => {
+  const w = await seedWorkBook(s);
+  await linkPeople(w.a, [s.lena, w.lena2]);
+  await remember(s.a, { visibility: "shared", dates: [{ person: s.lena, kind: "birthday", date: "--11-05", yearly: true }] });
+  await remember(w.work, { visibility: "shared", dates: [{ person: w.lena2, kind: "birthday", date: "--11-05", yearly: true }] });
+  const lena = async () => events(await calendarFeed(w.work, BASE, NOW)).filter((e) => e.SUMMARY?.includes("Lena"));
+  expect((await lena()).length).toBeGreaterThan(0);
+  await createCalendarKey(s.a);
+  expect(await lena()).toEqual([]);
+  expect(events(await calendarFeed(s.a, BASE, NOW)).filter((e) => e.SUMMARY?.includes("Lena")).length).toBeGreaterThan(0);
 });

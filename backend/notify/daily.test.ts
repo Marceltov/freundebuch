@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { record } from "../conversations/conversations";
 import { firstBook } from "../db/testing";
 import { logsOf } from "../core/log";
-import { seed, type Seed } from "../testing/fixtures";
+import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
+import { remember } from "../conversations/conversations";
+import { linkPeople } from "../people/links";
 import { getSettings, putSettings, setLanguage, testWebhook } from "../core/settings";
 import { runDaily, runDailyIfDue } from "./daily";
 
@@ -28,6 +30,16 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("runDaily", () => {
+  test("a linked person's birthday in two books is one message", async () => {
+    const w = await seedWorkBook(s);
+    await linkPeople(w.a, [s.lena, w.lena2]);
+    await remember(s.a, { visibility: "shared", dates: [{ person: s.lena, kind: "birthday", date: "--10-24", yearly: true }] });
+    await remember(w.work, { visibility: "shared", dates: [{ person: w.lena2, kind: "birthday", date: "--10-24", yearly: true }] });
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+    await runDaily(NOW, fetchFn);
+    expect(sent.filter((m) => m.title.includes("Lena hat morgen Geburtstag"))).toHaveLength(1);
+  });
+
   test("A hears about Tom's private birthday, B does not", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     await putSettings(s.b, { webhookUrl: "https://ntfy.example/b" });
