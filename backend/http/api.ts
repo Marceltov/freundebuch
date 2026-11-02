@@ -2,7 +2,7 @@
 // through it, and openApiDocument() generates the OpenAPI 3.1 description. Each handler is typed from
 // its own declared responses (see op() in dispatch.ts). Adding a route is adding an entry to OPS.
 import * as z from "zod";
-import { briefing } from "../reading/briefing";
+import { linkedBriefing } from "../reading/linked";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../sharing/calendar";
 import { IDENTITY_COOKIE } from "../auth/session";
 import {
@@ -207,12 +207,14 @@ const ROUTES: AnyOp[] = [
     path: `${API_PREFIX}/people/{id}/briefing`,
     operationId: "getBriefing",
     summary: "Everything to know before meeting a person",
-    description: "As the caller sees it: private items of other users are never part of it.",
+    description:
+      "As the caller sees it: private items of other users are never part of it. A person the caller linked across books (or a writer of several) is one briefing of every part, each item with its book.",
     tags: ["People"],
     auth: true,
+    allBooks: true,
     params: { id: IdParam },
     responses: { 200: { description: "The briefing", schema: BriefingJson }, 401: E401, 404: E404 },
-  }).handle(async ({ viewer, params }) => ({ status: 200, body: await briefing(viewer, params.id) })),
+  }).handle(async ({ viewer, params }) => ({ status: 200, body: await linkedBriefing(viewer, params.id) })),
 
   op({
     method: "GET",

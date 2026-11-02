@@ -4,7 +4,9 @@
 // Every result also carries `next`: what Claude should do now, worked out here from what the domain returned (docs/adr/0010). It
 // is built only from those results, which the domain read through visible(), so it can't name what the viewer may not see.
 import * as z from "zod";
-import { briefing, type Briefing } from "../reading/briefing";
+import { linkedBriefing, type LinkedBriefing } from "../reading/linked";
+import { dueAcross, findAcross, peopleAcross } from "../reading/across";
+import { linkPeople, markNotSame, nameMatches, partsOf, unlinkPerson, type Part } from "../people/links";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../sharing/calendar";
 import { cardPath, deleteOwnCard, ownCards, publishCard, setOwnCard, subscribeCard, unpublishCard, unsubscribeCard } from "../sharing/cards";
 import { birthdayMessage } from "../sharing/greetings";
@@ -25,7 +27,6 @@ import {
   skipSession,
   type Moved,
 } from "../conversations/corrections";
-import { whatsDue } from "../reading/due";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../people/groups";
 import { InvalidInputError } from "../core/errors";
 import { bookRef, inBook, inBookOf, listBooks, newBook, type BookRef } from "../people/books";
@@ -54,6 +55,7 @@ import {
   PlaceRefJson,
   PersonId,
   PersonJson,
+  PartJson,
   RecordedRambleJson,
   SearchJson,
   PendingFileJson,
@@ -84,7 +86,7 @@ import {
   setPlaceParent,
 } from "../experiences/places";
 import { discardFiles, fileContent, isAudio, listPending } from "../conversations/files";
-import { addAlias, findPeople, peopleOverview, setGender, type Candidate, type Relabel } from "../people/people";
+import { addAlias, setGender, type Candidate, type Relabel } from "../people/people";
 import { addRelationship, addToGroup } from "../people/relationships";
 import { EXCHANGE_KINDS, FACT_CATEGORIES, ROLES, isTrait, type TraitKind, type Viewer } from "../core/types";
 import { conversationPath, personPath } from "../core/urls";
@@ -120,7 +122,7 @@ const ok = <S extends z.ZodType>(_schema: S, body: z.input<S>, next: Next = []) 
 // ids it gives, or the user's only book. `each`: the book of the ids it gives, else every book, the result grouped by book.
 // `user`: the book of the ids it gives, else the user as they are (what the call reaches is the user's, not a book's).
 // `books`: the user as they are, whatever ids it gives: the call is about the books themselves, or what is the user's
-// across them (the inbox).
+// across them (the inbox, the lists of people that show someone in several books once, a person's briefing of every part).
 type BookRule = "create" | "one" | "each" | "user" | "books";
 
 const BookJson = z.object({ id: z.string(), name: z.string() }).describe("The book it is in");
@@ -259,8 +261,18 @@ function needsNext(people: PersonTraits[]): Next {
   return needs.length ? [`Keep these needs in mind for the plan: ${needs.join("; ")}.`] : [];
 }
 
-function briefingNext(b: Briefing): Next {
+/** The question whether two people of different books are one; Claude asks, then links or keeps the no. */
+const sameAskLine = (a: { id: string; name: string; book: BookRef }, b: { id: string; name: string; book: BookRef }) =>
+  `Ask the user whether ${a.name} (${a.book.name}) is the same person as ${b.name} (${b.book.name}); if yes, link them with people (link: [${a.id}, ${b.id}]); if no, people (not_same: [${a.id}, ${b.id}]) so it isn't asked again. Never link on the name alone.`;
+
+function briefingNext(b: LinkedBriefing): Next {
   const next: Next = [];
+  const first = b.parts[0];
+  for (const m of b.sameAsAsk) next.push(sameAskLine({ id: first.id, name: b.person.name, book: first.book }, m));
+  if (b.parts.length > 1)
+    next.push(
+      `${b.person.name} is in ${b.parts.map((p) => p.book.name).join(" and ")}: file each thing into the book it belongs to (a work topic to the work book), with the person's id in that book (parts); ask when unsure, and say where it went.`,
+    );
   if (b.roles.length) next.push(`Lead with who ${b.person.name} is to us: ${b.roles.map((r) => `${r.label} of ${WITH[r.with](r.partnerName)}`).join("; ")}.`);
   if (b.traits.needs.length) next.push(`Keep in mind what ${b.person.name} needs: ${b.traits.needs.map((f) => f.text).join("; ")}.`);
   for (const f of b.situations.filter((x) => x.nudge))
@@ -282,6 +294,21 @@ function foundNext(name: string, people: Candidate[], books = false): Next {
   if (people.length === 1) return [];
   const list = people.map((p) => `${p.name} (id ${p.id}${p.context.length ? `; ${p.context.join(", ")}` : ""})`).join(", ");
   return [`${people.length} people match "${name}": ${list}. Ask the user which one they mean; never guess.`];
+}
+
+/** For people found in different books under one name: ask whether they are the same, unless the user said they aren't. */
+async function sameAsks(v: Viewer, people: { id: string; name: string; book: BookRef }[]): Promise<Next> {
+  const found = new Map(people.map((p) => [p.id, p]));
+  const asked = new Set<string>();
+  const next: Next = [];
+  for (const p of people)
+    for (const m of await nameMatches(v, p.id)) {
+      const pair = [p.id, m.id].sort().join("|");
+      if (!found.has(m.id) || asked.has(pair)) continue;
+      asked.add(pair);
+      next.push(sameAskLine(p, m));
+    }
+  return next;
 }
 
 // A named API schema (.meta({ id })) converts to a bare $ref, and a tool's schema must be an object at its root; a copy
@@ -312,8 +339,11 @@ const PlaceHit = PlaceJson.extend({
 const Table = z.enum(ITEM_TABLES).describe("The kind of item");
 const ItemId = z.string().describe("The item's id, as a briefing shows it");
 
+const PartsJson = z
+  .array(PartJson)
+  .describe("The person's rows in each of the user's books, oldest first: one, unless the user linked them, or they are a writer of several");
 const FoundJson = z.object({
-  people: z.array(PersonJson).describe("Best matches first, at most 5"),
+  people: z.array(PersonJson.extend({ book: BookJson, parts: PartsJson })).describe("Best matches first, from every book, each person once, at most 5"),
 });
 const PeopleJson = z.object({
   people: z
@@ -324,13 +354,16 @@ const PeopleJson = z.object({
         aliases: z.array(z.string()),
         url: z.string().describe("The person's page, as an absolute URL"),
         lastSeen: Day.nullable().describe("When the user last saw them; null when never"),
-        groups: z.array(z.string()).describe("The groups the user sees them in, by name; empty when in none"),
+        groups: z.array(z.string()).describe("The groups the user sees them in, by name, in every book they are in; empty when in none"),
+        book: BookJson,
+        parts: PartsJson,
       }),
     )
-    .describe("By name"),
+    .describe("By name, from every book, each person once"),
+  parts: PartsJson.optional().describe("link, unlink: the person's rows after it"),
 });
 const DueJson = z.object({
-  items: z.array(DueItemJson).describe("Most pressing first"),
+  items: z.array(DueItemJson.extend({ book: BookJson })).describe("Most pressing first, from every book; someone in several books once"),
 });
 const RelatedJson = z.object({
   id: z.string().optional().describe("The relationship's id (the first, for \"us\"), or the group's"),
@@ -750,6 +783,7 @@ const MovedJson = z.object({
         name: z.string(),
         url: z.string(),
         remains: z.boolean().describe("Whether an entry for them stays in the old book, for what is filed there that didn't move"),
+        twin: z.string().optional().describe("The person the user's link already has in the target book: the two are now both there"),
       }),
     )
     .describe("Who moved, with the new links"),
@@ -829,45 +863,52 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: FoundJson,
     annotations: { readOnlyHint: true },
-    books: "each",
-    each: {
-      field: "people",
-      next: (books, { name }) =>
-        books.length === 1
-          ? foundNext(name, books[0].out.people as Candidate[])
-          : foundNext(
-              name,
-              books.flatMap((b) => (b.out.people as Candidate[]).map((p) => ({ ...p, context: [`in ${b.book.name}`, ...p.context] }))),
-              true,
-            ),
-    },
+    books: "books",
     handler: async (v, { name }) => {
-      const people = await findPeople(v, name);
-      return ok(FoundJson, { people }, foundNext(name, people));
+      const several = v.books.length > 1;
+      const people = (await findAcross(v, name)).map((p) => (several ? { ...p, context: [`in ${p.book.name}`, ...p.context] } : p));
+      return ok(FoundJson, { people }, [...foundNext(name, people as Candidate[], several), ...(await sameAsks(v, people))]);
     },
   }),
   tool({
     name: "people",
     description:
-      "Everyone in the book but the user, by name, each with the groups the user sees them in. With withoutGroup, only those in no group yet, to sort them into groups (the book's writers are in its own group, named after the book). To find one person by name, use find_person.",
+      "Everyone in the user's books but the user, by name, each person once with their book and the groups the user sees them in. With withoutGroup, only those in no group yet, to sort them into groups (the book's writers are in its own group, named after the book). To find one person by name, use find_person. link: the same person in two or more of the user's books (one per book), only after the user said so; never link on a name alone; they are then one entry, one briefing and one birthday for the user, and nobody else sees the link. unlink: a person of a link is someone of their own again. not_same: the user said two people of different books are not the same; they aren't asked about again.",
     input: z.object({
       withoutGroup: z.boolean().optional().describe("Only the people in no group"),
+      link: z.array(PersonId).min(2).optional().describe("The people to link as one, each in a different book"),
+      unlink: PersonId.optional().describe("The person to take out of their link"),
+      not_same: z.tuple([PersonId, PersonId]).optional().describe("Two people the user said are different"),
     }),
     output: PeopleJson,
-    annotations: { readOnlyHint: true },
-    books: "each",
-    each: { field: "people" },
-    handler: async (v, { withoutGroup }) => {
-      const [all, groups] = await Promise.all([peopleOverview(v), listGroups(v)]);
-      const named = new Map(groups.map((g) => [g.id, g.name]));
-      const people = all
+    annotations: { destructiveHint: false },
+    books: "books",
+    handler: async (v, { withoutGroup, link, unlink, not_same }) => {
+      if ([link, unlink, not_same].filter((x) => x !== undefined).length > 1) throw new InvalidInputError("Give one of link, unlink and not_same");
+      const books = (parts: Part[]) => parts.map((p) => p.book.name).join(" and ");
+      if (link) {
+        const parts = await linkPeople(v, link);
+        return ok(PeopleJson, { people: [], parts }, [`Say that they are one person now, in ${books(parts)}.`]);
+      }
+      if (unlink) {
+        await unlinkPerson(v, unlink);
+        const parts = await partsOf(v, unlink);
+        return ok(PeopleJson, { people: [], parts }, [`Say that the person in ${books(parts)} is someone of their own again.`]);
+      }
+      if (not_same) {
+        await markNotSame(v, ...not_same);
+        return ok(PeopleJson, { people: [] }, ["Say that you won't ask about them again."]);
+      }
+      const people = (await peopleAcross(v))
         .filter((p) => !withoutGroup || !p.groups.length)
-        .map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, url: p.url, lastSeen: p.lastSeen, groups: p.groups.map((id) => named.get(id)!) }));
+        .map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, url: p.url, lastSeen: p.lastSeen, groups: p.groups, book: p.book, parts: p.parts }));
+      const names = new Map((await Promise.all(v.books.map(async (b) => listGroups((await inBook(v, b))!)))).flat().map((g) => [g.id, g.name]));
+      const named = people.map((p) => ({ ...p, groups: p.groups.map((id) => names.get(id)!).filter(Boolean) }));
       const next =
-        withoutGroup && people.length
-          ? [`Offer to put ${people.map((p) => p.name).join(", ")} in a group with relate (kind group); reuse one that fits (groups).`]
+        withoutGroup && named.length
+          ? [`Offer to put ${named.map((p) => p.name).join(", ")} in a group with relate (kind group); reuse one that fits (groups).`]
           : [];
-      return ok(PeopleJson, { people }, next);
+      return ok(PeopleJson, { people: named }, next);
     },
   }),
   tool({
@@ -877,9 +918,9 @@ export const TOOLS: readonly Tool[] = [
     input: z.object({ personId: PersonId }),
     output: BriefingOut,
     annotations: { readOnlyHint: true },
-    books: "one",
+    books: "books",
     handler: async (v, { personId }) => {
-      const b = await briefing(v, personId);
+      const b = await linkedBriefing(v, personId);
       return ok(BriefingOut, b, briefingNext(b));
     },
   }),
@@ -1067,10 +1108,9 @@ export const TOOLS: readonly Tool[] = [
     }),
     output: DueJson,
     annotations: { readOnlyHint: true },
-    books: "each",
-    each: { field: "items" },
+    books: "books",
     handler: async (v, { from, horizonDays }) => {
-      const items = await whatsDue(v, from, horizonDays);
+      const items = await dueAcross(v, from, horizonDays);
       return ok(DueJson, { items }, [
         ...items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
         ...items
@@ -1475,9 +1515,17 @@ export const TOOLS: readonly Tool[] = [
               `An entry for ${r.people
                 .filter((p) => p.remains)
                 .map((p) => p.name)
-                .join(", ")} stays in the old book, for what is filed there that didn't move.`,
+                .join(
+                  ", ",
+                )} stays in the old book, for what others filed there that didn't move; for the user it is linked to the moved one, so they stay one person.`,
             ]
           : []),
+        ...r.people
+          .filter((p) => p.twin)
+          .map(
+            (p) =>
+              `${p.name} is now twice in ${r.book.name} (ids ${p.id} and ${p.twin}): offer to merge them with correct (merge, id ${p.twin}, drop ${p.id}).`,
+          ),
         ...(Object.keys(r.stayed).length ? ["Say what stayed behind because it is about people who stay (relationships, conversations with them)."] : []),
       ]);
     },

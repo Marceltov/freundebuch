@@ -57,7 +57,7 @@ export async function partsOf(v: Viewer, personId: string): Promise<Part[]> {
       ),
     );
   const p = (await personsIn(i, v, [personId])).get(personId);
-  if (!p) throw new NotFoundError(`No person with the id ${personId}`);
+  if (!p) throw new NotFoundError("No such person");
   return toParts([{ id: p.id, book: p.book_id }]);
 }
 

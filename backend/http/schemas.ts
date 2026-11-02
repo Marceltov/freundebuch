@@ -70,6 +70,13 @@ export const LookJson = z
 export const LABEL = z.string().describe("What `from` is to `to`, in words and in from's gender: Vermieterin, Sohn, Kollege, Nachbar:in (unknown gender)");
 export const INVERSE = z.string().describe("What `to` is to `from`, the same way: Mieter, Mutter, Kollegin, Nachbar:in");
 export const US_TARGET = z.enum(["me", "us"]).describe('"me": the user\'s own person; "us": every writer of the book, one relationship each');
+/** A book, by id and name. */
+export const BookRef = z.object({ id: z.string(), name: z.string() }).describe("The book it is in");
+/** The book an item of a merged result came from: set only when the person is in several of the caller's books. */
+const InBook = { book: BookRef.optional().describe("The book it came from, when the person is in several of the caller's books") };
+/** One of a person's rows: its book and its id there. */
+export const PartJson = z.object({ book: BookRef, id: PersonId });
+
 export const PersonJson = z
   .object({
     id: PersonId,
@@ -335,6 +342,7 @@ export const BriefingJson = z
             .describe("To whom, from the caller's side: `us` all the book's writers, `me` the caller, `partner` the other user"),
           partnerName: z.string().optional().describe("The other user's name, when `with` is `partner`"),
           ids: z.array(z.string()).describe("The relationships it stands for (table `relationships`), one per writer"),
+          ...InBook,
         }),
       )
       .describe('Who the person is to us ("your landlady", "Sybille\'s colleague"): the first thing to say about them'),
@@ -345,11 +353,12 @@ export const BriefingJson = z
           name: z.string(),
           url: Url,
           private: z.boolean().describe("Whether the caller's own private membership is the only one they see"),
+          ...InBook,
         }),
       )
       .describe("The groups the caller may see the person in, each once"),
     freshness: Freshness,
-    nextDates: z.array(UpcomingDate),
+    nextDates: z.array(UpcomingDate.extend(InBook)),
     situations: z
       .array(
         z.object({
@@ -357,19 +366,22 @@ export const BriefingJson = z
           since: Day.describe("When the latest news about it was filed"),
           checkAfter: Day.describe("When to ask how it went"),
           nudge: z.boolean().describe("checkAfter has come: ask about it"),
+          ...InBook,
         }),
       )
       .describe("What is going on and will end, nudging ones first: the best things to ask about"),
-    traits: Traits,
-    known: z.array(z.object(FactJson)).describe("What else stays true about the person, by category"),
-    journal: z.array(JournalEntryJson.extend({})).describe("The caller's own journal entries that name the person, the last few, newest first"),
-    experiences: z.array(ExperienceJson.extend({})).describe("The experiences the caller may see that the person was at, the last few, newest first"),
-    homes: z.array(PlaceJson.extend({})).describe("Where the person lives: the places that are their home"),
+    traits: z
+      .object({ needs: z.array(z.object({ ...FactJson, ...InBook })), personality: z.array(z.object({ ...FactJson, ...InBook })) })
+      .describe(Traits.description!),
+    known: z.array(z.object({ ...FactJson, ...InBook })).describe("What else stays true about the person, by category"),
+    journal: z.array(JournalEntryJson.extend(InBook)).describe("The caller's own journal entries that name the person, the last few, newest first"),
+    experiences: z.array(ExperienceJson.extend(InBook)).describe("The experiences the caller may see that the person was at, the last few, newest first"),
+    homes: z.array(PlaceJson.extend(InBook)).describe("Where the person lives: the places that are their home"),
     card: PersonCardJson.nullable().describe(
       "What the person says about themselves, from the card the book subscribed to; their own words, kept apart from what was told about them. Null without one",
     ),
     open: z.object({
-      promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own })),
+      promises: z.array(z.object({ id: z.string(), text: z.string(), byMe: ByMe, by: PromiseBy, due: z.string().nullable(), url: ItemUrl, ...Own, ...InBook })),
       exchanges: z.array(
         z.object({
           id: z.string(),
@@ -381,11 +393,12 @@ export const BriefingJson = z
           currency: z.string().nullable(),
           url: ItemUrl,
           ...Own,
+          ...InBook,
         }),
       ),
-      giftIdeas: z.array(z.object({ id: z.string(), text: z.string(), url: ItemUrl, ...Own })),
+      giftIdeas: z.array(z.object({ id: z.string(), text: z.string(), url: ItemUrl, ...Own, ...InBook })),
     }),
-    recent: z.array(z.object({ id: z.string(), date: Day, kind: z.string(), summary: z.string(), withOthers: z.array(z.string()), url: Url })),
+    recent: z.array(z.object({ id: z.string(), date: Day, kind: z.string(), summary: z.string(), withOthers: z.array(z.string()), url: Url, ...InBook })),
     relationships: z.array(
       z.object({
         id: z.string().describe("The relationship's id, for correct/the items operations (table `relationships`)"),
@@ -399,6 +412,7 @@ export const BriefingJson = z
           .enum(["out", "in"])
           .describe("`out` when the person is `from` (so `inverse` is what the other is to them), `in` when they are `to` (`label` is)"),
         url: Url.describe("The other person's page, as an absolute URL"),
+        ...InBook,
       }),
     ),
     network: z
@@ -419,15 +433,22 @@ export const BriefingJson = z
             to: PersonId,
             label: z.string().describe("What `from` is to `to`"),
             inverse: z.string().describe("What `to` is to `from`"),
+            ...InBook,
           }),
         ),
       })
-      .describe("One hop around the person: the writers they relate to, and their own people"),
+      .describe("One hop around the person: the writers they relate to, and their own people; of every book the person is in, someone in several of them once"),
     suggestedInterval: z
       .number()
       .int()
       .optional()
       .describe("Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the book's writers"),
+    parts: z
+      .array(PartJson)
+      .describe("The person's rows in each of the caller's books, oldest first: one, unless the caller linked them, or they are a writer of several"),
+    sameAsAsk: z
+      .array(z.object({ id: PersonId, name: z.string(), book: BookRef }))
+      .describe("People of the caller's other books who may be the same person, by name: ask the user, then link (people link) or keep a no (people not_same)"),
   })
   .meta({ id: "Briefing" });
 
