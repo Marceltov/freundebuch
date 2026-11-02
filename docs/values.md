@@ -1,6 +1,6 @@
 # What freundebuch stands for
 
-freundebuch is a personal keep-in-touch book, for a household, for yourself or for your work: after you meet someone, you tell Claude about it, and before you meet them again, Claude tells you what is going on in their life. This page says what it will stay, whoever runs it and whatever it grows into. Everything else follows from it: the features and the design decisions in [docs/adr](https://github.com/Marceltov/freundebuch/tree/main/docs/adr).
+freundebuch is a personal keep-in-touch book, shared with your partner, for yourself or for your work: after you meet someone, you tell Claude about it, and before you meet them again, Claude tells you what is going on in their life. This page says what it will stay, whoever runs it and whatever it grows into. Everything else follows from it: the features and the design decisions in [docs/adr](https://github.com/Marceltov/freundebuch/tree/main/docs/adr).
 
 It is written for you, if you are deciding whether to trust freundebuch with what you know about the people in your life. It is also the yardstick for every change: a contribution, from a person or an AI, is judged against these points, and a review names the one it touches ("this breaks V2"). Each point says what it rules out, so that it can be used that way.
 
@@ -10,7 +10,7 @@ These three come first. When a feature would be easier, or would sell better, by
 
 ### V1. A book for the people who keep it
 
-A book belongs to its members: the people who keep it and sign in to it. A household is one kind (you and your partner), a book of your own for work another; you can keep several. Everyone in a book made it or was invited into it by someone in it, and only they are in it. It is your memory of the people you know, not a place where those people are. An instance can hold many books, as a hosted one would, and no book sees into another, not even two of your own.
+A book belongs to its members: the people who keep it and sign in to it. A shared book is one kind (you and your partner), a book of your own for work another; you can keep several. Everyone in a book made it or was invited into it by someone in it, and only they are in it. It is your memory of the people you know, not a place where those people are. An instance can hold many books, as a hosted one would, and no book sees into another, not even two of your own.
 
 freundebuch is about people, not deals: it keeps what is going on in someone's life, never a pipeline to sell to them.
 

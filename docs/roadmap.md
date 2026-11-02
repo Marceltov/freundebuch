@@ -24,7 +24,7 @@ You only talk; Claude sorts, links and keeps it up. A personal CRM fails when it
 ## Decided against
 
 - **Federation between instances.** A protocol that can never be dropped, trust between servers, deletion across servers you don't control: too much risk to [V2](values.md#v2-private-stays-private-through-every-door) for what is needed. Own cards by link cover it.
-- **Sharing notes about people beyond the household.** What you think about someone is your perception; it is worthless to someone who doesn't know them and harmful to someone who does. Only a person's own card crosses ([V3](values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it)).
+- **Sharing notes about people beyond a book.** What you think about someone is your perception; it is worthless to someone who doesn't know them and harmful to someone who does. Only a person's own card crosses ([V3](values.md#v3-nothing-reaches-the-people-in-the-book-unless-you-send-it)).
 - **Fields and forms to maintain by hand,** as Monica has. Whatever freundebuch knows comes from what you tell it.
 
 ## Keep it true

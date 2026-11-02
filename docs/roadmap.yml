@@ -15,7 +15,7 @@ items:
     when: Next
     icon: account-multiple-check-outline
     title: One person across your books
-    summary: Anna in your work book and Anna in the household's are the same person, when you say so; Claude asks, and then she is one entry, one page and one birthday for you. The link is yours alone; the other members of either book see nothing of it.
+    summary: Anna in your work book and Anna in your shared book are the same person, when you say so; Claude asks, and then she is one entry, one page and one birthday for you. The link is yours alone; the other members of either book see nothing of it.
     links:
       - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
       - { label: "V1", url: "https://marceltov.github.io/freundebuch/values/#v1-a-book-for-the-people-who-keep-it" }
@@ -47,7 +47,7 @@ items:
     date: 2026-11-01
     icon: home-group
     title: Several books per person, and a hosted freundebuch
-    summary: A book for the household and one of your own for work; Claude files into the right one and reads across all of them, and moves people between them. Others join a book by invitation, with a role; whether strangers may sign up is a setting, so the same freundebuch can be hosted.
+    summary: A book you share with your partner and one of your own for work; Claude files into the right one and reads across all of them, and moves people between them. Others join a book by invitation, with a role; whether strangers may sign up is a setting, so the same freundebuch can be hosted.
     links:
       - { label: "#69", url: "https://github.com/Marceltov/freundebuch/issues/69" }
       - { label: "#116", url: "https://github.com/Marceltov/freundebuch/pull/116" }
@@ -196,7 +196,7 @@ items:
     date: 2026-10-28
     icon: share-variant-outline
     title: Share any page or entry as a link
-    summary: Every person, conversation and item has a link into the web app, for Claude to hand you and for you to pass on in the household.
+    summary: Every person, conversation and item has a link into the web app, for Claude to hand you and for you to pass on to the others in a book.
     links:
       - { label: "#52", url: "https://github.com/Marceltov/freundebuch/issues/52" }
       - { label: "PR #53", url: "https://github.com/Marceltov/freundebuch/pull/53" }
@@ -206,7 +206,7 @@ items:
     date: 2026-10-27
     icon: rocket-launch-outline
     title: The first freundebuch
-    summary: A personal CRM for one household with its MCP built in. Tell Claude about a meeting, over MCP or in Erzählen, the chat in the web app, and get a briefing before the next one.
+    summary: freundebuch keeps the people you know in your books, with Claude as your personal assistant, its MCP built in. Tell Claude about a meeting, over MCP or in Erzählen, the chat in the web app, and get a briefing before the next one.
     links:
       - { label: "ADR 0001", url: "https://marceltov.github.io/freundebuch/adr/0001-ai-first-app-with-built-in-mcp/" }
       - { label: "ADR 0006", url: "https://marceltov.github.io/freundebuch/adr/0006-in-app-chat-calls-claude/" }

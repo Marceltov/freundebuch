@@ -1,6 +1,6 @@
 # freundebuch
 
-A personal CRM for one household. You ramble about the people in your life to Claude; freundebuch remembers, and briefs you before the next meeting.
+freundebuch keeps the people you know and what to keep in mind about them, in your books, with Claude as your personal assistant. You tell Claude what's going on in their lives; Claude files it and briefs you before you meet again.
 
 Capture happens through a built-in MCP endpoint (`/mcp`), so there is nothing to fill in by hand; the web UI (German) is for looking things up. Items can be private to the person who recorded them. Next.js and SQLite, one container, one file of data. Licensed AGPL-3.0-only.
 
