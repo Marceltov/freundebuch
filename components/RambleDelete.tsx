@@ -16,7 +16,7 @@ export function RambleDelete({ id }: { id: string }) {
   async function remove() {
     const res = await fetch(`/api/v1/rambles/${id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok) return setFailed(true);
-    router.push("/verlauf");
+    router.push("/history");
     router.refresh();
   }
 

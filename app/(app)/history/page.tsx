@@ -30,7 +30,7 @@ const monthYear = (copy: Copy, day: string) =>
 // each linking to its page, where what Claude filed can be checked and fixed, and its journal entries the viewer may see; a
 // ramble told in parts links to its own page. With a search (?q=), what holds every word instead, the words marked. All the
 // user's books, each ramble and hit marked with its book when there are several.
-export default async function HistoryPage({ searchParams }: PageProps<"/verlauf">) {
+export default async function HistoryPage({ searchParams }: PageProps<"/history">) {
   const v = await pageViewer();
   const copy = getCopy();
   const q = (await searchParams).q;
@@ -49,7 +49,7 @@ export default async function HistoryPage({ searchParams }: PageProps<"/verlauf"
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <h1 className="font-display text-3xl font-bold">{copy.tabHistory}</h1>
-        <Link href="/tagebuch" className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-sm font-semibold text-carbon hover:bg-rule">
+        <Link href="/journal" className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-sm font-semibold text-carbon hover:bg-rule">
           <NotebookPen aria-hidden className="h-4 w-4" />
           {copy.journal}
         </Link>

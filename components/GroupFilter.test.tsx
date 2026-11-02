@@ -21,7 +21,7 @@ test("with several books, each group's button carries its book", () => {
       current={null}
     />,
   );
-  expect(html).toContain('href="/?gruppe=g1"');
-  expect(html).toContain('href="/?gruppe=g2"');
+  expect(html).toContain('href="/?group=g1"');
+  expect(html).toContain('href="/?group=g2"');
   expect(html).toContain('aria-label="Buch: Arbeit"');
 });

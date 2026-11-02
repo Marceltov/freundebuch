@@ -14,7 +14,7 @@ const entry = (over: Partial<JournalEntry> = {}): JournalEntry => ({
   rambleId: "r1",
   visibility: "private",
   mine: true,
-  url: "/tagebuch#journal-e1",
+  url: "/journal#journal-e1",
   ...over,
 });
 

@@ -21,7 +21,7 @@ export function AppShell({ userId, pending = 0, children }: { userId: string; pe
         <div className="flex items-center gap-1">
           {pending > 0 && (
             <Link
-              href="/pruefen"
+              href="/review"
               className="inline-flex h-9 items-center gap-1.5 rounded-full bg-carbon/12 px-3 text-sm font-bold text-carbon hover:bg-carbon/20"
             >
               <ImageUp aria-hidden className="h-4 w-4" />
@@ -29,7 +29,7 @@ export function AppShell({ userId, pending = 0, children }: { userId: string; pe
             </Link>
           )}
           <Link
-            href="/einstellungen"
+            href="/settings"
             aria-label={copy.settings}
             title={copy.settings}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"

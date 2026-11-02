@@ -44,7 +44,7 @@ export default async function SettingsPage() {
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <LanguageSettings />
       </section>
-      <section id="buecher" className="rounded-2xl bg-surface p-5 shadow-card">
+      <section id="books" className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
           <BookOpen aria-hidden className="h-4 w-4" />
           {copy.books}
@@ -54,7 +54,7 @@ export default async function SettingsPage() {
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <WebhookSettings webhookUrl={webhookUrl} />
       </section>
-      <section id="rueckblick" className="rounded-2xl bg-surface p-5 shadow-card">
+      <section id="reflection" className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
           <Sparkles aria-hidden className="h-4 w-4" />
           {copy.reflectionTitle}
@@ -62,7 +62,7 @@ export default async function SettingsPage() {
         <ReflectionSettings reflection={await getReflection(v)} hasWebhook={!!webhookUrl} />
       </section>
       {sharingEnabled() && (
-        <section id="teilen" className="rounded-2xl bg-surface p-5 shadow-card">
+        <section id="sharing" className="rounded-2xl bg-surface p-5 shadow-card">
           <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
             <ImageUp aria-hidden className="h-4 w-4" />
             {copy.shareTitle}
@@ -70,14 +70,14 @@ export default async function SettingsPage() {
           <ShareSettings hasKey={await hasShareKey(v)} shareUrl={`${publicUrl(await headers())}/api/share`} />
         </section>
       )}
-      <section id="karte" className="rounded-2xl bg-surface p-5 shadow-card">
+      <section id="card" className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
           <IdCard aria-hidden className="h-4 w-4" />
           {copy.ownCardTitle}
         </h2>
         <OwnCardsSettings cards={await ownCards(v)} />
       </section>
-      <section id="kalender" className="rounded-2xl bg-surface p-5 shadow-card">
+      <section id="calendar" className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
           <CalendarDays aria-hidden className="h-4 w-4" />
           {copy.calendarTitle}

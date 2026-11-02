@@ -116,7 +116,7 @@ export async function runReflection(v: Viewer, now: number, model: ReflectionMod
   if (!text) return false;
   const base = config.publicUrl();
   const copy = notifyCopy(await userLanguage(v));
-  return sendWebhook(webhookUrl, { title: copy.reflectionTitle, body: text, tags: ["mirror"], click: base ? `${base}/tagebuch` : undefined }, fetchFn);
+  return sendWebhook(webhookUrl, { title: copy.reflectionTitle, body: text, tags: ["mirror"], click: base ? `${base}/journal` : undefined }, fetchFn);
 }
 
 const local = (now: number) => {

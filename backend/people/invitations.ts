@@ -12,7 +12,7 @@ const PREFIX = "fbi_";
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 
 /** Where an invitation opens, as a path. */
-export const invitationPath = (token: string) => `/einladung/${token}`;
+export const invitationPath = (token: string) => `/invite/${token}`;
 
 /** A new invitation to the viewer's book; the link is shown once. */
 export async function invite(v: Viewer, role: "member" | "admin"): Promise<{ id: string; url: string; expiresAt: number }> {

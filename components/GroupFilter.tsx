@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { useCopy } from "@/components/i18n";
 import { BookMark } from "@/components/BookMark";
 
-const KEY = "freundebuch.gruppe";
+const KEY = "freundebuch.group";
 
 // Storage can be blocked or throw (private windows, cleared site data); the filter then just isn't remembered.
 const read = () => {
@@ -24,7 +24,7 @@ const write = (id: string | null) => {
 };
 
 // The group chips above the orbit, one per group of each book, with the book's name when the user has several (`bookName`).
-// The choice lives in the URL (?gruppe=<id>) and is remembered on this device: opening the start
+// The choice lives in the URL (?group=<id>) and is remembered on this device: opening the start
 // page without one brings back the last group chosen here. Choosing the active group again clears the filter.
 export function GroupFilter({ groups, current }: { groups: { id: string; name: string; count: number; bookName?: string }[]; current: string | null }) {
   const copy = useCopy();
@@ -32,7 +32,7 @@ export function GroupFilter({ groups, current }: { groups: { id: string; name: s
   useEffect(() => {
     if (current) return write(current);
     const last = read();
-    if (last && groups.some((g) => g.id === last)) router.replace(`/?gruppe=${encodeURIComponent(last)}`);
+    if (last && groups.some((g) => g.id === last)) router.replace(`/?group=${encodeURIComponent(last)}`);
   }, [current, groups, router]);
 
   const chip = (on: boolean) =>
@@ -45,7 +45,7 @@ export function GroupFilter({ groups, current }: { groups: { id: string; name: s
       {groups.map((g) => (
         <Link
           key={g.id}
-          href={current === g.id ? "/" : `/?gruppe=${encodeURIComponent(g.id)}`}
+          href={current === g.id ? "/" : `/?group=${encodeURIComponent(g.id)}`}
           onClick={() => current === g.id && write(null)}
           aria-current={current === g.id ? "true" : undefined}
           className={chip(current === g.id)}

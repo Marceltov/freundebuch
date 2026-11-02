@@ -13,9 +13,9 @@ import { useCopy } from "@/components/i18n";
 // "Erzählen" button in the middle opens the chat over the current page.
 const tabs = (copy: Copy): { href: string; label: string; icon: LucideIcon; also: string[] }[] => [
   { href: "/", label: copy.tabStart, icon: House, also: ["/g/"] },
-  { href: "/verlauf", label: copy.tabHistory, icon: History, also: ["/c/"] },
-  { href: "/leute", label: copy.tabPeople, icon: Users, also: ["/p/"] },
-  { href: "/bald", label: copy.tabSoon, icon: CalendarHeart, also: [] },
+  { href: "/history", label: copy.tabHistory, icon: History, also: ["/c/"] },
+  { href: "/people", label: copy.tabPeople, icon: Users, also: ["/p/"] },
+  { href: "/soon", label: copy.tabSoon, icon: CalendarHeart, also: [] },
 ];
 
 const TELL_FILE = "freundebuch:tell-file";

@@ -12,12 +12,12 @@ import { withBookName } from "@/components/bookName";
 export const dynamic = "force-dynamic";
 
 // The start page: a greeting that says who would be glad to hear from the viewer, the viewer's orbit, filtered by a group when
-// one is chosen (?gruppe=<id>, a group of one of the books), with that group's due people below, then the situations to ask about; before anything is recorded, how to connect Claude.
+// one is chosen (?group=<id>, a group of one of the books), with that group's due people below, then the situations to ask about; before anything is recorded, how to connect Claude.
 export default async function OrbitPage({ searchParams }: PageProps<"/">) {
   const v = await pageViewer();
   const copy = getCopy();
   const groups = (await groupsAcross(v)).filter((g) => g.count > 0);
-  const wanted = (await searchParams).gruppe;
+  const wanted = (await searchParams).group;
   const group = groups.find((g) => g.id === wanted) ?? null;
   const faces = await orbitAcross(v, group?.id);
   if (!faces.length)
