@@ -11,8 +11,8 @@
 items:
   # ---- open --------------------------------------------------------------------------------------------------------------
   - id: one-person-across-books
-    status: next
-    when: Next
+    status: done
+    date: 2026-11-02
     icon: account-multiple-check-outline
     title: One person across your books
     summary: Anna in your work book and Anna in your shared book are the same person, when you say so; Claude asks, and then she is one entry, one page and one birthday for you. The link is yours alone; the other members of either book see nothing of it.

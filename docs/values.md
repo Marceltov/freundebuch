@@ -16,7 +16,7 @@ freundebuch is about people, not deals: it keeps what is going on in someone's l
 
 **Rules out:** accounts for the people in the book, someone in a book who neither made it nor was invited into it, anything one book can see of another's, people or groups shared across books, public profiles, a directory of books, pipelines, deal stages or amounts per person.
 
-ADRs: [0001](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0001-ai-first-app-with-built-in-mcp.md), [0003](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0003-authentik-sign-in-and-own-oauth-server.md), [0013](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0013-the-household-is-a-group.md).
+ADRs: [0001](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0001-ai-first-app-with-built-in-mcp.md), [0003](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0003-authentik-sign-in-and-own-oauth-server.md), [0013](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0013-the-household-is-a-group.md), [0029](https://github.com/Marceltov/freundebuch/blob/main/docs/adr/0029-person-links-belong-to-the-user.md).
 
 ### V2. Private stays private, through every door
 
