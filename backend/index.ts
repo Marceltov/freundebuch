@@ -37,6 +37,7 @@ export {
   type InBook,
 } from "./reading/across";
 export { linkPeople, markNotSame, nameMatches, partsOf, sameAs, unlinkPerson, type Part } from "./people/links";
+export { linkedBriefing, type LinkedBriefing } from "./reading/linked";
 export { looks } from "./people/looks";
 export { inBook, inBookOf, listBooks, pageScope, type BookRef } from "./people/books";
 export { getPerson, peopleOverview, type PersonOverview } from "./people/people";
