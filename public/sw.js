@@ -8,8 +8,7 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  // /teilen/eingang: an installed app whose manifest is from before the paths were English.
-  if (event.request.method !== "POST" || url.origin !== self.location.origin || !["/share/inbox", "/teilen/eingang"].includes(url.pathname)) return;
+  if (event.request.method !== "POST" || url.origin !== self.location.origin || url.pathname !== "/share/inbox") return;
   event.respondWith(
     (async () => {
       const form = await event.request.formData();
