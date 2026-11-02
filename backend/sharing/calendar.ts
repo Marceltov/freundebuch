@@ -11,6 +11,8 @@ import { userLanguage } from "../core/settings";
 import type { Viewer } from "../core/types";
 import { itemPath, personPath, publicUrl } from "../core/urls";
 import { visible } from "../visibility";
+import { sameAs } from "../people/links";
+import { viewerById } from "../core/users";
 
 // The key: a credential that can only read this one feed. A new key replaces the old one, which stops working at once.
 const KEY_PREFIX = "fbc_";
@@ -66,6 +68,47 @@ type Event = { uid: string; day: string; summary: string; url: string };
 
 const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{(\w+)\}/g, (_, k) => String(v[k]));
 
+/**
+ * A feed is one book's. Someone in several of the user's books (a writer, a person they linked) has their dates in each; a
+ * date an older book holds too (the same kind, on the same day) is left out of the newer book's feed, when the user has a
+ * feed of that older book: they get it there.
+ */
+type Dated = { person_id: string; kind: string; label: string | null; date: string; yearly: number };
+// The same date of someone in several books: the same kind and label, on the same day of the year when yearly, else the day.
+const dateKey = (who: string, r: Dated) => `${who}|${r.kind}|${r.label ?? ""}|${r.yearly || r.date.startsWith("--") ? r.date.slice(-5) : r.date}`;
+
+async function toldInOlderFeeds(v: Viewer): Promise<(r: Dated) => boolean> {
+  const all = await viewerById(v.userId);
+  const older = all ? all.books.slice(0, all.books.indexOf(v.bookId)) : [];
+  const i = await instance();
+  const fed = older.length
+    ? (
+        await i
+          .from("members")
+          .select("book_id")
+          .where("user_id", "=", v.userId)
+          .where("book_id", "in", older)
+          .where("calendar_key_hash", "is not", null)
+          .execute()
+      ).map((m) => m.book_id)
+    : [];
+  if (!fed.length) return () => false;
+  const keys = await sameAs(all!);
+  const there = new Set<string>();
+  for (const b of fed) {
+    const w = (await viewerIn(i, v.userId, b))!;
+    const rows = await (
+      await scope(w)
+    )
+      .from("dates")
+      .select(["person_id", "kind", "label", "date", "yearly"])
+      .$call((qb) => visible(qb, w, "dates"))
+      .execute();
+    for (const r of rows) if (keys.has(r.person_id)) there.add(dateKey(keys.get(r.person_id)!, r));
+  }
+  return (r) => keys.has(r.person_id) && there.has(dateKey(keys.get(r.person_id)!, r));
+}
+
 /** The viewer's feed as iCalendar text, its links absolute against `base`. */
 export async function calendarFeed(v: Viewer, base: string, now = Date.now()): Promise<string> {
   const d = await scope(v);
@@ -75,11 +118,13 @@ export async function calendarFeed(v: Viewer, base: string, now = Date.now()): P
   const year = +today(now).slice(0, 4);
   const events: Event[] = [];
 
+  const told = await toldInOlderFeeds(v);
   for (const r of await d
     .from("dates")
     .selectAll()
     .$call((qb) => visible(qb, v, "dates"))
     .execute()) {
+    if (told(r)) continue;
     const url = base + itemPath(personPath(r.person_id), "dates", r.id);
     const label = r.kind === "anniversary" && !r.label ? copy.anniversary : (r.label ?? "");
     const summary = (day: string) => {

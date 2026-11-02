@@ -8,6 +8,9 @@ import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
 import { addRelationship, addToGroup } from "./relationships";
 import { getPerson } from "./people";
 import { movePeople } from "./moves";
+import { linkPeople, partsOf, sameAs } from "./links";
+import { newBook } from "./books";
+import { viewerById } from "../core/users";
 
 let s: Seed;
 let w: Awaited<ReturnType<typeof seedWorkBook>>;
@@ -204,4 +207,33 @@ test("a copied group keeps its other names, a copied place where it sits", async
   const mensa = await ws.from("places").select(["parent_id"]).where("name", "=", "Mensa").executeTakeFirstOrThrow();
   const campus = await ws.from("places").select(["id"]).where("name", "=", "Campus").executeTakeFirstOrThrow();
   expect(mensa.parent_id).toBe(campus.id);
+});
+
+test("moving a linked person carries the link to the new id", async () => {
+  await linkPeople(w.a, [s.lena, w.lena2]);
+  await newBook(w.a, "Verein");
+  const a = (await viewerById(s.a.userId))!;
+  const r = await movePeople(a, [s.lena], "Verein");
+  const moved = r.people[0].id;
+  expect(r.people[0].twin).toBeUndefined();
+  expect((await partsOf(a, w.lena2)).map((p) => [p.book.name, p.id])).toEqual([
+    ["Arbeit", w.lena2],
+    ["Verein", moved],
+  ]);
+});
+
+test("moving a linked person into the book of its other part keeps the two apart and names the twin", async () => {
+  await linkPeople(w.a, [s.lena, w.lena2]);
+  const r = await movePeople(w.a, [s.lena], "Arbeit");
+  expect(r.people[0].twin).toBe(w.lena2);
+  const keys = await sameAs(w.a);
+  expect(keys.get(r.people[0].id)).toBeUndefined();
+});
+
+test("a person who remains behind after a move is linked to the copy for the mover only", async () => {
+  await remember(s.b, { visibility: "private", facts: [{ person: s.lena, text: "owes me a book", category: "other" }] });
+  const r = await movePeople(w.a, [s.lena], "Arbeit");
+  expect(r.people[0].remains).toBe(true);
+  expect((await partsOf(w.a, s.lena)).map((p) => p.id)).toEqual([s.lena, r.people[0].id]);
+  expect((await sameAs(s.b)).has(s.lena)).toBe(false);
 });

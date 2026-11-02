@@ -26,7 +26,7 @@ export default async function PeoplePage() {
           url: p.url,
           groups: p.groups,
           seen: p.lastSeen ? ago(copy, daysBetween(p.lastSeen, now)) : copy.neverMet,
-          ...(several && { book: p.book.name }),
+          ...(several && { book: p.book.name, books: p.parts.map((x) => x.book.name) }),
         }))}
         groups={groups.filter((g) => g.count > 0).map((g) => ({ id: g.id, name: g.name, count: g.count, ...(several && { bookName: g.book.name }) }))}
       />

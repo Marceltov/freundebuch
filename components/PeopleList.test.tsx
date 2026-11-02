@@ -38,3 +38,9 @@ test("shows a book mark only on rows that carry a book", () => {
   expect(html.match(/aria-label="Buch: /g)).toHaveLength(1);
   expect(html).toContain("Arbeit");
 });
+
+test("PeopleList marks a linked person with both books", () => {
+  const html = renderToStaticMarkup(<PeopleList people={[{ ...row("Lena", []), book: "Unser Buch", books: ["Unser Buch", "Arbeit"] }]} groups={[]} />);
+  expect(html).toContain('aria-label="Buch: Unser Buch"');
+  expect(html).toContain('aria-label="Buch: Arbeit"');
+});

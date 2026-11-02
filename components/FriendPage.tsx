@@ -22,7 +22,8 @@ import {
   Ticket,
   Users,
 } from "lucide-react";
-import { anchorId, daysBetween, type Briefing } from "@/backend";
+import { anchorId, daysBetween, type BookRef, type Briefing, type LinkedBriefing } from "@/backend";
+import { SameAsk } from "@/components/SameAsk";
 import { roleLine } from "@/components/copy";
 import { getCopy } from "@/components/serverCopy";
 import { Face } from "@/components/Face";
@@ -44,7 +45,9 @@ import { BookMark } from "@/components/BookMark";
 // groups), then the fields filled in: what's going on (a situation to ask about first), what stays true, what was promised, gift ideas, what's still open, the conversations and
 // who they belong with. Fields without content are left out. `daysSince`: since the viewer last saw them, null for never.
 // `allGroups`: every group the viewer sees, for "+ Gruppe". `others`: everyone else, for merging a duplicate in the menu.
-// `viewerPersonId`: the viewer's own person, "Du" in the network. `today` (YYYY-MM-DD, the server's) turns the age reached on the next birthday into the age the person is now; the birthday
+// `viewerPersonId`: the viewer's own person, "Du" in the network. A person in several of the user's books (linked, or a writer
+// of several) is one page: a book mark per part in the header, and on every item, which book it came from; `addInto` picks the
+// part that what is added on the page goes to (GroupPicker, the menu), the oldest by default. `today` (YYYY-MM-DD, the server's) turns the age reached on the next birthday into the age the person is now; the birthday
 // chip shows the year of birth when it is known.
 /** How many days before a birthday "Glückwunsch schreiben" shows. */
 const WISH_DAYS = 7;
@@ -57,32 +60,36 @@ export function FriendPage({
   today,
   viewerPersonId = "",
   bookId,
-  bookName,
+  several = false,
+  addInto,
   books = [],
   movable = false,
-  stayedIn,
   chat = false,
 }: {
-  b: Briefing;
+  b: LinkedBriefing;
   daysSince: number | null;
   allGroups?: { id: string; name: string }[];
   others?: { id: string; name: string }[];
   today?: string;
   viewerPersonId?: string;
-  /** The book the person is in. */
+  /** The book the person is in (the part what is added goes to). */
   bookId?: string;
-  /** The name of the person's book, when the user has two or more. */
-  bookName?: string;
+  /** Whether the user has two or more books: then the header names the person's. */
+  several?: boolean;
+  /** The book of the part that additions go to; the oldest part's when left out. */
+  addInto?: string;
   /** Every book of the user's, to move the person into another. */
   books?: { id: string; name: string }[];
   /** Whether the person can move: not the user, not a member of the book. */
   movable?: boolean;
-  /** Right after a move: the old book, where an entry for them stayed too. */
-  stayedIn?: string;
   /** Whether the in-app chat is on, which drafts birthday wishes. */
   chat?: boolean;
 }) {
   const copy = getCopy();
+  const linked = b.parts.length > 1;
+  const target = b.parts.find((p) => p.book.id === addInto) ?? b.parts[0];
+  // The book an item came from, only on a linked person's page.
+  const mark = (x: { book?: BookRef }) => (linked ? x.book?.name : undefined);
   const birthday = b.person.birthday;
   const otherDates = b.nextDates.filter((d) => d.kind !== "birthday");
   const { promises, exchanges, giftIdeas } = b.open;
@@ -104,6 +111,7 @@ export function FriendPage({
                   {r.visibility === "private" && <Lock aria-label={copy.privateItem} className="ml-1.5 inline h-3.5 w-3.5 text-muted" />}
                 </span>
                 {what && <span className="block truncate text-sm text-muted">{what}</span>}
+                {mark(r) && <BookMark name={mark(r)!} />}
               </span>
             </Link>
             <ItemActions table="relationships" field={theirs} id={r.id} mine={r.mine} visibility={r.visibility} text={r[theirs]} />
@@ -114,17 +122,18 @@ export function FriendPage({
   );
   return (
     <article>
-      {stayedIn && books.some((x) => x.name === stayedIn) && (
-        <p role="status" className="mb-3 rounded-2xl bg-surface-2 p-3 text-sm">
-          {copy.movedRemains.replaceAll("{name}", b.person.name).replace("{book}", stayedIn)}
-        </p>
-      )}
       <header>
         <div className="flex items-center gap-4">
           <Face id={b.person.id} name={b.person.name} size={80} ratio={b.freshness.ratio} />
           <div className="min-w-0">
             <h1 className="font-display text-3xl leading-tight font-bold">{b.person.name}</h1>
-            {bookName && <BookMark name={bookName} />}
+            {several && (
+              <span className="flex flex-wrap gap-1">
+                {b.parts.map((p) => (
+                  <BookMark key={p.book.id} name={p.book.name} />
+                ))}
+              </span>
+            )}
             {roles && (
               <p data-role-line className="mt-0.5 font-display text-lg leading-snug text-carbon italic">
                 {roles}
@@ -142,7 +151,7 @@ export function FriendPage({
           </div>
           <ShareButton path={b.person.url} title={b.person.name} />
           <PersonMenu
-            id={b.person.id}
+            id={target?.id ?? b.person.id}
             name={b.person.name}
             gender={b.person.gender}
             look={b.person.look}
@@ -150,8 +159,10 @@ export function FriendPage({
             hasCard={!!b.card}
             others={others}
             books={books}
-            bookId={bookId}
+            bookId={target?.book.id ?? bookId}
             movable={movable}
+            parts={b.parts}
+            linked={b.linked}
           />
         </div>
         <div>
@@ -172,6 +183,7 @@ export function FriendPage({
               <Chip key={h.id} href={h.url} icon={House} label={copy.livesIn}>
                 {h.name}
                 {h.address && ` · ${h.address}`}
+                {mark(h) && ` · ${mark(h)}`}
               </Chip>
             ))}
             {b.freshness.intervalDays !== null && (
@@ -183,11 +195,13 @@ export function FriendPage({
               <Chip key={d.id} id={anchorId("dates", d.id)} icon={CalendarDays}>
                 {dayMonth(copy, d.date)}
                 {d.label && ` · ${d.label}`}
+                {mark(d) && ` · ${mark(d)}`}
               </Chip>
             ))}
             {b.groups.map((g) => (
               <Chip key={g.id} href={g.url} icon={Users} label={copy.group} tone={groupTint(g.id)}>
                 {g.name}
+                {mark(g) && ` · ${mark(g)}`}
                 {g.private && (
                   <span title={copy.privateItem} className="inline-flex">
                     <Lock aria-label={copy.privateItem} className="h-3 w-3" />
@@ -195,9 +209,31 @@ export function FriendPage({
                 )}
               </Chip>
             ))}
-            <GroupPicker personId={b.person.id} personName={b.person.name} groups={allGroups} member={b.groups.map((g) => g.id)} bookId={bookId} />
+            <GroupPicker
+              personId={target?.id ?? b.person.id}
+              personName={b.person.name}
+              groups={allGroups}
+              member={b.groups.map((g) => g.id)}
+              bookId={target?.book.id ?? bookId}
+            />
           </div>
+          {linked && (
+            <nav aria-label={copy.addInto} className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
+              <span className="text-muted">{copy.addInto}:</span>
+              {b.parts.map((p) => (
+                <Link
+                  key={p.book.id}
+                  href={`?in=${encodeURIComponent(p.book.id)}`}
+                  aria-current={p.book.id === target.book.id ? "true" : undefined}
+                  className={`rounded-full px-2.5 py-0.5 ${p.book.id === target.book.id ? "bg-carbon font-semibold text-on-carbon" : "bg-surface-2"}`}
+                >
+                  {p.book.name}
+                </Link>
+              ))}
+            </nav>
+          )}
         </div>
+        {b.sameAsAsk.length > 0 && <SameAsk personId={b.parts[0].id} name={b.person.name} book={b.parts[0].book.name} matches={b.sameAsAsk} />}
       </header>
 
       {b.situations.length > 0 && (
@@ -205,6 +241,7 @@ export function FriendPage({
           {b.situations.map((f) => (
             <Tile
               key={f.id}
+              book={mark(f)}
               id={anchorId("facts", f.id)}
               icon={CATEGORY_ICON[f.category]}
               private={f.visibility === "private"}
@@ -240,6 +277,7 @@ export function FriendPage({
                   {facts.map((f) => (
                     <Tile
                       key={f.id}
+                      book={mark(f)}
                       id={anchorId("facts", f.id)}
                       icon={CATEGORY_ICON[f.category]}
                       private={f.visibility === "private"}
@@ -266,6 +304,7 @@ export function FriendPage({
           {b.known.map((f) => (
             <Tile
               key={f.id}
+              book={mark(f)}
               id={anchorId("facts", f.id)}
               icon={CATEGORY_ICON[f.category]}
               private={f.visibility === "private"}
@@ -282,6 +321,7 @@ export function FriendPage({
           {promises.map((p) => (
             <Tile
               key={p.id}
+              book={mark(p)}
               id={anchorId("promises", p.id)}
               icon={Pin}
               private={p.visibility === "private"}
@@ -300,6 +340,7 @@ export function FriendPage({
           {giftIdeas.map((g) => (
             <Tile
               key={g.id}
+              book={mark(g)}
               id={anchorId("exchanges", g.id)}
               icon={Gift}
               private={g.visibility === "private"}
@@ -316,6 +357,7 @@ export function FriendPage({
           {exchanges.map((e) => (
             <Tile
               key={e.id}
+              book={mark(e)}
               id={anchorId("exchanges", e.id)}
               icon={EXCHANGE_ICON[e.kind] ?? ArrowLeftRight}
               private={e.visibility === "private"}
@@ -334,7 +376,7 @@ export function FriendPage({
         <Section title={copy.experiences} icon={Ticket} plain>
           <ul className="space-y-2">
             {b.experiences.map((e) => (
-              <ExperienceItem key={e.id} e={e} />
+              <ExperienceItem key={e.id} e={{ ...e, bookName: mark(e) }} />
             ))}
           </ul>
         </Section>
@@ -344,7 +386,7 @@ export function FriendPage({
         <Section title={copy.journalAbout} icon={NotebookPen} plain>
           <ul className="space-y-2">
             {b.journal.map((e) => (
-              <JournalItem key={e.id} e={e} />
+              <JournalItem key={e.id} e={{ ...e, bookName: mark(e) }} />
             ))}
           </ul>
         </Section>
@@ -361,6 +403,11 @@ export function FriendPage({
                 </span>
                 <div className="min-w-0 text-sm">
                   <b>{shortDay(copy, c.date)}</b> {c.summary}
+                  {mark(c) && (
+                    <span className="ml-1.5">
+                      <BookMark name={mark(c)!} />
+                    </span>
+                  )}
                   {c.withOthers.length > 0 && <span className="text-muted"> · {copy.withOthers.replace("{names}", c.withOthers.join(", "))}</span>}{" "}
                   <Link
                     href={`/c/${c.id}`}

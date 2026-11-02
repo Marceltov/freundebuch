@@ -261,7 +261,7 @@
       "get": {
         "operationId": "getBriefing",
         "summary": "Everything to know before meeting a person",
-        "description": "As the caller sees it: private items of other users are never part of it.",
+        "description": "As the caller sees it: private items of other users are never part of it. A person the caller linked across books (or a writer of several) is one briefing of every part, each item with its book.",
         "tags": [
           "People"
         ],
@@ -4615,7 +4615,11 @@
                           },
                           "remains": {
                             "type": "boolean",
-                            "description": "Whether an entry for them stays in the old book, for what is filed there that didn't move"
+                            "description": "Whether an entry for them stays in the old book, for what is filed there that didn't move; it is linked to the moved one for the caller"
+                          },
+                          "twin": {
+                            "description": "The person the caller's link already has in the target book: both are there now, to merge",
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -4657,6 +4661,271 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}/link": {
+      "post": {
+        "operationId": "linkPerson",
+        "summary": "Make two people of the caller's books one person",
+        "description": "Only after the user said they are the same. The link is the caller's: nobody else sees it, and it changes nothing they see. One person per book; someone's own person can't be linked.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The person's id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "with": {
+                    "type": "string",
+                    "description": "The other person's id, in another of the caller's books"
+                  }
+                },
+                "required": [
+                  "with"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The person's rows, one per book",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "book": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "additionalProperties": false,
+                            "description": "The book it is in"
+                          },
+                          "id": {
+                            "type": "string",
+                            "description": "A person's id"
+                          }
+                        },
+                        "required": [
+                          "book",
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "parts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unlinkPerson",
+        "summary": "Make a linked person someone of their own again",
+        "description": "Takes this row out of the caller's link; a link left with one row goes.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The person's id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/people/{id}/not-same": {
+      "post": {
+        "operationId": "markNotSame",
+        "summary": "Keep that two people of different books are not the same",
+        "description": "So neither Claude nor the person's page asks about them again.",
+        "tags": [
+          "People"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The person's id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "with": {
+                    "type": "string",
+                    "description": "The other person's id, in another of the caller's books"
+                  }
+                },
+                "required": [
+                  "with"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
           },
           "400": {
             "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
@@ -6744,6 +7013,22 @@
                     "type": "string"
                   },
                   "description": "The relationships it stands for (table `relationships`), one per writer"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -6772,6 +7057,22 @@
                 "private": {
                   "type": "boolean",
                   "description": "Whether the caller's own private membership is the only one they see"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -6871,6 +7172,22 @@
                 "url": {
                   "type": "string",
                   "description": "Where it opens in the web app, as an absolute URL to its highlighted row"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -6947,6 +7264,22 @@
                 "nudge": {
                   "type": "boolean",
                   "description": "checkAfter has come: ask about it"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -7016,6 +7349,22 @@
                     "mine": {
                       "type": "boolean",
                       "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                    },
+                    "book": {
+                      "description": "The book it came from, when the person is in several of the caller's books",
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
                     }
                   },
                   "required": [
@@ -7026,8 +7375,7 @@
                     "visibility",
                     "mine"
                   ]
-                },
-                "description": "Facts of kind need: what to plan around when meeting or inviting them"
+                }
               },
               "personality": {
                 "type": "array",
@@ -7079,6 +7427,22 @@
                     "mine": {
                       "type": "boolean",
                       "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                    },
+                    "book": {
+                      "description": "The book it came from, when the person is in several of the caller's books",
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
                     }
                   },
                   "required": [
@@ -7089,8 +7453,7 @@
                     "visibility",
                     "mine"
                   ]
-                },
-                "description": "Facts of kind personality: how the person is"
+                }
               }
             },
             "required": [
@@ -7149,6 +7512,22 @@
                 "mine": {
                   "type": "boolean",
                   "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -7220,6 +7599,22 @@
                 "url": {
                   "type": "string",
                   "description": "The entry on the Tagebuch page, as an absolute URL"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -7355,6 +7750,22 @@
                 "url": {
                   "type": "string",
                   "description": "Where it opens in the web app, as an absolute URL"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -7449,6 +7860,22 @@
                 "url": {
                   "type": "string",
                   "description": "Where it opens in the web app, as an absolute URL"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -7517,6 +7944,22 @@
                     "mine": {
                       "type": "boolean",
                       "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                    },
+                    "book": {
+                      "description": "The book it came from, when the person is in several of the caller's books",
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
                     }
                   },
                   "required": [
@@ -7590,6 +8033,22 @@
                     "mine": {
                       "type": "boolean",
                       "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                    },
+                    "book": {
+                      "description": "The book it came from, when the person is in several of the caller's books",
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
                     }
                   },
                   "required": [
@@ -7631,6 +8090,22 @@
                     "mine": {
                       "type": "boolean",
                       "description": "Whether the caller recorded it; only then may they change its visibility. A shared item either user may edit or delete"
+                    },
+                    "book": {
+                      "description": "The book it came from, when the person is in several of the caller's books",
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
                     }
                   },
                   "required": [
@@ -7676,6 +8151,22 @@
                 "url": {
                   "type": "string",
                   "description": "Where it opens in the web app, as an absolute URL"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -7741,6 +8232,22 @@
                 "url": {
                   "type": "string",
                   "description": "The other person's page, as an absolute URL"
+                },
+                "book": {
+                  "description": "The book it came from, when the person is in several of the caller's books",
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
                 }
               },
               "required": [
@@ -7834,6 +8341,22 @@
                     "inverse": {
                       "type": "string",
                       "description": "What `to` is to `from`"
+                    },
+                    "book": {
+                      "description": "The book it came from, when the person is in several of the caller's books",
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
                     }
                   },
                   "required": [
@@ -7850,13 +8373,87 @@
               "nodes",
               "edges"
             ],
-            "description": "One hop around the person: the writers they relate to, and their own people"
+            "description": "One hop around the person: the writers they relate to, and their own people; of every book the person is in, someone in several of them once"
           },
           "suggestedInterval": {
             "description": "Only while the interval isn't confirmed, only when the history is long enough to suggest one, and never for one of the book's writers",
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "book": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "description": "The book it is in"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "A person's id"
+                }
+              },
+              "required": [
+                "book",
+                "id"
+              ]
+            },
+            "description": "The person's rows in each of the caller's books, oldest first: one, unless the caller linked them, or they are a writer of several"
+          },
+          "linked": {
+            "type": "boolean",
+            "description": "Whether the parts are one by the caller's link (people unlink undoes it), not by a writer of several books"
+          },
+          "sameAsAsk": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "A person's id"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "book": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "description": "The book it is in"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "book"
+              ]
+            },
+            "description": "People of the caller's other books who may be the same person, by name: ask the user, then link (people link) or keep a no (people not_same)"
           }
         },
         "required": [
@@ -7875,7 +8472,10 @@
           "open",
           "recent",
           "relationships",
-          "network"
+          "network",
+          "parts",
+          "linked",
+          "sameAsAsk"
         ]
       },
       "Traits": {

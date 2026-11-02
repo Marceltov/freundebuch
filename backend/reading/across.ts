@@ -1,15 +1,17 @@
 // Reading across the user's books, for the web app's lists: each read runs once per book, in that book alone (as the MCP `each`
 // rule does), so privacy and "the viewer's own person" stay what they are within one book; the results are tagged with their
-// book and merged. A co-member (someone in several of the user's books) has a person in each: they show once, from the
-// oldest book. Groups stay each in its book.
+// book and merged. Someone with a person in several of the user's books shows once, from the oldest book: a co-member by
+// their user, anyone else when the user linked them (people/links.ts, sameAs). Groups stay each in its book.
 import { instance } from "../db/scope";
 import type { Viewer } from "../core/types";
 import { bookRef, viewerIn, type BookRef } from "../people/books";
-import { peopleOverview, type PersonOverview } from "../people/people";
+import { findPeople, peopleOverview, type Candidate, type PersonOverview } from "../people/people";
+import { partsOf, sameAs, type Part } from "../people/links";
 import { getGroup, listGroups, type GroupView } from "../people/groups";
 import { layOut, pickFaces, type OrbitFace } from "../people/orbit";
 import { compareDue, whatsDue, type DueItem } from "./due";
-import { today } from "../people/dates";
+import { daysBetween, today } from "../people/dates";
+import { lastSeen } from "../people/intervals";
 import { listRambles, type RambleSummary } from "../conversations/rambles";
 import { search, type SearchHit } from "./search";
 import { journalEntries } from "../journal/journal";
@@ -53,16 +55,28 @@ export async function groupsAcross(v: Viewer): Promise<InBook<GroupView>[]> {
   return (await acrossBooks(v, listGroups)).sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
-/** Everyone in the viewer's books but the viewer, co-members once, by name; `groups`: the ids of their groups, a co-member's
- * from every book they are in. */
-export async function peopleAcross(v: Viewer): Promise<InBook<PersonOverview>[]> {
-  const [people, users] = await Promise.all([acrossBooks(v, peopleOverview), memberUsers(v)]);
-  const who = (id: string) => users.get(id) ?? id;
+/** Everyone in the viewer's books but the viewer, by name, each person once (a co-member, a linked person); `parts`: their
+ * rows in each book, oldest first; `groups`: the ids of their groups in every book they are in. */
+export async function peopleAcross(v: Viewer): Promise<InBook<PersonOverview & { parts: Part[] }>[]> {
+  const [people, keys] = await Promise.all([acrossBooks(v, peopleOverview), sameAs(v)]);
+  const who = (id: string) => keys.get(id) ?? id;
   const groupsOf = new Map<string, Set<string>>();
-  for (const p of people) for (const id of p.groups) groupsOf.set(who(p.id), (groupsOf.get(who(p.id)) ?? new Set()).add(id));
+  const parts = new Map<string, Part[]>();
+  for (const p of people) {
+    for (const id of p.groups) groupsOf.set(who(p.id), (groupsOf.get(who(p.id)) ?? new Set()).add(id));
+    parts.set(who(p.id), [...(parts.get(who(p.id)) ?? []), { book: p.book, id: p.id }]);
+  }
   return onceEach(people, (p) => who(p.id))
-    .map((p) => ({ ...p, groups: [...(groupsOf.get(who(p.id)) ?? [])] }))
+    .map((p) => ({ ...p, groups: [...(groupsOf.get(who(p.id)) ?? [])], parts: parts.get(who(p.id))! }))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+
+/** People by name or other name in every book, oldest book first, at most `limit` of each book (ranked within it), each
+ * person once with all their `parts`. */
+export async function findAcross(v: Viewer, name: string, limit = 5): Promise<InBook<Candidate & { parts: Part[] }>[]> {
+  const [found, keys] = await Promise.all([acrossBooks(v, (w) => findPeople(w, name, limit)), sameAs(v)]);
+  const kept = onceEach(found, (c) => keys.get(c.id) ?? c.id);
+  return Promise.all(kept.map(async (c) => ({ ...c, parts: keys.has(c.id) ? await partsOf(v, c.id) : [{ book: c.book, id: c.id }] })));
 }
 
 const newestFirst = <T extends { date: string | null }>(xs: T[]) => xs.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
@@ -70,8 +84,8 @@ const newestFirst = <T extends { date: string | null }>(xs: T[]) => xs.sort((a, 
 /** The orbit of every book as one, co-members once; `groupId`: a group of one of the books, whose members show first and are
  * marked (a co-member when they are in it). */
 export async function orbitAcross(v: Viewer, groupId?: string, now = Date.now()): Promise<InBook<OrbitFace>[]> {
-  const users = await memberUsers(v);
-  const who = (id: string) => users.get(id) ?? id;
+  const keys = await sameAs(v);
+  const who = (id: string) => keys.get(id) ?? id;
   const inGroup = groupId ? new Set<string>() : null;
   const picked = await acrossBooks(v, async (w) => {
     const group = groupId ? await getGroup(w, groupId).catch(() => null) : null; // found only in its own book
@@ -82,20 +96,35 @@ export async function orbitAcross(v: Viewer, groupId?: string, now = Date.now())
   return layOut(kept, inGroup && new Set(kept.filter((f) => inGroup.has(who(f.personId))).map((f) => f.personId)));
 }
 
-/** What is due in every book, in whatsDue's order; the same date or nudge about a co-member in a later book is left out, while
- * two alike in one book both stay, as whatsDue gives them. */
+/** What is due in every book, in whatsDue's order; the same date or nudge about someone in several books (a co-member, a
+ * linked person) is left out of the later book, while two alike in one book both stay, as whatsDue gives them. */
 export async function dueAcross(v: Viewer, from = today(), horizonDays = 14): Promise<InBook<DueItem>[]> {
-  const [items, users] = await Promise.all([acrossBooks(v, (w) => whatsDue(w, from, horizonDays)), memberUsers(v)]);
-  const firstIn = new Map<string, string>(); // a co-member's item → the book it was first seen in
+  const [items, keys] = await Promise.all([acrossBooks(v, (w) => whatsDue(w, from, horizonDays)), sameAs(v)]);
+  const firstIn = new Map<string, string>(); // an item about someone in several books → the book it was first seen in
   const once = items.filter((d) => {
-    const user = users.get(d.personId);
-    if (!user || d.kind === "session") return true;
-    const key = `${user}|${d.kind}|${d.date ?? ""}|${d.text ?? ""}`;
+    const who = keys.get(d.personId);
+    if (!who || d.kind === "session") return true;
+    const key = `${who}|${d.kind}|${d.date ?? ""}|${d.text ?? ""}`;
     const seen = firstIn.get(key);
     if (seen === undefined) firstIn.set(key, d.book.id);
     return seen === undefined || seen === d.book.id;
   });
-  return once.sort(compareDue);
+  // Someone in several books is overdue only by when the user last saw them in any of them.
+  const i = await instance();
+  const fresh = await Promise.all(
+    once.map(async (d) => {
+      if (d.kind !== "overdue" || !keys.has(d.personId) || !d.intervalDays) return d;
+      const parts = await partsOf(v, d.personId);
+      const seen = (await Promise.all(parts.map(async (p) => lastSeen((await viewerIn(i, v.userId, p.book.id))!, p.id))))
+        .filter((x): x is string => !!x)
+        .sort()
+        .at(-1);
+      if (!seen || seen === d.lastSeen) return d;
+      const ratio = daysBetween(seen, from) / d.intervalDays;
+      return ratio > 1 ? { ...d, lastSeen: seen, ratio } : null;
+    }),
+  );
+  return fresh.filter((d): d is InBook<DueItem> => d !== null).sort(compareDue);
 }
 
 /** Every book's rambles, newest first. */

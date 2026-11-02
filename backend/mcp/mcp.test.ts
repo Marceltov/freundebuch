@@ -117,7 +117,6 @@ describe("protocol", () => {
       expect(t.annotations?.readOnlyHint === true, t.name).toBe(
         [
           "find_person",
-          "people",
           "briefing",
           "birthday_message",
           "traits",
@@ -133,7 +132,7 @@ describe("protocol", () => {
       // Not read-only means destructive unless said otherwise, and a client asks before a destructive call: correct is, and
       // calendar_feed, which can end a calendar's subscription, move, which takes people out of the other members' sight, and
       // books, which removes members and deletes books.
-      const writes = ["record", "relate", "remember", "set_interval"].includes(t.name);
+      const writes = ["record", "relate", "remember", "set_interval", "people"].includes(t.name);
       expect(t.annotations?.destructiveHint, t.name).toBe(
         ["correct", "calendar_feed", "cards", "inbox", "move", "books"].includes(t.name) ? true : writes ? false : undefined,
       );
@@ -502,7 +501,7 @@ describe("privacy over MCP", () => {
   test("structured content carries only the fields of the output schema", async () => {
     const r = await call(s.b, "find_person", { name: "Tom" });
     expect(Object.keys(r.structuredContent)).toEqual(["people", "next"]);
-    expect(Object.keys(r.structuredContent.people[0]).sort()).toEqual(["aliases", "context", "id", "name", "url"]);
+    expect(Object.keys(r.structuredContent.people[0]).sort()).toEqual(["aliases", "book", "context", "id", "name", "parts", "url"]);
   });
 });
 

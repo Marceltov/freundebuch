@@ -19,7 +19,9 @@ import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors
 import { setCheckInInterval } from "../people/intervals";
 import { getPerson } from "../people/people";
 import { addDays, today } from "../people/dates";
-import { seed, type Seed } from "../testing/fixtures";
+import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
+import { createPerson } from "../people/people";
+import { linkPeople, partsOf } from "../people/links";
 
 let s: Seed;
 
@@ -461,4 +463,12 @@ test("someone who was there too is added to a conversation, and taken out again;
   await expect(addParticipant(s.b, s.dinner, s.tom)).rejects.toThrow(ForbiddenError);
   await expect(addParticipant(s.b, s.coffee, s.tom)).rejects.toThrow(NotFoundError);
   await expect(addParticipant(s.a, s.dinner, "nobody")).rejects.toThrow(NotFoundError);
+});
+
+test("merging the dropped part keeps the link on the person kept", async () => {
+  const w = await seedWorkBook(s);
+  const dup = await createPerson(w.work, { name: "Lena W." });
+  await linkPeople(w.a, [s.lena, dup]);
+  await mergePeople(w.work, w.lena2, dup);
+  expect((await partsOf(w.a, s.lena)).map((p) => p.id)).toEqual([s.lena, w.lena2]);
 });

@@ -437,6 +437,42 @@ const migrations: Record<string, Migration> = {
       await db.schema.createIndex("groups_writers").unique().on("groups").column("book_id").where(sql.ref("writers"), "=", 1).execute();
     },
   },
+  "005_person_links": {
+    // A user's links between persons of their books that are one person to them, and the pairs they said are not; instance
+    // tables, keyed by the user, so no book sees them. A part goes with its person.
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("person_links")
+        .addColumn("id", "text", (c) => c.primaryKey())
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      await db.schema
+        .createTable("person_link_parts")
+        .addColumn("link_id", "text", (c) => c.notNull().references("person_links.id").onDelete("cascade"))
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("book_id", "text", (c) => c.notNull())
+        .addColumn("person_id", "text", (c) => c.notNull())
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .addPrimaryKeyConstraint("person_link_parts_pk", ["link_id", "book_id"])
+        .addUniqueConstraint("person_link_parts_person", ["user_id", "book_id", "person_id"])
+        .addForeignKeyConstraint("person_link_parts_in_book", ["book_id", "person_id"], "persons", ["book_id", "id"], (c) => c.onDelete("cascade"))
+        .execute();
+      await db.schema.createIndex("person_link_parts_by_person").on("person_link_parts").columns(["book_id", "person_id"]).execute();
+      await db.schema
+        .createTable("person_not_same")
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("a_book", "text", (c) => c.notNull())
+        .addColumn("a_id", "text", (c) => c.notNull())
+        .addColumn("b_book", "text", (c) => c.notNull())
+        .addColumn("b_id", "text", (c) => c.notNull())
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .addPrimaryKeyConstraint("person_not_same_pk", ["user_id", "a_book", "a_id", "b_book", "b_id"])
+        .addForeignKeyConstraint("person_not_same_a", ["a_book", "a_id"], "persons", ["book_id", "id"], (c) => c.onDelete("cascade"))
+        .addForeignKeyConstraint("person_not_same_b", ["b_book", "b_id"], "persons", ["book_id", "id"], (c) => c.onDelete("cascade"))
+        .execute();
+    },
+  },
 };
 
 /** The migrations themselves, for the Postgres compile test. */

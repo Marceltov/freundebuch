@@ -13,11 +13,13 @@ import type { Viewer } from "../core/types";
 import { personPath } from "../core/urls";
 import { bookRef, inBook, inBookOf, type BookRef } from "./books";
 import { memberPersons } from "./writers";
+import { carryLinks, linkLeftBehind } from "./links";
 import { norm } from "./names";
 
 export type Moved = {
   book: BookRef;
-  people: { from: string; id: string; name: string; url: string; remains: boolean }[];
+  /** `twin`: the person the mover's link has in the target book already, to offer merging them. */
+  people: { from: string; id: string; name: string; url: string; remains: boolean; twin?: string }[];
   /** Rows copied into the book, by table. */
   moved: Record<string, number>;
   /** Rows about the people the mover may see that stayed in the source book, by table. */
@@ -372,6 +374,7 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
       .filter((x) => !dstUsers.has(x.user_id))
       .map((x) => x.person_id),
   );
+  const twins = await carryLinks(from.instance, from.v.userId, from.v.bookId, into.v.bookId, map);
   const gone = await dropUnheld(
     from,
     "persons",
@@ -414,8 +417,18 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
     stillIn.length ? (await visible(from.from("conversations").select("id").where("id", "in", stillIn), v, "conversations").execute()).length : 0,
   );
 
+  const behind = new Map(persons.filter((p) => !gone.has(p.id) && !twins.has(p.id)).map((p) => [p.id, map.get(p.id)!]));
+  await linkLeftBehind(from.instance, from.v.userId, from.v.bookId, into.v.bookId, behind);
+
   return {
-    people: persons.map((p) => ({ from: p.id, id: map.get(p.id)!, name: p.name, url: personPath(map.get(p.id)!), remains: !gone.has(p.id) })),
+    people: persons.map((p) => ({
+      from: p.id,
+      id: map.get(p.id)!,
+      name: p.name,
+      url: personPath(map.get(p.id)!),
+      remains: !gone.has(p.id),
+      ...(twins.has(p.id) && { twin: twins.get(p.id) }),
+    })),
     moved,
     stayed,
   };

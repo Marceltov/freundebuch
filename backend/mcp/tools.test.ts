@@ -766,22 +766,63 @@ describe("tools run in a book", () => {
 
   test("briefing of a person reads that person's book", async () => {
     const r = await run(w.a, "briefing", { personId: w.lena2 });
-    expect(r.book).toEqual({ id: w.work.bookId, name: "Arbeit" });
+    expect(r.parts).toEqual([{ book: { id: w.work.bookId, name: "Arbeit" }, id: w.lena2 }]);
     expect(JSON.stringify(r)).toContain("leads the launch");
     expect(JSON.stringify(r)).not.toContain("thinking about quitting");
     expect(r.next).not.toContain("Say that it went to the book Arbeit.");
   });
 
-  test("find_person and whats_due read every book, grouped by book", async () => {
-    const r = (await run(w.a, "find_person", { name: "Lena" })) as { books: { book: { name: string }; people: { id: string }[] }[] };
-    expect(r.books.map((b) => [b.book.name, b.people.map((p) => p.id)])).toEqual([
-      ["Unser Buch", [s.lena]],
-      ["Arbeit", [w.lena2]],
+  test("find_person is one flat list, each with its book; Lena of two books asks whether she is the same", async () => {
+    const r = await run(w.a, "find_person", { name: "Lena" });
+    expect(r.people.map((p: Json) => [p.id, p.book.name, p.parts.length])).toEqual([
+      [s.lena, "Unser Buch", 1],
+      [w.lena2, "Arbeit", 1],
     ]);
-    const b = (await toolByName("find_person")!.run(s.b, { name: "Lena" })) as { books: { book: { name: string } }[] };
-    expect(b.books.map((x) => x.book.name)).toEqual(["Unser Buch"]);
-    const due = (await run(w.a, "whats_due", {})) as { books: { book: { name: string } }[] };
-    expect(due.books.map((x) => x.book.name)).toEqual(["Unser Buch", "Arbeit"]);
+    expect(r.people[0].context).toContain("in Unser Buch");
+    expect(r.next.join(" ")).toContain(`Ask the user whether Lena (Unser Buch) is the same person as Lena (Arbeit)`);
+    expect(r.next.join(" ")).toContain(`people (link: [${s.lena}, ${w.lena2}])`);
+    const b = await toolByName("find_person")!.run(s.b, { name: "Lena" });
+    expect((b.people as Json[]).map((p) => p.book.name)).toEqual(["Unser Buch"]);
+    expect((b.next as string[]).join(" ")).not.toContain("same person");
+  });
+
+  test("people link makes Lena one entry with two parts; unlink splits her again; not_same stops the question", async () => {
+    const linked = await run(w.a, "people", { link: [s.lena, w.lena2] });
+    expect(linked.parts.map((p: Json) => p.id)).toEqual([s.lena, w.lena2]);
+    const lenas = (await run(w.a, "people", {})).people.filter((p: Json) => p.name === "Lena");
+    expect(lenas).toHaveLength(1);
+    expect(lenas[0].parts.map((p: Json) => p.book.name)).toEqual(["Unser Buch", "Arbeit"]);
+    expect((await run(w.a, "find_person", { name: "Lena" })).people).toHaveLength(1);
+    await run(w.a, "people", { unlink: w.lena2 });
+    expect((await run(w.a, "people", {})).people.filter((p: Json) => p.name === "Lena")).toHaveLength(2);
+    await run(w.a, "people", { not_same: [s.lena, w.lena2] });
+    expect((await run(w.a, "find_person", { name: "Lena" })).next.join(" ")).not.toContain("same person");
+    await expect(run(w.a, "people", { link: [s.lena, w.lena2], unlink: s.lena })).rejects.toThrow(/one of/);
+  });
+
+  test("whats_due is one flat list", async () => {
+    await remember(s.a, { visibility: "shared", dates: [{ person: s.anna, kind: "birthday", date: `--${today().slice(5)}`, yearly: true }] });
+    await remember(w.work, { visibility: "shared", dates: [{ person: w.boss, kind: "birthday", date: `--${today().slice(5)}`, yearly: true }] });
+    const due = await run(w.a, "whats_due", {});
+    expect(due.books).toBeUndefined();
+    expect(new Set(due.items.filter((i: Json) => i.kind === "date").map((i: Json) => i.book.name))).toEqual(new Set(["Unser Buch", "Arbeit"]));
+  });
+
+  test("briefing of either part is the merged briefing, items marked with their book", async () => {
+    await run(w.a, "people", { link: [s.lena, w.lena2] });
+    for (const id of [s.lena, w.lena2]) {
+      const b = await run(w.a, "briefing", { personId: id });
+      expect(b.parts.map((p: Json) => p.book.name)).toEqual(["Unser Buch", "Arbeit"]);
+      expect(b.known.find((f: Json) => f.text === "leads the launch").book.name).toBe("Arbeit");
+      expect(b.next.join(" ")).toContain("Lena is in Unser Buch and Arbeit");
+    }
+  });
+
+  test("move into the book of the other part says to offer a merge", async () => {
+    await run(w.a, "people", { link: [s.lena, w.lena2] });
+    const r = await run(w.a, "move", { people: [s.lena], to: "Arbeit" });
+    expect(r.people[0].twin).toBe(w.lena2);
+    expect(r.next.join(" ")).toContain(`offer to merge them with correct (merge, id ${w.lena2}, drop ${r.people[0].id})`);
   });
 
   test("correct on an item takes the item's book", async () => {

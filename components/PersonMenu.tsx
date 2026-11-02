@@ -27,14 +27,28 @@ export function moveTargets(books: { id: string; name: string }[], bookId: strin
   return movable ? books.filter((b) => b.id !== bookId) : [];
 }
 
-/** Where the page goes after a move: the person's new id, telling the page when an entry stayed in the old book too. */
-export function movedTo(p: { url: string; remains: boolean }, from: string): string {
-  return p.remains ? `${p.url}?blieb=${encodeURIComponent(from)}` : p.url;
+/** Where the page goes after a move: the person's new id, or the twin (the other part in that book) it was merged into. */
+export function movedTo(p: { url: string; twin?: string }): string {
+  return p.twin ? `/p/${p.twin}` : p.url;
 }
+
+type PartRef = { id: string; book: { id: string; name: string } };
+
+/** Who a change of the person themselves (name, gender, look) goes to: every part of a linked person, so they stay one. */
+export const personTargets = (id: string, parts: PartRef[], linked: boolean) => (linked ? parts.map((p) => p.id) : [id]);
+
+/** Where the page goes after a move, and whether to say that the merge with the twin failed (the copy stays a second row). */
+export function afterMove(p: { url: string; twin?: string }, merged: boolean): { url: string; notMerged?: true } {
+  return p.twin && !merged ? { url: p.url, notMerged: true } : { url: movedTo(p) };
+}
+
+/** Whether this part can be unlinked: the person is one across books by the user's link, not a writer of several books. */
+export const canUnlink = (parts: PartRef[], linked: boolean) => linked && parts.length > 1;
 
 // The round "…" on a friend's page: a sheet with what only Claude could do before. How often to see them, a new name, their
 // gender (which the role labels follow), how they look (the parts of their avatar), a nickname that finds them too, merging a duplicate into them, and
-// moving them into another of the user's books. Each change closes the sheet and reloads the page.
+// moving them into another of the user's books (merged with their other part when that book has one), and unlinking this
+// part of a person linked across books. Each change closes the sheet and reloads the page.
 export function PersonMenu({
   id,
   name,
@@ -46,6 +60,8 @@ export function PersonMenu({
   books = [],
   bookId,
   movable = false,
+  parts = [],
+  linked = false,
 }: {
   id: string;
   name: string;
@@ -59,6 +75,10 @@ export function PersonMenu({
   bookId?: string;
   /** Whether they can move: not the user, not a member of the book. */
   movable?: boolean;
+  /** The person's rows in each of the user's books; `id` is one of them. */
+  parts?: PartRef[];
+  /** Whether the parts are one by the user's link. */
+  linked?: boolean;
 }) {
   const copy = useCopy();
   const router = useRouter();
@@ -71,13 +91,16 @@ export function PersonMenu({
   const [failed, setFailed] = useState(false);
   const label = copy.moreAbout.replace("{name}", name);
 
-  // `stay`: keep the sheet open, to change several parts of a look one after another.
-  async function send(method: string, path: string, body: object, stay = false) {
+  // `stay`: keep the sheet open, to change several parts of a look one after another. `all`: a change of the person themselves,
+  // which a linked person gets in every book.
+  async function send(method: string, path: string, body: object, stay = false, all = false) {
     setFailed(false);
-    const res = await fetch(`/api/v1/people/${id}${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(
-      () => null,
-    );
-    if (!res?.ok) return setFailed(true);
+    for (const to of all ? personTargets(id, parts, linked) : [id]) {
+      const res = await fetch(`/api/v1/people/${to}${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(
+        () => null,
+      );
+      if (!res?.ok) return setFailed(true);
+    }
     if (!stay) setOpen(false);
     setAlias("");
     setCardUrl("");
@@ -90,7 +113,9 @@ export function PersonMenu({
 
   async function move() {
     const target = targets.find((b) => b.id === to);
-    if (!target || !window.confirm(copy.confirmMove.replaceAll("{name}", name).replace("{book}", target.name))) return;
+    const twin = parts.find((p) => p.book.id === to && p.id !== id);
+    const ask = (twin ? copy.confirmMoveMerge : copy.confirmMove).replaceAll("{name}", name).replace("{book}", target?.name ?? "");
+    if (!target || !window.confirm(ask)) return;
     setFailed(false);
     const res = await fetch(`/api/v1/people/${id}/move`, {
       method: "POST",
@@ -98,9 +123,26 @@ export function PersonMenu({
       body: JSON.stringify({ to: target.id }),
     }).catch(() => null);
     if (!res?.ok) return setFailed(true);
-    const { people } = (await res.json()) as { people: { url: string; remains: boolean }[] };
+    const { people } = (await res.json()) as { people: { id: string; url: string; twin?: string }[] };
+    const merged = people[0].twin
+      ? !!(
+          await fetch(`/api/v1/people/${people[0].twin}/merge`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ drop: people[0].id }),
+          }).catch(() => null)
+        )?.ok
+      : true;
+    const next = afterMove(people[0], merged);
+    if (next.notMerged) window.alert(copy.movedNotMerged.replace("{name}", name));
     setOpen(false);
-    router.push(movedTo(people[0], books.find((b) => b.id === bookId)?.name ?? ""));
+    router.push(next.url);
+  }
+
+  const here = parts.find((p) => p.id === id);
+  async function unlink() {
+    if (!window.confirm(copy.confirmUnlink.replace("{name}", name).replace("{book}", here?.book.name ?? ""))) return;
+    await send("DELETE", "/link", {});
   }
   return (
     <>
@@ -155,7 +197,7 @@ export function PersonMenu({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (newName.trim() && newName.trim() !== name) send("PATCH", "", { name: newName.trim() });
+                  if (newName.trim() && newName.trim() !== name) send("PATCH", "", { name: newName.trim() }, false, true);
                 }}
               >
                 <input
@@ -176,7 +218,7 @@ export function PersonMenu({
                       name="gender"
                       className="peer sr-only"
                       checked={gender === g.value}
-                      onChange={() => send("PATCH", "", { gender: g.value })}
+                      onChange={() => send("PATCH", "", { gender: g.value }, false, true)}
                     />
                     <span className="block rounded-xl py-2 text-center text-sm peer-checked:bg-carbon peer-checked:font-bold peer-checked:text-on-carbon peer-focus-visible:outline-2 peer-focus-visible:outline-carbon">
                       {g.label}
@@ -187,7 +229,7 @@ export function PersonMenu({
             </Part>
 
             <Part title={copy.look} hint={copy.lookHint}>
-              <LookEditor look={look} onChange={(next) => send("PATCH", "", { look: next }, true)} />
+              <LookEditor look={look} onChange={(next) => send("PATCH", "", { look: next }, true, true)} />
             </Part>
 
             <Part title={copy.addNickname} hint={copy.nicknameHint}>
@@ -273,6 +315,14 @@ export function PersonMenu({
                     {copy.moveTo}: {targets.find((b) => b.id === to)?.name}
                   </button>
                 )}
+              </Part>
+            )}
+
+            {canUnlink(parts, linked) && (
+              <Part title={copy.unlink}>
+                <button type="button" onClick={unlink} className="w-full rounded-xl bg-surface-2 px-3 py-2 font-bold">
+                  {copy.unlink}: {here?.book.name}
+                </button>
               </Part>
             )}
 

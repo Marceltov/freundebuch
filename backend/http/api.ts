@@ -2,7 +2,8 @@
 // through it, and openApiDocument() generates the OpenAPI 3.1 description. Each handler is typed from
 // its own declared responses (see op() in dispatch.ts). Adding a route is adding an entry to OPS.
 import * as z from "zod";
-import { briefing } from "../reading/briefing";
+import { linkedBriefing } from "../reading/linked";
+import { PartJson } from "./schemas";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../sharing/calendar";
 import { IDENTITY_COOKIE } from "../auth/session";
 import {
@@ -52,6 +53,7 @@ import { inBook, listBooks, newBook } from "../people/books";
 import { deleteBook, handOver, leaveBook, removeMember, renameBook, setRole } from "../people/manage";
 import type { Viewer } from "../core/types";
 import { movePeople } from "../people/moves";
+import { linkPeople, markNotSame, unlinkPerson } from "../people/links";
 import { API_PREFIX, publicUrl } from "../core/urls";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import {
@@ -138,7 +140,10 @@ const MovedJson = z.object({
       id: z.string().describe("The new id"),
       name: z.string(),
       url: z.string(),
-      remains: z.boolean().describe("Whether an entry for them stays in the old book, for what is filed there that didn't move"),
+      remains: z
+        .boolean()
+        .describe("Whether an entry for them stays in the old book, for what is filed there that didn't move; it is linked to the moved one for the caller"),
+      twin: z.string().optional().describe("The person the caller's link already has in the target book: both are there now, to merge"),
     }),
   ),
   moved: z.record(z.string(), z.number()),
@@ -207,12 +212,14 @@ const ROUTES: AnyOp[] = [
     path: `${API_PREFIX}/people/{id}/briefing`,
     operationId: "getBriefing",
     summary: "Everything to know before meeting a person",
-    description: "As the caller sees it: private items of other users are never part of it.",
+    description:
+      "As the caller sees it: private items of other users are never part of it. A person the caller linked across books (or a writer of several) is one briefing of every part, each item with its book.",
     tags: ["People"],
     auth: true,
+    allBooks: true,
     params: { id: IdParam },
     responses: { 200: { description: "The briefing", schema: BriefingJson }, 401: E401, 404: E404 },
-  }).handle(async ({ viewer, params }) => ({ status: 200, body: await briefing(viewer, params.id) })),
+  }).handle(async ({ viewer, params }) => ({ status: 200, body: await linkedBriefing(viewer, params.id) })),
 
   op({
     method: "GET",
@@ -1062,6 +1069,54 @@ const ROUTES: AnyOp[] = [
     body: z.object({ to: z.string().describe("The book to move them into, by id or name") }),
     responses: { 200: { description: "Who moved, with the new ids", schema: MovedJson }, 400: E400, 401: E401, 404: E404 },
   }).handle(async ({ viewer, params, body }) => ({ status: 200, body: await movePeople(viewer, [params.id], body.to) })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/people/{id}/link`,
+    operationId: "linkPerson",
+    summary: "Make two people of the caller's books one person",
+    description:
+      "Only after the user said they are the same. The link is the caller's: nobody else sees it, and it changes nothing they see. One person per book; someone's own person can't be linked.",
+    tags: ["People"],
+    auth: true,
+    allBooks: true,
+    params: { id: z.string().describe("The person's id") },
+    body: z.object({ with: z.string().describe("The other person's id, in another of the caller's books") }),
+    responses: { 200: { description: "The person's rows, one per book", schema: z.object({ parts: z.array(PartJson) }) }, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => ({ status: 200, body: { parts: await linkPeople(viewer, [params.id, body.with]) } })),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/people/{id}/link`,
+    operationId: "unlinkPerson",
+    summary: "Make a linked person someone of their own again",
+    description: "Takes this row out of the caller's link; a link left with one row goes.",
+    tags: ["People"],
+    auth: true,
+    allBooks: true,
+    params: { id: z.string().describe("The person's id") },
+    responses: { 204: NO_CONTENT, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params }) => {
+    await unlinkPerson(viewer, params.id);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/people/{id}/not-same`,
+    operationId: "markNotSame",
+    summary: "Keep that two people of different books are not the same",
+    description: "So neither Claude nor the person's page asks about them again.",
+    tags: ["People"],
+    auth: true,
+    allBooks: true,
+    params: { id: z.string().describe("The person's id") },
+    body: z.object({ with: z.string().describe("The other person's id, in another of the caller's books") }),
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 404: E404 },
+  }).handle(async ({ viewer, params, body }) => {
+    await markNotSame(viewer, params.id, body.with);
+    return { status: 204, body: undefined };
+  }),
 
   op({
     method: "GET",

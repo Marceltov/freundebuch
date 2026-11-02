@@ -642,6 +642,29 @@ test("an admin makes an invitation over REST; a member can't", async () => {
   expect((await call(s.b, "POST", "/invitations", { role: "member" })).status).toBe(403);
 });
 
+describe("links over REST", () => {
+  test("link, the briefing of both parts, unlink, not the same", async () => {
+    const w = await seedWorkBook(s);
+    const linked = await call(s.a, "POST", `/people/${s.lena}/link`, { with: w.lena2 });
+    expect(linked.status).toBe(200);
+    expect(linked.json.parts.map((p: Json) => p.book.name)).toEqual(["Unser Buch", "Arbeit"]);
+    const b = await call(s.a, "GET", `/people/${w.lena2}/briefing`);
+    expect(b.json.parts).toHaveLength(2);
+    expect(b.json.known.find((f: Json) => f.text === "leads the launch").book.name).toBe("Arbeit");
+    expect((await call(s.a, "DELETE", `/people/${w.lena2}/link`)).status).toBe(204);
+    expect((await call(s.a, "GET", `/people/${w.lena2}/briefing`)).json.parts).toHaveLength(1);
+    expect((await call(s.a, "DELETE", `/people/${w.lena2}/link`)).status).toBe(404);
+    expect((await call(s.a, "POST", `/people/${s.lena}/not-same`, { with: w.lena2 })).status).toBe(204);
+    expect((await call(s.a, "GET", `/people/${s.lena}/briefing`)).json.sameAsAsk).toEqual([]);
+  });
+
+  test("B can't link a person of a book B isn't in: 404", async () => {
+    const w = await seedWorkBook(s);
+    expect((await call(s.b, "POST", `/people/${s.lena}/link`, { with: w.lena2 })).status).toBe(404);
+    expect((await call(s.b, "GET", `/people/${w.lena2}/briefing`)).status).toBe(404);
+  });
+});
+
 describe("books over REST", () => {
   test("GET /books lists both books with roles", async () => {
     await seedWorkBook(s);
