@@ -227,3 +227,76 @@ export async function nameMatches(v: Viewer, personId: string): Promise<Array<{ 
     ).map(async (p) => ({ id: p.id, name: p.name, book: await bookRef(p.book) })),
   );
 }
+
+// ---- inside a move or a merge, on its transaction --------------------------------------------------------------------------
+
+/**
+ * A move copied people from `fromBook` into `toBook` (`map`: old id → new id): every user's link takes the new id, unless it
+ * has a part in `toBook` already. Returns, for the mover, the part their link already has there (the twin), by old id.
+ */
+export async function carryLinks(i: InstanceDb, mover: string, fromBook: string, toBook: string, map: Map<string, string>): Promise<Map<string, string>> {
+  const twins = new Map<string, string>();
+  const parts = await i
+    .from("person_link_parts")
+    .select(["link_id", "user_id", "person_id"])
+    .where("book_id", "=", fromBook)
+    .where("person_id", "in", [...map.keys()])
+    .execute();
+  for (const p of parts) {
+    const there = await i.from("person_link_parts").select("person_id").where("link_id", "=", p.link_id).where("book_id", "=", toBook).executeTakeFirst();
+    if (there) {
+      if (p.user_id === mover) twins.set(p.person_id, there.person_id);
+      continue;
+    }
+    await i
+      .insert("person_link_parts", { link_id: p.link_id, user_id: p.user_id, book_id: toBook, person_id: map.get(p.person_id)!, created_at: now() })
+      .execute();
+  }
+  return twins;
+}
+
+/** After a move, the people that stayed behind in `fromBook` (old id → new id) are one with their copy, for the mover. */
+export async function linkLeftBehind(i: InstanceDb, mover: string, fromBook: string, toBook: string, pairs: Map<string, string>): Promise<void> {
+  for (const [old, fresh] of pairs) {
+    const mine = await i
+      .from("person_link_parts")
+      .select("link_id")
+      .where("user_id", "=", mover)
+      .where("book_id", "=", fromBook)
+      .where("person_id", "=", old)
+      .executeTakeFirst();
+    if (mine) continue; // carryLinks gave the copy the link already, or the link has its twin there
+    const link = newId();
+    await i.insert("person_links", { id: link, user_id: mover, created_at: now() }).execute();
+    await i
+      .insert("person_link_parts", [
+        { link_id: link, user_id: mover, book_id: fromBook, person_id: old, created_at: now() },
+        { link_id: link, user_id: mover, book_id: toBook, person_id: fresh, created_at: now() },
+      ])
+      .execute();
+  }
+}
+
+/** A merge in `book` is about to drop `dropId` into `keepId`: every user's link to the one dropped goes to the one kept; when
+ * that user has the kept one linked too, the two links become one (a part of a book the kept link has already stays out). */
+export async function mergeLinks(i: InstanceDb, book: string, keepId: string, dropId: string): Promise<void> {
+  const parts = await i.from("person_link_parts").select(["link_id", "user_id"]).where("book_id", "=", book).where("person_id", "=", dropId).execute();
+  for (const p of parts) {
+    const kept = await i
+      .from("person_link_parts")
+      .select("link_id")
+      .where("user_id", "=", p.user_id)
+      .where("book_id", "=", book)
+      .where("person_id", "=", keepId)
+      .executeTakeFirst();
+    if (!kept) {
+      await i.update("person_link_parts").set({ person_id: keepId }).where("link_id", "=", p.link_id).where("book_id", "=", book).execute();
+      continue;
+    }
+    const taken = new Set((await i.from("person_link_parts").select("book_id").where("link_id", "=", kept.link_id).execute()).map((r) => r.book_id));
+    const rest = await i.from("person_link_parts").select(["book_id", "person_id"]).where("link_id", "=", p.link_id).where("book_id", "!=", book).execute();
+    for (const r of rest.filter((x) => !taken.has(x.book_id)))
+      await i.update("person_link_parts").set({ link_id: kept.link_id }).where("link_id", "=", p.link_id).where("book_id", "=", r.book_id).execute();
+    await i.delete("person_links").where("id", "=", p.link_id).execute();
+  }
+}

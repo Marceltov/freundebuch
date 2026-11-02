@@ -18,6 +18,7 @@ import {
   type FiledRelationship,
 } from "./conversations";
 import { memberPersons, resolveTarget, type Target } from "../people/writers";
+import { mergeLinks } from "../people/links";
 import { now } from "../db";
 import { ForbiddenError, InvalidInputError, NotFoundError } from "../core/errors";
 import { norm } from "../people/names";
@@ -665,6 +666,7 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
         .execute();
     }
 
+    await mergeLinks(tx.instance, v.bookId, keepId, dropId);
     await tx.delete("persons").where("id", "=", dropId).execute(); // takes the remaining settings and rows with it
     return { kept: keep.name, dropped: drop.name, moved };
   });
