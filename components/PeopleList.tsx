@@ -8,8 +8,8 @@ import { Face } from "@/components/Face";
 import { groupTint } from "@/components/Tiles";
 import { BookMark } from "@/components/BookMark";
 
-/** `book`: the name of the person's book, only when the user has two or more. */
-export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[]; book?: string };
+/** `book`: the name of the person's book, only when the user has two or more; `books`: every book a linked person is in. */
+export type PersonRow = { id: string; name: string; aliases: string[]; url: string; seen: string; groups: string[]; book?: string; books?: string[] };
 
 /** The chip for the people in no group. */
 export const NO_GROUP = "none";
@@ -84,7 +84,9 @@ export function PeopleList({ people, groups }: { people: PersonRow[]; groups: { 
                       <span className="block font-display text-lg leading-tight font-semibold">{p.name}</span>
                       <span className="flex items-center gap-1.5 text-sm text-muted">
                         {p.seen}
-                        {p.book && <BookMark name={p.book} />}
+                        {(p.books ?? (p.book ? [p.book] : [])).map((n) => (
+                          <BookMark key={n} name={n} />
+                        ))}
                       </span>
                     </span>
                   </Link>

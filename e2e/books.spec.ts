@@ -71,3 +71,21 @@ test("Einstellungen: invite into a book shows the link once, deleting asks first
   expect(asked).toContain("Arbeit");
   await expect(page.getByRole("region", { name: "Arbeit" })).toBeVisible();
 });
+
+test("the same name in two books asks once; yes makes one entry in Leute and one page with both books", async ({ page, baseURL }) => {
+  await meet(page, baseURL!, "Kollegin Kim");
+  await page.goto("/leute");
+  const kims = page.getByRole("link", { name: /Kollegin Kim/ });
+  await expect(kims).toHaveCount(2);
+  await kims.first().click();
+  await expect(page.getByText(/Ist Kollegin Kim \(.+\) dieselbe Person wie Kollegin Kim \(.+\)\?/)).toBeVisible();
+  await page.getByRole("button", { name: "Ja, dieselbe" }).click();
+  await expect(page.getByRole("button", { name: "Ja, dieselbe" })).toHaveCount(0);
+  await expect(page.getByLabel("Buch: Arbeit").first()).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Neues kommt nach" })).toBeVisible();
+  await page.goto("/leute");
+  const one = page.getByRole("link", { name: /Kollegin Kim/ });
+  await expect(one).toHaveCount(1);
+  await expect(one.getByLabel("Buch: Arbeit")).toBeVisible();
+  await expect(one.getByLabel(/^Buch: /)).toHaveCount(2);
+});

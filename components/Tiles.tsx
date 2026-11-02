@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Lock, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { BookMark } from "@/components/BookMark";
 import { getCopy } from "@/components/serverCopy";
 
 // The building blocks of the friend and conversation pages. `id` on a chip or a tile is its item's anchor (anchorId()): a link
@@ -76,6 +77,7 @@ export function Tile({
   closed,
   actions,
   tone = "bg-surface",
+  book,
   children,
 }: {
   id?: string;
@@ -84,6 +86,8 @@ export function Tile({
   closed?: string;
   actions?: ReactNode;
   tone?: string;
+  /** The book it came from, on the page of a person in several of the user's books. */
+  book?: string;
   children: ReactNode;
 }) {
   const copy = getCopy();
@@ -98,6 +102,11 @@ export function Tile({
           </span>
         )}
         {closed && <span className="ml-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs whitespace-nowrap">{closed}</span>}
+        {book && (
+          <span className="ml-1.5 align-[1px]">
+            <BookMark name={book} />
+          </span>
+        )}
       </span>
       {actions}
     </div>

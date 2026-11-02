@@ -27,14 +27,20 @@ export function moveTargets(books: { id: string; name: string }[], bookId: strin
   return movable ? books.filter((b) => b.id !== bookId) : [];
 }
 
-/** Where the page goes after a move: the person's new id, telling the page when an entry stayed in the old book too. */
-export function movedTo(p: { url: string; remains: boolean }, from: string): string {
-  return p.remains ? `${p.url}?blieb=${encodeURIComponent(from)}` : p.url;
+/** Where the page goes after a move: the person's new id, or the twin (the other part in that book) it was merged into. */
+export function movedTo(p: { url: string; twin?: string }): string {
+  return p.twin ? `/p/${p.twin}` : p.url;
 }
+
+type PartRef = { id: string; book: { id: string; name: string } };
+
+/** Whether the person is linked across books, so this part can be unlinked. */
+export const canUnlink = (parts: PartRef[]) => parts.length > 1;
 
 // The round "…" on a friend's page: a sheet with what only Claude could do before. How often to see them, a new name, their
 // gender (which the role labels follow), how they look (the parts of their avatar), a nickname that finds them too, merging a duplicate into them, and
-// moving them into another of the user's books. Each change closes the sheet and reloads the page.
+// moving them into another of the user's books (merged with their other part when that book has one), and unlinking this
+// part of a person linked across books. Each change closes the sheet and reloads the page.
 export function PersonMenu({
   id,
   name,
@@ -46,6 +52,7 @@ export function PersonMenu({
   books = [],
   bookId,
   movable = false,
+  parts = [],
 }: {
   id: string;
   name: string;
@@ -59,6 +66,8 @@ export function PersonMenu({
   bookId?: string;
   /** Whether they can move: not the user, not a member of the book. */
   movable?: boolean;
+  /** The person's rows in each of the user's books; `id` is one of them. */
+  parts?: PartRef[];
 }) {
   const copy = useCopy();
   const router = useRouter();
@@ -90,7 +99,9 @@ export function PersonMenu({
 
   async function move() {
     const target = targets.find((b) => b.id === to);
-    if (!target || !window.confirm(copy.confirmMove.replaceAll("{name}", name).replace("{book}", target.name))) return;
+    const twin = parts.find((p) => p.book.id === to && p.id !== id);
+    const ask = (twin ? copy.confirmMoveMerge : copy.confirmMove).replaceAll("{name}", name).replace("{book}", target?.name ?? "");
+    if (!target || !window.confirm(ask)) return;
     setFailed(false);
     const res = await fetch(`/api/v1/people/${id}/move`, {
       method: "POST",
@@ -98,9 +109,23 @@ export function PersonMenu({
       body: JSON.stringify({ to: target.id }),
     }).catch(() => null);
     if (!res?.ok) return setFailed(true);
-    const { people } = (await res.json()) as { people: { url: string; remains: boolean }[] };
+    const { people } = (await res.json()) as { people: { id: string; url: string; twin?: string }[] };
+    if (people[0].twin) {
+      const merged = await fetch(`/api/v1/people/${people[0].twin}/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ drop: people[0].id }),
+      }).catch(() => null);
+      if (!merged?.ok) return router.push(people[0].url);
+    }
     setOpen(false);
-    router.push(movedTo(people[0], books.find((b) => b.id === bookId)?.name ?? ""));
+    router.push(movedTo(people[0]));
+  }
+
+  const here = parts.find((p) => p.id === id);
+  async function unlink() {
+    if (!window.confirm(copy.confirmUnlink.replace("{name}", name).replace("{book}", here?.book.name ?? ""))) return;
+    await send("DELETE", "/link", {});
   }
   return (
     <>
@@ -273,6 +298,14 @@ export function PersonMenu({
                     {copy.moveTo}: {targets.find((b) => b.id === to)?.name}
                   </button>
                 )}
+              </Part>
+            )}
+
+            {canUnlink(parts) && (
+              <Part title={copy.unlink}>
+                <button type="button" onClick={unlink} className="w-full rounded-xl bg-surface-2 px-3 py-2 font-bold">
+                  {copy.unlink}: {here?.book.name}
+                </button>
               </Part>
             )}
 

@@ -16,8 +16,20 @@ test("a member of the book or the viewer can't be moved", () => {
   expect(moveTargets(books, "b1", false)).toEqual([]);
 });
 
-test("the move's address goes to the new id, and says when they stayed behind too", async () => {
+test("the move's address goes to the new id, or to the twin it was merged into", async () => {
   const { movedTo } = await import("./PersonMenu");
-  expect(movedTo({ url: "/p/new", remains: false }, "Unser Buch")).toBe("/p/new");
-  expect(movedTo({ url: "/p/new", remains: true }, "Unser Buch")).toBe("/p/new?blieb=Unser%20Buch");
+  expect(movedTo({ url: "/p/new" })).toBe("/p/new");
+  expect(movedTo({ url: "/p/new", twin: "p9" })).toBe("/p/p9");
+});
+
+test("PersonMenu offers unlink only with two parts", async () => {
+  const { canUnlink } = await import("./PersonMenu");
+  const ub = { id: "b1", name: "Unser Buch" };
+  expect(canUnlink([{ book: ub, id: "p1" }])).toBe(false);
+  expect(
+    canUnlink([
+      { book: ub, id: "p1" },
+      { book: { id: "b2", name: "Arbeit" }, id: "p9" },
+    ]),
+  ).toBe(true);
 });

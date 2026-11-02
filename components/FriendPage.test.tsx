@@ -1,12 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
-import type { Briefing } from "@/backend";
+import type { Briefing, LinkedBriefing } from "@/backend";
 import { FriendPage } from "./FriendPage";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {} }) }));
 
 const own = { visibility: "shared" as const, mine: false };
-const b: Briefing = {
+const b: LinkedBriefing = {
   person: {
     id: "p1",
     name: "Sarah",
@@ -42,6 +42,8 @@ const b: Briefing = {
   recent: [],
   relationships: [],
   network: { nodes: [], edges: [] },
+  parts: [{ book: { id: "b1", name: "Unser Buch" }, id: "p1" }],
+  sameAsAsk: [],
 };
 
 test("the header shows the birthday however far away, with the age, and the groups as chips", () => {
@@ -230,13 +232,30 @@ test("the header says where the person lives, with the address, linking to the p
   expect(renderToStaticMarkup(<FriendPage b={b} daysSince={null} />)).not.toContain("Wohnt in");
 });
 
-test("the stayed-behind notice shows only for one of the user's books", () => {
-  const books = [
-    { id: "b1", name: "Unser Buch" },
-    { id: "b2", name: "Arbeit" },
-  ];
-  const real = renderToStaticMarkup(<FriendPage b={b} daysSince={null} books={books} stayedIn="Unser Buch" />);
-  expect(real).toContain('role="status"');
-  const forged = renderToStaticMarkup(<FriendPage b={b} daysSince={null} books={books} stayedIn="Gefälscht" />);
-  expect(forged).not.toContain('role="status"');
+const arbeit = { id: "b2", name: "Arbeit" };
+const linked: LinkedBriefing = {
+  ...b,
+  parts: [...b.parts, { book: arbeit, id: "p9" }],
+  open: { ...b.open, promises: [{ ...b.open.promises[0], book: arbeit }] },
+};
+
+test("a linked person's page shows a book mark per part and on items from each book", () => {
+  const html = renderToStaticMarkup(<FriendPage b={linked} daysSince={null} several />);
+  expect(html).toContain('aria-label="Buch: Unser Buch"');
+  expect((html.match(/aria-label="Buch: Arbeit"/g) ?? []).length).toBe(2);
+  expect(html).toContain("Neues kommt nach");
+  expect(html).toContain('href="?in=b2"');
+});
+
+test("one part shows no marks on items and no add-into choice", () => {
+  const html = renderToStaticMarkup(<FriendPage b={b} daysSince={null} several />);
+  expect((html.match(/aria-label="Buch: /g) ?? []).length).toBe(1);
+  expect(html).not.toContain("Neues kommt nach");
+  expect(renderToStaticMarkup(<FriendPage b={b} daysSince={null} />)).not.toContain('aria-label="Buch: ');
+});
+
+test("the page asks whether a namesake of another book is the same person", () => {
+  const html = renderToStaticMarkup(<FriendPage b={{ ...b, sameAsAsk: [{ id: "p7", name: "Sarah", book: arbeit }] }} daysSince={null} several />);
+  expect(html).toContain("Ist Sarah (Unser Buch) dieselbe Person wie Sarah (Arbeit)?");
+  expect(html).toContain("Ja, dieselbe");
 });

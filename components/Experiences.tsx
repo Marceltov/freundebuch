@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BookMark } from "@/components/BookMark";
 import { CalendarCheck, CalendarX, Lock, MapPin, Mic, Repeat } from "lucide-react";
 import type { ExperienceView } from "@/backend";
 import { getCopy } from "@/components/serverCopy";
@@ -9,7 +10,8 @@ const chip = "inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py
 
 // One experience: its day, kind and title, a few lines, and links to its place, its series, the people who were there and the
 // ramble it was told in; a lock while private, and its actions for whoever recorded it. `series`: false on its own series' page.
-export function ExperienceItem({ e, series = true }: { e: ExperienceView; series?: boolean }) {
+// `bookName`: its book, on the page of a person in several of the user's books.
+export function ExperienceItem({ e, series = true }: { e: ExperienceView & { bookName?: string }; series?: boolean }) {
   const copy = getCopy();
   return (
     <li id={`experience-${e.id}`} className="rounded-2xl bg-surface p-3 shadow-card target:ring-2 target:ring-carbon">
@@ -18,6 +20,7 @@ export function ExperienceItem({ e, series = true }: { e: ExperienceView; series
           <p>
             <b>{shortDay(copy, e.date)}</b> · <span className="text-muted">{e.kind}</span>{" "}
             {e.visibility === "private" && <Lock aria-label={copy.journalPrivate} className="mb-0.5 inline h-3.5 w-3.5 text-muted" />}
+            {e.bookName && <BookMark name={e.bookName} />}
           </p>
           <p className="font-semibold">{e.title}</p>
           {e.summary && <p className="mt-0.5 whitespace-pre-line text-muted">{e.summary}</p>}
