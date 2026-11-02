@@ -162,3 +162,11 @@ test("a merge into someone's own person takes the person out of the link; they s
   expect(keys.get(s.b.personId)).toBe(`u:${s.b.userId}`);
   expect(keys.has(bobbyAtWork)).toBe(false);
 });
+
+test("a merge keeps the dropped person's no", async () => {
+  const s = await withWork();
+  const dup = await createPerson(s.a, { name: "Lena B." });
+  await markNotSame(s.a, dup, s.lena2);
+  await mergePeople(s.a, s.lena, dup);
+  expect((await nameMatches(s.a, s.lena)).map((m) => m.id)).not.toContain(s.lena2);
+});

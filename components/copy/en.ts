@@ -278,6 +278,7 @@ export const en: Copy = {
   confirmUnlink: "Keep {name} in {book} as a person of their own again?",
   addInto: "New things go to",
   confirmMoveMerge: "{name} is in {book} already. Move and merge into one person?",
+  movedNotMerged: "{name} moved, but wasn't merged: merge the two in the menu under “Added twice?”.",
   booksHint: "Whoever is in a book sees what is shared there. Books don't see into each other.",
   newBook: "New book",
   newBookName: "The book's name",

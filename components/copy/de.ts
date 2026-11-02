@@ -293,6 +293,7 @@ export const de = {
   confirmUnlink: "{name} in {book} wieder als eigene Person führen?",
   addInto: "Neues kommt nach",
   confirmMoveMerge: "{name} ist in {book} schon da. Verschieben und zu einer Person zusammenführen?",
+  movedNotMerged: "{name} ist verschoben, aber nicht zusammengeführt: führe die beiden im Menü unter „Doppelt angelegt?“ zusammen.",
   booksHint: "Wer in einem Buch ist, sieht, was dort geteilt ist. Bücher sehen nicht ineinander.",
   newBook: "Neues Buch",
   newBookName: "Name des Buchs",

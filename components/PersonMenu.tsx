@@ -34,6 +34,14 @@ export function movedTo(p: { url: string; twin?: string }): string {
 
 type PartRef = { id: string; book: { id: string; name: string } };
 
+/** Who a change of the person themselves (name, gender, look) goes to: every part of a linked person, so they stay one. */
+export const personTargets = (id: string, parts: PartRef[], linked: boolean) => (linked ? parts.map((p) => p.id) : [id]);
+
+/** Where the page goes after a move, and whether to say that the merge with the twin failed (the copy stays a second row). */
+export function afterMove(p: { url: string; twin?: string }, merged: boolean): { url: string; notMerged?: true } {
+  return p.twin && !merged ? { url: p.url, notMerged: true } : { url: movedTo(p) };
+}
+
 /** Whether this part can be unlinked: the person is one across books by the user's link, not a writer of several books. */
 export const canUnlink = (parts: PartRef[], linked: boolean) => linked && parts.length > 1;
 
@@ -83,13 +91,16 @@ export function PersonMenu({
   const [failed, setFailed] = useState(false);
   const label = copy.moreAbout.replace("{name}", name);
 
-  // `stay`: keep the sheet open, to change several parts of a look one after another.
-  async function send(method: string, path: string, body: object, stay = false) {
+  // `stay`: keep the sheet open, to change several parts of a look one after another. `all`: a change of the person themselves,
+  // which a linked person gets in every book.
+  async function send(method: string, path: string, body: object, stay = false, all = false) {
     setFailed(false);
-    const res = await fetch(`/api/v1/people/${id}${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(
-      () => null,
-    );
-    if (!res?.ok) return setFailed(true);
+    for (const to of all ? personTargets(id, parts, linked) : [id]) {
+      const res = await fetch(`/api/v1/people/${to}${path}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(
+        () => null,
+      );
+      if (!res?.ok) return setFailed(true);
+    }
     if (!stay) setOpen(false);
     setAlias("");
     setCardUrl("");
@@ -113,16 +124,19 @@ export function PersonMenu({
     }).catch(() => null);
     if (!res?.ok) return setFailed(true);
     const { people } = (await res.json()) as { people: { id: string; url: string; twin?: string }[] };
-    if (people[0].twin) {
-      const merged = await fetch(`/api/v1/people/${people[0].twin}/merge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ drop: people[0].id }),
-      }).catch(() => null);
-      if (!merged?.ok) return router.push(people[0].url);
-    }
+    const merged = people[0].twin
+      ? !!(
+          await fetch(`/api/v1/people/${people[0].twin}/merge`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ drop: people[0].id }),
+          }).catch(() => null)
+        )?.ok
+      : true;
+    const next = afterMove(people[0], merged);
+    if (next.notMerged) window.alert(copy.movedNotMerged.replace("{name}", name));
     setOpen(false);
-    router.push(movedTo(people[0]));
+    router.push(next.url);
   }
 
   const here = parts.find((p) => p.id === id);
@@ -183,7 +197,7 @@ export function PersonMenu({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (newName.trim() && newName.trim() !== name) send("PATCH", "", { name: newName.trim() });
+                  if (newName.trim() && newName.trim() !== name) send("PATCH", "", { name: newName.trim() }, false, true);
                 }}
               >
                 <input
@@ -204,7 +218,7 @@ export function PersonMenu({
                       name="gender"
                       className="peer sr-only"
                       checked={gender === g.value}
-                      onChange={() => send("PATCH", "", { gender: g.value })}
+                      onChange={() => send("PATCH", "", { gender: g.value }, false, true)}
                     />
                     <span className="block rounded-xl py-2 text-center text-sm peer-checked:bg-carbon peer-checked:font-bold peer-checked:text-on-carbon peer-focus-visible:outline-2 peer-focus-visible:outline-carbon">
                       {g.label}
@@ -215,7 +229,7 @@ export function PersonMenu({
             </Part>
 
             <Part title={copy.look} hint={copy.lookHint}>
-              <LookEditor look={look} onChange={(next) => send("PATCH", "", { look: next }, true)} />
+              <LookEditor look={look} onChange={(next) => send("PATCH", "", { look: next }, true, true)} />
             </Part>
 
             <Part title={copy.addNickname} hint={copy.nicknameHint}>

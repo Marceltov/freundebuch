@@ -160,3 +160,12 @@ test("the newer book's feed leaves out a linked birthday the older feed has; wit
   expect(await lena()).toEqual([]);
   expect(events(await calendarFeed(s.a, BASE, NOW)).filter((e) => e.SUMMARY?.includes("Lena")).length).toBeGreaterThan(0);
 });
+
+test("two different dates of a linked person on one day both stay in the newer feed", async () => {
+  const w = await seedWorkBook(s);
+  await linkPeople(w.a, [s.lena, w.lena2]);
+  await remember(s.a, { visibility: "shared", dates: [{ person: s.lena, kind: "custom", label: "Jahrestag", date: "--11-05", yearly: true }] });
+  await remember(w.work, { visibility: "shared", dates: [{ person: w.lena2, kind: "custom", label: "Einzug", date: "--11-05", yearly: true }] });
+  await createCalendarKey(s.a);
+  expect(events(await calendarFeed(w.work, BASE, NOW)).some((e) => e.SUMMARY?.includes("Einzug"))).toBe(true);
+});

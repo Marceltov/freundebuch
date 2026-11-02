@@ -284,6 +284,7 @@ export async function linkLeftBehind(i: InstanceDb, mover: string, fromBook: str
 /** A merge in `book` is about to drop `dropId` into `keepId`: every user's link to the one dropped goes to the one kept; when
  * that user has the kept one linked too, the two links become one (a part of a book the kept link has already stays out). */
 export async function mergeLinks(i: InstanceDb, book: string, keepId: string, dropId: string): Promise<void> {
+  await keepNotSame(i, book, keepId, dropId);
   const parts = await i.from("person_link_parts").select(["link_id", "user_id"]).where("book_id", "=", book).where("person_id", "=", dropId).execute();
   // Kept as someone's own person: they are one by their user, never in a link, so the dropped part leaves its link.
   if (await i.from("members").select("person_id").where("book_id", "=", book).where("person_id", "=", keepId).executeTakeFirst()) {
@@ -311,5 +312,28 @@ export async function mergeLinks(i: InstanceDb, book: string, keepId: string, dr
     for (const r of rest.filter((x) => !taken.has(x.book_id)))
       await i.update("person_link_parts").set({ link_id: kept.link_id }).where("link_id", "=", p.link_id).where("book_id", "=", r.book_id).execute();
     await i.delete("person_links").where("id", "=", p.link_id).execute();
+  }
+}
+
+// Every user's "not the same" answers about the dropped person hold for the one kept.
+async function keepNotSame(i: InstanceDb, book: string, keepId: string, dropId: string): Promise<void> {
+  const rows = await i
+    .from("person_not_same")
+    .selectAll()
+    .where((eb) => eb.or([eb.and([eb("a_book", "=", book), eb("a_id", "=", dropId)]), eb.and([eb("b_book", "=", book), eb("b_id", "=", dropId)])]))
+    .execute();
+  for (const r of rows) {
+    const other = r.a_id === dropId ? { book: r.b_book, id: r.b_id } : { book: r.a_book, id: r.a_id };
+    if (other.id === keepId) continue;
+    const [x, y] = keepId < other.id ? [{ book, id: keepId }, other] : [other, { book, id: keepId }];
+    const there = await i
+      .from("person_not_same")
+      .select("a_id")
+      .where("user_id", "=", r.user_id)
+      .where("a_id", "=", x.id)
+      .where("b_id", "=", y.id)
+      .executeTakeFirst();
+    if (!there)
+      await i.insert("person_not_same", { user_id: r.user_id, a_book: x.book, a_id: x.id, b_book: y.book, b_id: y.id, created_at: r.created_at }).execute();
   }
 }

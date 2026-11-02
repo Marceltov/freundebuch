@@ -34,3 +34,20 @@ test("PersonMenu offers unlink only for a link of two parts", async () => {
   // A writer of two books is one person by their user, not by a link: nothing to unlink.
   expect(canUnlink(two, false)).toBe(false);
 });
+
+test("a rename, gender or look of a linked person goes to every part; anything else to the chosen one", async () => {
+  const { personTargets } = await import("./PersonMenu");
+  const parts = [
+    { book: { id: "b1", name: "Unser Buch" }, id: "p1" },
+    { book: { id: "b2", name: "Arbeit" }, id: "p9" },
+  ];
+  expect(personTargets("p9", parts, true)).toEqual(["p1", "p9"]);
+  expect(personTargets("p9", parts, false)).toEqual(["p9"]);
+});
+
+test("after a move whose merge failed, the page goes to the copy and says so", async () => {
+  const { afterMove } = await import("./PersonMenu");
+  expect(afterMove({ url: "/p/new", twin: "p9" }, true)).toEqual({ url: "/p/p9" });
+  expect(afterMove({ url: "/p/new", twin: "p9" }, false)).toEqual({ url: "/p/new", notMerged: true });
+  expect(afterMove({ url: "/p/new" }, true)).toEqual({ url: "/p/new" });
+});

@@ -73,7 +73,11 @@ const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{(\w
  * date an older book holds too (the same kind, on the same day) is left out of the newer book's feed, when the user has a
  * feed of that older book: they get it there.
  */
-async function toldInOlderFeeds(v: Viewer): Promise<(r: { person_id: string; kind: string; date: string }) => boolean> {
+type Dated = { person_id: string; kind: string; label: string | null; date: string; yearly: number };
+// The same date of someone in several books: the same kind and label, on the same day of the year when yearly, else the day.
+const dateKey = (who: string, r: Dated) => `${who}|${r.kind}|${r.label ?? ""}|${r.yearly || r.date.startsWith("--") ? r.date.slice(-5) : r.date}`;
+
+async function toldInOlderFeeds(v: Viewer): Promise<(r: Dated) => boolean> {
   const all = await viewerById(v.userId);
   const older = all ? all.books.slice(0, all.books.indexOf(v.bookId)) : [];
   const i = await instance();
@@ -97,12 +101,12 @@ async function toldInOlderFeeds(v: Viewer): Promise<(r: { person_id: string; kin
       await scope(w)
     )
       .from("dates")
-      .select(["person_id", "kind", "date"])
+      .select(["person_id", "kind", "label", "date", "yearly"])
       .$call((qb) => visible(qb, w, "dates"))
       .execute();
-    for (const r of rows) if (keys.has(r.person_id)) there.add(`${keys.get(r.person_id)}|${r.kind}|${r.date.slice(-5)}`);
+    for (const r of rows) if (keys.has(r.person_id)) there.add(dateKey(keys.get(r.person_id)!, r));
   }
-  return (r) => keys.has(r.person_id) && there.has(`${keys.get(r.person_id)}|${r.kind}|${r.date.slice(-5)}`);
+  return (r) => keys.has(r.person_id) && there.has(dateKey(keys.get(r.person_id)!, r));
 }
 
 /** The viewer's feed as iCalendar text, its links absolute against `base`. */
