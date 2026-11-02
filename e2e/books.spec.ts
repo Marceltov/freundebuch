@@ -31,14 +31,14 @@ test.beforeEach(async ({ page, baseURL }) => {
 });
 
 test("a second book's people show in Leute with their book", async ({ page }) => {
-  await page.goto("/leute");
+  await page.goto("/people");
   const kim = page.getByRole("link", { name: /Kollegin Kim/ });
   await expect(kim.getByLabel("Buch: Arbeit")).toBeVisible();
   await expect(page.getByRole("link", { name: /Nachbar Nils/ }).getByLabel(/^Buch: /)).toBeVisible();
 });
 
 test("moving a person to Arbeit opens them there with its book mark", async ({ page }) => {
-  await page.goto("/leute");
+  await page.goto("/people");
   await page.getByRole("link", { name: /Nachbar Nils/ }).click();
   const old = page.url();
   await page
@@ -54,11 +54,11 @@ test("moving a person to Arbeit opens them there with its book mark", async ({ p
 });
 
 test("Einstellungen: invite into a book shows the link once, deleting asks first", async ({ page }) => {
-  await page.goto("/einstellungen#buecher");
+  await page.goto("/settings#books");
   const arbeit = page.getByRole("region", { name: "Arbeit" });
   await arbeit.getByRole("button", { name: "Einladen als Mitglied" }).click();
   await expect(arbeit.getByText("Der Link gilt einmal, 7 Tage lang.")).toBeVisible();
-  await expect(arbeit.getByText(/\/einladung\/fbi_/)).toBeVisible();
+  await expect(arbeit.getByText(/\/invite\/fbi_/)).toBeVisible();
   await expect(arbeit.getByText("Offene Einladungen")).toBeVisible();
   // The owner can't leave; deleting asks first, and declining keeps the book.
   await expect(arbeit.getByRole("button", { name: "Verlassen" })).toHaveCount(0);
@@ -74,7 +74,7 @@ test("Einstellungen: invite into a book shows the link once, deleting asks first
 
 test("the same name in two books asks once; yes makes one entry in Leute and one page with both books", async ({ page, baseURL }) => {
   await meet(page, baseURL!, "Kollegin Kim");
-  await page.goto("/leute");
+  await page.goto("/people");
   const kims = page.getByRole("link", { name: /Kollegin Kim/ });
   await expect(kims).toHaveCount(2);
   await kims.first().click();
@@ -83,7 +83,7 @@ test("the same name in two books asks once; yes makes one entry in Leute and one
   await expect(page.getByRole("button", { name: "Ja, dieselbe" })).toHaveCount(0);
   await expect(page.getByLabel("Buch: Arbeit").first()).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Neues kommt nach" })).toBeVisible();
-  await page.goto("/leute");
+  await page.goto("/people");
   const one = page.getByRole("link", { name: /Kollegin Kim/ });
   await expect(one).toHaveCount(1);
   await expect(one.getByLabel("Buch: Arbeit")).toBeVisible();

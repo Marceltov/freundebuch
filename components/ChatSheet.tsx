@@ -448,7 +448,7 @@ export function ChatSheet({
               }[shot]
             }
             {shot === "received" && (
-              <Link href="/pruefen" onClick={onClose} className="font-bold text-carbon">
+              <Link href="/review" onClick={onClose} className="font-bold text-carbon">
                 {copy.pending} ›
               </Link>
             )}

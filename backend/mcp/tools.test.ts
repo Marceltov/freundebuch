@@ -537,7 +537,7 @@ test("record names the journal entries it filed, and that they are private", asy
     people: [],
     journal: [{ text: "Ich frage mich, ob ich den Job wechseln will." }],
   });
-  expect(r.journal).toEqual([expect.objectContaining({ visibility: "private", url: expect.stringMatching(/^\/tagebuch#journal-/) })]);
+  expect(r.journal).toEqual([expect.objectContaining({ visibility: "private", url: expect.stringMatching(/^\/journal#journal-/) })]);
   expect(r.next).toContain("The journal entry is private to the user: say so in the read-back.");
 });
 
@@ -902,7 +902,7 @@ describe("review fixes", () => {
 test("books manages a book by its role", async () => {
   const books = (v: Seed["a"], args: object) => toolByName("books")!.run(v, args);
   const inv = await books(s.a, { action: "invite", book: "Unser Buch", role: "member" });
-  expect((inv.invitation as { url: string }).url).toMatch(/^\/einladung\/fbi_/);
+  expect((inv.invitation as { url: string }).url).toMatch(/^\/invite\/fbi_/);
   expect((inv.next as string[]).join(" ")).toContain("works once");
   expect(((await books(s.a, { action: "invitations", book: "Unser Buch" })).invitations as unknown[]).length).toBe(1);
   await books(s.a, { action: "revoke", book: "Unser Buch", id: (inv.invitation as { id: string }).id });

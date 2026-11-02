@@ -40,7 +40,7 @@ export function ShareInbox({ again }: { again: boolean }) {
         await cache.delete(req);
       }
       // Arrived: on to where it waits.
-      if (result !== "failed" && last) return window.location.replace(`/pruefen#${last}`);
+      if (result !== "failed" && last) return window.location.replace(`/review#${last}`);
       setState(result);
     })().catch(() => setState("failed"));
   }, [again]);
@@ -62,11 +62,11 @@ export function ShareInbox({ again }: { again: boolean }) {
           <Link href="/" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
             {copy.home}
           </Link>
-          <Link href="/pruefen" className="rounded-full bg-surface-2 px-4 py-1.5 font-bold">
+          <Link href="/review" className="rounded-full bg-surface-2 px-4 py-1.5 font-bold">
             {copy.pending}
           </Link>
           {state === "empty" && (
-            <Link href="/einstellungen#teilen" className="rounded-full bg-surface-2 px-4 py-1.5 font-bold">
+            <Link href="/settings#sharing" className="rounded-full bg-surface-2 px-4 py-1.5 font-bold">
               {copy.settings}
             </Link>
           )}

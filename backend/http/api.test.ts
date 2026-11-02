@@ -499,7 +499,7 @@ describe("journal", () => {
     const a = await call(s.a, "GET", "/journal?from=2026-10-01&to=2026-10-31");
     expect(a.status).toBe(200);
     expect(a.json.entries.map((e: { text: string }) => e.text).sort()).toEqual(["Geteilt", "Privat"]);
-    expect(a.json.entries[0].url).toMatch(new RegExp(`^${BASE}/tagebuch#journal-`));
+    expect(a.json.entries[0].url).toMatch(new RegExp(`^${BASE}/journal#journal-`));
     const b = await call(s.b, "GET", "/journal?from=2026-10-01&to=2026-10-31");
     expect(b.json.entries.map((e: { text: string }) => e.text)).toEqual(["Geteilt"]);
   });
@@ -636,7 +636,7 @@ test("an invitation is accepted once by a signed-in user", async () => {
 test("an admin makes an invitation over REST; a member can't", async () => {
   const r = await call(s.a, "POST", "/invitations", { role: "admin" });
   expect(r.status).toBe(201);
-  expect(r.json.url).toMatch(/^http:\/\/localhost:3000\/einladung\/fbi_/);
+  expect(r.json.url).toMatch(/^http:\/\/localhost:3000\/invite\/fbi_/);
   const { unchecked } = await import("../db/testing");
   await unchecked().updateTable("members").set({ role: "member" }).where("user_id", "=", s.b.userId).execute();
   expect((await call(s.b, "POST", "/invitations", { role: "member" })).status).toBe(403);

@@ -35,6 +35,23 @@ test.beforeEach(async ({ page }) => {
   await expect(page).toHaveURL("/");
 });
 
+test("the old German paths go on to the English ones", async ({ page }) => {
+  for (const [old, now] of [
+    ["/leute", "/people"],
+    ["/verlauf?q=spiegel", "/history?q=spiegel"],
+    ["/einstellungen", "/settings"],
+  ]) {
+    await page.goto(old);
+    await expect(page).toHaveURL(now);
+  }
+  const invite = await page.request.get("/einladung/fbi_x", { maxRedirects: 0 });
+  expect(invite.status()).toBe(308);
+  expect(invite.headers().location).toBe("/invite/fbi_x");
+  const share = await page.request.post("/teilen/eingang", { maxRedirects: 0 });
+  expect(share.status()).toBe(308);
+  expect(share.headers().location).toBe("/share/inbox");
+});
+
 test("someone new sees the book's people and how to start telling", async ({ page }) => {
   await page.goto("/api/e2e/login?name=Neu Hier");
   // Erika signed in before: she is on the orbit as someone Neu Hier hasn't met yet.
@@ -171,10 +188,10 @@ test("groups: tick them on the friend page, open the group's page", async ({ pag
   await expect(page.getByRole("link", { name: /^Arbeit/ })).toHaveAttribute("aria-current", "true");
   await expect(page.locator('[data-in-group="true"]', { hasText: "JK" })).toBeVisible();
   await page.goto("/");
-  await expect(page).toHaveURL(/gruppe=/);
+  await expect(page).toHaveURL(/group=/);
   // Choosing the active group again clears the filter.
   await page.getByRole("link", { name: /^Arbeit/ }).click();
-  await expect(page).not.toHaveURL(/gruppe=/);
+  await expect(page).not.toHaveURL(/group=/);
   await expect(page.getByRole("link", { name: "Alle" })).toHaveAttribute("aria-current", "true");
   await expectNoSideScroll(page);
 });
@@ -192,7 +209,7 @@ test("groups in settings: another name, rename, merge, delete", async ({ page, b
     }),
   });
   const mira = (await recorded.json()).people[0].id;
-  await page.goto("/einstellungen");
+  await page.goto("/settings");
   const freunde = page.getByRole("group", { name: "Freunde" });
   await freunde.getByLabel("Anderer Name").fill("Kumpels");
   await freunde.getByLabel("Anderer Name").press("Enter");
@@ -213,7 +230,7 @@ test("groups in settings: another name, rename, merge, delete", async ({ page, b
   await sheet.getByRole("button", { name: "Fertig" }).click();
 
   // Rename Familie, then merge Arbeit into it, then delete it.
-  await page.goto("/einstellungen");
+  await page.goto("/settings");
   const familie = page.getByRole("group", { name: "Familie" });
   await familie.getByRole("button", { name: "Umbenennen" }).click();
   await familie.getByLabel("Name", { exact: true }).fill("Verwandtschaft");
@@ -330,7 +347,7 @@ test("conversation links, the bottom bar, Leute, Bald, Verlauf and the person me
   await page.getByLabel("Name", { exact: true }).press("Enter");
   await expect(page.getByRole("heading", { name: "Lea Marie Brandt" })).toBeVisible();
   await expectNoSideScroll(page);
-  await page.goto("/leute");
+  await page.goto("/people");
   await page.getByLabel("Suchen").fill("leli");
   await expect(page.getByRole("link", { name: /Lea Marie Brandt/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Leah B\./ })).toHaveCount(0);
@@ -382,33 +399,33 @@ test("Verlauf: a word finds what was told, its match marked; the partner's priva
       facts: [{ person: 0, text: "Bewirbt sich bei Zeissler", category: "work", private: true }],
     }),
   });
-  await page.goto("/verlauf");
+  await page.goto("/history");
   await page.getByLabel("Im Verlauf suchen").fill("spiegel");
   const hits = page.getByRole("list", { name: "Gefunden" });
   await expect(hits.getByRole("link", { name: /Gespräch · Jana Wolf/ })).toBeVisible();
   await expect(hits.locator("mark", { hasText: "Spiegel" }).first()).toBeVisible();
-  await expect(page).toHaveURL(/\/verlauf\?q=spiegel$/);
+  await expect(page).toHaveURL(/\/history\?q=spiegel$/);
   await expectNoSideScroll(page);
 
   await page.getByLabel("Im Verlauf suchen").fill("nirgendwo");
   await expect(page.getByText("Nichts mit „nirgendwo“.", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Suche leeren" }).click();
-  await expect(page).toHaveURL(/\/verlauf$/);
+  await expect(page).toHaveURL(/\/history$/);
 
   // The other user finds the shared conversation, but neither the private fact nor the transcript that holds it.
   await page.goto("/api/e2e/login?name=Bodo Gast");
-  await page.goto("/verlauf?q=zeissler");
+  await page.goto("/history?q=zeissler");
   await expect(page.getByText("Nichts mit „zeissler“.", { exact: false })).toBeVisible();
-  await page.goto("/verlauf?q=spiegel");
+  await page.goto("/history?q=spiegel");
   await expect(page.getByRole("list", { name: "Gefunden" }).getByRole("link")).toHaveCount(1);
 });
 
 test("an own card: written in Einstellungen, given by its link, and shown on the friend's page who subscribed to it", async ({ page, baseURL }) => {
-  await page.goto("/einstellungen");
+  await page.goto("/settings");
   // The first card is named "Privat" unless the user names it otherwise.
-  await expect(page.locator("#karte").getByLabel("Name der neuen Karte")).toHaveValue("Privat");
-  await page.locator("#karte").getByRole("button", { name: "Karte anlegen" }).click();
-  const mine = page.locator("#karte").getByRole("region", { name: "Privat" });
+  await expect(page.locator("#card").getByLabel("Name der neuen Karte")).toHaveValue("Privat");
+  await page.locator("#card").getByRole("button", { name: "Karte anlegen" }).click();
+  const mine = page.locator("#card").getByRole("region", { name: "Privat" });
   await mine.getByLabel("Telefon").fill("+49 170 5550123");
   await mine.getByLabel("Adresse").fill("Lindenweg 4, Leipzig");
   await mine.getByRole("button", { name: "Speichern" }).click();
@@ -444,8 +461,8 @@ test("an own card: written in Einstellungen, given by its link, and shown on the
   await expect(page.getByText("Was sie selbst über sich sagen")).toBeVisible();
   await expectNoSideScroll(page);
   // Ending the link in Einstellungen stops it at once.
-  await page.goto("/einstellungen");
-  const privat = page.locator("#karte").getByRole("region", { name: "Privat" });
+  await page.goto("/settings");
+  const privat = page.locator("#card").getByRole("region", { name: "Privat" });
   await privat.getByRole("button", { name: "Link beenden" }).click();
   await expect(privat.getByRole("button", { name: "Link erzeugen" })).toBeVisible();
   expect((await page.request.get(link)).status()).toBe(404);
@@ -547,7 +564,7 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
   await expect(page.getByText("Nele hat einen Hund adoptiert").first()).toBeVisible();
 
   // The chat is still there on another page; an unreachable Claude keeps the text in the field.
-  await page.goto("/leute");
+  await page.goto("/people");
   await page.getByRole("navigation", { name: "Hauptmenü" }).getByRole("button", { name: "Erzählen" }).click();
   await expect(sheet.getByText("Notiz: Nele hat einen Hund adoptiert")).toBeVisible();
   await field.fill("Fehlertest");
@@ -596,7 +613,7 @@ test("Erzählen files from a friend's page and keeps the chat across pages", asy
 });
 
 test("Sprache: in English the app, server and client parts alike, speaks English; back in German", async ({ page }) => {
-  await page.goto("/einstellungen");
+  await page.goto("/settings");
   await page.getByRole("radiogroup", { name: "Sprache" }).getByText("English").click();
   await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -607,7 +624,7 @@ test("Sprache: in English the app, server and client parts alike, speaks English
   await expect(page).toHaveTitle(/^History/);
   await expectNoSideScroll(page);
 
-  await page.goto("/einstellungen");
+  await page.goto("/settings");
   await page.getByRole("radiogroup", { name: "Language" }).getByText("Deutsch").click();
   await expect(page.getByRole("heading", { name: "Einstellungen", level: 1 })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
@@ -643,7 +660,7 @@ test("a file added in Erzählen waits under Prüfen with a suggestion; opened fr
     await expect(page.getByRole("link", { name: "1 zu prüfen" })).toBeVisible({ timeout: 1000 });
   }).toPass();
   await page.getByRole("link", { name: "1 zu prüfen" }).click();
-  await expect(page).toHaveURL("/pruefen");
+  await expect(page).toHaveURL("/review");
   await expect(page.getByText("Anna Reise war in Lissabon im Urlaub")).toBeVisible();
   await expect(page.getByRole("img", { name: "Geteiltes Bild" })).toBeVisible();
   await expectNoSideScroll(page);
@@ -686,7 +703,7 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   const box = (id: string) => page.locator(`[id="${id}"]`).getByRole("checkbox", { name: "Auswählen" });
 
   // Opened on one of them (as the Shortcut does), the whole share is selected.
-  await page.goto(`/pruefen#${two}`);
+  await page.goto(`/review#${two}`);
   await expect(page.locator(`[data-batch="${batch}"]`).getByText("Zusammen geteilt")).toBeVisible();
   for (const id of [one, two, three]) await expect(box(id)).toBeChecked();
   await expect(box(alone)).not.toBeChecked();
@@ -714,7 +731,7 @@ test("Prüfen: files shared together come pre-selected and are worked through to
   await chat.getByRole("button", { name: "Schließen" }).click();
 
   // Opened on a file shared alone, only it is selected; two selected go at once after one question.
-  await page.goto(`/pruefen#${alone}`);
+  await page.goto(`/review#${alone}`);
   await expect(box(alone)).toBeChecked();
   await expect(box(one)).not.toBeChecked();
   await box(one).check();
@@ -743,21 +760,21 @@ test("Prüfen opened again on another file keeps it while Next puts its older ad
   const [one, two] = [await up(1, batch), await up(2, batch)];
   const alone = await up(3);
   const box = (id: string) => page.locator(`[id="${id}"]`).getByRole("checkbox", { name: "Auswählen" });
-  await page.goto(`/pruefen#${two}`);
+  await page.goto(`/review#${two}`);
   await expect(box(one)).toBeChecked();
   await box(alone).check();
-  await page.goto(`/pruefen#${alone}`);
+  await page.goto(`/review#${alone}`);
   await expect(box(one)).not.toBeChecked();
   // What Next's router does for a while after a change of the hash alone (seen in the traces of the flaky test above): it writes
   // the address it knew back, with its own history state, until its restore catches up.
-  await page.evaluate((old) => window.history.replaceState(window.history.state, "", `/pruefen#${old}`), two);
+  await page.evaluate((old) => window.history.replaceState(window.history.state, "", `/review#${old}`), two);
   await box(one).check();
   await expect(page.getByRole("button", { name: "Auswahl verwerfen (2)" })).toBeVisible();
   await expect(box(two)).not.toBeChecked();
 });
 
 test("settings make one Zugang (address and key), and the key hands in a screenshot", async ({ page, baseURL }) => {
-  await page.goto("/einstellungen");
+  await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Dateien teilen" })).toBeVisible();
   // Setting up the iPhone is two numbered steps: make the Zugang and copy it once; load the Shortcut and paste it when asked.
   const setup = page.getByRole("list", { name: "iPhone einrichten" });
@@ -798,7 +815,7 @@ test("settings make a calendar feed that a calendar app can read, and end it", a
       dates: [{ person: 0, kind: "birthday", date: "1987-03-03", yearly: true }],
     }),
   });
-  await page.goto("/einstellungen");
+  await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Kalender abonnieren" })).toBeVisible();
   await page.getByRole("button", { name: "Adresse erzeugen" }).click();
   const url = (await page.getByText(/\/api\/calendar\/fbc_.+\.ics$/).textContent())!;
@@ -938,7 +955,7 @@ test("share: a person's page and a single fact go out as links", async ({ page, 
 });
 
 test("pull to refresh: pulling down at the top loads what was filed meanwhile; the top bar doesn't move", async ({ page, baseURL }) => {
-  await page.goto("/leute");
+  await page.goto("/people");
   await expect(page.getByText("Nora Pull")).toHaveCount(0);
   const filed = await page.request.post("/api/v1/rambles", {
     headers: { origin: baseURL! },
@@ -978,7 +995,7 @@ test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, priv
   await expect(sheet.getByText("Erfasst.")).toBeVisible({ timeout: 15_000 });
   await page.keyboard.press("Escape");
 
-  await page.goto("/tagebuch");
+  await page.goto("/journal");
   const entry = page.getByRole("listitem").filter({ hasText: "öfter laufen gehen" });
   await expect(entry).toBeVisible();
   await expect(entry.getByLabel("Nur für dich")).toBeVisible();
@@ -990,23 +1007,23 @@ test("Tagebuch: told in Erzählen, the entry is on Tagebuch and in Verlauf, priv
   await page.getByRole("button", { name: "Weitererzählen" }).click();
   await expect(page.getByRole("dialog", { name: "Erzählen" }).getByText("Es geht um diese Erzählung")).toBeVisible();
   await page.getByRole("dialog", { name: "Erzählen" }).getByRole("button", { name: "Schließen" }).click();
-  await page.goto("/verlauf");
+  await page.goto("/history");
   await expect(page.getByText("öfter laufen gehen")).toBeVisible();
 
   await page.goto("/api/e2e/login?name=Bodo Gast");
-  await page.goto("/tagebuch");
+  await page.goto("/journal");
   await expect(page.getByText("Noch nichts im Tagebuch")).toBeVisible();
-  await page.goto("/verlauf");
+  await page.goto("/history");
   await expect(page.getByText("öfter laufen gehen")).toHaveCount(0);
 
   // Its recorder deletes the ramble, and the entry goes with it.
   await page.goto("/api/e2e/login?name=Erika Muster");
-  await page.goto("/tagebuch");
+  await page.goto("/journal");
   await page.getByRole("listitem").filter({ hasText: "öfter laufen gehen" }).getByRole("link", { name: "Erzählung" }).click();
   await page.getByRole("button", { name: "Erzählung löschen, mit allem daraus" }).click();
   await page.getByRole("button", { name: "Wirklich löschen?" }).click();
-  await expect(page).toHaveURL("/verlauf");
-  await page.goto("/tagebuch");
+  await expect(page).toHaveURL("/history");
+  await page.goto("/journal");
   await expect(page.getByText("Noch nichts im Tagebuch")).toBeVisible();
 });
 
@@ -1028,7 +1045,7 @@ test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and i
   await page.getByRole("link", { name: "Pfotenglück" }).first().click();
   await expect(page.getByRole("heading", { name: "Pfotenglück" })).toBeVisible();
   await expect(page.getByText("Erste Stunde mit Toffee")).toBeVisible();
-  await page.goto("/verlauf");
+  await page.goto("/history");
   await expect(page.getByText(/Erste Stunde mit Toffee/)).toBeVisible();
 
   const priv = await page.request.post("/api/v1/rambles", {
@@ -1045,7 +1062,7 @@ test("Erlebnisse: a session told in Erzählen is in Verlauf, on its series and i
   await page.goto("/api/e2e/login?name=Bodo Gast");
   const res = await page.goto(`/s/${seriesId}`);
   expect(res?.status()).toBe(404);
-  await page.goto("/verlauf");
+  await page.goto("/history");
   await expect(page.getByText("Gesprächsgruppe")).toHaveCount(0);
 });
 
@@ -1117,7 +1134,7 @@ test.describe("voice", () => {
     const ogg = Buffer.from([...Buffer.from("OggS"), 0, 2, 7, 0, 0, 0, 0, 0, 1, 2, 3]);
     await sheet.locator('input[type="file"]').setInputFiles({ name: "PTT-20261030.opus", mimeType: "audio/ogg", buffer: ogg });
     await expect(sheet.getByText("Die Datei ist im Gespräch", { exact: false })).toBeVisible();
-    await page.goto("/pruefen");
+    await page.goto("/review");
     // Other tests leave files of their own here: the voice note is the card with a player.
     const card = page.locator("article", { has: page.locator("audio") });
     await expect(card).toHaveCount(1);

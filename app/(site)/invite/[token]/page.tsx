@@ -11,11 +11,11 @@ export const generateMetadata = async () => ({ title: (await siteCopy()).invitat
 
 // An invitation's link. Signed out, the proxy sends the browser to /login first and back here; a new user joins the book on the
 // way (oidc/routes.ts) and lands here as a member, so a member goes straight home. Anyone else sees the book and joins it.
-export default async function InvitationPage({ params }: PageProps<"/einladung/[token]">) {
+export default async function InvitationPage({ params }: PageProps<"/invite/[token]">) {
   const copy = await siteCopy();
   const { token } = await params;
   const v = await viewerFromCookie((await cookies()).get(IDENTITY_COOKIE)?.value);
-  if (!v) redirect(`/login?next=${encodeURIComponent(`/einladung/${token}`)}`);
+  if (!v) redirect(`/login?next=${encodeURIComponent(`/invite/${token}`)}`);
   const inv = await invitationFor(token);
   if (inv && v.books.includes(inv.bookId)) redirect("/");
   return (

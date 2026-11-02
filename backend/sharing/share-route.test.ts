@@ -70,7 +70,7 @@ test("a PDF or a text file comes in as the body or as the form field file, and t
   const pdf = await share(new TextEncoder().encode("%PDF-1.4\n1 0 obj") as BodyInit, { authorization: `Bearer ${key}`, "content-type": "application/pdf" });
   expect(pdf.status).toBe(202);
   const { id, url } = await pdf.json();
-  expect(url).toBe(`https://f.example/pruefen#${id}`);
+  expect(url).toBe(`https://f.example/review#${id}`);
   const form = new FormData();
   form.set("file", new Blob(["Patrick: Wochenende war gut"], { type: "text/plain" }), "chat.txt");
   expect((await share(form, { authorization: `Bearer ${key}` })).status).toBe(202);
@@ -158,7 +158,7 @@ test("without PUBLIC_URL the answer's url is still a whole address, from the req
   vi.stubEnv("PUBLIC_URL", "");
   const key = await createShareKey(s.a);
   const r = await share((await png()) as BodyInit, { authorization: `Bearer ${key}`, "content-type": "image/png" });
-  expect(((await r.json()) as { url: string }).url).toMatch(/^http:\/\/localhost:3000\/pruefen#/);
+  expect(((await r.json()) as { url: string }).url).toMatch(/^http:\/\/localhost:3000\/review#/);
 });
 
 test("a file shared again with a new share joins it, so Prüfen opens on the share that was just sent", async () => {

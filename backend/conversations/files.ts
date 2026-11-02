@@ -64,7 +64,7 @@ function audioType(bytes: Uint8Array): string | null {
 }
 /** The longest text file taken: about 250,000 tokens, which Claude reads whole in one request. */
 export const MAX_TEXT = 1024 * 1024;
-export const PENDING_PATH = "/pruefen";
+export const PENDING_PATH = "/review";
 
 export type FileStatus = "reading" | "pending" | "filed" | "failed";
 

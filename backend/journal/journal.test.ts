@@ -29,7 +29,7 @@ test("the journal lists the viewer's own entries in a period, newest first, with
     date: "2026-10-20",
     visibility: "private",
     people: [{ id: s.anna, name: "Anna", url: `/p/${s.anna}` }],
-    url: expect.stringMatching(/^\/tagebuch#journal-/),
+    url: expect.stringMatching(/^\/journal#journal-/),
   });
   expect((await journalEntries(s.a, { from: "2026-10-01", to: "2026-10-31", personId: s.anna })).map((e) => e.text)).toEqual([
     "Ich frage mich, ob ich den Job wechseln will.",

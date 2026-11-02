@@ -141,7 +141,7 @@ export function FriendPage({
             )}
             {viewerPersonId === b.person.id && (
               <Link
-                href="/tagebuch"
+                href="/journal"
                 className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-sm font-semibold text-carbon hover:bg-rule"
               >
                 <NotebookPen aria-hidden className="h-4 w-4" />

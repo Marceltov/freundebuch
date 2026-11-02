@@ -64,7 +64,7 @@ test.each([
   expect(isNext(proxy(req(p, { method: "POST" })))).toBe(true);
 });
 
-test.each(["/loginx", "/login/x", "/mcpx", "/healthz", "/apix", "/oauthx", "/p/x", "/einstellungen", "/c/1"])("%s needs the cookie", (p) => {
+test.each(["/loginx", "/login/x", "/mcpx", "/healthz", "/apix", "/oauthx", "/p/x", "/settings", "/c/1"])("%s needs the cookie", (p) => {
   expect(proxy(req(p)).status).toBe(307);
 });
 

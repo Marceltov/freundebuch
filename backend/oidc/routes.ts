@@ -115,7 +115,7 @@ export async function oidcCallbackRoute(req: Request): Promise<Response> {
     return failed(flight, "sign_in_failed", h);
   }
   // A sign-in that started on an invitation's page joins its book; a stranger without one is turned away.
-  const invitation = /^\/einladung\/(fbi_[\w-]+)$/.exec(safeNext(flight!.next))?.[1];
+  const invitation = /^\/invite\/(fbi_[\w-]+)$/.exec(safeNext(flight!.next))?.[1];
   let userId: string;
   try {
     ({ userId } = await userFromOidc(person, { invitation })); // the first sign-in creates the user

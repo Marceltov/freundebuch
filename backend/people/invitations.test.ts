@@ -20,7 +20,7 @@ const tokenOf = (url: string) => url.split("/").pop()!;
 
 test("an invitation works once and makes the role it names", async () => {
   const inv = await invite(s.a, "admin");
-  expect(inv.url).toMatch(/^\/einladung\/fbi_/);
+  expect(inv.url).toMatch(/^\/invite\/fbi_/);
   const token = tokenOf(inv.url);
   expect(await invitationFor(token)).toMatchObject({ bookId: s.a.bookId, bookName: "Unser Buch", role: "admin", by: "Alice" });
   await newUser("carol", "Carol");
