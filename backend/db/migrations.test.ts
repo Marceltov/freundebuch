@@ -225,3 +225,28 @@ test("004 renames the household flag to writers and keeps the group, its name an
     /UNIQUE constraint failed/,
   );
 });
+
+test("005 makes person links instance tables: one part per book, one link per person and user, gone with the person", async () => {
+  expect(INSTANCE_TABLES).toEqual(expect.arrayContaining(["person_links", "person_link_parts", "person_not_same"]));
+  const d = await fresh();
+  await d.insertInto("users").values({ id: "u", oidc_sub: "u", name: "U", created_at: 0 }).execute();
+  for (const b of ["b1", "b2"]) await d.insertInto("books").values({ id: b, name: b, created_by: "u", created_at: 0 }).execute();
+  for (const [b, p] of [
+    ["b1", "p1"],
+    ["b1", "p2"],
+    ["b2", "p3"],
+  ])
+    await d.insertInto("persons").values({ id: p, book_id: b, name: p, created_by: "u", created_at: 0 }).execute();
+  for (const l of ["l1", "l2"]) await d.insertInto("person_links").values({ id: l, user_id: "u", created_at: 0 }).execute();
+  const part = (link: string, book: string, person: string) =>
+    d.insertInto("person_link_parts").values({ link_id: link, user_id: "u", book_id: book, person_id: person, created_at: 0 }).execute();
+  await part("l1", "b1", "p1");
+  await part("l1", "b2", "p3");
+  await expect(part("l1", "b1", "p2")).rejects.toThrow(/UNIQUE constraint failed/);
+  await expect(part("l2", "b1", "p1")).rejects.toThrow(/UNIQUE constraint failed/);
+  await d.deleteFrom("persons").where("id", "=", "p3").execute();
+  expect(await d.selectFrom("person_link_parts").select("person_id").execute()).toEqual([{ person_id: "p1" }]);
+  await d.insertInto("person_not_same").values({ user_id: "u", a_book: "b1", a_id: "p1", b_book: "b1", b_id: "p2", created_at: 0 }).execute();
+  await d.deleteFrom("persons").where("id", "=", "p2").execute();
+  expect(await d.selectFrom("person_not_same").selectAll().execute()).toEqual([]);
+});

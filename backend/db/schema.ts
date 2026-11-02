@@ -38,6 +38,12 @@ export interface Schema {
     used_by: ColumnType<string | null, string | null | undefined, string | null>;
     used_at: ColumnType<number | null, number | null | undefined, number | null>;
   };
+  /** A user's own link between persons of their books that are one person to them; nobody else sees it (ADR 0029). */
+  person_links: { id: string; user_id: string; created_at: number };
+  /** A person in a link, at most one per book. */
+  person_link_parts: { link_id: string; user_id: string; book_id: string; person_id: string; created_at: number };
+  /** Two persons the user said are not the same, so nobody asks again; `a_id` < `b_id`. */
+  person_not_same: { user_id: string; a_book: string; a_id: string; b_book: string; b_id: string; created_at: number };
   users: {
     id: string;
     oidc_sub: string;
