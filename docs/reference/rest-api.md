@@ -64,3 +64,7 @@ The same privacy rules apply as everywhere else: a request sees what the token's
 ## Books
 
 `GET /books` lists the caller's books with their role and the members. `POST /books` makes one. Under `/books/{id}`: `PATCH` renames, `DELETE` deletes, `POST /leave` leaves, `GET` and `POST /invitations` list and make invitations, `DELETE /invitations/{invitationId}` revokes one, `PATCH` and `DELETE /members/{userId}` change a role or remove a member, and `POST /owner` hands the book over. What each role may do is the same as over MCP (`books`). `POST /people/{id}/move` with `{ "to": "<book>" }` moves someone, as `move` does, and answers the new id.
+
+## One person across books
+
+`POST /people/{id}/link` with `{ "with": "<id>" }` makes two people of your books one person for you, only after you said they are the same; nobody else sees the link ([ADR 0029](../adr/0029-person-links-belong-to-the-user.md)). It answers their `parts`, one per book. `DELETE /people/{id}/link` makes that row someone of their own again. `POST /people/{id}/not-same` with `{ "with": "<id>" }` keeps your "no", so nobody asks again. `GET /people/{id}/briefing` of any part is one briefing of all of them, each item with its `book`, and `sameAsAsk` names people of your other books who may be the same. A move answers `twin` when your link already has the person in the target book.
