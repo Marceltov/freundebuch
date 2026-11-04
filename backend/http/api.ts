@@ -534,6 +534,7 @@ const ROUTES: AnyOp[] = [
     return { status: 204, body: undefined };
   }),
 
+  // Reading it closes the viewer's follow-ups whose cause has changed (openFollowUps), so this GET can write.
   op({
     method: "GET",
     path: `${API_PREFIX}/due`,

@@ -10,6 +10,7 @@ import { partsOf, sameAs, type Part } from "../people/links";
 import { getGroup, listGroups, type GroupView } from "../people/groups";
 import { layOut, pickFaces, type OrbitFace } from "../people/orbit";
 import { compareDue, whatsDue, type DueItem } from "./due";
+import { openFollowUps } from "./followups";
 import { daysBetween, today } from "../people/dates";
 import { lastSeen } from "../people/intervals";
 import { listRambles, type RambleSummary } from "../conversations/rambles";
@@ -100,10 +101,15 @@ export async function orbitAcross(v: Viewer, groupId?: string, now = Date.now())
  * linked person) is left out of the later book, while two alike in one book both stay, as whatsDue gives them. */
 export async function dueAcross(v: Viewer, from = today(), horizonDays = 14): Promise<InBook<DueItem>[]> {
   const [items, keys] = await Promise.all([acrossBooks(v, (w) => whatsDue(w, from, horizonDays)), sameAs(v)]);
+  // A linked person with an open overdue follow-up in one book (whatsDue left it out there) isn't overdue in the others either.
+  const followed = new Set(
+    (await acrossBooks(v, (w) => openFollowUps(w))).flatMap((f) => (f.kind === "overdue" && keys.has(f.personId) ? [keys.get(f.personId)!] : [])),
+  );
   const firstIn = new Map<string, string>(); // an item about someone in several books → the book it was first seen in
   const once = items.filter((d) => {
     const who = keys.get(d.personId);
     if (!who || d.kind === "session") return true;
+    if (d.kind === "overdue" && followed.has(who)) return false;
     const key = `${who}|${d.kind}|${d.date ?? ""}|${d.text ?? ""}`;
     const seen = firstIn.get(key);
     if (seen === undefined) firstIn.set(key, d.book.id);

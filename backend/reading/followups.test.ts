@@ -127,15 +127,20 @@ test("addFollowUp twice keeps one open row", async () => {
   expect(third).not.toBe(first);
 });
 
-test("a merge keeps the follow-ups on the person kept; a move takes them with the person", async () => {
+test("a merge keeps the follow-ups on the person kept; a move carries them into the target book", async () => {
   const id = await addFollowUp(s.a, { kind: "overdue", personId: s.tom, day: "2026-10-30" });
   await closeAsContact(s.a, id);
   await mergePeople(s.a, s.anna, s.tom);
   expect(await lastSeen(s.a, s.anna)).toBe("2026-10-30");
 
   const w = await seedWorkBook(s);
-  await addFollowUp(s.a, { kind: "overdue", personId: s.lena, day: "2026-10-30" });
-  await movePeople(w.a, [s.lena], "Arbeit");
+  const lenaUs = await addFollowUp(s.a, { kind: "overdue", personId: s.lena, day: "2026-10-30" });
+  await closeAsContact(s.a, lenaUs);
+  const r = await movePeople(w.a, [s.lena], "Arbeit");
+  const lena = r.people[0].id;
   await expect(getPerson(s.a, s.lena)).rejects.toThrow(NotFoundError);
-  expect(await openFollowUps(w.a)).toEqual([]);
+  expect(r.moved).toMatchObject({ follow_ups: 1 });
+  // The plain contact arrived with her: last seen in the work book is still the ticked day, not the coffee before it.
+  expect(await lastSeen(w.work, lena)).toBe("2026-10-30");
+  expect(await openFollowUps(w.work)).toEqual([]);
 });

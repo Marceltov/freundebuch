@@ -18,6 +18,7 @@ import { createPerson } from "../people/people";
 import { setCheckInInterval } from "../people/intervals";
 import { today } from "../people/dates";
 import { recordConversation } from "../conversations/conversations";
+import { addFollowUp } from "./followups";
 
 beforeEach(resetDbForTests);
 
@@ -225,4 +226,19 @@ test("a linked person seen lately in one book isn't overdue from the other", asy
   expect(await overdueAnna()).toHaveLength(1);
   await linkPeople(a, [s.anna, met.people[0].id]);
   expect(await overdueAnna()).toEqual([]);
+});
+
+test("an open overdue follow-up for one part of a linked person keeps them from being overdue in the other book", async () => {
+  const s = await seed();
+  const { a, work, lena2 } = await seedWorkBook(s);
+  await setCheckInInterval(s.a, s.lena, 7, true);
+  await setCheckInInterval(work, lena2, 7, true);
+  await linkPeople(a, [s.lena, lena2]);
+  const isLena = (d: { kind: string; personId: string }) => d.kind === "overdue" && (d.personId === s.lena || d.personId === lena2);
+  const before = (await dueAcross(a, "2026-11-10")).filter(isLena);
+  expect(before).toHaveLength(1);
+  // The follow-up is in the book whose item was kept, so the other book's would come through without the link check.
+  const there = (await viewerIn(await instance(), a.userId, before[0].book.id))!;
+  await addFollowUp(there, { kind: "overdue", personId: before[0].personId, day: "2026-11-03" });
+  expect((await dueAcross(a, "2026-11-10")).filter(isLena)).toEqual([]);
 });
