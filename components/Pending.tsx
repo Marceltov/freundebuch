@@ -184,6 +184,7 @@ function PendingCard({ item, selected, onSelect, onDone }: { item: PendingFile; 
       />
       <FilePreview item={item} />
       <div className="min-w-0 flex-1 space-y-2">
+        {item.context?.source === "todoist" && <p className="text-xs text-muted">{copy.fromTodoist.replace("{task}", item.context.taskTitle)}</p>}
         {/* Kept only until it is filed, like every shared file; then only its transcript remains. */}
         {item.type.startsWith("audio/") && <audio controls preload="none" src={item.url} className="w-full" />}
         {item.status === "reading" && <p className="text-muted">{copy.pendingReading}</p>}

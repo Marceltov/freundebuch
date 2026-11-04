@@ -108,17 +108,36 @@ function kindOf(bytes: Uint8Array, sent: string): "pdf" | "text" | "image" | "au
 const isHeic = (bytes: Uint8Array, type: string) =>
   /^image\/hei[cf]/.test(type) || /^ftyp(heic|heix|hevc|mif1|msf1)$/.test(new TextDecoder().decode(bytes.subarray(4, 12)));
 
+/** Where a file came from when it didn't come straight from the user: a comment on one of freundebuch's Todoist tasks. */
+export type FileContext = {
+  source: "todoist";
+  /** The task's text as sent to Todoist. */
+  taskTitle: string;
+  kind: "date" | "promise" | "overdue" | "situation" | "session";
+  personId: string;
+  itemId: string | null;
+};
+
+/** The line the pre-read gets about a file's context. */
+const contextLine = (c: FileContext) => `This came as a comment on the Todoist task "${c.taskTitle}" (${c.kind}), about the person with id ${c.personId}.`;
+
 /** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`, which keeps its
  * batch, unless it comes with a new share: then it joins that). `type` is what it was sent as ("" when unknown); `batch` the id of the share it came in with (batchOf).
- * Reading it is queued (`queueRead`); the caller doesn't wait for it. */
+ * Reading it is queued (`queueRead`); the caller doesn't wait for it. `opts`: `createdAt` dates it (a Todoist comment by its
+ * posting, so sharedOn is the comment's day), `context` says where it came from, and `dedup: false` keeps it even when the same
+ * bytes wait already (the same comment on two tasks is two files, each with its task). */
 export async function shareFile(
   v: Viewer,
   bytes: Uint8Array,
   type = "",
   batch: string | null = null,
+  opts: { createdAt?: number; context?: FileContext; dedup?: boolean } = {},
 ): Promise<{ id: string; status: FileStatus; duplicate: boolean }> {
   if (bytes.byteLength === 0) throw new InvalidInputError("The file is empty");
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const id = newId();
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  // Not deduplicated: a hash of its own, as a retired one is, so the unique (user, hash) stays.
+  const sha256 = opts.dedup === false ? `${hash}:${id}` : hash;
   const d = await scope(v);
   const seen = await d.from("files").select(["id", "status"]).where("user_id", "=", v.userId).where("sha256", "=", sha256).executeTakeFirst();
   // An old pre-read that found "nothing" dropped its blob and filed nothing: sharing it again starts afresh. One the screenshot
@@ -173,7 +192,6 @@ export async function shareFile(
     if (!sniffed) throw new InvalidInputError(NOT_AUDIO);
     [stored, mediaType] = [bytes, sniffed];
   } else throw new InvalidInputError(NOT_TAKEN);
-  const id = newId();
   const key = `files/${id}.${EXT[mediaType]}`;
   await store().put(key, stored, mediaType);
   try {
@@ -184,10 +202,11 @@ export async function shareFile(
         sha256,
         status: "reading",
         reading: null,
-        created_at: now(),
+        created_at: opts.createdAt ?? now(),
         media_type: mediaType,
         blob_key: key,
         batch_id: batchOf(batch),
+        context: opts.context ? JSON.stringify(opts.context) : null,
       })
       .execute();
   } catch (e) {
@@ -292,7 +311,8 @@ export async function readFile(v: Viewer, id: string, model: FileModel, whisper:
     input = { bytes: new TextEncoder().encode(`A voice note, transcribed:\n\n${heard}`), type: "text/plain" };
   }
   const people = await knownPeople(d);
-  const read = await model.read({ ...input, people, today: day, language: await userLanguage(v) });
+  const context = row.context ? contextLine(JSON.parse(row.context) as FileContext) : undefined;
+  const read = await model.read({ ...input, people, today: day, language: await userLanguage(v), context });
   if ("error" in read) {
     await set("failed", heard ? { ...read, transcript: heard } : read);
     await push(v, (copy) => ({ title: copy.fileFailed, body: "", click }));
@@ -334,6 +354,8 @@ export type PendingFile = {
   error: string | null;
   /** The id of the share it came in with: files with the same one were shared together (null when shared alone). */
   batchId: string | null;
+  /** Where it came from when not straight from the user (a comment on a Todoist task), or null. */
+  context: FileContext | null;
 };
 
 /** The viewer's own files that wait for them, newest first; files shared together sit side by side, in the order they came,
@@ -374,6 +396,7 @@ export async function listPending(v: Viewer): Promise<PendingFile[]> {
       })),
       error: r.status === "failed" ? (read?.error ?? null) : null,
       batchId: r.batch_id,
+      context: r.context ? (JSON.parse(r.context) as FileContext) : null,
     };
   });
 }
@@ -391,7 +414,7 @@ export async function pendingCount(v: Viewer): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-export type ChatFile = { id: string; bytes: Uint8Array; type: string; summary: string | null; sharedOn: string };
+export type ChatFile = { id: string; bytes: Uint8Array; type: string; summary: string | null; sharedOn: string; context: FileContext | null };
 
 /** The viewer's own waiting files among `ids`, for a chat on them, in the order given, each with its content and suggestion.
  * Any other (someone else's, or gone: filed, closed or thrown away) is left out without a word. */
@@ -414,6 +437,7 @@ export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
     if (!row || !bytes) continue;
     const read = (row.reading ? JSON.parse(row.reading) : null) as { summary?: string; text?: string; transcript?: string } | null;
     const summary = read?.summary ?? read?.text ?? null;
+    const context = row.context ? (JSON.parse(row.context) as FileContext) : null;
     // Claude takes no audio: a voice note comes as its transcript, and not at all before it has one.
     if (isAudio(row.media_type)) {
       if (read?.transcript)
@@ -423,10 +447,11 @@ export async function chatFiles(v: Viewer, ids: string[]): Promise<ChatFile[]> {
           type: "text/plain",
           summary,
           sharedOn: today(row.created_at),
+          context,
         });
       continue;
     }
-    out.push({ id, bytes, type: row.media_type, summary, sharedOn: today(row.created_at) });
+    out.push({ id, bytes, type: row.media_type, summary, sharedOn: today(row.created_at), context });
   }
   return out;
 }

@@ -16,6 +16,7 @@ export const INSTANCE_TABLES = [
   "person_not_same",
   "todoist_connections",
   "todoist_tasks",
+  "todoist_notes",
 ] as const;
 export type InstanceTable = (typeof INSTANCE_TABLES)[number];
 export type BookTable = Exclude<keyof Schema, InstanceTable>;

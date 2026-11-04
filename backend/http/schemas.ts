@@ -1002,6 +1002,16 @@ export const PendingFileJson = z
       .describe("Who is in it: the person when certain, else candidates"),
     error: z.string().nullable().describe("Why the pre-read failed, when it did"),
     batchId: z.string().nullable().describe("The id of the share it came in with: files with the same one were shared together; null when shared alone"),
+    context: z
+      .object({
+        source: z.literal("todoist"),
+        taskTitle: z.string().describe("The Todoist task's text as freundebuch sent it"),
+        kind: z.enum(["date", "promise", "overdue", "situation", "session"]),
+        personId: z.string().describe("Who the task is about"),
+        itemId: z.string().nullable().describe("The date, promise, situation or series the task is for"),
+      })
+      .nullable()
+      .describe("Where it came from when not shared directly: a comment the user left on one of freundebuch's Todoist tasks; null otherwise"),
   })
   .meta({ id: "PendingFile" });
 export const PendingFileListJson = z.array(PendingFileJson.extend({})).meta({ id: "PendingFileList" });

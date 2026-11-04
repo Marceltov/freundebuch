@@ -15,7 +15,8 @@ export type SuggestedPerson = { name: string; personId?: string; candidates?: st
 export type Suggestion = { summary: string; transcript: string; people: SuggestedPerson[] };
 export type KnownPerson = { id: string; name: string; aliases: string[] };
 /** `language`: the sharing user's, which the summary and what a photo shows are written in. */
-export type FileInput = { bytes: Uint8Array; type: string; people: KnownPerson[]; today: string; language: Language };
+/** `context`: one line on where the file came from (a comment on a Todoist task), when it didn't come straight from the user. */
+export type FileInput = { bytes: Uint8Array; type: string; people: KnownPerson[]; today: string; language: Language; context?: string };
 
 export interface FileModel {
   /** The suggestion, or `error` (why not, as logged) when Claude couldn't be reached or gave no usable answer. */
@@ -66,7 +67,7 @@ export function anthropicFileModel(apiKey: string, model: string, deps: { client
   const client = deps.client ?? new Anthropic({ apiKey, maxRetries: 1, timeout: 120_000 });
   const log = deps.log ?? logger("file-model");
   return {
-    async read({ bytes, type, people, today, language }) {
+    async read({ bytes, type, people, today, language, context }) {
       const list = people.map((p) => `- ${p.id}: ${[p.name, ...p.aliases].join(" / ")}`).join("\n");
       let res: Anthropic.Message;
       try {
@@ -89,7 +90,7 @@ export function anthropicFileModel(apiKey: string, model: string, deps: { client
                 fileBlock(bytes, type),
                 {
                   type: "text",
-                  text: `Today is ${today}. The user's language is ${LANGUAGE_NAMES[language]}. The people in freundebuch (id: name / other names):\n${list || "(nobody yet)"}`,
+                  text: `${context ? `${context}\n` : ""}Today is ${today}. The user's language is ${LANGUAGE_NAMES[language]}. The people in freundebuch (id: name / other names):\n${list || "(nobody yet)"}`,
                 },
               ],
             },

@@ -348,6 +348,7 @@ export const en: Copy = {
   pendingHint: "What you shared waits here: screenshots, photos, PDFs, text files, voice notes. Go through them with Claude, then what is in them is filed.",
   pendingEmpty: "Nothing to review.",
   pendingCount: "{n} to review",
+  fromTodoist: "Comment on “{task}” in Todoist",
   pendingReading: "Reading …",
   pendingFailed: "Couldn't be read.",
   pendingNotTranscribed: "Couldn't be transcribed.",

@@ -35,3 +35,8 @@ Chosen option: each user connects their own Todoist with a personal API token an
 * Bad, because a tick takes up to five minutes to arrive, except before `whats_due` and a briefing.
 * Bad, because the token is a full-access personal token in plaintext in the database, like the webhook URL: whoever can read the database can act as the user in Todoist.
 * Bad, because the MCP output of `whats_due` and `briefing` changed: open claude.ai chats need a new chat.
+
+### Comments (added with #130)
+
+The same sync also reads the comments (notes) on freundebuch's tasks. Each comment the account's own user wrote becomes a file in Prüfen, as if shared, dated by its posting and carrying its task; Claude proposes what it means and the user decides. Reading them per task (one request per open task every run) and leaving them to the Todoist connector in a chat (no Whisper, nothing waits) were set aside. A comment never ticks a task by itself (V5); filing it settles the item, and the task then closes as before. Attachments are fetched with the token from Todoist and then, without it, from the signed address Todoist redirects to.
+

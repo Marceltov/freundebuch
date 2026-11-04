@@ -17,6 +17,7 @@ const file = (over: Partial<PendingFile>): PendingFile => ({
   people: [{ name: "Patrick", person: null, candidates: [] }],
   error: null,
   batchId: null,
+  context: null,
   ...over,
 });
 
@@ -53,4 +54,11 @@ test("the file a link opens Prüfen on: its id from #id, nothing from a broken o
   expect(idOfHash("#abc123")).toBe("abc123");
   expect(idOfHash("#%")).toBe("");
   expect(idOfHash("")).toBe("");
+});
+
+test("a comment from Todoist says which task it came from", () => {
+  const context = { source: "todoist" as const, taskTitle: "Frag Anna nach der Haussuche", kind: "situation" as const, personId: "p1", itemId: null };
+  const html = renderToStaticMarkup(<PendingList items={[file({ type: "text/plain", context })]} />);
+  expect(html).toContain("Kommentar zu „Frag Anna nach der Haussuche“ in Todoist");
+  expect(renderToStaticMarkup(<PendingList items={[file({})]} />)).not.toContain("in Todoist");
 });

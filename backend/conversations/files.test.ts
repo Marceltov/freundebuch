@@ -11,6 +11,7 @@ import { putSettings } from "../core/settings";
 import type { FileInput, FileModel, Suggestion } from "./file-model";
 import { setTranscriberForTests, type Transcriber } from "./transcribe";
 import {
+  type FileContext,
   chatFiles,
   NO_AUDIO,
   NOT_AUDIO,
@@ -121,6 +122,7 @@ test("an image is shrunk to 1080 px WebP and pre-read into a suggestion that wai
       people: [{ name: "Anna", person: { id: s.anna, name: "Anna", url: `/p/${s.anna}` }, candidates: [] }],
       error: null,
       batchId: null,
+      context: null,
     },
   ]);
   expect(sent).toEqual([
@@ -483,4 +485,43 @@ test("the inbox is the user's: it lists and closes files of every book at once",
   expect(((listed.files ?? []) as { id: string }[]).map((x) => x.id).sort()).toEqual([one.id, two.id].sort());
   await toolByName("inbox")!.run(w.a, { action: "done", ids: [one.id, two.id] });
   expect(await listPending(w.a)).toEqual([]);
+});
+
+const fromTodoist: FileContext = { source: "todoist", taskTitle: "Frag Anna nach der Haussuche", kind: "situation", personId: "", itemId: null };
+
+test("a file shared with createdAt is dated by that day, not by today", async () => {
+  // 23:30 in Berlin on 3 November is 22:30 UTC: still the 3rd.
+  const at = Date.parse("2026-11-03T22:30:00Z");
+  await shareFile(s.a, new TextEncoder().encode("Hab Anna angerufen"), "text/plain", null, { createdAt: at });
+  expect((await listPending(s.a))[0]).toMatchObject({ createdAt: at, sharedOn: "2026-11-03" });
+});
+
+test("a file's task context is kept and listed", async () => {
+  const context = { ...fromTodoist, personId: s.anna };
+  const shot = await shareFile(s.a, new TextEncoder().encode("Sie haben ein Haus"), "text/plain", null, { context });
+  expect((await listPending(s.a))[0].context).toEqual(context);
+  expect((await chatFiles(s.a, [shot.id]))[0].context).toEqual(context);
+});
+
+test("dedup false keeps two files of the same bytes, each with its own context", async () => {
+  const bytes = new TextEncoder().encode("Angerufen, nicht erreicht");
+  const one = await shareFile(s.a, bytes, "text/plain", null, { dedup: false, context: { ...fromTodoist, taskTitle: "A" } });
+  const two = await shareFile(s.a, bytes, "text/plain", null, { dedup: false, context: { ...fromTodoist, taskTitle: "B" } });
+  expect(two.id).not.toBe(one.id);
+  expect((await listPending(s.a)).map((f) => f.context?.taskTitle).sort()).toEqual(["A", "B"]);
+  // Without the option the same bytes shared twice still come back as the first file.
+  const plain = new TextEncoder().encode("Einfach geteilt");
+  await shareFile(s.a, plain, "text/plain");
+  expect((await shareFile(s.a, plain, "text/plain")).duplicate).toBe(true);
+});
+
+test("the pre-read is told which task a comment belongs to", async () => {
+  const shot = await shareFile(s.a, new TextEncoder().encode("Sie haben eins in Pasing"), "text/plain", null, {
+    context: { ...fromTodoist, personId: s.anna },
+  });
+  const model = answering(suggestion([{ name: "Anna", personId: s.anna }]));
+  await readFile(s.a, shot.id, model);
+  expect(model.seen[0].context).toBe(
+    `This came as a comment on the Todoist task "Frag Anna nach der Haussuche" (situation), about the person with id ${s.anna}.`,
+  );
 });

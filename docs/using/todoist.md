@@ -40,3 +40,11 @@ A tick never files anything by itself. A follow-up is only a question waiting fo
 A situation's follow-up closes only with a new check date you agree to, or when the situation is marked over; if nothing came up, Claude suggests a new check date.
 
 Renaming, moving or deleting a task in Todoist changes nothing in freundebuch.
+
+## Comments
+
+A comment you leave on one of freundebuch's tasks in Todoist (a line of text, a photo, a voice message) comes into **Prüfen**, with the next sync, as if you had shared it: the voice message transcribed by your own Whisper, the photo read like a screenshot. It is dated by the day you wrote the comment and says which task it belongs to ("Kommentar zu „…“ in Todoist"). Each comment stands on its own (its text and its voice message together); Claude may offer to go through several at once when they belong together.
+
+When Claude works it through with you, it proposes what the comment means: you were in touch or there is news, so it is filed and that settles the task (which then closes in Todoist); it is only a note, so that is filed and the task stays open; or nothing came of it, so the file is closed. A comment alone never ticks a task or files anything, and freundebuch writes nothing back to Todoist.
+
+Only your own comments count: in a shared Todoist project, a collaborator's comment is left alone. Comments you wrote before this came in were read once, when it was first switched on. Without an Anthropic API key (no pre-read), comments wait in Todoist until one is set.

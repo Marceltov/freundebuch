@@ -6610,6 +6610,55 @@
               "string",
               "null"
             ]
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "todoist"
+                  },
+                  "taskTitle": {
+                    "type": "string",
+                    "description": "The Todoist task's text as freundebuch sent it"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "date",
+                      "promise",
+                      "overdue",
+                      "situation",
+                      "session"
+                    ]
+                  },
+                  "personId": {
+                    "type": "string",
+                    "description": "Who the task is about"
+                  },
+                  "itemId": {
+                    "description": "The date, promise, situation or series the task is for",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "source",
+                  "taskTitle",
+                  "kind",
+                  "personId",
+                  "itemId"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it came from when not shared directly: a comment the user left on one of freundebuch's Todoist tasks; null otherwise"
           }
         },
         "required": [
@@ -6623,7 +6672,8 @@
           "transcript",
           "people",
           "error",
-          "batchId"
+          "batchId",
+          "context"
         ]
       },
       "PendingFileList": {
@@ -6757,6 +6807,55 @@
                 "string",
                 "null"
               ]
+            },
+            "context": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "const": "todoist"
+                    },
+                    "taskTitle": {
+                      "type": "string",
+                      "description": "The Todoist task's text as freundebuch sent it"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "date",
+                        "promise",
+                        "overdue",
+                        "situation",
+                        "session"
+                      ]
+                    },
+                    "personId": {
+                      "type": "string",
+                      "description": "Who the task is about"
+                    },
+                    "itemId": {
+                      "description": "The date, promise, situation or series the task is for",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "taskTitle",
+                    "kind",
+                    "personId",
+                    "itemId"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where it came from when not shared directly: a comment the user left on one of freundebuch's Todoist tasks; null otherwise"
             }
           },
           "required": [
@@ -6770,7 +6869,8 @@
             "transcript",
             "people",
             "error",
-            "batchId"
+            "batchId",
+            "context"
           ]
         }
       },
