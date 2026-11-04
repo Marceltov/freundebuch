@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarPlus, Check, Download, KeyRound, Languages, Send, Trash2 } from "lucide-react";
+import { Bell, CalendarPlus, Check, Download, Inbox, KeyRound, Languages, Send, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Delivery, Kinds, Language, TodoistStatus } from "@/backend";
@@ -568,7 +568,7 @@ export function DeliverySettings({ delivery, hasWebhook, todoistUsable }: { deli
   return (
     <fieldset className="space-y-1 text-sm">
       <legend className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
-        <Bell aria-hidden className="h-4 w-4" />
+        <Inbox aria-hidden className="h-4 w-4" />
         {copy.deliveryTitle}
       </legend>
       {options.map((o) => {
