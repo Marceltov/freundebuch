@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { dueAcross, getPerson, groupsAcross, hasRecorded, mcpResource, orbitAcross } from "@/backend";
+import { acrossBooks, dueAcross, getPerson, groupsAcross, hasRecorded, mcpResource, openFollowUps, orbitAcross } from "@/backend";
 import { getCopy } from "@/components/serverCopy";
 import { CopyField } from "@/components/CopyButton";
 import { GroupFilter } from "@/components/GroupFilter";
@@ -68,7 +68,10 @@ export default async function OrbitPage({ searchParams }: PageProps<"/">) {
           </ul>
         </section>
       )}
-      <Nudges items={withBookName(dueItems, v.books.length > 1).filter((i) => i.kind === "situation")} />
+      <Nudges
+        items={withBookName(dueItems, v.books.length > 1).filter((i) => i.kind === "situation")}
+        followUps={withBookName(await acrossBooks(v, openFollowUps), v.books.length > 1)}
+      />
     </>
   );
 }

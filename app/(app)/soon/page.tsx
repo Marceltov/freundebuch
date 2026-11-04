@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Cake, CalendarDays, HandHeart, Handshake } from "lucide-react";
-import { daysBetween, dueAcross, today } from "@/backend";
+import { acrossBooks, daysBetween, dueAcross, openFollowUps, today } from "@/backend";
 import type { Copy } from "@/components/copy";
 import { getCopy } from "@/components/serverCopy";
 import { DoneButton } from "@/components/DoneButton";
@@ -111,7 +111,7 @@ export default async function SoonPage() {
         </Section>
       )}
 
-      <Nudges items={situations} />
+      <Nudges items={situations} followUps={withBookName(await acrossBooks(v, openFollowUps), v.books.length > 1)} />
     </div>
   );
 }

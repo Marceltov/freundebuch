@@ -2,8 +2,8 @@
 
 import { Bell, CalendarPlus, Check, Download, KeyRound, Languages, Send, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import type { Language } from "@/backend";
+import { useEffect, useState } from "react";
+import type { Delivery, Kinds, Language, TodoistStatus } from "@/backend";
 import { CopyField } from "@/components/CopyButton";
 import { useCopy, useLanguage } from "@/components/i18n";
 
@@ -326,6 +326,236 @@ export function ReflectionSettings({ reflection, hasWebhook }: { reflection: { d
           {status?.text}
         </span>
       </div>
+    </div>
+  );
+}
+
+type Project = { id: string; name: string };
+const KIND_ORDER = ["birthday", "anniversary", "date", "promise"] as const;
+const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+// Todoist: the token (PUT /api/v1/me/todoist, never shown again), the project, per kind the days ahead and where the date goes
+// (PUT /me/todoist/kinds), and how reminders arrive (PUT /me/settings). The server falls back to the push when Todoist is not usable;
+// this says so.
+export function TodoistSettings({
+  status,
+  delivery,
+  hasWebhook,
+  projects: initialProjects,
+}: {
+  status: TodoistStatus;
+  delivery: Delivery;
+  hasWebhook: boolean;
+  projects?: Project[];
+}) {
+  const copy = useCopy();
+  const router = useRouter();
+  const [token, setToken] = useState("");
+  const [projects, setProjects] = useState<Project[] | null>(initialProjects ?? null);
+  const [choice, setChoice] = useState("");
+  const [kinds, setKinds] = useState<Kinds | null>(status.connected ? status.kinds : null);
+  const [mode, setMode] = useState(delivery);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const needsProject = status.connected && !status.projectId;
+  const usable = status.connected && !!status.projectId && !status.broken;
+  const picking = status.connected && !status.broken && (needsProject || projects !== null);
+
+  useEffect(() => {
+    if (!needsProject || projects) return;
+    fetch("/api/v1/me/todoist/projects")
+      .then((r) => (r.ok ? (r.json() as Promise<Project[]>) : null))
+      .then((p) => p && setProjects(p))
+      .catch(() => {});
+  }, [needsProject, projects]);
+
+  const run = async (f: () => Promise<boolean>) => {
+    setBusy(true);
+    const ok = await f();
+    setBusy(false);
+    return ok;
+  };
+  const report = (res: Response | null, refused?: string) =>
+    setMessage(
+      res?.ok
+        ? { ok: true, text: copy.saved }
+        : { ok: false, text: res?.status === 400 && refused ? refused : res?.status === 502 ? copy.todoistUnreachable : copy.actionFailed },
+    );
+
+  const connect = () =>
+    run(async () => {
+      const res = await fetch("/api/v1/me/todoist", json("PUT", { token: token.trim() })).catch(() => null);
+      report(res, copy.todoistTokenRefused);
+      if (!res?.ok) return false;
+      setToken("");
+      setProjects((await res.json()) as Project[]);
+      router.refresh();
+      return true;
+    });
+  const chooseProject = () =>
+    run(async () => {
+      const res = await fetch("/api/v1/me/todoist/project", json("PUT", { projectId: choice || projects?.[0]?.id })).catch(() => null);
+      report(res);
+      if (res?.ok) {
+        setProjects(null);
+        router.refresh();
+      }
+      return !!res?.ok;
+    });
+  const saveKind = async (kind: keyof Kinds, change: Partial<Kinds[keyof Kinds]>) => {
+    if (!kinds) return;
+    const next = { ...kinds, [kind]: { ...kinds[kind], ...change } };
+    setKinds(next);
+    report(await fetch("/api/v1/me/todoist/kinds", json("PUT", { [kind]: next[kind] })).catch(() => null));
+  };
+  const disconnect = () =>
+    run(async () => {
+      const res = await fetch("/api/v1/me/todoist", { method: "DELETE" }).catch(() => null);
+      report(res);
+      if (res?.ok) router.refresh();
+      return !!res?.ok;
+    });
+  const chooseDelivery = async (next: Delivery) => {
+    setMode(next);
+    report(await fetch("/api/v1/me/settings", json("PUT", { delivery: next })).catch(() => null));
+  };
+  const loadProjects = async () => {
+    const res = await fetch("/api/v1/me/todoist/projects").catch(() => null);
+    if (res?.ok) setProjects((await res.json()) as Project[]);
+    else report(res);
+  };
+
+  const field = "rounded-xl border border-rule bg-surface-2 px-3 py-2 text-sm focus:border-carbon focus:outline-none";
+  const button = "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold disabled:opacity-50";
+  const tokenForm = (label: string) => (
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        connect();
+      }}
+    >
+      <label className="sr-only" htmlFor="todoist-token">
+        {copy.todoistToken}
+      </label>
+      <input
+        id="todoist-token"
+        type="password"
+        autoComplete="off"
+        value={token}
+        onChange={(e) => setToken(e.target.value)}
+        placeholder={copy.todoistToken}
+        className={`${field} min-w-0 flex-1`}
+      />
+      <button type="submit" disabled={busy || !token.trim()} className={`${button} bg-carbon text-on-carbon`}>
+        <Check aria-hidden className="h-4 w-4" />
+        {label}
+      </button>
+    </form>
+  );
+
+  const options: { value: Delivery; label: string }[] = [
+    { value: "push", label: copy.deliveryPush },
+    { value: "todoist", label: copy.deliveryTodoist },
+    { value: "both", label: copy.deliveryBoth },
+  ];
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-muted">{copy.todoistHint}</p>
+      {!status.connected && tokenForm(copy.todoistConnect)}
+      {status.connected && status.broken && (
+        <div className="space-y-2">
+          <p role="alert" className="text-error">
+            {copy.todoistBroken}
+          </p>
+          {tokenForm(copy.todoistReconnect)}
+        </div>
+      )}
+      {usable && <p>{copy.todoistConnectedTo.replace("{project}", status.projectName ?? "")}</p>}
+      {picking && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="todoist-project" className="font-bold">
+            {copy.todoistChooseProject}
+          </label>
+          <select id="todoist-project" value={choice || projects?.[0]?.id || ""} onChange={(e) => setChoice(e.target.value)} className={field}>
+            {(projects ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button type="button" disabled={busy || !projects?.length} onClick={chooseProject} className={`${button} bg-carbon text-on-carbon`}>
+            <Check aria-hidden className="h-4 w-4" />
+            {copy.save}
+          </button>
+        </div>
+      )}
+      {usable && !picking && (
+        <button type="button" onClick={loadProjects} className={`${button} bg-surface-2`}>
+          {copy.todoistChangeProject}
+        </button>
+      )}
+      {usable && kinds && (
+        <ul className="space-y-2">
+          {KIND_ORDER.map((k) => (
+            <li key={k} className="flex flex-wrap items-center gap-2">
+              <span className="w-32 font-bold">{copy.todoistKinds[k]}</span>
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={kinds[k].leadDays}
+                  onChange={(e) => saveKind(k, { leadDays: Math.min(60, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+                  className={`${field} w-20`}
+                />
+                {copy.todoistDaysAhead}
+              </label>
+              <label className="sr-only" htmlFor={`placement-${k}`}>
+                {copy.todoistPlacement}
+              </label>
+              <select
+                id={`placement-${k}`}
+                value={kinds[k].placement}
+                onChange={(e) => saveKind(k, { placement: e.target.value as "due" | "deadline" })}
+                className={field}
+              >
+                <option value="due">{copy.todoistAsDue}</option>
+                <option value="deadline">{copy.todoistAsDeadline}</option>
+              </select>
+            </li>
+          ))}
+        </ul>
+      )}
+      {status.connected && (
+        <button type="button" disabled={busy} onClick={disconnect} className={`${button} bg-surface-2`}>
+          <Trash2 aria-hidden className="h-4 w-4" />
+          {copy.todoistDisconnect}
+        </button>
+      )}
+      <fieldset className="space-y-1 pt-2">
+        <legend className="font-bold">{copy.deliveryTitle}</legend>
+        {options.map((o) => {
+          const off = o.value === "push" && !hasWebhook;
+          return (
+            <label key={o.value} className={`flex items-center gap-2 ${off ? "text-muted" : ""}`}>
+              <input type="radio" name="delivery" value={o.value} checked={mode === o.value} disabled={off} onChange={() => chooseDelivery(o.value)} />
+              {o.label}
+            </label>
+          );
+        })}
+        {!hasWebhook && <p className="text-muted">{copy.deliveryNeedsWebhook}</p>}
+        {mode !== "push" && !usable && (
+          <p data-testid="delivery-fallback" className="text-muted">
+            {copy.deliveryFallback}
+          </p>
+        )}
+      </fieldset>
+      <p role="status" className={message?.ok === false ? "text-error" : "text-muted"}>
+        {message?.text}
+      </p>
     </div>
   );
 }

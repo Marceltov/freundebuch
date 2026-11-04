@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { MessageCircleQuestionMark } from "lucide-react";
-import type { DueItem } from "@/backend";
+import type { DueItem, FollowUp } from "@/backend";
 import { getCopy } from "@/components/serverCopy";
 import { Face } from "@/components/Face";
 import { Section } from "@/components/Tiles";
 import { BookMark } from "@/components/BookMark";
+import { longDay } from "@/components/format";
 
 // Situations nobody has heard about for a while: "Frag mal nach", each with the person and what was going on, linking to the
 // situation on their page, and its book when given. Only what whatsDue gave the viewer, so the partner's private situations never show.
-export function Nudges({ items }: { items: (DueItem & { bookName?: string })[] }) {
+// Below them the viewer's own open follow-ups (ticked in Todoist, not told yet), each linking to the person: closing happens through Claude.
+export function Nudges({ items, followUps = [] }: { items: (DueItem & { bookName?: string })[]; followUps?: (FollowUp & { bookName?: string })[] }) {
   const copy = getCopy();
-  if (!items.length) return null;
+  if (!items.length && !followUps.length) return null;
   return (
     <Section title={copy.askAbout} icon={MessageCircleQuestionMark} plain>
       <ul className="space-y-2">
@@ -20,6 +22,15 @@ export function Nudges({ items }: { items: (DueItem & { bookName?: string })[] }
               <Face id={s.personId} name={s.name} size={40} />
               <span className="min-w-0 flex-1">{copy.askAboutWhat.replace("{name}", s.name).replace("{text}", s.text ?? "")}</span>
               {s.bookName && <BookMark name={s.bookName} />}
+            </Link>
+          </li>
+        ))}
+        {followUps.map((f) => (
+          <li key={f.id}>
+            <Link href={f.url} className="flex items-center gap-3 rounded-2xl bg-surface p-3 shadow-card">
+              <Face id={f.personId} name={f.name} size={40} />
+              <span className="min-w-0 flex-1">{copy.followUpLine.replace("{name}", f.name).replace("{day}", longDay(copy, f.day))}</span>
+              {f.bookName && <BookMark name={f.bookName} />}
             </Link>
           </li>
         ))}
