@@ -51,6 +51,7 @@ const fetchFn = (async (url: string, init: RequestInit) => {
     Object.assign(t, { checked: true, changed: ++clock });
     return new Response(null, { status: 204 });
   }
+  if (path === "/user") return Response.json({ id: `u-${token}` });
   if (path === "/sync") {
     const since = new URLSearchParams(init.body as string).get("sync_token");
     const after = since === "*" ? 0 : Number(since);

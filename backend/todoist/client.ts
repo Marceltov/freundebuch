@@ -134,6 +134,12 @@ export function todoist(token: string, fetchFn: typeof fetch = fetch) {
       };
     },
 
+    /** The account's own user id (for a full sync that came without it). */
+    async userId(): Promise<string | null> {
+      const res = (await call("/user", { method: "GET" })) as { id?: string } | null;
+      return res?.id ? String(res.id) : null;
+    },
+
     /** A comment's file: its URL answers, with the token, with a redirect to a signed https address, fetched without the token.
      * Only for https addresses on todoist.com; neither URL is logged. Refuses more than `max` bytes. */
     async download(url: string, max: number): Promise<{ bytes: Uint8Array; type: string }> {
@@ -160,8 +166,26 @@ export function todoist(token: string, fetchFn: typeof fetch = fetch) {
         throw new TodoistError(`Todoist answered ${res.status}`, res.status);
       }
       if (Number(res.headers.get("content-length") ?? 0) > max) throw new TodoistError("The file is too large");
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      if (bytes.byteLength > max) throw new TodoistError("The file is too large");
+      // Read with a cap: an answer without a length can't run past `max` in memory.
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      const reader = res.body?.getReader();
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > max) {
+          await reader.cancel();
+          throw new TodoistError("The file is too large");
+        }
+        chunks.push(value);
+      }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const c of chunks) {
+        bytes.set(c, offset);
+        offset += c.byteLength;
+      }
       return { bytes, type: (res.headers.get("content-type") ?? "").split(";")[0].trim() };
     },
   };

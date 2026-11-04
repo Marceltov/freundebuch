@@ -98,7 +98,7 @@ async function pull(all: Viewer, conn: Connection, now: number, fetchFn: typeof 
   let uid = conn.todoist_user_id;
   if (!conn.notes_backfilled || !uid) {
     const full = await todoist(token, fetchFn).sync(null);
-    uid = full.userId;
+    uid = full.userId ?? (await todoist(token, fetchFn).userId());
     if (uid) await takeComments(all, token, full.notes, uid, fetchFn);
     await i
       .update("todoist_connections")
