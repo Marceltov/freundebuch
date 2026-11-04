@@ -27,8 +27,9 @@ export type Moved = {
 };
 
 const ITEM_TABLES = ["facts", "promises", "dates", "exchanges"] as const;
-// What keeps a person in the source book: anything filed about them. Their other names, settings and card follow the person.
-const FOLLOWS_PERSON = new Set<string>(["aliases", "person_settings", "card_subscriptions"]);
+// What keeps a person in the source book: anything filed about them. Their other names, settings and card follow the person; a
+// follow-up of a ticked task (followups.ts) is filed nowhere: the mover's come along, any other goes with the entry.
+const FOLLOWS_PERSON = new Set<string>(["aliases", "person_settings", "card_subscriptions", "follow_ups"]);
 
 /** Moves people (by id, or a group's members) into the book `to`, in one transaction. */
 export async function movePeople(v: Viewer, people: string[] | { group: string }, to: string): Promise<Moved> {
@@ -354,7 +355,31 @@ async function move(from: Scope, into: Scope, ids: string[]): Promise<Omit<Moved
         .where("id", "=", map.get(p.id)!)
         .execute();
 
+  // The mover's follow-ups come along, so their plain contacts keep counting for last seen there; a situation that stayed behind
+  // has ended for them.
+  const followUps = await visible(from.from("follow_ups").selectAll().where("person_id", "in", ids), v, "follow_ups").execute();
+  for (const f of followUps)
+    await into
+      .insert("follow_ups", {
+        ...unbooked(f),
+        id: newId(),
+        person_id: map.get(f.person_id)!,
+        fact_id: f.fact_id ? (map.get(f.fact_id) ?? null) : null,
+        series_id: f.series_id && series.has(f.series_id) ? await series.get(f.series_id)! : null,
+      })
+      .execute();
+  count("follow_ups", followUps.length);
+
   // ---- what leaves the source book ----------------------------------------------------------------------------------------
+  if (followUps.length)
+    await from
+      .delete("follow_ups")
+      .where(
+        "id",
+        "in",
+        followUps.map((f) => f.id),
+      )
+      .execute();
   for (const table of ITEM_TABLES) if (movedItems[table].length) await from.delete(table).where("id", "in", movedItems[table]).execute();
   if (movedRels.length) await from.delete("relationships").where("id", "in", movedRels).execute();
   await visible(from.delete("group_members").where("person_id", "in", ids), v, "group_members").execute();

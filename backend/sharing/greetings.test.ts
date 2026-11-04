@@ -1,10 +1,11 @@
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { recordConversation } from "../conversations/conversations";
 import { birthdayMessage, sendLinks } from "./greetings";
 import { toolByName } from "../mcp/tools";
 import { seed, type Seed } from "../testing/fixtures";
 
 let s: Seed;
+afterEach(() => vi.useRealTimers());
 beforeEach(async () => {
   s = await seed();
   await recordConversation(s.a, {
@@ -42,6 +43,8 @@ test("with the final text, links that only fill it in", async () => {
 });
 
 test("the tool says to draft, and with no birthday filed, to ask for it first", async () => {
+  // Before Anna's birthday (3 November), so she is still about to turn 40.
+  vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-10-25T12:00:00Z") });
   const tool = toolByName("birthday_message")!;
   const drafting = (await tool.run(s.a, { personId: s.anna })) as { next: string[] };
   expect(drafting.next[0]).toMatch(/^Draft a short birthday message from the user to Anna, .* who turns 40/);

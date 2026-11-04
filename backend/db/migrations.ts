@@ -473,6 +473,63 @@ const migrations: Record<string, Migration> = {
         .execute();
     },
   },
+  "006_todoist": {
+    // A ticked Todoist task becomes a follow-up in the book: private to who ticked it, open until what it is about changes (for
+    // someone overdue: last seen moves past `last_seen`, the one the task was made from) or it is closed as a plain contact
+    // (`contact`). The connection and the tasks made from due items are instance tables, one user's each; how a user's nudges are
+    // delivered joins their settings.
+    async up(db: Kysely<any>) {
+      await keyed(bookTable(db, "follow_ups"), "follow_ups")
+        .addColumn("kind", "text", (c) => c.notNull().check(oneOf("kind", ["overdue", "situation", "session"])))
+        .$call((t) => ref(t, "follow_ups", "person_id", "persons", "cascade", true))
+        .addColumn("fact_id", "text")
+        .addColumn("series_id", "text")
+        .addColumn("session_day", "text")
+        .addColumn("day", "text", (c) => c.notNull())
+        .addColumn("last_seen", "text")
+        .addColumn("contact", "integer", (c) => c.notNull().defaultTo(0))
+        .addColumn("closed_at", "bigint")
+        .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))
+        .addColumn("recorded_by", "text", (c) => c.notNull().references("users.id"))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      await db.schema.createIndex("follow_ups_by_person").on("follow_ups").columns(["book_id", "person_id"]).execute();
+      await db.schema
+        .createTable("todoist_connections")
+        .addColumn("user_id", "text", (c) => c.primaryKey().references("users.id").onDelete("cascade"))
+        .addColumn("token", "text", (c) => c.notNull())
+        .addColumn("project_id", "text")
+        .addColumn("project_name", "text")
+        .addColumn("sync_token", "text")
+        .addColumn("kinds", "text", (c) => c.notNull().defaultTo("{}").check(jsonOrNull("kinds")))
+        .addColumn("broken", "integer", (c) => c.notNull().defaultTo(0))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .execute();
+      await db.schema
+        .createTable("todoist_tasks")
+        .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))
+        .addColumn("key", "text", (c) => c.notNull())
+        .addColumn("task_id", "text", (c) => c.notNull())
+        .addColumn("book_id", "text", (c) => c.notNull().references("books.id").onDelete("cascade"))
+        .addColumn("kind", "text", (c) => c.notNull().check(oneOf("kind", ["date", "promise", "overdue", "situation", "session"])))
+        .addColumn("item_id", "text")
+        .addColumn("person_id", "text", (c) => c.notNull())
+        .addColumn("day", "text", (c) => c.notNull())
+        .addColumn("state", "text", (c) => c.notNull().check(oneOf("state", ["open", "ticked", "closed", "gone"])))
+        .addColumn("created_at", "bigint", (c) => c.notNull())
+        .addPrimaryKeyConstraint("todoist_tasks_pk", ["user_id", "key"])
+        .execute();
+      await db.schema
+        .alterTable("user_settings")
+        .addColumn("delivery", "text", (c) =>
+          c
+            .notNull()
+            .defaultTo("push")
+            .check(oneOf("delivery", ["push", "todoist", "both"])),
+        )
+        .execute();
+    },
+  },
 };
 
 /** The migrations themselves, for the Postgres compile test. */

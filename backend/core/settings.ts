@@ -6,11 +6,15 @@ import { notifyCopy } from "../notify/copy";
 import { LANGUAGES, type Language, type Viewer } from "./types";
 
 /** `language`: what the app and the notifications speak to this user. */
-export type Settings = { webhookUrl: string | null; language: Language };
+export type Settings = { webhookUrl: string | null; language: Language; delivery: Delivery };
+
+/** Where the daily reminders go: the webhook push, Todoist tasks, or both. */
+export type Delivery = "push" | "todoist" | "both";
+export const DELIVERIES: readonly Delivery[] = ["push", "todoist", "both"];
 
 export async function getSettings(v: Viewer): Promise<Settings> {
-  const row = await (await scope(v)).instance.from("user_settings").select("webhook_url").where("user_id", "=", v.userId).executeTakeFirst();
-  return { webhookUrl: row?.webhook_url ?? null, language: await userLanguage(v) };
+  const row = await (await scope(v)).instance.from("user_settings").select(["webhook_url", "delivery"]).where("user_id", "=", v.userId).executeTakeFirst();
+  return { webhookUrl: row?.webhook_url ?? null, language: await userLanguage(v), delivery: row?.delivery ?? "push" };
 }
 
 /** The language the viewer sees the app in; German when they never chose. */
@@ -30,9 +34,11 @@ export async function setLanguage(v: Viewer, language: string): Promise<void> {
     .execute();
 }
 
-export async function putSettings(v: Viewer, s: { webhookUrl: string | null }): Promise<void> {
-  let url = s.webhookUrl?.trim() || null;
-  if (url !== null) {
+/** Changes what is given: a missing `webhookUrl` leaves the stored webhook as it is, null clears it; a missing `delivery` likewise. */
+export async function putSettings(v: Viewer, s: { webhookUrl?: string | null; delivery?: Delivery }): Promise<void> {
+  if (s.delivery !== undefined && !DELIVERIES.includes(s.delivery)) throw new InvalidInputError(`delivery must be one of ${DELIVERIES.join(", ")}`);
+  let url: string | null | undefined = s.webhookUrl === undefined ? undefined : s.webhookUrl?.trim() || null;
+  if (url) {
     let parsed: URL;
     try {
       parsed = new URL(url);
@@ -42,11 +48,13 @@ export async function putSettings(v: Viewer, s: { webhookUrl: string | null }): 
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new InvalidInputError("webhookUrl must be an http or https URL");
     url = parsed.href;
   }
+  const change = { ...(url !== undefined ? { webhook_url: url } : {}), ...(s.delivery !== undefined ? { delivery: s.delivery } : {}) };
+  if (!Object.keys(change).length) return;
   await (
     await scope(v)
   ).instance
-    .insert("user_settings", { user_id: v.userId, webhook_url: url })
-    .onConflict((oc) => oc.column("user_id").doUpdateSet({ webhook_url: url }))
+    .insert("user_settings", { user_id: v.userId, ...change })
+    .onConflict((oc) => oc.column("user_id").doUpdateSet(change))
     .execute();
 }
 

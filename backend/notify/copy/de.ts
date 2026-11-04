@@ -14,6 +14,8 @@ export const de = {
   inBook: "{book} · {title}",
   today: "heute",
   tomorrow: "morgen",
+  /** A date further off than tomorrow, as a Todoist task names it ({day}: dayMonth). */
+  onDay: "am {day}",
   dayMonth: "{d}.{m}.",
   anniversary: "Jahrestag",
   testTitle: "🔔 freundebuch-Test",

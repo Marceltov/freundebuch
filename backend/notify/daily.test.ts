@@ -262,14 +262,14 @@ describe("runDailyIfDue (the scheduler's tick)", () => {
 
 describe("settings", () => {
   test("round-trips, rejects other schemes, and clears with null", async () => {
-    expect(await getSettings(s.a)).toEqual({ webhookUrl: null, language: "de" });
+    expect(await getSettings(s.a)).toEqual({ webhookUrl: null, language: "de", delivery: "push" });
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
-    expect(await getSettings(s.a)).toEqual({ webhookUrl: "https://ntfy.example/a", language: "de" });
-    expect(await getSettings(s.b)).toEqual({ webhookUrl: null, language: "de" });
+    expect(await getSettings(s.a)).toEqual({ webhookUrl: "https://ntfy.example/a", language: "de", delivery: "push" });
+    expect(await getSettings(s.b)).toEqual({ webhookUrl: null, language: "de", delivery: "push" });
     await expect(putSettings(s.a, { webhookUrl: "file:///etc/passwd" })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(putSettings(s.a, { webhookUrl: "not a url" })).rejects.toMatchObject({ code: "invalid_input" });
     await putSettings(s.a, { webhookUrl: null });
-    expect(await getSettings(s.a)).toEqual({ webhookUrl: null, language: "de" });
+    expect(await getSettings(s.a)).toEqual({ webhookUrl: null, language: "de", delivery: "push" });
   });
 
   test("testWebhook sends the sample message, or reports nothing sent without a webhook", async () => {
@@ -316,4 +316,44 @@ test("the daily message names the book of each item when there are two", async (
   const titles = (end: string) => sent.filter((m) => m.url.endsWith(end)).map((m) => m.title);
   expect(titles("/a")).toEqual(expect.arrayContaining(["Unser Buch · 🎂 Tom hat morgen Geburtstag", "Arbeit · 🎂 Chefin hat morgen Geburtstag"]));
   expect(titles("/b").join()).not.toContain("·");
+});
+
+describe("delivery", () => {
+  const connect = async (projectId: string | null, broken = 0) =>
+    (await firstBook()).instance
+      .insert("todoist_connections", {
+        user_id: s.a.userId,
+        token: "t",
+        project_id: projectId,
+        project_name: "F",
+        kinds: "{}",
+        broken: broken as 0,
+        created_at: 1,
+      })
+      .execute();
+
+  test("delivery todoist sends no push", async () => {
+    await connect("p1");
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a", delivery: "todoist" });
+    expect(await runDaily(NOW, fetchFn)).toBe(0);
+    expect(sent).toEqual([]);
+  });
+
+  test("delivery both sends the push", async () => {
+    await connect("p1");
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a", delivery: "both" });
+    await runDaily(NOW, fetchFn);
+    expect(sent.map((m) => m.title)).toContain("🎂 Tom hat morgen Geburtstag");
+  });
+
+  test.each([
+    ["no connection", null],
+    ["no project", [null, 0]],
+    ["a broken connection", ["p1", 1]],
+  ] as const)("delivery todoist with %s falls back to the push", async (_, conn) => {
+    if (conn) await connect(conn[0], conn[1]);
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a", delivery: "todoist" });
+    await runDaily(NOW, fetchFn);
+    expect(sent.map((m) => m.title)).toContain("🎂 Tom hat morgen Geburtstag");
+  });
 });

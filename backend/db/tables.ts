@@ -14,6 +14,8 @@ export const INSTANCE_TABLES = [
   "person_links",
   "person_link_parts",
   "person_not_same",
+  "todoist_connections",
+  "todoist_tasks",
 ] as const;
 export type InstanceTable = (typeof INSTANCE_TABLES)[number];
 export type BookTable = Exclude<keyof Schema, InstanceTable>;
@@ -35,6 +37,7 @@ export const KEYED_TABLES = [
   "exchanges",
   "relationships",
   "groups",
+  "follow_ups",
 ] as const satisfies readonly BookTable[];
 
 /** Every reference from one book table to another (column → table), as the composite keys in the baseline make them. */
@@ -48,6 +51,7 @@ export const REFS: Readonly<Record<BookTable, Readonly<Record<string, BookTable>
   experiences: { place_id: "places", series_id: "series", ramble_id: "rambles" },
   facts: { file_id: "files", ramble_id: "rambles", conversation_id: "conversations", superseded_by: "facts", person_id: "persons" },
   files: {},
+  follow_ups: { person_id: "persons" },
   group_aliases: { group_id: "groups" },
   group_members: { ramble_id: "rambles", conversation_id: "conversations", person_id: "persons", group_id: "groups" },
   groups: {},

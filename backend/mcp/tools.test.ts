@@ -7,7 +7,8 @@ import { fileContent, shareFile } from "../conversations/files";
 import { addDays, today } from "../people/dates";
 import { unchecked } from "../db/testing";
 import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
-import { remember } from "../conversations/conversations";
+import { record, remember } from "../conversations/conversations";
+import { addFollowUp, openFollowUps } from "../reading/followups";
 import { inBookOf } from "../people/books";
 import { scope } from "../db/scope";
 import { asRamble } from "../testing/fixtures";
@@ -395,6 +396,93 @@ describe("next: what Claude does after a call", () => {
     });
     const due = await run(s.a, "whats_due", {});
     expect(due.next).toEqual(['Suggest asking Lena about "sucht einen Hund": its day to ask, 2026-10-01, has come.']);
+  });
+
+  test("whats_due lists a follow-up and its next line", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    const due = await run(s.a, "whats_due", {});
+    expect(due.followUps).toEqual([
+      expect.objectContaining({ id, kind: "overdue", personId: s.anna, name: "Anna", day: "2026-10-30", book: expect.objectContaining({ id: s.a.bookId }) }),
+    ]);
+    expect(due.next).toContain(
+      `The user checked in with Anna on 2026-10-30 (ticked in Todoist). Ask how it went and file it with record; if nothing is worth noting, correct contact (id ${id}).`,
+    );
+  });
+
+  test("the partner's whats_due has no follow-ups and no hint of one", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    const due = await run(s.b, "whats_due", {});
+    expect(due.followUps).toEqual([]);
+    expect(JSON.stringify(due)).not.toContain(id);
+    expect(JSON.stringify(due.next)).not.toContain("Todoist");
+    expect(JSON.stringify(await run(s.b, "briefing", { personId: s.anna }))).not.toContain("Todoist");
+  });
+
+  test("correct contact closes it", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    expect(await run(s.a, "correct", { action: "contact", id })).toMatchObject({ corrected: true });
+    expect((await run(s.a, "whats_due", {})).followUps).toEqual([]);
+    expect(await openFollowUps(s.a)).toEqual([]);
+    expect(toolByName("correct")!.description).toBeDefined();
+  });
+
+  test("briefing next leads with the follow-up", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    const b = await run(s.a, "briefing", { personId: s.anna });
+    expect(b.next[0]).toBe(
+      `The user checked in with Anna on 2026-10-30 (ticked in Todoist). Ask how it went and file it with record; if nothing is worth noting, correct contact (id ${id}).`,
+    );
+  });
+
+  test("record's next asks about the follow-ups still open about the people it filed, not those it resolved", async () => {
+    const house = (
+      await run(s.a, "remember", {
+        visibility: "shared",
+        facts: [{ person: s.anna, text: "sucht ein Haus", category: "home", kind: "situation", checkAfter: "2026-10-01" }],
+      })
+    ).filed.facts[0].id;
+    const situation = await addFollowUp(s.a, { kind: "situation", personId: s.anna, factId: house, day: "2026-10-21" });
+    const overdue = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-21" });
+    const r = await run(s.a, "record", asRamble(lunch()));
+    expect(r.next).toContain(
+      `The user asked Anna about "sucht ein Haus" on 2026-10-21. Ask how it went: news is filed with record and supersedes the situation with a new checkAfter agreed with the user; if it ended, mark it outdated with correct; if nothing came up, suggest a new checkAfter, agree it, set it with correct edit and then correct contact (id ${situation}).`,
+    );
+    // The lunch on the 22nd is newer than the last seen the overdue task was made from: that one is resolved.
+    expect(JSON.stringify(r.next)).not.toContain(overdue);
+    // The partner's record about Anna never carries A's follow-ups.
+    const b = await run(s.b, "record", asRamble(lunch({ date: "2026-10-23", summary: "Bob's lunch.", transcript: "Bob's lunch." })));
+    expect(JSON.stringify(b.next)).not.toContain(situation);
+    expect(JSON.stringify(b.next)).not.toContain("Todoist");
+  });
+
+  test("experiences of a series asks about its open session follow-up", async () => {
+    const r = await record(s.a, {
+      date: "2026-09-02",
+      transcript: "t",
+      visibility: "shared",
+      people: [{ id: s.anna }],
+      experiences: [{ kind: "Kurs", title: "Erste Stunde", present: [0], series: { name: "Hundeschule", rhythmDays: 7 } }],
+    });
+    const series = r.experiences[0].seriesId!;
+    await unchecked()
+      .updateTable("series")
+      .set({ created_at: Date.parse("2026-09-02T20:00:00Z") })
+      .where("id", "=", series)
+      .execute();
+    await addFollowUp(s.a, { kind: "session", personId: s.a.personId, seriesId: series, sessionDay: "2026-09-09", day: "2026-09-10" });
+    const ex = await run(s.a, "experiences", { seriesId: series });
+    expect(ex.next[0]).toBe(
+      `The user ticked "Hundeschule" on 2026-09-09. Ask whether it happened: file it with record (series ${series}), or correct series_skip.`,
+    );
+    expect(JSON.stringify((await run(s.b, "experiences", { seriesId: series })).next)).not.toContain("ticked");
+  });
+
+  test("the partner can't close the user's follow-up with correct contact", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    await expect(run(s.b, "correct", { action: "contact", id })).rejects.toThrow(/No such follow-up/);
+    const row = await (await scope(s.a)).from("follow_ups").select(["contact", "closed_at"]).where("id", "=", id).executeTakeFirstOrThrow();
+    expect(row).toEqual({ contact: 0, closed_at: null });
+    expect(await openFollowUps(s.a)).toEqual([expect.objectContaining({ id })]);
   });
 
   test("groups marks the book's writers group", async () => {

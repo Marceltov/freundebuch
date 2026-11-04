@@ -5,7 +5,9 @@
 // is built only from those results, which the domain read through visible(), so it can't name what the viewer may not see.
 import * as z from "zod";
 import { linkedBriefing, type LinkedBriefing } from "../reading/linked";
-import { dueAcross, findAcross, peopleAcross } from "../reading/across";
+import { acrossBooks, dueAcross, findAcross, onceEach, peopleAcross } from "../reading/across";
+import { closeAsContact, openFollowUps, type FollowUp } from "../reading/followups";
+import { pullNow } from "../todoist/sync";
 import { linkPeople, markNotSame, nameMatches, partsOf, unlinkPerson, type Part } from "../people/links";
 import { createCalendarKey, feedPath, hasCalendarKey, revokeCalendarKey } from "../sharing/calendar";
 import { cardPath, deleteOwnCard, ownCards, publishCard, setOwnCard, subscribeCard, unpublishCard, unsubscribeCard } from "../sharing/cards";
@@ -29,11 +31,12 @@ import {
 } from "../conversations/corrections";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../people/groups";
 import { InvalidInputError } from "../core/errors";
-import { bookRef, inBook, inBookOf, listBooks, newBook, type BookRef } from "../people/books";
+import { bookRef, inBook, inBookOf, listBooks, newBook, viewerOf, type BookRef } from "../people/books";
 import { movePeople } from "../people/moves";
 import { INVITATION_DAYS, invite, listInvitations, revokeInvitation } from "../people/invitations";
 import { deleteBook, handOver, leaveBook, removeMember, renameBook, setRole } from "../people/manage";
 import { isId } from "../db";
+import { instance } from "../db/scope";
 import {
   BriefingJson,
   CalendarFeedJson,
@@ -65,6 +68,7 @@ import {
   CardJson,
   CardsJson,
   BirthdayMessageJson,
+  FollowUpJson,
 } from "../http/schemas";
 import { isUsWord } from "../people/writers";
 import { setCheckInInterval } from "../people/intervals";
@@ -265,8 +269,29 @@ function needsNext(people: PersonTraits[]): Next {
 const sameAskLine = (a: { id: string; name: string; book: BookRef }, b: { id: string; name: string; book: BookRef }) =>
   `Ask the user whether ${a.name} (${a.book.name}) is the same person as ${b.name} (${b.book.name}); if yes, link them with people (link: [${a.id}, ${b.id}]); if no, people (not_same: [${a.id}, ${b.id}]) so it isn't asked again. Never link on the name alone.`;
 
-function briefingNext(b: LinkedBriefing): Next {
-  const next: Next = [];
+/** What to ask about a ticked Todoist task: ticking says the user got in touch, not what came of it. */
+function followUpLine(f: FollowUp): string {
+  if (f.kind === "overdue")
+    return `The user checked in with ${f.name} on ${f.day} (ticked in Todoist). Ask how it went and file it with record; if nothing is worth noting, correct contact (id ${f.id}).`;
+  if (f.kind === "situation")
+    return `The user asked ${f.name} about "${f.text}" on ${f.day}. Ask how it went: news is filed with record and supersedes the situation with a new checkAfter agreed with the user; if it ended, mark it outdated with correct; if nothing came up, suggest a new checkAfter, agree it, set it with correct edit and then correct contact (id ${f.id}).`;
+  return `The user ticked "${f.name}" on ${f.sessionDay}. Ask whether it happened: file it with record (series ${f.seriesId}), or correct series_skip.`;
+}
+
+/**
+ * The viewer's follow-ups still open about these people, in every book they are in (a linked person's other parts too), and
+ * about these series of the viewer's book; read after a write, so what it just resolved is gone.
+ */
+async function followUpsAbout(v: Viewer, personIds: readonly string[], seriesIds: readonly string[] = []): Promise<FollowUp[]> {
+  const all = (await viewerOf(await instance(), v.userId))!;
+  const parts = onceEach((await Promise.all(personIds.map((id) => partsOf(all, id)))).flat(), (p) => p.id);
+  const about = (await Promise.all(parts.map(async (p) => openFollowUps((await inBookOf(all, [p.id]))!, p.id)))).flat();
+  const series = seriesIds.length ? (await openFollowUps(v)).filter((f) => f.kind === "session" && seriesIds.includes(f.seriesId!)) : [];
+  return onceEach([...about, ...series], (f) => f.id);
+}
+
+function briefingNext(b: LinkedBriefing, followUps: FollowUp[] = []): Next {
+  const next: Next = followUps.map(followUpLine);
   const first = b.parts[0];
   for (const m of b.sameAsAsk) next.push(sameAskLine({ id: first.id, name: b.person.name, book: first.book }, m));
   if (b.parts.length > 1)
@@ -366,6 +391,9 @@ const PeopleJson = z.object({
 });
 const DueJson = z.object({
   items: z.array(DueItemJson.extend({ book: BookJson })).describe("Most pressing first, from every book; someone in several books once"),
+  followUps: z
+    .array(FollowUpJson.extend({ book: BookJson }))
+    .describe("Tasks the user ticked in Todoist and no one has asked about yet: ask how it went. Only the user's own"),
 });
 const RelatedJson = z.object({
   id: z.string().optional().describe("The relationship's id (the first, for \"us\"), or the group's"),
@@ -525,12 +553,13 @@ const CORRECT_ACTIONS = [
   "group_delete",
   "gender",
   "to_relationship",
+  "contact",
 ] as const;
 const CorrectInput = z.object({
   action: z
     .enum(CORRECT_ACTIONS)
     .describe(
-      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). place_rename: rename a place; its old name keeps finding it (id = the place's, name). place_alias: add another name a place goes by (id, alias). place_merge: merge the duplicate place drop into the place id (id, drop). place_parent: set the place a place sits inside, or null when it sits in none (id, parent). place_address: set a place's address in words, or null to clear it (id, address). place_owner: file whose home a place is (id, person: a person id, \"me\" or \"us\"; private when told in confidence). place_unowner: drop someone as owner of a place, e.g. after they moved (id, person). participant_add: someone was at a conversation the user recorded too, told afterwards (\"Anna was there too\") (id = the conversation's, person); participant_remove: someone wasn't there after all (id, person). series_skip: mark a session day of a series as skipped, so it is not asked about (id = the series', date). A series ends with edit, table series, patch { endsOn }; it is deleted (delete, table series) only when the user explicitly asks, and its sessions stay as single experiences. An experience or series only its recorder changes. delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
+      "done: mark a promise done or an exchange settled (table, id). outdated: mark a fact no longer true (id). edit: change fields of an item the user recorded, or of a shared one the partner recorded; a conversation only its recorder (table, id, patch). visibility: change who can see an item the user recorded (table, id, visibility). delete: delete an item the user recorded or a shared one of the partner's; a conversation, with its items, and a journal entry only its recorder (table, id). place_rename: rename a place; its old name keeps finding it (id = the place's, name). place_alias: add another name a place goes by (id, alias). place_merge: merge the duplicate place drop into the place id (id, drop). place_parent: set the place a place sits inside, or null when it sits in none (id, parent). place_address: set a place's address in words, or null to clear it (id, address). place_owner: file whose home a place is (id, person: a person id, \"me\" or \"us\"; private when told in confidence). place_unowner: drop someone as owner of a place, e.g. after they moved (id, person). participant_add: someone was at a conversation the user recorded too, told afterwards (\"Anna was there too\") (id = the conversation's, person); participant_remove: someone wasn't there after all (id, person). contact: close a follow-up from a ticked task as a plain contact on the day it was ticked, when nothing is worth filing (id). series_skip: mark a session day of a series as skipped, so it is not asked about (id = the series', date). A series ends with edit, table series, patch { endsOn }; it is deleted (delete, table series) only when the user explicitly asks, and its sessions stay as single experiences. An experience or series only its recorder changes. delete_ramble: delete a ramble the user recorded with everything told in it, its transcript, conversations, journal entries and items (id = the ramble's), only when the user asks for exactly that. rename: rename a person (id, name). alias: add another name a person goes by (id, alias). merge: merge the duplicate drop into the person id (id, drop). share_transcript: let the partner read the transcript of a ramble the user recorded, once nothing told in it is private any more (id = the ramble's or one of its conversations'); a transcript never turns shared on its own. ungroup: take a person out of a group (id = the group's, person). group_rename: rename a group; its old name keeps finding it (id, name). group_alias / group_unalias: add or drop another name of a group, e.g. Kollegen for Arbeit (id, alias). group_merge: merge the group drop into the group id (id, drop). group_delete: delete a group for the user (id). gender: set or (null) clear a person's gender (id, gender), only when the user states it or uses a pronoun for the person, never from the name. to_relationship: turn a fact into a relationship, which keeps its visibility, and delete the fact (id = the fact's, from, to, label, inverse, note), e.g. the fact \"our landlady\" into from her to \"us\", label Vermieterin, inverse Mieter:in",
     ),
   table: Table.optional().describe("done, edit, visibility, delete: the kind of item (done: promises or exchanges)"),
   id: z
@@ -605,6 +634,7 @@ const CorrectArgs = z.discriminatedUnion("action", [
     .describe("Let the partner read a ramble's transcript"),
   z.object({ action: z.literal("delete_ramble"), id: RambleId }).describe("Delete a ramble with everything told in it"),
   z.object({ action: z.literal("place_rename"), id: PlaceId, name: z.string() }).describe("Rename a place"),
+  z.object({ action: z.literal("contact"), id: z.string().describe("The follow-up's id") }).describe("Close a follow-up as a plain contact"),
   z.object({ action: z.literal("series_skip"), id: z.string().describe("The series' id"), date: Day }).describe("Mark a session day skipped"),
   z.object({ action: z.literal("place_alias"), id: PlaceId, alias: z.string() }).describe("Add another name a place goes by"),
   z
@@ -815,6 +845,11 @@ export const TOOLS: readonly Tool[] = [
         v,
         out.experiences.map((e) => e.id),
       );
+      const followUps = await followUpsAbout(
+        v,
+        out.people.map((p) => p.id),
+        out.experiences.flatMap((e) => (e.seriesId ? [e.seriesId] : [])),
+      );
       const placed = [...(r.conversations ?? []).map((c) => c.place), ...(r.experiences ?? []).map((e) => e.place)].flatMap((p) =>
         p && typeof p === "object" && "name" in p && (p.in !== undefined || p.address !== undefined || p.owners?.length)
           ? [`Read back where "${p.name}" sits, its address and whose home it is, with its link.`]
@@ -829,6 +864,7 @@ export const TOOLS: readonly Tool[] = [
         ...out.filed.facts.flatMap(situationDay),
         ...out.filed.relationships.flatMap(keptRelationship),
         ...out.filed.groups.flatMap(alreadyInGroup),
+        ...followUps.map(followUpLine),
       ]);
     },
   }),
@@ -922,8 +958,10 @@ export const TOOLS: readonly Tool[] = [
     annotations: { readOnlyHint: true },
     books: "books",
     handler: async (v, { personId }) => {
+      await pullNow(v);
       const b = await linkedBriefing(v, personId);
-      return ok(BriefingOut, b, briefingNext(b));
+      const followUps = (await Promise.all(b.parts.map(async (p) => openFollowUps((await inBookOf(v, [p.id]))!, p.id)))).flat();
+      return ok(BriefingOut, b, briefingNext(b, followUps));
     },
   }),
   tool({
@@ -1066,13 +1104,13 @@ export const TOOLS: readonly Tool[] = [
     each: { field: "experiences" },
     handler: async (v, q) => {
       const [experiences, kinds, series] = await Promise.all([listExperiences(v, q), experienceKinds(v), listSeries(v)]);
-      return ok(
-        ExperiencesJson,
-        { experiences, kinds, series },
+      const followUps = q.seriesId ? (await openFollowUps(v)).filter((f) => f.kind === "session" && f.seriesId === q.seriesId) : [];
+      return ok(ExperiencesJson, { experiences, kinds, series }, [
+        ...followUps.map(followUpLine),
         experiences.length
-          ? ["Answer from these experiences with their dates and links; for a series, say how it went over its sessions."]
-          : ["No experiences match: say so, and offer to look at another period or kind."],
-      );
+          ? "Answer from these experiences with their dates and links; for a series, say how it went over its sessions."
+          : "No experiences match: say so, and offer to look at another period or kind.",
+      ]);
     },
   }),
   tool({
@@ -1112,8 +1150,11 @@ export const TOOLS: readonly Tool[] = [
     annotations: { readOnlyHint: true },
     books: "books",
     handler: async (v, { from, horizonDays }) => {
+      await pullNow(v);
       const items = await dueAcross(v, from, horizonDays);
-      return ok(DueJson, { items }, [
+      const followUps = await acrossBooks(v, (w) => openFollowUps(w));
+      return ok(DueJson, { items, followUps }, [
+        ...followUps.map(followUpLine),
         ...items.filter((i) => i.kind === "situation").map((i) => `Suggest asking ${i.name} about "${i.text}": its day to ask, ${i.date}, has come.`),
         ...items
           .filter((i) => i.kind === "session")
@@ -1349,6 +1390,9 @@ export const TOOLS: readonly Tool[] = [
         case "delete_ramble":
           await deleteRamble(v, a.id);
           break;
+        case "contact":
+          await closeAsContact(v, a.id);
+          return ok(CorrectedJson, { corrected }, []);
         case "series_skip":
           await skipSession(v, a.id, a.date);
           break;

@@ -50,6 +50,7 @@ test("Tom's private birthday is due for A and absent for B", async () => {
       date: "2026-10-24",
       text: "birthday",
       itemId: expect.any(String),
+      dateKind: "birthday",
       url: expect.stringMatching(`^/p/${s.tom}#dates-`),
     },
   ]);

@@ -476,6 +476,24 @@ export const DueItemJson = z
   })
   .meta({ id: "DueItem" });
 
+export const FollowUpJson = z
+  .object({
+    id: z.string().describe("The follow-up's id; correct contact closes it"),
+    kind: z
+      .enum(["overdue", "situation", "session"])
+      .describe("What the ticked Todoist task was about: someone overdue, a situation to ask about, or a missed session"),
+    personId: PersonId,
+    name: z.string().describe("The person's name; on a session, the series'"),
+    factId: z.string().nullable().describe("On a situation: its fact's id"),
+    seriesId: z.string().nullable().describe("On a session: the series' id"),
+    sessionDay: z.string().nullable().describe("On a session: the day that was ticked"),
+    day: z.string().describe("The day the task was ticked"),
+    text: z.string().nullable().describe("On a situation: what it is"),
+    url: Url.describe("The person's page"),
+  })
+  .meta({ id: "FollowUp" });
+export const FollowUpListJson = z.array(FollowUpJson.extend({ book: BookRef })).meta({ id: "FollowUpList" });
+
 export const OrbitFaceJson = z
   .object({
     personId: PersonId,
@@ -902,15 +920,48 @@ export const SettingsJson = z
     webhookUrl: z
       .url({ protocol: /^https?$/ })
       .nullable()
-      .describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"),
+      .optional()
+      .describe("Where the daily reminders are POSTed (ntfy-compatible); null for none, left out to keep it as it is. Only http and https"),
     language: z
       .enum(LANGUAGES)
       .optional()
       .describe(
         "The language the web app and the notifications speak to the caller; German by default. Always in a GET; a PUT ignores it (PUT /me/language sets it)",
       ),
+    delivery: z
+      .enum(["push", "todoist", "both"])
+      .optional()
+      .describe("Where the daily reminders go: the webhook (push, the default), Todoist tasks, or both. Always in a GET; a PUT without it leaves it as it is"),
   })
   .meta({ id: "Settings" });
+
+export const KindSettingJson = z
+  .object({
+    leadDays: z.number().int().min(0).max(60).describe("How many days before the day the task appears in Todoist"),
+    placement: z.enum(["due", "deadline"]).describe("Whether the day is the task's due date or its deadline (then it is due today)"),
+  })
+  .meta({ id: "TodoistKindSetting" });
+export const TodoistKindsJson = z
+  .object({ birthday: KindSettingJson, anniversary: KindSettingJson, date: KindSettingJson, promise: KindSettingJson })
+  .partial()
+  .meta({ id: "TodoistKinds" });
+export const TodoistStatusJson = z
+  .union([
+    z.object({ connected: z.literal(false) }),
+    z.object({
+      connected: z.literal(true),
+      projectId: z.string().nullable().describe("The project tasks go to; null until one is chosen"),
+      projectName: z.string().nullable(),
+      broken: z.boolean().describe("Todoist refused the token; nothing syncs until the caller connects again"),
+      kinds: z.object({ birthday: KindSettingJson, anniversary: KindSettingJson, date: KindSettingJson, promise: KindSettingJson }),
+    }),
+  ])
+  .meta({ id: "TodoistStatus" });
+export const TodoistTokenJson = z.object({ token: z.string().min(1).describe("A personal Todoist API token") }).meta({ id: "TodoistToken" });
+export const TodoistProjectsJson = z.array(z.object({ id: z.string(), name: z.string() })).meta({ id: "TodoistProjects" });
+export const TodoistProjectJson = z
+  .object({ projectId: z.string().min(1).describe("One of the projects PUT /me/todoist returned") })
+  .meta({ id: "TodoistProject" });
 
 export const LanguageJson = z
   .object({ language: z.enum(LANGUAGES).describe("The language the web app and the notifications speak to the caller") })
@@ -1017,6 +1068,12 @@ export const COMPONENTS = [
   GroupNameJson,
   GroupMergeJson,
   SettingsJson,
+  KindSettingJson,
+  TodoistKindsJson,
+  TodoistStatusJson,
+  TodoistTokenJson,
+  TodoistProjectsJson,
+  TodoistProjectJson,
   ReflectionJson,
   SentJson,
   ErrorJson,
@@ -1037,6 +1094,8 @@ export const COMPONENTS = [
   RecordedRambleJson,
   DueItemJson,
   DueListJson,
+  FollowUpJson,
+  FollowUpListJson,
   OrbitFaceJson,
   OrbitJson,
   IntervalJson,

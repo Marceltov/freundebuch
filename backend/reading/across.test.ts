@@ -19,6 +19,10 @@ import { setCheckInInterval } from "../people/intervals";
 import { today } from "../people/dates";
 import { recordConversation } from "../conversations/conversations";
 
+// The orbit reads the last months from now; the seed's conversations are in October 2026.
+const NOW = Date.parse("2026-10-25T12:00:00Z");
+import { addFollowUp } from "./followups";
+
 beforeEach(resetDbForTests);
 
 // B joins A's work book, so B is a member of both books.
@@ -57,7 +61,7 @@ test("a co-member in both books shows once", async () => {
 test("orbit across books holds faces of both, each with its book, at most 24", async () => {
   const s = await seed();
   const { a, lena2 } = await seedWorkBook(s);
-  const faces = await orbitAcross(a);
+  const faces = await orbitAcross(a, undefined, NOW);
   expect(faces.find((f) => f.personId === lena2)?.book.name).toBe("Arbeit");
   expect(faces.find((f) => f.personId === s.anna)?.book.name).toBe("Unser Buch");
   expect(faces.length).toBeLessThanOrEqual(24);
@@ -127,7 +131,7 @@ test("orbit filtered by one book's Freunde marks only that book's", async () => 
   await addToGroup(s.a, { name: "Freunde", members: [s.anna], visibility: "shared" });
   await addToGroup(work, { name: "Freunde", members: [lena2], visibility: "shared" });
   const workFriends = (await listGroups(work)).find((g) => g.name === "Freunde")!;
-  const faces = await orbitAcross(a, workFriends.id);
+  const faces = await orbitAcross(a, workFriends.id, NOW);
   expect(faces.find((f) => f.personId === lena2)?.inGroup).toBe(true);
   expect(faces.find((f) => f.personId === s.anna)?.inGroup).toBe(false);
 });
@@ -142,7 +146,7 @@ test("a co-member in a group of a newer book only is in it on the merged lists",
   const users = await memberUsers(a);
   const b = (await peopleAcross(a)).find((p) => users.get(p.id) === s.b.userId)!;
   expect(b.groups).toContain(workFriends.id);
-  const face = (await orbitAcross(a, workFriends.id)).find((f) => users.get(f.personId) === s.b.userId);
+  const face = (await orbitAcross(a, workFriends.id, NOW)).find((f) => users.get(f.personId) === s.b.userId);
   expect(face?.inGroup).toBe(true);
 });
 
@@ -183,9 +187,9 @@ test("the orbit holds a linked person once", async () => {
   const { a, work } = await seedWorkBook(s);
   const anna2 = await createPerson(work, { name: "Anna" });
   const isAnna = (f: { personId: string }) => f.personId === s.anna || f.personId === anna2;
-  expect((await orbitAcross(a)).filter(isAnna)).toHaveLength(2);
+  expect((await orbitAcross(a, undefined, NOW)).filter(isAnna)).toHaveLength(2);
   await linkPeople(a, [s.anna, anna2]);
-  expect((await orbitAcross(a)).filter(isAnna).map((f) => f.personId)).toEqual([s.anna]);
+  expect((await orbitAcross(a, undefined, NOW)).filter(isAnna).map((f) => f.personId)).toEqual([s.anna]);
 });
 
 test("findAcross gives Lena once when linked, twice (each with her book) when not", async () => {
@@ -225,4 +229,19 @@ test("a linked person seen lately in one book isn't overdue from the other", asy
   expect(await overdueAnna()).toHaveLength(1);
   await linkPeople(a, [s.anna, met.people[0].id]);
   expect(await overdueAnna()).toEqual([]);
+});
+
+test("an open overdue follow-up for one part of a linked person keeps them from being overdue in the other book", async () => {
+  const s = await seed();
+  const { a, work, lena2 } = await seedWorkBook(s);
+  await setCheckInInterval(s.a, s.lena, 7, true);
+  await setCheckInInterval(work, lena2, 7, true);
+  await linkPeople(a, [s.lena, lena2]);
+  const isLena = (d: { kind: string; personId: string }) => d.kind === "overdue" && (d.personId === s.lena || d.personId === lena2);
+  const before = (await dueAcross(a, "2026-11-10")).filter(isLena);
+  expect(before).toHaveLength(1);
+  // The follow-up is in the book whose item was kept, so the other book's would come through without the link check.
+  const there = (await viewerIn(await instance(), a.userId, before[0].book.id))!;
+  await addFollowUp(there, { kind: "overdue", personId: before[0].personId, day: "2026-11-03" });
+  expect((await dueAcross(a, "2026-11-10")).filter(isLena)).toEqual([]);
 });

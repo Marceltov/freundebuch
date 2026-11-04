@@ -34,6 +34,13 @@ export class InvalidInputError extends FreundebuchError {
   }
 }
 
+/** A service we depend on (Todoist) could not be reached or answered with an error. */
+export class UpstreamError extends FreundebuchError {
+  constructor(message: string) {
+    super("upstream_unavailable", message);
+  }
+}
+
 export class AmbiguousError extends FreundebuchError {
   constructor(message: string) {
     super("ambiguous", message);
