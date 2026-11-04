@@ -20,6 +20,8 @@ import {
 } from "../conversations/corrections";
 import { getConversation, record } from "../conversations/conversations";
 import { whatsDue } from "../reading/due";
+import { acrossBooks } from "../reading/across";
+import { openFollowUps } from "../reading/followups";
 import { InvalidInputError, InvalidRequestError, NotFoundError } from "../core/errors";
 import {
   addGroupAlias,
@@ -64,6 +66,7 @@ import {
   COMPONENTS,
   ConversationJson,
   DueListJson,
+  FollowUpListJson,
   ErrorJson,
   GroupDetailJson,
   GroupListJson,
@@ -553,6 +556,21 @@ const ROUTES: AnyOp[] = [
     params: {},
     responses: { 200: { description: "Due items, most pressing first", schema: DueListJson }, 401: E401 },
   }).handle(async ({ viewer }) => ({ status: 200, body: await whatsDue(viewer) })),
+
+  // Reading them closes the viewer's follow-ups whose cause has changed (openFollowUps), so this GET can write.
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/follow-ups`,
+    operationId: "getFollowUps",
+    summary: "Ticked Todoist tasks still waiting to be filed",
+    description:
+      "The caller's own follow-ups, oldest first, from every book: a task about someone overdue, a situation or a missed session that was ticked in Todoist, " +
+      "where nothing was filed yet. They are private to the caller. Filing what came of it (`POST /rambles`) closes them.",
+    tags: ["People"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "Open follow-ups", schema: FollowUpListJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: await acrossBooks(viewer, (w) => openFollowUps(w)) })),
 
   op({
     method: "GET",

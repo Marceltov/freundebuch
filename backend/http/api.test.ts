@@ -4,6 +4,7 @@ import { sign } from "../auth/tokens";
 import { resetSecretForTests } from "../core/secret";
 import { asRamble, seed, seedWorkBook, type Seed } from "../testing/fixtures";
 import type { Viewer } from "../core/types";
+import { addFollowUp } from "../reading/followups";
 import { dispatch } from "./api";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the tests read response bodies by shape, which the API tests check
@@ -156,6 +157,15 @@ describe("people", () => {
     const res = await call(s.a, "GET", "/due");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.json)).toBe(true);
+  });
+
+  test("follow-ups are the caller's own, never the partner's", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    const mine = await call(s.a, "GET", "/follow-ups");
+    expect(mine.status).toBe(200);
+    expect(mine.json).toEqual([expect.objectContaining({ id, kind: "overdue", name: "Anna", book: expect.objectContaining({ id: s.a.bookId }) })]);
+    expect((await call(s.b, "GET", "/follow-ups")).json).toEqual([]);
+    expect((await call(null, "GET", "/follow-ups")).status).toBe(401);
   });
 });
 

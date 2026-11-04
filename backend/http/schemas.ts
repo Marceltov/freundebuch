@@ -476,6 +476,24 @@ export const DueItemJson = z
   })
   .meta({ id: "DueItem" });
 
+export const FollowUpJson = z
+  .object({
+    id: z.string().describe("The follow-up's id; correct contact closes it"),
+    kind: z
+      .enum(["overdue", "situation", "session"])
+      .describe("What the ticked Todoist task was about: someone overdue, a situation to ask about, or a missed session"),
+    personId: PersonId,
+    name: z.string().describe("The person's name; on a session, the series'"),
+    factId: z.string().nullable().describe("On a situation: its fact's id"),
+    seriesId: z.string().nullable().describe("On a session: the series' id"),
+    sessionDay: z.string().nullable().describe("On a session: the day that was ticked"),
+    day: z.string().describe("The day the task was ticked"),
+    text: z.string().nullable().describe("On a situation: what it is"),
+    url: Url.describe("The person's page"),
+  })
+  .meta({ id: "FollowUp" });
+export const FollowUpListJson = z.array(FollowUpJson.extend({ book: BookRef })).meta({ id: "FollowUpList" });
+
 export const OrbitFaceJson = z
   .object({
     personId: PersonId,
@@ -1075,6 +1093,8 @@ export const COMPONENTS = [
   RecordedRambleJson,
   DueItemJson,
   DueListJson,
+  FollowUpJson,
+  FollowUpListJson,
   OrbitFaceJson,
   OrbitJson,
   IntervalJson,

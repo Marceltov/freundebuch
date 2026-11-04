@@ -8,6 +8,7 @@ import { addDays, today } from "../people/dates";
 import { unchecked } from "../db/testing";
 import { seed, seedWorkBook, type Seed } from "../testing/fixtures";
 import { remember } from "../conversations/conversations";
+import { addFollowUp, openFollowUps } from "../reading/followups";
 import { inBookOf } from "../people/books";
 import { scope } from "../db/scope";
 import { asRamble } from "../testing/fixtures";
@@ -395,6 +396,42 @@ describe("next: what Claude does after a call", () => {
     });
     const due = await run(s.a, "whats_due", {});
     expect(due.next).toEqual(['Suggest asking Lena about "sucht einen Hund": its day to ask, 2026-10-01, has come.']);
+  });
+
+  test("whats_due lists a follow-up and its next line", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    const due = await run(s.a, "whats_due", {});
+    expect(due.followUps).toEqual([
+      expect.objectContaining({ id, kind: "overdue", personId: s.anna, name: "Anna", day: "2026-10-30", book: expect.objectContaining({ id: s.a.bookId }) }),
+    ]);
+    expect(due.next).toContain(
+      `The user checked in with Anna on 2026-10-30 (ticked in Todoist). Ask how it went and file it with record; if nothing is worth noting, correct contact (id ${id}).`,
+    );
+  });
+
+  test("the partner's whats_due has no follow-ups and no hint of one", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    const due = await run(s.b, "whats_due", {});
+    expect(due.followUps).toEqual([]);
+    expect(JSON.stringify(due)).not.toContain(id);
+    expect(JSON.stringify(due.next)).not.toContain("Todoist");
+    expect(JSON.stringify(await run(s.b, "briefing", { personId: s.anna }))).not.toContain("Todoist");
+  });
+
+  test("correct contact closes it", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    expect(await run(s.a, "correct", { action: "contact", id })).toMatchObject({ corrected: true });
+    expect((await run(s.a, "whats_due", {})).followUps).toEqual([]);
+    expect(await openFollowUps(s.a)).toEqual([]);
+    expect(toolByName("correct")!.description).toBeDefined();
+  });
+
+  test("briefing next leads with the follow-up", async () => {
+    const id = await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30" });
+    const b = await run(s.a, "briefing", { personId: s.anna });
+    expect(b.next[0]).toBe(
+      `The user checked in with Anna on 2026-10-30 (ticked in Todoist). Ask how it went and file it with record; if nothing is worth noting, correct contact (id ${id}).`,
+    );
   });
 
   test("groups marks the book's writers group", async () => {
