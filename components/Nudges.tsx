@@ -13,28 +13,43 @@ import { longDay } from "@/components/format";
 export function Nudges({ items, followUps = [] }: { items: (DueItem & { bookName?: string })[]; followUps?: (FollowUp & { bookName?: string })[] }) {
   const copy = getCopy();
   if (!items.length && !followUps.length) return null;
+  const line = (f: FollowUp) =>
+    (f.kind === "situation" ? copy.followUpSituation : f.kind === "session" ? copy.followUpSession : copy.followUpOverdue)
+      .replace("{name}", f.name)
+      .replace("{text}", f.text ?? "")
+      .replace("{day}", longDay(copy, f.kind === "session" ? (f.sessionDay ?? f.day) : f.day));
   return (
-    <Section title={copy.askAbout} icon={MessageCircleQuestionMark} plain>
-      <ul className="space-y-2">
-        {items.map((s) => (
-          <li key={s.url}>
-            <Link href={s.url} className="flex items-center gap-3 rounded-2xl bg-sun/25 p-3 shadow-card ring-1 ring-sun">
-              <Face id={s.personId} name={s.name} size={40} />
-              <span className="min-w-0 flex-1">{copy.askAboutWhat.replace("{name}", s.name).replace("{text}", s.text ?? "")}</span>
-              {s.bookName && <BookMark name={s.bookName} />}
-            </Link>
-          </li>
-        ))}
-        {followUps.map((f) => (
-          <li key={f.id}>
-            <Link href={f.url} className="flex items-center gap-3 rounded-2xl bg-surface p-3 shadow-card">
-              <Face id={f.personId} name={f.name} size={40} />
-              <span className="min-w-0 flex-1">{copy.followUpLine.replace("{name}", f.name).replace("{day}", longDay(copy, f.day))}</span>
-              {f.bookName && <BookMark name={f.bookName} />}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </Section>
+    <>
+      {items.length > 0 && (
+        <Section title={copy.askAbout} icon={MessageCircleQuestionMark} plain>
+          <ul className="space-y-2">
+            {items.map((s) => (
+              <li key={s.url}>
+                <Link href={s.url} className="flex items-center gap-3 rounded-2xl bg-sun/25 p-3 shadow-card ring-1 ring-sun">
+                  <Face id={s.personId} name={s.name} size={40} />
+                  <span className="min-w-0 flex-1">{copy.askAboutWhat.replace("{name}", s.name).replace("{text}", s.text ?? "")}</span>
+                  {s.bookName && <BookMark name={s.bookName} />}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+      {followUps.length > 0 && (
+        <Section title={copy.followUpsTitle} icon={MessageCircleQuestionMark} plain>
+          <ul className="space-y-2">
+            {followUps.map((f) => (
+              <li key={f.id}>
+                <Link href={f.url} className="flex items-center gap-3 rounded-2xl bg-surface p-3 shadow-card">
+                  <Face id={f.personId} name={f.name} size={40} />
+                  <span className="min-w-0 flex-1">{line(f)}</span>
+                  {f.bookName && <BookMark name={f.bookName} />}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+    </>
   );
 }

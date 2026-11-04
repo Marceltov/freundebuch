@@ -26,6 +26,20 @@ test("an open follow-up is a line linking to the person", () => {
   expect(html).toContain("Claude");
 });
 
+test("a situation names what was asked, a session its series and the session day", () => {
+  const situation = renderToStaticMarkup(
+    <Nudges items={[]} followUps={[{ ...followUp, kind: "situation", factId: "x", text: "Umzug", url: "/people/anna/facts/x" }]} />,
+  );
+  expect(situation).toContain("Umzug");
+  expect(situation).toContain("was daraus wurde");
+  const session = renderToStaticMarkup(
+    <Nudges items={[]} followUps={[{ ...followUp, kind: "session", name: "Lauftreff", seriesId: "s", sessionDay: "2026-10-28", url: "/series/s" }]} />,
+  );
+  expect(session).toContain("Lauftreff");
+  expect(session).toContain("28. Oktober");
+  expect(session).not.toContain("3. November");
+});
+
 test("nothing to show renders nothing", () => {
   expect(renderToStaticMarkup(<Nudges items={[]} followUps={[]} />)).toBe("");
 });

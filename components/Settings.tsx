@@ -330,6 +330,18 @@ export function ReflectionSettings({ reflection, hasWebhook }: { reflection: { d
   );
 }
 
+/**
+ * What a days-ahead field does when it is left: an entry of 0-60 that differs from the saved value is sent once; an empty or invalid
+ * one, or one the server refused, goes back to the saved value. Returns the value to show.
+ */
+export async function commitLeadDays(raw: string, saved: number, save: (n: number) => Promise<boolean>): Promise<number> {
+  const text = raw.trim();
+  const n = Number(text);
+  if (text === "" || !Number.isInteger(n) || n < 0 || n > 60) return saved;
+  if (n === saved) return saved;
+  return (await save(n)) ? n : saved;
+}
+
 type Project = { id: string; name: string };
 const KIND_ORDER = ["birthday", "anniversary", "date", "promise"] as const;
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -340,20 +352,24 @@ const json = (method: string, body: unknown) => ({ method, headers: { "Content-T
 export function TodoistSettings({
   status,
   delivery,
-  hasWebhook,
+  webhookUrl,
   projects: initialProjects,
 }: {
   status: TodoistStatus;
   delivery: Delivery;
-  hasWebhook: boolean;
+  webhookUrl: string | null;
   projects?: Project[];
 }) {
+  const hasWebhook = !!webhookUrl;
   const copy = useCopy();
   const router = useRouter();
   const [token, setToken] = useState("");
   const [projects, setProjects] = useState<Project[] | null>(initialProjects ?? null);
   const [choice, setChoice] = useState("");
   const [kinds, setKinds] = useState<Kinds | null>(status.connected ? status.kinds : null);
+  const [days, setDays] = useState<Record<string, string>>(
+    status.connected ? Object.fromEntries(KIND_ORDER.map((k) => [k, String(status.kinds[k].leadDays)])) : {},
+  );
   const [mode, setMode] = useState(delivery);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -403,11 +419,21 @@ export function TodoistSettings({
       }
       return !!res?.ok;
     });
-  const saveKind = async (kind: keyof Kinds, change: Partial<Kinds[keyof Kinds]>) => {
-    if (!kinds) return;
+  // A kind is saved once, when its field is left (not per keystroke); an invalid entry or a refused save puts the last saved value back.
+  const saveKind = async (kind: keyof Kinds, change: Partial<Kinds[keyof Kinds]>): Promise<boolean> => {
+    if (!kinds) return false;
+    const before = kinds;
     const next = { ...kinds, [kind]: { ...kinds[kind], ...change } };
     setKinds(next);
-    report(await fetch("/api/v1/me/todoist/kinds", json("PUT", { [kind]: next[kind] })).catch(() => null));
+    const res = await fetch("/api/v1/me/todoist/kinds", json("PUT", { [kind]: next[kind] })).catch(() => null);
+    report(res);
+    if (!res?.ok) setKinds(before);
+    return !!res?.ok;
+  };
+  const commitDays = async (kind: keyof Kinds) => {
+    if (!kinds) return;
+    const value = await commitLeadDays(days[kind] ?? "", kinds[kind].leadDays, (n) => saveKind(kind, { leadDays: n }));
+    setDays((d) => ({ ...d, [kind]: String(value) }));
   };
   const disconnect = () =>
     run(async () => {
@@ -416,9 +442,13 @@ export function TodoistSettings({
       if (res?.ok) router.refresh();
       return !!res?.ok;
     });
+  // PUT /me/settings takes the whole settings: the webhook goes along unchanged.
   const chooseDelivery = async (next: Delivery) => {
+    const before = mode;
     setMode(next);
-    report(await fetch("/api/v1/me/settings", json("PUT", { delivery: next })).catch(() => null));
+    const res = await fetch("/api/v1/me/settings", json("PUT", { webhookUrl, delivery: next })).catch(() => null);
+    report(res);
+    if (!res?.ok) setMode(before);
   };
   const loadProjects = async () => {
     const res = await fetch("/api/v1/me/todoist/projects").catch(() => null);
@@ -507,8 +537,10 @@ export function TodoistSettings({
                   type="number"
                   min="0"
                   max="60"
-                  value={kinds[k].leadDays}
-                  onChange={(e) => saveKind(k, { leadDays: Math.min(60, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+                  value={days[k] ?? ""}
+                  onChange={(e) => setDays((d) => ({ ...d, [k]: e.target.value }))}
+                  onBlur={() => commitDays(k)}
+                  onKeyDown={(e) => e.key === "Enter" && commitDays(k)}
                   className={`${field} w-20`}
                 />
                 {copy.todoistDaysAhead}
