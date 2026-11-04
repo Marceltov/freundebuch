@@ -12,12 +12,13 @@ import { viewerById } from "../core/users";
 import { instance, scope } from "../db/scope";
 import { NotFoundError } from "../core/errors";
 import { notifyCopy } from "../notify/copy";
-import { dueMessage, withBook } from "../notify/daily";
+import { dueMessage, withBook } from "../notify/message";
 import { inBook } from "../people/books";
 import { daysBetween, today } from "../people/dates";
 import { dueAcross, type InBook } from "../reading/across";
 import type { DueItem } from "../reading/due";
 import { addFollowUp } from "../reading/followups";
+import { visible } from "../visibility";
 import { TodoistAuthError, todoist } from "./client";
 import { todoistStatus, type DueKind } from "./settings";
 
@@ -92,12 +93,52 @@ async function pull(all: Viewer, token: string, syncToken: string | null, now: n
       if (item.deleted) {
         await setState(all.userId, row.key, "gone");
       } else if (item.checked) {
-        await applyTick(all, row, now);
-        await setState(all.userId, row.key, "ticked");
+        // Claimed first, so a pull running at the same time (pullNow next to the scheduler) doesn't apply the same tick again.
+        if (!(await claim(all.userId, row.key))) continue;
+        try {
+          await applyTick(all, row, now);
+        } catch (e) {
+          // Back to open, so the next pull (the sync position isn't saved) applies it.
+          await (await instance()).update("todoist_tasks").set({ state: "open" }).where("user_id", "=", all.userId).where("key", "=", row.key).execute();
+          throw e;
+        }
       }
     }
   }
   await i.update("todoist_connections").set({ sync_token: res.syncToken }).where("user_id", "=", all.userId).execute();
+}
+
+/** Moves an open task to ticked; false when it was not open any more. */
+async function claim(userId: string, key: string): Promise<boolean> {
+  const r = await (
+    await instance()
+  )
+    .update("todoist_tasks")
+    .set({ state: "ticked" })
+    .where("user_id", "=", userId)
+    .where("key", "=", key)
+    .where("state", "=", "open")
+    .executeTakeFirst();
+  return Number(r.numUpdatedRows) > 0;
+}
+
+/** Whether a date task's date still stands: its book, its person and the date itself, as the user sees it. */
+async function dateStands(all: Viewer, row: TaskRow): Promise<boolean> {
+  try {
+    const v = await inBook(all, row.book_id);
+    const d = await scope(v);
+    const date = await d
+      .from("dates")
+      .select("id")
+      .where("id", "=", row.item_id!)
+      .where("person_id", "=", row.person_id)
+      .$call((qb) => visible(qb, v, "dates"))
+      .executeTakeFirst();
+    return !!date;
+  } catch (e) {
+    if (e instanceof NotFoundError) return false;
+    throw e;
+  }
 }
 
 async function setState(userId: string, key: string, state: "ticked" | "closed" | "gone") {
@@ -126,8 +167,10 @@ export async function syncUser(userId: string, now: number, fetchFn: typeof fetc
   const i = await instance();
   const client = todoist(conn.token, fetchFn);
   const known = new Map((await i.from("todoist_tasks").selectAll().where("user_id", "=", userId).execute()).map((r) => [r.key, r]));
-  // Everything still due within the longest lead time; a task whose item has left this list was resolved in freundebuch.
-  const due = await dueAcross(all, from, Math.max(...Object.values(status.kinds).map((k) => k.leadDays)));
+  // Everything still due within the longest lead time, and as far ahead as the furthest open task (a lead time lowered since);
+  // a task whose item has left this list was resolved in freundebuch.
+  const furthest = Math.max(0, ...[...known.values()].filter((r) => r.state === "open").map((r) => daysBetween(from, r.day)));
+  const due = await dueAcross(all, from, Math.max(furthest, ...Object.values(status.kinds).map((k) => k.leadDays)));
   const present = new Set(due.map(itemKey));
 
   if ((await getSettings(all)).delivery !== "push") {
@@ -169,9 +212,11 @@ export async function syncUser(userId: string, now: number, fetchFn: typeof fetc
     }
   }
 
-  // A date's task closes only by its tick; the others close once their item is resolved (or gone, with its person).
+  // The others close once their item is resolved (or gone, with its person); a date's task only by its tick, unless the date
+  // itself is gone (deleted, or with its person).
   for (const row of known.values()) {
-    if (row.state !== "open" || row.kind === "date" || present.has(row.key)) continue;
+    if (row.state !== "open" || present.has(row.key)) continue;
+    if (row.kind === "date" && (await dateStands(all, row))) continue;
     await client.closeTask(row.task_id);
     await setState(userId, row.key, "closed");
   }

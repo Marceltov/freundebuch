@@ -287,6 +287,48 @@ describe("syncUser", () => {
     expect(await (await firstBook()).from("follow_ups").selectAll().execute()).toEqual([]);
   });
 
+  test("a birthday task whose person was deleted is closed; one whose date still stands stays open", async () => {
+    await syncUser(s.a.userId, NOW, fetchFn);
+    const tom = tasks().find((x) => x.content.includes("Tom"))!;
+    await syncUser(s.a.userId, NOW + 3 * DAY, fetchFn); // the birthday has passed: still open, only a tick closes it
+    expect(account("ta").tasks.get(tom.id)?.checked).toBe(false);
+    await (await firstBook()).delete("persons").where("id", "=", s.tom).execute();
+    await syncUser(s.a.userId, NOW + 3 * DAY + 300_000, fetchFn);
+    expect(account("ta").tasks.get(tom.id)?.checked).toBe(true);
+    expect((await rows(s.a.userId)).find((r) => r.kind === "date")?.state).toBe("closed");
+  });
+
+  test("lowering a lead time keeps the task open and makes no second one", async () => {
+    await (
+      await instance()
+    )
+      .update("todoist_connections")
+      .set({ kinds: JSON.stringify({ ...DEFAULT_KINDS, promise: { leadDays: 7, placement: "due" } }) })
+      .execute();
+    await promise("pr1", "Buch leihen", "2026-10-28", s.a.userId);
+    await syncUser(s.a.userId, NOW, fetchFn);
+    const t = tasks().find((x) => x.content.includes("Buch leihen"))!;
+    await (
+      await instance()
+    )
+      .update("todoist_connections")
+      .set({ kinds: JSON.stringify(DEFAULT_KINDS) })
+      .execute();
+    await syncUser(s.a.userId, NOW + 300_000, fetchFn);
+    expect(account("ta").tasks.get(t.id)?.checked).toBe(false);
+    await syncUser(s.a.userId, NOW + 5 * DAY, fetchFn);
+    expect(tasks().filter((x) => x.content.includes("Buch leihen"))).toHaveLength(1);
+    expect((await rows(s.a.userId)).find((r) => r.kind === "promise")?.state).toBe("open");
+  });
+
+  test("the same pulled tick applied twice at once makes one follow-up", async () => {
+    await annaOverdue(s.a.userId);
+    await syncUser(s.a.userId, NOW, fetchFn);
+    change("ta", tasks().find((x) => x.content.includes("Anna"))!.id, { checked: true });
+    await Promise.all([pullNow(s.a, fetchFn), pullNow(s.a, fetchFn), syncUser(s.a.userId, NOW + 300_000, fetchFn)]);
+    expect(await (await firstBook()).from("follow_ups").selectAll().execute()).toHaveLength(1);
+  });
+
   test("delivery push makes no new tasks, but ticks still come back", async () => {
     await promise("pr1", "Buch leihen", "2026-10-23", s.a.userId);
     await syncUser(s.a.userId, NOW, fetchFn);
