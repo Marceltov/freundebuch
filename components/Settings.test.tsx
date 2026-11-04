@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { DEFAULT_KINDS, type TodoistStatus } from "@/backend";
-import { commitLeadDays, TodoistSettings } from "./Settings";
+import { commitLeadDays, DeliverySettings, TodoistSettings } from "./Settings";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {} }) }));
 
@@ -13,8 +13,8 @@ const connected = (over: Partial<Extract<TodoistStatus, { connected: true }>> = 
   kinds: DEFAULT_KINDS,
   ...over,
 });
-const render = (status: TodoistStatus, delivery: "push" | "todoist" | "both" = "push", hasWebhook = true, projects?: { id: string; name: string }[]) =>
-  renderToStaticMarkup(<TodoistSettings status={status} delivery={delivery} hasWebhook={hasWebhook} projects={projects} />);
+const render = (status: TodoistStatus, projects?: { id: string; name: string }[]) =>
+  renderToStaticMarkup(<TodoistSettings status={status} projects={projects} />);
 
 test("not connected: a password field for the token, empty, and no project or kinds", () => {
   const html = render({ connected: false });
@@ -25,7 +25,7 @@ test("not connected: a password field for the token, empty, and no project or ki
 });
 
 test("connected without a project: the project picker with the projects", () => {
-  const html = render(connected({ projectId: null, projectName: null }), "push", true, [
+  const html = render(connected({ projectId: null, projectName: null }), [
     { id: "p1", name: "Freunde" },
     { id: "p2", name: "Inbox" },
   ]);
@@ -49,14 +49,16 @@ test("broken: a notice with a reconnect field", () => {
   expect(html).toMatch(/<input[^>]*type="password"/);
 });
 
-test("delivery: push is off without a webhook; todoist unusable says the push stands in", () => {
-  expect(render({ connected: false }, "push", false)).toMatch(/<input[^>]*disabled=""[^>]*value="push"/);
-  expect(render({ connected: false }, "push", true)).not.toMatch(/<input[^>]*disabled=""[^>]*value="push"/);
-  expect(render({ connected: false }, "todoist")).toContain("Push");
-  expect(render({ connected: false }, "todoist")).toContain('data-testid="delivery-fallback"');
-  expect(render(connected(), "todoist")).not.toContain('data-testid="delivery-fallback"');
-  expect(render(connected({ broken: true }), "both")).toContain('data-testid="delivery-fallback"');
-  expect(render({ connected: false }, "push")).not.toContain('data-testid="delivery-fallback"');
+test("delivery: its own section, push off without a webhook; todoist unusable says the push stands in", () => {
+  const delivery = (mode: "push" | "todoist" | "both", hasWebhook = true, todoistUsable = false) =>
+    renderToStaticMarkup(<DeliverySettings delivery={mode} hasWebhook={hasWebhook} todoistUsable={todoistUsable} />);
+  expect(render(connected())).not.toContain('name="delivery"');
+  expect(delivery("push", false)).toMatch(/<input[^>]*disabled=""[^>]*value="push"/);
+  expect(delivery("push", true)).not.toMatch(/<input[^>]*disabled=""[^>]*value="push"/);
+  expect(delivery("todoist")).toContain('data-testid="delivery-fallback"');
+  expect(delivery("todoist", true, true)).not.toContain('data-testid="delivery-fallback"');
+  expect(delivery("both")).toContain('data-testid="delivery-fallback"');
+  expect(delivery("push")).not.toContain('data-testid="delivery-fallback"');
 });
 
 test("leaving a days field sends one save; invalid, unchanged or refused entries go back to the saved value", async () => {

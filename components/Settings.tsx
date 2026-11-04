@@ -347,19 +347,8 @@ const KIND_ORDER = ["birthday", "anniversary", "date", "promise"] as const;
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 // Todoist: the token (PUT /api/v1/me/todoist, never shown again), the project, per kind the days ahead and where the date goes
-// (PUT /me/todoist/kinds), and how reminders arrive (PUT /me/settings). The server falls back to the push when Todoist is not usable;
-// this says so.
-export function TodoistSettings({
-  status,
-  delivery,
-  hasWebhook,
-  projects: initialProjects,
-}: {
-  status: TodoistStatus;
-  delivery: Delivery;
-  hasWebhook: boolean;
-  projects?: Project[];
-}) {
+// (PUT /me/todoist/kinds). How reminders arrive is DeliverySettings, its own section.
+export function TodoistSettings({ status, projects: initialProjects }: { status: TodoistStatus; projects?: Project[] }) {
   const copy = useCopy();
   const router = useRouter();
   const [token, setToken] = useState("");
@@ -369,7 +358,6 @@ export function TodoistSettings({
   const [days, setDays] = useState<Record<string, string>>(
     status.connected ? Object.fromEntries(KIND_ORDER.map((k) => [k, String(status.kinds[k].leadDays)])) : {},
   );
-  const [mode, setMode] = useState(delivery);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -441,13 +429,6 @@ export function TodoistSettings({
       if (res?.ok) router.refresh();
       return !!res?.ok;
     });
-  const chooseDelivery = async (next: Delivery) => {
-    const before = mode;
-    setMode(next);
-    const res = await fetch("/api/v1/me/settings", json("PUT", { delivery: next })).catch(() => null);
-    report(res);
-    if (!res?.ok) setMode(before);
-  };
   const loadProjects = async () => {
     const res = await fetch("/api/v1/me/todoist/projects").catch(() => null);
     if (res?.ok) setProjects((await res.json()) as Project[]);
@@ -482,12 +463,6 @@ export function TodoistSettings({
       </button>
     </form>
   );
-
-  const options: { value: Delivery; label: string }[] = [
-    { value: "push", label: copy.deliveryPush },
-    { value: "todoist", label: copy.deliveryTodoist },
-    { value: "both", label: copy.deliveryBoth },
-  ];
 
   return (
     <div className="space-y-3 text-sm">
@@ -565,27 +540,57 @@ export function TodoistSettings({
           {copy.todoistDisconnect}
         </button>
       )}
-      <fieldset className="space-y-1 pt-2">
-        <legend className="font-bold">{copy.deliveryTitle}</legend>
-        {options.map((o) => {
-          const off = o.value === "push" && !hasWebhook;
-          return (
-            <label key={o.value} className={`flex items-center gap-2 ${off ? "text-muted" : ""}`}>
-              <input type="radio" name="delivery" value={o.value} checked={mode === o.value} disabled={off} onChange={() => chooseDelivery(o.value)} />
-              {o.label}
-            </label>
-          );
-        })}
-        {!hasWebhook && <p className="text-muted">{copy.deliveryNeedsWebhook}</p>}
-        {mode !== "push" && !usable && (
-          <p data-testid="delivery-fallback" className="text-muted">
-            {copy.deliveryFallback}
-          </p>
-        )}
-      </fieldset>
       <p role="status" className={message?.ok === false ? "text-error" : "text-muted"}>
         {message?.text}
       </p>
     </div>
+  );
+}
+
+// How the daily reminders arrive (PUT /me/settings): the push, Todoist tasks or both. It sits above both sections because it chooses
+// between them. The server falls back to the push when Todoist is not usable; this says so.
+export function DeliverySettings({ delivery, hasWebhook, todoistUsable }: { delivery: Delivery; hasWebhook: boolean; todoistUsable: boolean }) {
+  const copy = useCopy();
+  const [mode, setMode] = useState(delivery);
+  const [failed, setFailed] = useState(false);
+  const choose = async (next: Delivery) => {
+    const before = mode;
+    setMode(next);
+    const res = await fetch("/api/v1/me/settings", json("PUT", { delivery: next })).catch(() => null);
+    setFailed(!res?.ok);
+    if (!res?.ok) setMode(before);
+  };
+  const options: { value: Delivery; label: string }[] = [
+    { value: "push", label: copy.deliveryPush },
+    { value: "todoist", label: copy.deliveryTodoist },
+    { value: "both", label: copy.deliveryBoth },
+  ];
+  return (
+    <fieldset className="space-y-1 text-sm">
+      <legend className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
+        <Bell aria-hidden className="h-4 w-4" />
+        {copy.deliveryTitle}
+      </legend>
+      {options.map((o) => {
+        const off = o.value === "push" && !hasWebhook;
+        return (
+          <label key={o.value} className={`flex items-center gap-2 ${off ? "text-muted" : ""}`}>
+            <input type="radio" name="delivery" value={o.value} checked={mode === o.value} disabled={off} onChange={() => choose(o.value)} />
+            {o.label}
+          </label>
+        );
+      })}
+      {!hasWebhook && <p className="text-muted">{copy.deliveryNeedsWebhook}</p>}
+      {mode !== "push" && !todoistUsable && (
+        <p data-testid="delivery-fallback" className="text-muted">
+          {copy.deliveryFallback}
+        </p>
+      )}
+      {failed && (
+        <p role="status" className="text-error">
+          {copy.actionFailed}
+        </p>
+      )}
+    </fieldset>
   );
 }

@@ -428,7 +428,7 @@ export const en: Copy = {
   deliveryPush: "Push",
   deliveryTodoist: "Todoist tasks",
   deliveryBoth: "Push and Todoist",
-  deliveryNeedsWebhook: "Push needs a notification address (above).",
+  deliveryNeedsWebhook: "Push needs a notification address (below).",
   deliveryFallback: "Todoist is not set up yet: until it is, the reminders arrive as push.",
   followUpsTitle: "Tell Claude about it",
   followUpOverdue: "Got in touch with {name} on {day}: tell Claude how it went",
