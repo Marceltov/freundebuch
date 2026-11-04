@@ -45,7 +45,7 @@ import { findPlaces, placesInside, placesOf } from "../experiences/places";
 import { setLook } from "../people/looks";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people/people";
 import { getSettings, putSettings, setLanguage, testWebhook } from "../core/settings";
-import { connectTodoist, disconnectTodoist, setTodoistKinds, setTodoistProject, todoistStatus } from "../todoist/settings";
+import { connectTodoist, disconnectTodoist, setTodoistKinds, setTodoistProject, todoistProjects, todoistStatus } from "../todoist/settings";
 import { getReflection, putReflection } from "../journal/reflection";
 import { deleteRamble } from "../conversations/rambles";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../conversations/files";
@@ -126,8 +126,9 @@ const E = {
   403: err("The item is visible to the caller, but this change is its recorder's: its visibility, a conversation, a transcript (`forbidden`)"),
   404: err("No such thing, or one the caller may not see (`not_found`)"),
   409: err("The request names more than one match (`ambiguous`)"),
+  502: err("Todoist could not be reached or answered with an error (`upstream_unavailable`)"),
 } as const;
-const { 400: E400, 401: E401, 403: E403, 404: E404 } = E;
+const { 400: E400, 401: E401, 403: E403, 404: E404, 502: E502 } = E;
 const NO_CONTENT = { description: "Done" } satisfies ResponseSpec;
 
 const RoleJson = z.enum(["owner", "admin", "member"]);
@@ -701,7 +702,7 @@ const ROUTES: AnyOp[] = [
     path: `${API_PREFIX}/me/todoist`,
     operationId: "getTodoist",
     summary: "The caller's Todoist connection",
-    description: "`connected` is true once a project is chosen. The token is never returned.",
+    description: "`connected` is true once a token is stored; `projectId` is null until a project is chosen. The token is never returned.",
     tags: ["Settings"],
     auth: true,
     params: {},
@@ -719,8 +720,20 @@ const ROUTES: AnyOp[] = [
     auth: true,
     params: {},
     body: TodoistTokenJson,
-    responses: { 200: { description: "The Todoist projects", schema: TodoistProjectsJson }, 400: E400, 401: E401 },
+    responses: { 200: { description: "The Todoist projects", schema: TodoistProjectsJson }, 400: E400, 401: E401, 502: E502 },
   }).handle(async ({ viewer, body }) => ({ status: 200, body: await connectTodoist(viewer, body.token) })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/me/todoist/projects`,
+    operationId: "getTodoistProjects",
+    summary: "The Todoist projects to choose from",
+    description: "Lists them with the stored token. 400 when Todoist is not connected, 502 when Todoist cannot be reached.",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The Todoist projects", schema: TodoistProjectsJson }, 400: E400, 401: E401, 502: E502 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: await todoistProjects(viewer) })),
 
   op({
     method: "PUT",
@@ -731,7 +744,7 @@ const ROUTES: AnyOp[] = [
     auth: true,
     params: {},
     body: TodoistProjectJson,
-    responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401, 502: E502 },
   }).handle(async ({ viewer, body }) => {
     await setTodoistProject(viewer, body.projectId);
     return { status: 204, body: undefined };

@@ -50,8 +50,8 @@ export async function putSettings(v: Viewer, s: { webhookUrl: string | null; del
   await (
     await scope(v)
   ).instance
-    .insert("user_settings", { user_id: v.userId, webhook_url: url, ...(s.delivery ? { delivery: s.delivery } : {}) })
-    .onConflict((oc) => oc.column("user_id").doUpdateSet({ webhook_url: url, ...(s.delivery ? { delivery: s.delivery } : {}) }))
+    .insert("user_settings", { user_id: v.userId, webhook_url: url, ...(s.delivery !== undefined ? { delivery: s.delivery } : {}) })
+    .onConflict((oc) => oc.column("user_id").doUpdateSet({ webhook_url: url, ...(s.delivery !== undefined ? { delivery: s.delivery } : {}) }))
     .execute();
 }
 

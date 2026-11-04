@@ -751,6 +751,17 @@ describe("todoist", () => {
     expect((await call(s.a, "DELETE", "/me/todoist")).status).toBe(204);
   });
 
+  test("projects need a connection; an unreachable Todoist is a 502 that names no token", async () => {
+    expect((await call(s.a, "GET", "/me/todoist/projects")).status).toBe(400);
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 503 }));
+    try {
+      const res = await call(s.a, "PUT", "/me/todoist", { token: "secret-token" });
+      expect(res).toEqual({ status: 502, json: { error: "Todoist could not be reached", code: "upstream_unavailable" } });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   test("an /mcp token does not open it", async () => {
     const mcp = sign("access", { aud: `${BASE}/mcp`, uid: s.a.userId });
     const res = await dispatch(new Request(`${BASE}/api/v1/me/todoist`, { headers: { host: "localhost:3000", authorization: `Bearer ${mcp}` } }), [

@@ -57,6 +57,7 @@ export {
   disconnectTodoist,
   setTodoistKinds,
   setTodoistProject,
+  todoistProjects,
   todoistStatus,
   type DueKind,
   type KindSetting,

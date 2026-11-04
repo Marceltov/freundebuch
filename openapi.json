@@ -2624,7 +2624,7 @@
       "get": {
         "operationId": "getTodoist",
         "summary": "The caller's Todoist connection",
-        "description": "`connected` is true once a project is chosen. The token is never returned.",
+        "description": "`connected` is true once a token is stored; `projectId` is null until a project is chosen. The token is never returned.",
         "tags": [
           "Settings"
         ],
@@ -2756,6 +2756,16 @@
                 }
               }
             }
+          },
+          "502": {
+            "description": "Todoist could not be reached or answered with an error (`upstream_unavailable`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -2801,6 +2811,87 @@
           },
           "404": {
             "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/todoist/projects": {
+      "get": {
+        "operationId": "getTodoistProjects",
+        "summary": "The Todoist projects to choose from",
+        "description": "Lists them with the stored token. 400 when Todoist is not connected, 502 when Todoist cannot be reached.",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Todoist projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoistProjects"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Todoist could not be reached or answered with an error (`upstream_unavailable`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2874,6 +2965,16 @@
           },
           "404": {
             "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Todoist could not be reached or answered with an error (`upstream_unavailable`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7138,10 +7239,17 @@
                 "const": true
               },
               "projectId": {
-                "type": "string"
+                "description": "The project tasks go to; null until one is chosen",
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "projectName": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "broken": {
                 "type": "boolean",
@@ -7290,6 +7398,7 @@
               "forbidden",
               "not_found",
               "ambiguous",
+              "upstream_unavailable",
               "internal"
             ],
             "description": "Stable machine-readable code"

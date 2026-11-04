@@ -931,8 +931,8 @@ export const TodoistStatusJson = z
     z.object({ connected: z.literal(false) }),
     z.object({
       connected: z.literal(true),
-      projectId: z.string(),
-      projectName: z.string(),
+      projectId: z.string().nullable().describe("The project tasks go to; null until one is chosen"),
+      projectName: z.string().nullable(),
       broken: z.boolean().describe("Todoist refused the token; nothing syncs until the caller connects again"),
       kinds: z.object({ birthday: KindSettingJson, anniversary: KindSettingJson, date: KindSettingJson, promise: KindSettingJson }),
     }),

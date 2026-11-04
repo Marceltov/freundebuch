@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { getSettings, putSettings } from "../core/settings";
 import { instance } from "../db/scope";
 import { seed, type Seed } from "../testing/fixtures";
-import { connectTodoist, DEFAULT_KINDS, disconnectTodoist, setTodoistKinds, setTodoistProject, todoistStatus } from "./settings";
+import { connectTodoist, DEFAULT_KINDS, disconnectTodoist, setTodoistKinds, setTodoistProject, todoistProjects, todoistStatus } from "./settings";
 
 const PROJECTS = [
   { id: "p1", name: "Inbox" },
@@ -32,6 +32,9 @@ describe("todoist settings", () => {
   test("connect stores the token and never returns it", async () => {
     expect(await todoistStatus(s.a)).toEqual({ connected: false });
     expect(await connectTodoist(s.a, "secret-token", fake())).toEqual(PROJECTS);
+    expect(await todoistStatus(s.a)).toEqual({ connected: true, projectId: null, projectName: null, broken: false, kinds: DEFAULT_KINDS });
+    expect(await todoistProjects(s.a, fake())).toEqual(PROJECTS);
+    await expect(todoistProjects(s.b, fake())).rejects.toMatchObject({ code: "invalid_input" });
     await setTodoistProject(s.a, "p2", fake());
     const status = await todoistStatus(s.a);
     expect(status).toEqual({ connected: true, projectId: "p2", projectName: "Friends", broken: false, kinds: DEFAULT_KINDS });
@@ -76,13 +79,25 @@ describe("todoist settings", () => {
     await expect(setTodoistKinds(s.b, { date: { leadDays: 1, placement: "due" } })).rejects.toMatchObject({ code: "invalid_input" });
   });
 
+  test("an unreachable Todoist is an UpstreamError without the token; a bad second kind persists nothing", async () => {
+    await expect(connectTodoist(s.a, "secret-token", fake(500))).rejects.toMatchObject({
+      code: "upstream_unavailable",
+      message: "Todoist could not be reached",
+    });
+    await connectTodoist(s.a, "t", fake());
+    await expect(
+      setTodoistKinds(s.a, { birthday: { leadDays: 9, placement: "due" }, date: null as unknown as { leadDays: number; placement: "due" } }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    expect(await todoistStatus(s.a)).toMatchObject({ kinds: DEFAULT_KINDS });
+  });
+
   test("reconnecting keeps the kinds and forgets the project and the sync position", async () => {
     await connectTodoist(s.a, "t", fake());
     await setTodoistProject(s.a, "p1", fake());
     await setTodoistKinds(s.a, { date: { leadDays: 3, placement: "due" } });
     await (await instance()).update("todoist_connections").set({ broken: 1, sync_token: "st" }).where("user_id", "=", s.a.userId).execute();
     await connectTodoist(s.a, "t2", fake());
-    expect(await todoistStatus(s.a)).toEqual({ connected: false });
+    expect(await todoistStatus(s.a)).toMatchObject({ connected: true, projectId: null });
     await setTodoistProject(s.a, "p1", fake());
     expect(await todoistStatus(s.a)).toMatchObject({ broken: false, kinds: { date: { leadDays: 3 } } });
     const row = await (await instance()).from("todoist_connections").selectAll().where("user_id", "=", s.a.userId).executeTakeFirstOrThrow();

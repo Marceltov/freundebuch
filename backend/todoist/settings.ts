@@ -1,9 +1,9 @@
 // A user's Todoist connection: the personal token (stored, never read back out), the project tasks go to and, per kind of due item,
 // how many days ahead the task appears and whether the day is the task's due date or its deadline.
-import { InvalidInputError } from "../core/errors";
+import { InvalidInputError, UpstreamError } from "../core/errors";
 import type { Viewer } from "../core/types";
 import { instance } from "../db/scope";
-import { TodoistAuthError, todoist } from "./client";
+import { TodoistAuthError, TodoistError, todoist } from "./client";
 
 export type DueKind = "birthday" | "anniversary" | "date" | "promise";
 export type KindSetting = { leadDays: number; placement: "due" | "deadline" };
@@ -16,7 +16,7 @@ export const DEFAULT_KINDS: Kinds = {
   promise: { leadDays: 0, placement: "due" },
 };
 
-export type TodoistStatus = { connected: false } | { connected: true; projectId: string; projectName: string; broken: boolean; kinds: Kinds };
+export type TodoistStatus = { connected: false } | { connected: true; projectId: string | null; projectName: string | null; broken: boolean; kinds: Kinds };
 
 const DUE_KINDS = Object.keys(DEFAULT_KINDS) as DueKind[];
 
@@ -36,6 +36,7 @@ async function listProjects(token: string, fetchFn: typeof fetch): Promise<{ id:
     return await todoist(token, fetchFn).projects();
   } catch (e) {
     if (e instanceof TodoistAuthError) throw new InvalidInputError("the Todoist token was not accepted");
+    if (e instanceof TodoistError) throw new UpstreamError("Todoist could not be reached");
     throw e;
   }
 }
@@ -74,11 +75,17 @@ export async function setTodoistProject(v: Viewer, projectId: string, fetchFn: t
     .execute();
 }
 
+/** The projects of the stored token, for choosing one (again). */
+export async function todoistProjects(v: Viewer, fetchFn: typeof fetch = fetch): Promise<{ id: string; name: string }[]> {
+  return listProjects((await connectionOf(v)).token, fetchFn);
+}
+
 export async function setTodoistKinds(v: Viewer, kinds: Partial<Kinds>): Promise<void> {
   const row = await connectionOf(v);
   const next = mergeKinds(row.kinds);
   for (const [k, setting] of Object.entries(kinds)) {
     if (!DUE_KINDS.includes(k as DueKind)) throw new InvalidInputError(`kind must be one of ${DUE_KINDS.join(", ")}`);
+    if (typeof setting !== "object" || setting === null) throw new InvalidInputError(`${k} must be an object with leadDays and placement`);
     const { leadDays, placement } = setting as KindSetting;
     if (!Number.isInteger(leadDays) || leadDays < 0 || leadDays > 60) throw new InvalidInputError("leadDays must be a whole number from 0 to 60");
     if (placement !== "due" && placement !== "deadline") throw new InvalidInputError('placement must be "due" or "deadline"');
@@ -93,11 +100,11 @@ export async function setTodoistKinds(v: Viewer, kinds: Partial<Kinds>): Promise
     .execute();
 }
 
-/** Connected means a project is chosen too; the token is never part of this. */
+/** Connected means a token is stored; the project is null until one is chosen. The token is never part of this. */
 export async function todoistStatus(v: Viewer): Promise<TodoistStatus> {
   const row = await (await instance()).from("todoist_connections").selectAll().where("user_id", "=", v.userId).executeTakeFirst();
-  if (!row || !row.project_id) return { connected: false };
-  return { connected: true, projectId: row.project_id, projectName: row.project_name ?? "", broken: row.broken === 1, kinds: mergeKinds(row.kinds) };
+  if (!row) return { connected: false };
+  return { connected: true, projectId: row.project_id, projectName: row.project_name, broken: row.broken === 1, kinds: mergeKinds(row.kinds) };
 }
 
 /** Forgets the connection and which tasks were made; the tasks in Todoist stay. */
