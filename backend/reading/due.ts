@@ -7,6 +7,7 @@ import { freshness } from "../people/intervals";
 import type { Viewer } from "../core/types";
 import { itemPath, personPath } from "../core/urls";
 import { visible } from "../visibility";
+import { openFollowUps } from "./followups";
 
 /**
  * `byMe`, on a promise: the viewer made it; false when the person promised it to the viewer. `itemId`: the date's, promise's or
@@ -81,6 +82,7 @@ export function compareDue(a: DueItem, b: DueItem): number {
  * Dates by closeness, then people past their interval by how far past (ratio, largest first), then situations to ask about (their
  * checkAfter has come, oldest first), then promises by due date. Only the viewer's own promises count: one the partner recorded is
  * between them and the person, even when it is shared. A shared situation nudges both users, a private one only its recorder.
+ * Someone overdue, a situation or a missed session with an open follow-up of the viewer's is left out.
  */
 export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Promise<DueItem[]> {
   const d = await scope(v);
@@ -161,5 +163,18 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
     url: m.url,
   }));
 
-  return [...dates, ...overdue, ...situations, ...sessions, ...promises];
+  // What the viewer ticked and Claude hasn't asked about yet doesn't nudge again (followups.ts).
+  const open = await openFollowUps(v);
+  const followed = (i: DueItem) =>
+    open.some(
+      (f) =>
+        f.kind === i.kind &&
+        (i.kind === "overdue"
+          ? f.personId === i.personId
+          : i.kind === "situation"
+            ? f.factId === i.itemId
+            : f.seriesId === i.itemId && f.sessionDay === i.date),
+    );
+
+  return [...dates, ...overdue, ...situations, ...sessions, ...promises].filter((i) => !followed(i));
 }

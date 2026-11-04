@@ -17,7 +17,8 @@ export type VisibleTable =
   | "rambles"
   | "experiences"
   | "series"
-  | "place_owners";
+  | "place_owners"
+  | "follow_ups";
 
 /** Narrows a query to the rows of `table` the viewer may see: `table.visibility = 'shared' or table.recorded_by = viewer`. */
 export function visible<T extends { where(e: Expression<SqlBool>): T }>(qb: T, v: Viewer, table: VisibleTable): T {

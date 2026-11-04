@@ -21,6 +21,7 @@ export { e2eLoginRoute } from "./auth/e2e";
 export { briefing, type Briefing } from "./reading/briefing";
 export { getConversation, hasRecorded, listConversations, type ConversationSummary, type ConversationView } from "./conversations/conversations";
 export { whatsDue, type DueItem } from "./reading/due";
+export { openFollowUps, type FollowUp } from "./reading/followups";
 export {
   acrossBooks,
   dueAcross,

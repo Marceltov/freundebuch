@@ -210,6 +210,8 @@ export interface Schema {
     /** The weekly reflection: weekday (0 Sunday … 6 Saturday) and hour, local time; null is off. */
     reflection_day: ColumnType<number | null, number | null | undefined, number | null>;
     reflection_hour: ColumnType<number | null, number | null | undefined, number | null>;
+    /** Where the daily nudges go: the push (webhook), Todoist, or both. */
+    delivery: ColumnType<"push" | "todoist" | "both", "push" | "todoist" | "both" | undefined, "push" | "todoist" | "both">;
   };
   /** One of a user's own cards, named by `label` ("Privat", "Arbeit"): `card` is the JSON of a Card (cards.ts); `key_hash` its published link's, null while unpublished. */
   own_cards: { id: string; user_id: string; label: string; card: string; key_hash: string | null; created_at: number; updated_at: number };
@@ -243,4 +245,49 @@ export interface Schema {
     batch_id: ColumnType<string | null, string | null | undefined, string | null>;
   };
   meta: { key: string; value: string };
+  /**
+   * A ticked Todoist task about someone overdue, a situation or a missed session: open (`closed_at` null) until what it is about
+   * changes, or closed as a plain contact on `day` (`contact`). Always private to the user who ticked it.
+   */
+  follow_ups: {
+    book_id: string;
+    id: string;
+    kind: "overdue" | "situation" | "session";
+    person_id: string;
+    fact_id: ColumnType<string | null, string | null | undefined, string | null>;
+    series_id: ColumnType<string | null, string | null | undefined, string | null>;
+    session_day: ColumnType<string | null, string | null | undefined, string | null>;
+    /** The day it was ticked. */
+    day: string;
+    contact: Flag;
+    closed_at: ColumnType<number | null, number | null | undefined, number | null>;
+    visibility: string;
+    recorded_by: string;
+    created_at: number;
+  };
+  /** A user's Todoist: their personal token (never read back out), the project tasks go to, the sync position and per-kind settings (JSON). */
+  todoist_connections: {
+    user_id: string;
+    token: string;
+    project_id: ColumnType<string | null, string | null | undefined, string | null>;
+    project_name: ColumnType<string | null, string | null | undefined, string | null>;
+    sync_token: ColumnType<string | null, string | null | undefined, string | null>;
+    kinds: ColumnType<string, string | undefined, string>;
+    /** Todoist refused the token; nothing syncs until the user connects again. */
+    broken: Flag;
+    created_at: number;
+  };
+  /** The Todoist task made for one due item (`key`, see the sync), and what became of it. */
+  todoist_tasks: {
+    user_id: string;
+    key: string;
+    task_id: string;
+    book_id: string;
+    kind: "date" | "promise" | "overdue" | "situation" | "session";
+    item_id: string | null;
+    person_id: string;
+    day: string;
+    state: "open" | "ticked" | "closed" | "gone";
+    created_at: number;
+  };
 }

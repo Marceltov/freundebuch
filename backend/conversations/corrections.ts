@@ -666,6 +666,9 @@ export async function mergePeople(v: Viewer, keepId: string, dropId: string): Pr
         .execute();
     }
 
+    // Follow-ups of ticked tasks, each user's, are about the one kept; its plain contacts count for its last seen.
+    await tx.update("follow_ups").set({ person_id: keepId }).where("person_id", "=", dropId).execute();
+
     await mergeLinks(tx.instance, v.bookId, keepId, dropId);
     await tx.delete("persons").where("id", "=", dropId).execute(); // takes the remaining settings and rows with it
     return { kept: keep.name, dropped: drop.name, moved };

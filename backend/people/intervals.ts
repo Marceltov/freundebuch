@@ -1,5 +1,6 @@
 // "Last seen" and the check-in interval, both per viewer: only conversations the viewer can see and their own person took
-// part in count, so the partner's calls with Anna never change how long it has been for me.
+// part in count (and the viewer's own plain contacts, for last seen), so the partner's calls with Anna never change how long it
+// has been for me.
 import { scope } from "../db/scope";
 import { daysBetween, today } from "./dates";
 import { InvalidInputError, NotFoundError } from "../core/errors";
@@ -29,8 +30,25 @@ async function datesSeen(v: Viewer, personId: string, limit: number): Promise<st
   return rows.map((r) => r.date);
 }
 
+/**
+ * The newest of the viewer's conversations with the person and the days they closed a follow-up as a plain contact (followups.ts):
+ * a ticked check-in counts as seeing them, though it never feeds the suggested interval.
+ */
 export async function lastSeen(v: Viewer, personId: string): Promise<string | null> {
-  return (await datesSeen(v, personId, 1))[0] ?? null;
+  const [seen, contact] = await Promise.all([
+    datesSeen(v, personId, 1),
+    (await scope(v))
+      .from("follow_ups")
+      .select("day")
+      .where("person_id", "=", personId)
+      .where("contact", "=", 1)
+      .$call((qb) => visible(qb, v, "follow_ups"))
+      .orderBy("day", "desc")
+      .limit(1)
+      .executeTakeFirst(),
+  ]);
+  const days = [seen[0], contact?.day].filter((d): d is string => !!d).sort();
+  return days.pop() ?? null;
 }
 
 /** The median gap between the last 6 conversations, rounded to whole weeks (at least one); null with fewer than 3 conversations. */

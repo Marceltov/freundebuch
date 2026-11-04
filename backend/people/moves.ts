@@ -27,8 +27,9 @@ export type Moved = {
 };
 
 const ITEM_TABLES = ["facts", "promises", "dates", "exchanges"] as const;
-// What keeps a person in the source book: anything filed about them. Their other names, settings and card follow the person.
-const FOLLOWS_PERSON = new Set<string>(["aliases", "person_settings", "card_subscriptions"]);
+// What keeps a person in the source book: anything filed about them. Their other names, settings and card follow the person; a
+// follow-up of a ticked task (followups.ts) is filed nowhere and goes with the entry.
+const FOLLOWS_PERSON = new Set<string>(["aliases", "person_settings", "card_subscriptions", "follow_ups"]);
 
 /** Moves people (by id, or a group's members) into the book `to`, in one transaction. */
 export async function movePeople(v: Viewer, people: string[] | { group: string }, to: string): Promise<Moved> {
