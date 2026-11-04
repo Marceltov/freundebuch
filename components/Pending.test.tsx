@@ -17,6 +17,7 @@ const file = (over: Partial<PendingFile>): PendingFile => ({
   people: [{ name: "Patrick", person: null, candidates: [] }],
   error: null,
   batchId: null,
+  context: null,
   ...over,
 });
 

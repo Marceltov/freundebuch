@@ -243,6 +243,8 @@ export interface Schema {
     blob_key: string;
     /** The batch id the client sent with it (files shared in one go), or null. */
     batch_id: ColumnType<string | null, string | null | undefined, string | null>;
+    /** JSON of a FileContext (files.ts): where it came from, e.g. a comment on a Todoist task; null when shared directly. */
+    context: ColumnType<string | null, string | null | undefined, string | null>;
   };
   meta: { key: string; value: string };
   /**
@@ -277,6 +279,8 @@ export interface Schema {
     kinds: ColumnType<string, string | undefined, string>;
     /** Todoist refused the token; nothing syncs until the user connects again. */
     broken: Flag;
+    /** The notes written before comments were taken in have been read once. */
+    notes_backfilled: Flag;
     created_at: number;
   };
   /** The Todoist task made for one due item (`key`, see the sync), and what became of it. */
@@ -290,6 +294,10 @@ export interface Schema {
     person_id: string;
     day: string;
     state: "open" | "ticked" | "closed" | "gone";
+    /** The task's text as sent to Todoist; null on tasks from before comments. */
+    title: ColumnType<string | null, string | null | undefined, string | null>;
     created_at: number;
   };
+  /** A Todoist comment (note) already taken into Prüfen. */
+  todoist_notes: { user_id: string; note_id: string; created_at: number };
 }
