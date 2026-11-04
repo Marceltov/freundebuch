@@ -50,6 +50,7 @@ items:
     summary: A line, a photo or a voice message you leave on one of freundebuch's tasks in Todoist comes into Prüfen, dated by the comment and with its task, for Claude to work through with you. Nothing is filed or ticked from it on its own.
     links:
       - { label: "#130", url: "https://github.com/Marceltov/freundebuch/issues/130" }
+      - { label: "#131", url: "https://github.com/Marceltov/freundebuch/pull/131" }
       - { label: "ADR 0030", url: "https://marceltov.github.io/freundebuch/adr/0030-todoist-tasks-and-follow-ups/" }
       - { label: "V5", url: "https://marceltov.github.io/freundebuch/values/#v5-you-decide-what-is-filed" }
 
