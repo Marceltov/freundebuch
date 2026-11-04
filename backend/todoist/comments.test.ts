@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeEach, expect, test } from "vitest";
 import { instance } from "../db/scope";
 import { listPending, MAX_UPLOAD, setFileModelForTests } from "../conversations/files";
 import { setTranscriberForTests } from "../conversations/transcribe";
@@ -58,6 +61,10 @@ const fetchFn = (async (url: string, init: RequestInit = {}) => {
   return new Response(null, { status: 404 });
 }) as unknown as typeof fetch;
 
+// Shared files go to the blob store under DATA_DIR: a directory of the test's own, never /data.
+const dir = mkdtempSync(join(tmpdir(), "fb-todoist-comments-"));
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
 let s: Seed;
 const NOW = Date.parse("2026-11-04T10:00:00Z");
 const wav = () => {
@@ -110,6 +117,7 @@ const note = (token: string, n: Partial<Note> & { id: string; item_id: string })
     .notes.push({ posted_uid: accounts.get(token)!.uid, posted_at: "2026-11-04T09:00:00Z", content: "", is_deleted: false, changed: ++clock, ...n });
 
 beforeEach(async () => {
+  process.env.DATA_DIR = dir;
   s = await seed();
   accounts = new Map();
   clock = 0;
