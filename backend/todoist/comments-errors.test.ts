@@ -1,7 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterAll, afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { instance } from "../db/scope";
 import { listPending, setFileModelForTests } from "../conversations/files";
 import { seed, type Seed } from "../testing/fixtures";
@@ -24,13 +21,8 @@ vi.mock("../people/books", async (orig) => {
   };
 });
 
-// Shared files go to the blob store under DATA_DIR: a directory of the test's own, never /data.
-const dir = mkdtempSync(join(tmpdir(), "fb-todoist-comments-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
-
 let s: Seed;
 beforeEach(async () => {
-  process.env.DATA_DIR = dir;
   s = await seed();
   setFileModelForTests({ read: () => new Promise(() => undefined) });
   await (

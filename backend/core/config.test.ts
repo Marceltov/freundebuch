@@ -65,6 +65,8 @@ test("trustProxy only for exactly 1; rateLimit defaults to 60", () => {
 test("publicUrl has no trailing slash and is undefined when unset; secret likewise; dataDir defaults to /data", () => {
   expect(config.publicUrl()).toBeUndefined();
   expect(config.secret()).toBeUndefined();
+  // The tests keep their data in a temporary directory (backend/testing/setup.ts); unset, the default is /data.
+  vi.stubEnv("DATA_DIR", "");
   expect(config.dataDir()).toBe("/data");
   process.env.PUBLIC_URL = "https://freundebuch.example/";
   expect(config.publicUrl()).toBe("https://freundebuch.example");
