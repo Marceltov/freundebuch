@@ -369,6 +369,7 @@ export const de = {
     "Was du geteilt hast, wartet hier: Screenshots, Fotos, PDFs, Textdateien, Sprachnachrichten. Geh sie mit Claude durch, dann wird abgelegt, was drin steht.",
   pendingEmpty: "Nichts zu prüfen.",
   pendingCount: "{n} zu prüfen",
+  fromTodoist: "Kommentar zu „{task}“ in Todoist",
   pendingReading: "Wird gelesen …",
   pendingFailed: "Konnte nicht gelesen werden.",
   pendingNotTranscribed: "Konnte nicht transkribiert werden.",
