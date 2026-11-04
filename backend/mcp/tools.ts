@@ -1011,6 +1011,11 @@ export const TOOLS: readonly Tool[] = [
         const batches = [...new Set(shown.flatMap((f) => (f.batchId ? [f.batchId] : [])))]
           .map((batchId) => ({ batchId, ids: shown.filter((f) => f.batchId === batchId).map((f) => f.id) }))
           .filter((b) => b.ids.length > 1);
+        // A comment on a Todoist task: Claude proposes what it means; filing it settles the task, a comment alone doesn't tick it.
+        for (const title of new Set(shown.flatMap((f) => (f.context?.source === "todoist" ? [f.context.taskTitle] : []))))
+          next.push(
+            `This is a comment the user left on the Todoist task "${title}". Propose from what it says: a contact or news → file it with record (that settles the task); only a note → file that and leave the task open; nothing came of it → inbox done.`,
+          );
         for (const b of batches)
           next.push(
             `${b.ids.slice(0, -1).join(", ")} and ${b.ids.at(-1)} were shared together: offer to work them through as one thing, and pass all their ids to record in fileIds.`,

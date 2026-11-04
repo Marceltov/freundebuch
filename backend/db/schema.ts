@@ -281,6 +281,8 @@ export interface Schema {
     broken: Flag;
     /** The notes written before comments were taken in have been read once. */
     notes_backfilled: Flag;
+    /** The Todoist account's own user id: only its comments are taken in. */
+    todoist_user_id: ColumnType<string | null, string | null | undefined, string | null>;
     created_at: number;
   };
   /** The Todoist task made for one due item (`key`, see the sync), and what became of it. */

@@ -533,7 +533,7 @@ const migrations: Record<string, Migration> = {
   "007_todoist_comments": {
     // Comments on Todoist tasks land in Prüfen: a file says which task it came from (context, JSON), a task keeps the title sent
     // to Todoist, and the notes taken in are remembered per user, so none comes twice. notes_backfilled: the one full read of
-    // the notes written before this.
+    // the notes written before this; todoist_user_id: whose comments count (only a full sync returns the user).
     async up(db: Kysely<any>) {
       await db.schema.alterTable("files").addColumn("context", "text").execute();
       await db.schema.alterTable("todoist_tasks").addColumn("title", "text").execute();
@@ -541,6 +541,7 @@ const migrations: Record<string, Migration> = {
         .alterTable("todoist_connections")
         .addColumn("notes_backfilled", "integer", (c) => c.notNull().defaultTo(0))
         .execute();
+      await db.schema.alterTable("todoist_connections").addColumn("todoist_user_id", "text").execute();
       await db.schema
         .createTable("todoist_notes")
         .addColumn("user_id", "text", (c) => c.notNull().references("users.id").onDelete("cascade"))

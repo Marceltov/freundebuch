@@ -81,10 +81,12 @@ describe("todoist client", () => {
         { id: "a", checked: true, deleted: false },
         { id: "b", checked: false, deleted: true },
       ],
+      notes: [],
+      userId: null,
     });
     const body = new URLSearchParams(calls[0].init.body as string);
     expect(body.get("sync_token")).toBe("*");
-    expect(body.get("resource_types")).toBe('["items"]');
+    expect(body.get("resource_types")).toBe('["items","notes","user"]');
   });
 
   test("sync passes a stored token on", async () => {

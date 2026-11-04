@@ -20,6 +20,7 @@ import type { DueItem } from "../reading/due";
 import { addFollowUp } from "../reading/followups";
 import { visible } from "../visibility";
 import { TodoistAuthError, TodoistError, todoist } from "./client";
+import { takeComments } from "./comments";
 import { todoistStatus, type DueKind } from "./settings";
 
 const log = logger("todoist");
@@ -86,10 +87,26 @@ async function connection(userId: string) {
   return (await instance()).from("todoist_connections").selectAll().where("user_id", "=", userId).executeTakeFirst();
 }
 
-/** Step 1: ticks and deletions since the last sync land on the open tasks; the position is saved once they all have. */
-async function pull(all: Viewer, token: string, syncToken: string | null, now: number, fetchFn: typeof fetch): Promise<void> {
+type Connection = NonNullable<Awaited<ReturnType<typeof connection>>>;
+
+/** Step 1: ticks and deletions since the last sync land on the open tasks, and new comments go to Prüfen (comments.ts); the
+ * position is saved once they all have. The first time, one full read brings the account's user id and the comments written
+ * before comments were read. */
+async function pull(all: Viewer, conn: Connection, now: number, fetchFn: typeof fetch): Promise<void> {
   const i = await instance();
-  const res = await todoist(token, fetchFn).sync(syncToken);
+  const token = conn.token;
+  let uid = conn.todoist_user_id;
+  if (!conn.notes_backfilled || !uid) {
+    const full = await todoist(token, fetchFn).sync(null);
+    uid = full.userId;
+    if (uid) await takeComments(all, token, full.notes, uid, fetchFn);
+    await i
+      .update("todoist_connections")
+      .set({ todoist_user_id: uid, notes_backfilled: uid ? 1 : 0 })
+      .where("user_id", "=", all.userId)
+      .execute();
+  }
+  const res = await todoist(token, fetchFn).sync(conn.sync_token);
   const changed = new Map(res.items.map((x) => [x.id, x]));
   if (changed.size) {
     const rows = await i.from("todoist_tasks").selectAll().where("user_id", "=", all.userId).where("state", "=", "open").execute();
@@ -111,6 +128,7 @@ async function pull(all: Viewer, token: string, syncToken: string | null, now: n
       }
     }
   }
+  if (uid) await takeComments(all, token, res.notes, uid, fetchFn);
   await i.update("todoist_connections").set({ sync_token: res.syncToken }).where("user_id", "=", all.userId).execute();
 }
 
@@ -172,7 +190,7 @@ export async function syncUser(userId: string, now: number, fetchFn: typeof fetc
   if (!conn?.project_id || conn.broken) return;
   const all = await viewerById(userId);
   if (!all) return;
-  await pull(all, conn.token, conn.sync_token, now, fetchFn);
+  await pull(all, conn, now, fetchFn);
 
   const status = await todoistStatus(all);
   if (!status.connected) return;
@@ -205,9 +223,10 @@ export async function syncUser(userId: string, now: number, fetchFn: typeof fetc
       // What is due now is due on the day it came up; a date or promise on its own day, or with its day as the deadline.
       const deadline = !!kind && status.kinds[kind].placement === "deadline" && day > from;
       let taskId: string;
+      const content = withBook(copy, all, item.book.name, m.title);
       try {
         taskId = await client.createTask({
-          content: withBook(copy, all, item.book.name, m.title),
+          content,
           description: m.click ?? "",
           projectId: conn.project_id,
           dueDate: !kind || deadline ? from : day,
@@ -229,6 +248,7 @@ export async function syncUser(userId: string, now: number, fetchFn: typeof fetc
           person_id: item.personId,
           day,
           state: "open",
+          title: content,
           created_at: now,
         })
         .execute();
@@ -277,7 +297,7 @@ export async function pullNow(v: Viewer, fetchFn: typeof fetch = fetch): Promise
     const conn = await connection(v.userId);
     if (!conn?.project_id || conn.broken) return;
     const all = await viewerById(v.userId);
-    if (all) await pull(all, conn.token, conn.sync_token, Date.now(), fetchFn);
+    if (all) await pull(all, conn, Date.now(), fetchFn);
   } catch (e) {
     if (e instanceof TodoistAuthError) await markBroken(v.userId).catch(() => undefined);
     log.warn({ err: { type: errorFields(e).type } }, "todoist pull failed");
