@@ -50,7 +50,19 @@ export { NotFoundError } from "./core/errors";
 export { orbit, type Badge, type OrbitFace } from "./people/orbit";
 export { calendarRoute, hasCalendarKey } from "./sharing/calendar";
 export { cardRoute, ownCards, personCard, type Card, type OwnCard, type PersonCard } from "./sharing/cards";
-export { getSettings, userLanguage } from "./core/settings";
+export { getSettings, userLanguage, type Delivery } from "./core/settings";
+export {
+  connectTodoist,
+  DEFAULT_KINDS,
+  disconnectTodoist,
+  setTodoistKinds,
+  setTodoistProject,
+  todoistStatus,
+  type DueKind,
+  type KindSetting,
+  type Kinds,
+  type TodoistStatus,
+} from "./todoist/settings";
 export { getReflection } from "./journal/reflection";
 export { getRamble, listRambles, type RambleSummary, type RambleView } from "./conversations/rambles";
 export { journalEntries, type JournalEntry } from "./journal/journal";

@@ -45,6 +45,7 @@ import { findPlaces, placesInside, placesOf } from "../experiences/places";
 import { setLook } from "../people/looks";
 import { addAlias, findPeople, getPerson, listPeople, setGender } from "../people/people";
 import { getSettings, putSettings, setLanguage, testWebhook } from "../core/settings";
+import { connectTodoist, disconnectTodoist, setTodoistKinds, setTodoistProject, todoistStatus } from "../todoist/settings";
 import { getReflection, putReflection } from "../journal/reflection";
 import { deleteRamble } from "../conversations/rambles";
 import { createShareKey, discardFile, listPending, retryFile, revokeShareKey, fileModel } from "../conversations/files";
@@ -88,6 +89,11 @@ import {
   RecordedRambleJson,
   SentJson,
   SettingsJson,
+  TodoistKindsJson,
+  TodoistStatusJson,
+  TodoistTokenJson,
+  TodoistProjectsJson,
+  TodoistProjectJson,
   LanguageJson,
   ReflectionJson,
   ShareKeyJson,
@@ -687,6 +693,78 @@ const ROUTES: AnyOp[] = [
     responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
   }).handle(async ({ viewer, body }) => {
     await putSettings(viewer, body);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/me/todoist`,
+    operationId: "getTodoist",
+    summary: "The caller's Todoist connection",
+    description: "`connected` is true once a project is chosen. The token is never returned.",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    responses: { 200: { description: "The connection", schema: TodoistStatusJson }, 401: E401 },
+  }).handle(async ({ viewer }) => ({ status: 200, body: await todoistStatus(viewer) })),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/me/todoist`,
+    operationId: "connectTodoist",
+    summary: "Connect Todoist with a personal API token",
+    description:
+      "Checks the token, stores it (no project yet) and returns the projects to choose from (PUT /me/todoist/project). A token Todoist refuses is a 400.",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    body: TodoistTokenJson,
+    responses: { 200: { description: "The Todoist projects", schema: TodoistProjectsJson }, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => ({ status: 200, body: await connectTodoist(viewer, body.token) })),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/me/todoist/project`,
+    operationId: "setTodoistProject",
+    summary: "Choose the Todoist project tasks go to",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    body: TodoistProjectJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => {
+    await setTodoistProject(viewer, body.projectId);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/me/todoist/kinds`,
+    operationId: "setTodoistKinds",
+    summary: "Set lead days and placement per kind of due item",
+    description: "Only the kinds sent change.",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    body: TodoistKindsJson,
+    responses: { 204: NO_CONTENT, 400: E400, 401: E401 },
+  }).handle(async ({ viewer, body }) => {
+    await setTodoistKinds(viewer, body);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/me/todoist`,
+    operationId: "disconnectTodoist",
+    summary: "Disconnect Todoist",
+    description: "Forgets the token and which tasks were made; the tasks in Todoist stay.",
+    tags: ["Settings"],
+    auth: true,
+    params: {},
+    responses: { 204: NO_CONTENT, 401: E401 },
+  }).handle(async ({ viewer }) => {
+    await disconnectTodoist(viewer);
     return { status: 204, body: undefined };
   }),
 

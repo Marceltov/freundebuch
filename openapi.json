@@ -2620,6 +2620,345 @@
         }
       }
     },
+    "/api/v1/me/todoist": {
+      "get": {
+        "operationId": "getTodoist",
+        "summary": "The caller's Todoist connection",
+        "description": "`connected` is true once a project is chosen. The token is never returned.",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoistStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "connectTodoist",
+        "summary": "Connect Todoist with a personal API token",
+        "description": "Checks the token, stores it (no project yet) and returns the projects to choose from (PUT /me/todoist/project). A token Todoist refuses is a 400.",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoistToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Todoist projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoistProjects"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "disconnectTodoist",
+        "summary": "Disconnect Todoist",
+        "description": "Forgets the token and which tasks were made; the tasks in Todoist stay.",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/todoist/project": {
+      "put": {
+        "operationId": "setTodoistProject",
+        "summary": "Choose the Todoist project tasks go to",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoistProject"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/todoist/kinds": {
+      "put": {
+        "operationId": "setTodoistKinds",
+        "summary": "Set lead days and placement per kind of due item",
+        "description": "Only the kinds sent change.",
+        "tags": [
+          "Settings"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "book",
+            "in": "query",
+            "required": false,
+            "description": "The book to work in, by name or id; without one, the caller's oldest book",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoistKinds"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "The request can't be read (`invalid_request`), or a value in it is not acceptable (`invalid_input`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid sign-in or access token (`unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such thing, or one the caller may not see; or no book of the caller's by the name or id in `book` (`not_found`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/cards": {
       "get": {
         "operationId": "getOwnCards",
@@ -6722,10 +7061,168 @@
               "de",
               "en"
             ]
+          },
+          "delivery": {
+            "description": "Where the daily reminders go: the webhook (push, the default), Todoist tasks, or both. Always in a GET; a PUT without it leaves it as it is",
+            "type": "string",
+            "enum": [
+              "push",
+              "todoist",
+              "both"
+            ]
           }
         },
         "required": [
           "webhookUrl"
+        ]
+      },
+      "TodoistKindSetting": {
+        "type": "object",
+        "properties": {
+          "leadDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60,
+            "description": "How many days before the day the task appears in Todoist"
+          },
+          "placement": {
+            "type": "string",
+            "enum": [
+              "due",
+              "deadline"
+            ],
+            "description": "Whether the day is the task's due date or its deadline (then it is due today)"
+          }
+        },
+        "required": [
+          "leadDays",
+          "placement"
+        ]
+      },
+      "TodoistKinds": {
+        "type": "object",
+        "properties": {
+          "birthday": {
+            "$ref": "#/components/schemas/TodoistKindSetting"
+          },
+          "anniversary": {
+            "$ref": "#/components/schemas/TodoistKindSetting"
+          },
+          "date": {
+            "$ref": "#/components/schemas/TodoistKindSetting"
+          },
+          "promise": {
+            "$ref": "#/components/schemas/TodoistKindSetting"
+          }
+        }
+      },
+      "TodoistStatus": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "connected": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "required": [
+              "connected"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "connected": {
+                "type": "boolean",
+                "const": true
+              },
+              "projectId": {
+                "type": "string"
+              },
+              "projectName": {
+                "type": "string"
+              },
+              "broken": {
+                "type": "boolean",
+                "description": "Todoist refused the token; nothing syncs until the caller connects again"
+              },
+              "kinds": {
+                "type": "object",
+                "properties": {
+                  "birthday": {
+                    "$ref": "#/components/schemas/TodoistKindSetting"
+                  },
+                  "anniversary": {
+                    "$ref": "#/components/schemas/TodoistKindSetting"
+                  },
+                  "date": {
+                    "$ref": "#/components/schemas/TodoistKindSetting"
+                  },
+                  "promise": {
+                    "$ref": "#/components/schemas/TodoistKindSetting"
+                  }
+                },
+                "required": [
+                  "birthday",
+                  "anniversary",
+                  "date",
+                  "promise"
+                ]
+              }
+            },
+            "required": [
+              "connected",
+              "projectId",
+              "projectName",
+              "broken",
+              "kinds"
+            ]
+          }
+        ]
+      },
+      "TodoistToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A personal Todoist API token"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "TodoistProjects": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ]
+        }
+      },
+      "TodoistProject": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "One of the projects PUT /me/todoist returned"
+          }
+        },
+        "required": [
+          "projectId"
         ]
       },
       "Reflection": {

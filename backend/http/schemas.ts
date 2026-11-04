@@ -909,8 +909,40 @@ export const SettingsJson = z
       .describe(
         "The language the web app and the notifications speak to the caller; German by default. Always in a GET; a PUT ignores it (PUT /me/language sets it)",
       ),
+    delivery: z
+      .enum(["push", "todoist", "both"])
+      .optional()
+      .describe("Where the daily reminders go: the webhook (push, the default), Todoist tasks, or both. Always in a GET; a PUT without it leaves it as it is"),
   })
   .meta({ id: "Settings" });
+
+export const KindSettingJson = z
+  .object({
+    leadDays: z.number().int().min(0).max(60).describe("How many days before the day the task appears in Todoist"),
+    placement: z.enum(["due", "deadline"]).describe("Whether the day is the task's due date or its deadline (then it is due today)"),
+  })
+  .meta({ id: "TodoistKindSetting" });
+export const TodoistKindsJson = z
+  .object({ birthday: KindSettingJson, anniversary: KindSettingJson, date: KindSettingJson, promise: KindSettingJson })
+  .partial()
+  .meta({ id: "TodoistKinds" });
+export const TodoistStatusJson = z
+  .union([
+    z.object({ connected: z.literal(false) }),
+    z.object({
+      connected: z.literal(true),
+      projectId: z.string(),
+      projectName: z.string(),
+      broken: z.boolean().describe("Todoist refused the token; nothing syncs until the caller connects again"),
+      kinds: z.object({ birthday: KindSettingJson, anniversary: KindSettingJson, date: KindSettingJson, promise: KindSettingJson }),
+    }),
+  ])
+  .meta({ id: "TodoistStatus" });
+export const TodoistTokenJson = z.object({ token: z.string().min(1).describe("A personal Todoist API token") }).meta({ id: "TodoistToken" });
+export const TodoistProjectsJson = z.array(z.object({ id: z.string(), name: z.string() })).meta({ id: "TodoistProjects" });
+export const TodoistProjectJson = z
+  .object({ projectId: z.string().min(1).describe("One of the projects PUT /me/todoist returned") })
+  .meta({ id: "TodoistProject" });
 
 export const LanguageJson = z
   .object({ language: z.enum(LANGUAGES).describe("The language the web app and the notifications speak to the caller") })
@@ -1017,6 +1049,12 @@ export const COMPONENTS = [
   GroupNameJson,
   GroupMergeJson,
   SettingsJson,
+  KindSettingJson,
+  TodoistKindsJson,
+  TodoistStatusJson,
+  TodoistTokenJson,
+  TodoistProjectsJson,
+  TodoistProjectJson,
   ReflectionJson,
   SentJson,
   ErrorJson,

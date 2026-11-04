@@ -362,10 +362,10 @@ describe("groups", () => {
 
 describe("settings", () => {
   test("a user reads and sets their own webhook; another scheme is rejected; signed out is 401", async () => {
-    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: null, language: "de" });
+    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: null, language: "de", delivery: "push" });
     expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: "https://ntfy.example/a" })).status).toBe(204);
-    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: "https://ntfy.example/a", language: "de" });
-    expect((await call(s.b, "GET", "/me/settings")).json).toEqual({ webhookUrl: null, language: "de" });
+    expect((await call(s.a, "GET", "/me/settings")).json).toEqual({ webhookUrl: "https://ntfy.example/a", language: "de", delivery: "push" });
+    expect((await call(s.b, "GET", "/me/settings")).json).toEqual({ webhookUrl: null, language: "de", delivery: "push" });
     expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: "ftp://x.example/" })).status).toBe(400);
     expect((await call(null, "GET", "/me/settings")).status).toBe(401);
   });
@@ -375,6 +375,14 @@ describe("settings", () => {
     expect((await call(s.a, "GET", "/me/settings")).json.language).toBe("en");
     expect((await call(s.b, "GET", "/me/settings")).json.language).toBe("de");
     expect((await call(s.a, "PUT", "/me/language", { language: "fr" })).status).toBe(400);
+  });
+
+  test("a user sets where the reminders go; a PUT without it leaves it", async () => {
+    expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: null, delivery: "both" })).status).toBe(204);
+    expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: null })).status).toBe(204);
+    expect((await call(s.a, "GET", "/me/settings")).json.delivery).toBe("both");
+    expect((await call(s.b, "GET", "/me/settings")).json.delivery).toBe("push");
+    expect((await call(s.a, "PUT", "/me/settings", { webhookUrl: null, delivery: "sms" })).status).toBe(400);
   });
 
   test("testing without a webhook sends nothing", async () => {
@@ -730,5 +738,25 @@ describe("books over REST", () => {
     const { c } = await (await import("../testing/fixtures")).seedOtherBook();
     expect((await call(s.a, "PATCH", `/books/${c.bookId}`, { name: "Mine" })).status).toBe(404);
     expect((await call(s.a, "GET", `/books/${c.bookId}/invitations`)).status).toBe(404);
+  });
+});
+
+describe("todoist", () => {
+  test("status, a missing connection, bad input and signed out", async () => {
+    expect((await call(s.a, "GET", "/me/todoist")).json).toEqual({ connected: false });
+    expect((await call(null, "GET", "/me/todoist")).status).toBe(401);
+    expect((await call(s.a, "PUT", "/me/todoist/project", { projectId: "p1" })).status).toBe(400);
+    expect((await call(s.a, "PUT", "/me/todoist/kinds", { date: { leadDays: 99, placement: "due" } })).status).toBe(400);
+    expect((await call(s.a, "PUT", "/me/todoist", {})).status).toBe(400);
+    expect((await call(s.a, "DELETE", "/me/todoist")).status).toBe(204);
+  });
+
+  test("an /mcp token does not open it", async () => {
+    const mcp = sign("access", { aud: `${BASE}/mcp`, uid: s.a.userId });
+    const res = await dispatch(new Request(`${BASE}/api/v1/me/todoist`, { headers: { host: "localhost:3000", authorization: `Bearer ${mcp}` } }), [
+      "me",
+      "todoist",
+    ]);
+    expect(res.status).toBe(401);
   });
 });
