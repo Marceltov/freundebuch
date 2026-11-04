@@ -10,7 +10,7 @@ Instead of (or as well as) the [daily push](notifications.md), what is due can b
 4. Under **Zustellung**, choose where your daily items go: the push, Todoist, or both.
 
 !!! note "The token"
-    freundebuch keeps the token in its database like the webhook URL. It is never shown again and never logged. Disconnect removes it. If Todoist rejects it later (you revoked it, say), the settings page shows the connection as broken; connect again with a new token. When Todoist can't be used, items still arrive as a push if delivery is set to Todoist.
+    freundebuch keeps the token in its database like the webhook URL. It is never shown again and never logged. Disconnect removes it. If Todoist rejects it later (you revoked it, say), the settings page shows the connection as broken; connect again with a new token. With delivery set to Todoist, items fall back to the push when Todoist can't be used.
 
 ## What becomes a task
 
@@ -36,5 +36,7 @@ A tick reaches freundebuch within about five minutes, and always before Claude a
 | Overdue person, situation, missed session | A follow-up: Claude asks you how it went |
 
 A tick never files anything by itself. A follow-up is only a question waiting for you, private to you. It shows in the nudges list in the web app and in what Claude sees in `whats_due` and in a briefing. It ends when you tell Claude about it, or when you say it was just a contact ("correct contact"): then the last-seen date moves to the day you ticked and nothing else is filed.
+
+A situation's follow-up closes only with a new check date you agree to, or when the situation is marked over; if nothing came up, Claude suggests a new check date.
 
 Renaming, moving or deleting a task in Todoist changes nothing in freundebuch.
