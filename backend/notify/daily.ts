@@ -16,12 +16,23 @@ import { inBook } from "../people/books";
 import type { Viewer } from "../core/types";
 import { sendWebhook, type WebhookMessage } from "./webhook";
 import { runReflectionsDue } from "../journal/reflection";
+import { syncAll } from "../todoist/sync";
 
 const log = logger("notify");
 const MAX_PER_USER = 10;
 const fill = (t: string, v: Record<string, string | number>) => t.replace(/\{(\w+)\}/g, (_, k) => String(v[k]));
 
-async function message(v: Viewer, copy: NotifyCopy, item: DueItem, from: string, click: (id: string) => string | undefined): Promise<WebhookMessage> {
+/**
+ * The text of one due item, for the push and for its Todoist task. `from`: the day it is sent, so a date reads "today" or
+ * "tomorrow"; null names the date's day instead (a task stays open over several days).
+ */
+export async function dueMessage(
+  v: Viewer,
+  copy: NotifyCopy,
+  item: DueItem,
+  from: string | null,
+  click: (id: string) => string | undefined,
+): Promise<WebhookMessage> {
   const base = { click: click(item.personId) };
   if (item.kind === "overdue") {
     const seen = await lastSeen(v, item.personId);
@@ -34,10 +45,9 @@ async function message(v: Viewer, copy: NotifyCopy, item: DueItem, from: string,
   }
   if (item.kind === "situation") return { ...base, title: fill(copy.situation, { name: item.name, text: item.text! }), body: "", tags: ["speech_balloon"] };
   if (item.kind === "session") {
-    const [, m, d] = item.date!.split("-");
     const base = config.publicUrl();
     return {
-      title: fill(copy.sessionMissed, { name: item.name, day: fill(copy.dayMonth, { d, m }) }),
+      title: fill(copy.sessionMissed, { name: item.name, day: dayMonth(copy, item.date!) }),
       body: "",
       tags: ["paw_prints"],
       click: base ? `${base}${item.url}` : undefined,
@@ -47,14 +57,34 @@ async function message(v: Viewer, copy: NotifyCopy, item: DueItem, from: string,
     return item.byMe
       ? { ...base, title: fill(copy.promise, { text: item.text! }), body: fill(copy.promiseBody, { name: item.name }), tags: ["pushpin"] }
       : { ...base, title: fill(copy.promiseTheirs, { name: item.name, text: item.text! }), body: "", tags: ["pushpin"] };
-  const when = item.date === from ? copy.today : copy.tomorrow;
-  const found = (await upcomingDates(v, from, 1)).find((u) => u.personId === item.personId && u.date === item.date && (u.label ?? u.kind) === item.text);
+  const when = from === null ? fill(copy.onDay, { day: dayMonth(copy, item.date!) }) : item.date === from ? copy.today : copy.tomorrow;
+  const found = (await upcomingDates(v, item.date!, 0)).find((u) =>
+    item.itemId ? u.id === item.itemId : u.personId === item.personId && (u.label ?? u.kind) === item.text,
+  );
   if (found?.kind === "birthday") {
     const title = found.age === null ? copy.birthday : copy.birthdayAge;
     return { ...base, title: fill(title, { name: item.name, when, age: found.age ?? "" }), body: "", tags: ["birthday"] };
   }
   const label = found?.kind === "anniversary" && !found.label ? copy.anniversary : (found?.label ?? item.text!);
   return { ...base, title: fill(copy.date, { label, when, name: item.name }), body: "", tags: ["calendar"] };
+}
+
+const dayMonth = (copy: NotifyCopy, day: string) => {
+  const [, m, d] = day.split("-");
+  return fill(copy.dayMonth, { d, m });
+};
+
+/** The title with its book named, when the user keeps several. */
+export const withBook = (copy: NotifyCopy, all: Viewer, book: string, title: string) => (all.books.length > 1 ? fill(copy.inBook, { book, title }) : title);
+
+/** Whether the user's daily items go to their Todoist instead of the push: they chose Todoist alone and it can take them. Without
+ * a usable Todoist (none, no project, the token refused) the push goes out, so nothing due is lost. */
+async function todoistOnly(userId: string): Promise<boolean> {
+  const d = await instance();
+  const s = await d.from("user_settings").select("delivery").where("user_id", "=", userId).executeTakeFirst();
+  if (s?.delivery !== "todoist") return false;
+  const c = await d.from("todoist_connections").select(["project_id", "broken"]).where("user_id", "=", userId).executeTakeFirst();
+  return !!c?.project_id && c.broken === 0;
 }
 
 const doneKey = (userId: string) => `last_notify_date:${userId}`;
@@ -79,6 +109,7 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
         const mark = await d.from("meta").select("value").where("key", "=", doneKey(row.user_id)).executeTakeFirst();
         if (mark?.value === from) continue;
       }
+      if (await todoistOnly(row.user_id)) continue;
       const all = await viewerById(row.user_id);
       if (!all) continue;
       users++;
@@ -96,8 +127,8 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
       const shown = items.length > MAX_PER_USER ? items.slice(0, MAX_PER_USER - 1) : items;
       const messages = await Promise.all(
         shown.map(async ({ v, book, item }) => {
-          const m = await message(v, copy, item, from, click);
-          return all.books.length > 1 ? { ...m, title: fill(copy.inBook, { book, title: m.title }) } : m;
+          const m = await dueMessage(v, copy, item, from, click);
+          return { ...m, title: withBook(copy, all, book, m.title) };
         }),
       );
       if (items.length > MAX_PER_USER) messages.push({ title: fill(copy.more, { n: items.length - shown.length }), body: "", tags: ["bell"], click: base });
@@ -119,7 +150,7 @@ export async function runDaily(now = Date.now(), fetchFn: typeof fetch = fetch, 
 const localTime = (now: number) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: config.timeZone(), hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
 
-const running = processState("notify", () => ({ busy: false, cards: false, timer: null as NodeJS.Timeout | null }));
+const running = processState("notify", () => ({ busy: false, cards: false, todoist: false, ticks: 0, timer: null as NodeJS.Timeout | null }));
 
 /** One tick of the scheduler: from NOTIFY_AT on, serves each user who hasn't had today's reminders yet. */
 export async function runDailyIfDue(now = Date.now(), fetchFn: typeof fetch = fetch): Promise<void> {
@@ -143,6 +174,17 @@ async function refreshCardsOnce(): Promise<void> {
   }
 }
 
+// Every fifth tick (about five minutes) syncs Todoist: ticks in, new tasks out; a slow sync isn't joined by the next one.
+async function syncTodoistOnce(): Promise<void> {
+  if (running.todoist) return;
+  running.todoist = true;
+  try {
+    await syncAll(Date.now());
+  } finally {
+    running.todoist = false;
+  }
+}
+
 /** Checks every minute. Safe to call twice; the timer doesn't keep the process alive. */
 export function startScheduler(): void {
   if (running.timer) return;
@@ -150,6 +192,7 @@ export function startScheduler(): void {
     runDailyIfDue().catch((e) => log.error(e, "daily reminders failed"));
     runReflectionsDue().catch((e) => log.error(e, "weekly reflections failed"));
     refreshCardsOnce().catch((e) => log.error(e, "refreshing cards failed"));
+    if (running.ticks++ % 5 === 0) syncTodoistOnce().catch((e) => log.error(e, "syncing Todoist failed"));
   }, 60_000);
   running.timer.unref();
 }

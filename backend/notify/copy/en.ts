@@ -15,6 +15,7 @@ export const en: NotifyCopy = {
   inBook: "{book} · {title}",
   today: "today",
   tomorrow: "tomorrow",
+  onDay: "on {day}",
   dayMonth: "{m}/{d}",
   anniversary: "Anniversary",
   testTitle: "🔔 freundebuch test",

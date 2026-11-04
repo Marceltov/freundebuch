@@ -26,6 +26,8 @@ export type DueItem = {
   itemId?: string;
   lastSeen?: string | null;
   intervalDays?: number | null;
+  /** On a date: which kind of date it is. */
+  dateKind?: "birthday" | "anniversary" | "custom";
   url: string;
 };
 
@@ -96,6 +98,7 @@ export async function whatsDue(v: Viewer, from = today(), horizonDays = 14): Pro
     date: u.date,
     text: u.label ?? u.kind,
     itemId: u.id,
+    dateKind: u.kind,
     url: u.url,
   }));
 
