@@ -920,7 +920,8 @@ export const SettingsJson = z
     webhookUrl: z
       .url({ protocol: /^https?$/ })
       .nullable()
-      .describe("Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"),
+      .optional()
+      .describe("Where the daily reminders are POSTed (ntfy-compatible); null for none, left out to keep it as it is. Only http and https"),
     language: z
       .enum(LANGUAGES)
       .optional()

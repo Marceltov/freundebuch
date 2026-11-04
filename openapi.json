@@ -7205,6 +7205,7 @@
         "type": "object",
         "properties": {
           "webhookUrl": {
+            "description": "Where the daily reminders are POSTed (ntfy-compatible); null for none, left out to keep it as it is. Only http and https",
             "anyOf": [
               {
                 "type": "string",
@@ -7213,8 +7214,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Where the daily reminders are POSTed (ntfy-compatible); null for none. Only http and https"
+            ]
           },
           "language": {
             "description": "The language the web app and the notifications speak to the caller; German by default. Always in a GET; a PUT ignores it (PUT /me/language sets it)",
@@ -7233,10 +7233,7 @@
               "both"
             ]
           }
-        },
-        "required": [
-          "webhookUrl"
-        ]
+        }
       },
       "TodoistKindSetting": {
         "type": "object",

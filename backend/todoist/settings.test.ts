@@ -104,6 +104,16 @@ describe("todoist settings", () => {
     expect(row.sync_token).toBeNull();
   });
 
+  test("a put without webhookUrl keeps the webhook; null clears it", async () => {
+    await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
+    await putSettings(s.a, { delivery: "todoist" });
+    expect(await getSettings(s.a)).toMatchObject({ delivery: "todoist", webhookUrl: "https://ntfy.example/a" });
+    await putSettings(s.a, {});
+    expect((await getSettings(s.a)).webhookUrl).toBe("https://ntfy.example/a");
+    await putSettings(s.a, { webhookUrl: null });
+    expect(await getSettings(s.a)).toMatchObject({ delivery: "todoist", webhookUrl: null });
+  });
+
   test("delivery defaults to push and round-trips", async () => {
     expect((await getSettings(s.a)).delivery).toBe("push");
     await putSettings(s.a, { webhookUrl: null, delivery: "both" });

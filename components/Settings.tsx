@@ -352,15 +352,14 @@ const json = (method: string, body: unknown) => ({ method, headers: { "Content-T
 export function TodoistSettings({
   status,
   delivery,
-  webhookUrl,
+  hasWebhook,
   projects: initialProjects,
 }: {
   status: TodoistStatus;
   delivery: Delivery;
-  webhookUrl: string | null;
+  hasWebhook: boolean;
   projects?: Project[];
 }) {
-  const hasWebhook = !!webhookUrl;
   const copy = useCopy();
   const router = useRouter();
   const [token, setToken] = useState("");
@@ -442,11 +441,10 @@ export function TodoistSettings({
       if (res?.ok) router.refresh();
       return !!res?.ok;
     });
-  // PUT /me/settings takes the whole settings: the webhook goes along unchanged.
   const chooseDelivery = async (next: Delivery) => {
     const before = mode;
     setMode(next);
-    const res = await fetch("/api/v1/me/settings", json("PUT", { webhookUrl, delivery: next })).catch(() => null);
+    const res = await fetch("/api/v1/me/settings", json("PUT", { delivery: next })).catch(() => null);
     report(res);
     if (!res?.ok) setMode(before);
   };

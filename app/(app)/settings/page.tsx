@@ -60,7 +60,7 @@ export default async function SettingsPage() {
           <ListChecks aria-hidden className="h-4 w-4" />
           {copy.todoistTitle}
         </h2>
-        <TodoistSettings status={await todoistStatus(v)} delivery={delivery} webhookUrl={webhookUrl} />
+        <TodoistSettings status={await todoistStatus(v)} delivery={delivery} hasWebhook={!!webhookUrl} />
       </section>
       <section id="reflection" className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">
