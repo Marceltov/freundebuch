@@ -41,15 +41,19 @@ async function listProjects(token: string, fetchFn: typeof fetch): Promise<{ id:
   }
 }
 
-/** Stores the token (no project yet; a new connection starts over, but keeps the kinds) and returns the projects to choose from. */
+/**
+ * Stores the token (no project yet; a new connection starts over, but keeps the kinds) and returns the projects to choose from.
+ * Another token may be another account: the tasks made with the old one are forgotten, as on a disconnect, so the items get new ones.
+ */
 export async function connectTodoist(v: Viewer, token: string, fetchFn: typeof fetch = fetch): Promise<{ id: string; name: string }[]> {
   const t = token.trim();
   if (!t) throw new InvalidInputError("token must not be empty");
   const projects = await listProjects(t, fetchFn);
   const reset = { token: t, project_id: null, project_name: null, sync_token: null, broken: 0 as const };
-  await (
-    await instance()
-  )
+  const i = await instance();
+  const old = await i.from("todoist_connections").select("token").where("user_id", "=", v.userId).executeTakeFirst();
+  if (old && old.token !== t) await i.delete("todoist_tasks").where("user_id", "=", v.userId).execute();
+  await i
     .insert("todoist_connections", { user_id: v.userId, ...reset, created_at: Date.now() })
     .onConflict((oc) => oc.column("user_id").doUpdateSet(reset))
     .execute();

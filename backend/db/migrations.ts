@@ -474,9 +474,10 @@ const migrations: Record<string, Migration> = {
     },
   },
   "006_todoist": {
-    // A ticked Todoist task becomes a follow-up in the book: private to who ticked it, open until what it is about changes or it
-    // is closed as a plain contact (`contact`). The connection and the tasks made from due items are instance tables, one user's
-    // each; how a user's nudges are delivered joins their settings.
+    // A ticked Todoist task becomes a follow-up in the book: private to who ticked it, open until what it is about changes (for
+    // someone overdue: last seen moves past `last_seen`, the one the task was made from) or it is closed as a plain contact
+    // (`contact`). The connection and the tasks made from due items are instance tables, one user's each; how a user's nudges are
+    // delivered joins their settings.
     async up(db: Kysely<any>) {
       await keyed(bookTable(db, "follow_ups"), "follow_ups")
         .addColumn("kind", "text", (c) => c.notNull().check(oneOf("kind", ["overdue", "situation", "session"])))
@@ -485,6 +486,7 @@ const migrations: Record<string, Migration> = {
         .addColumn("series_id", "text")
         .addColumn("session_day", "text")
         .addColumn("day", "text", (c) => c.notNull())
+        .addColumn("last_seen", "text")
         .addColumn("contact", "integer", (c) => c.notNull().defaultTo(0))
         .addColumn("closed_at", "bigint")
         .addColumn("visibility", "text", (c) => c.notNull().check(oneOf("visibility", VISIBILITY)))

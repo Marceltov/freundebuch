@@ -1,15 +1,18 @@
 // Follow-ups: a ticked Todoist task about someone overdue, a situation or a missed session. Ticking it says the user got in touch,
 // not what came of it, so nothing is filed: the follow-up stays open and Claude asks how it went. It closes on its own once what
-// it is about changes (a conversation from the ticked day on, a new checkAfter or the situation's end, the session told or
-// skipped), or as a plain contact on the ticked day when nothing was worth noting. A follow-up is private to the user who ticked it.
+// it is about changes (a conversation newer than the last seen the task was made from, in any of the person's books; a new
+// checkAfter or the situation's end; the session told or skipped), or as a plain contact on the ticked day when nothing was worth
+// noting. A follow-up is private to the user who ticked it.
 import { newId, now } from "../db";
-import { scope } from "../db/scope";
+import { instance, scope } from "../db/scope";
 import { NotFoundError } from "../core/errors";
 import type { Viewer } from "../core/types";
 import { itemPath, personPath, seriesPath } from "../core/urls";
 import { missedSessions } from "../experiences/sessions";
+import { viewerIn, viewerOf } from "../people/books";
 import { addDays } from "../people/dates";
 import { lastSeen } from "../people/intervals";
+import { partsOf } from "../people/links";
 import { visible } from "../visibility";
 
 export type FollowUpKind = "overdue" | "situation" | "session";
@@ -28,7 +31,30 @@ export type FollowUp = {
   url: string;
 };
 
-export type NewFollowUp = { kind: FollowUpKind; personId: string; factId?: string; seriesId?: string; sessionDay?: string; day: string };
+/** `lastSeen` (overdue): the person's last seen the task was made from; now's when left out. */
+export type NewFollowUp = {
+  kind: FollowUpKind;
+  personId: string;
+  factId?: string;
+  seriesId?: string;
+  sessionDay?: string;
+  day: string;
+  lastSeen?: string | null;
+};
+
+/** When the user last saw the person in any of their books: the newest last seen of the person's parts (one when not linked). */
+export async function lastSeenAcross(v: Viewer, personId: string): Promise<string | null> {
+  const i = await instance();
+  const all = (await viewerOf(i, v.userId))!;
+  const parts = await partsOf(all, personId);
+  const seen = await Promise.all(parts.map(async (p) => lastSeen((await viewerIn(i, v.userId, p.book.id))!, p.id)));
+  return (
+    seen
+      .filter((x): x is string => !!x)
+      .sort()
+      .at(-1) ?? null
+  );
+}
 
 /** Opens a follow-up in the viewer's book; when one for the same thing is open already, that one's id. */
 export async function addFollowUp(v: Viewer, f: NewFollowUp): Promise<string> {
@@ -40,6 +66,7 @@ export async function addFollowUp(v: Viewer, f: NewFollowUp): Promise<string> {
         (f.kind === "session" && o.seriesId === (f.seriesId ?? null) && o.sessionDay === (f.sessionDay ?? null))),
   );
   if (same) return same.id;
+  const seen = f.kind === "overdue" ? (f.lastSeen !== undefined ? f.lastSeen : await lastSeenAcross(v, f.personId)) : null;
   const id = newId();
   await (
     await scope(v)
@@ -52,6 +79,7 @@ export async function addFollowUp(v: Viewer, f: NewFollowUp): Promise<string> {
       series_id: f.seriesId ?? null,
       session_day: f.sessionDay ?? null,
       day: f.day,
+      last_seen: seen,
       visibility: "private",
       recorded_by: v.userId,
       created_at: now(),
@@ -74,6 +102,7 @@ export async function openFollowUps(v: Viewer, personId?: string): Promise<Follo
       "follow_ups.series_id",
       "follow_ups.session_day",
       "follow_ups.day",
+      "follow_ups.last_seen",
       "persons.name",
     ])
     .where("follow_ups.closed_at", "is", null)
@@ -101,7 +130,11 @@ export async function openFollowUps(v: Viewer, personId?: string): Promise<Follo
   for (const r of rows) {
     const fact = r.fact_id ? facts.get(r.fact_id) : undefined;
     let done: boolean;
-    if (r.kind === "overdue") done = ((await lastSeen(v, r.person_id)) ?? "") >= r.day;
+    // Seen since the task was made, in any of the person's books: a call the day before the tick, filed after it, counts too.
+    if (r.kind === "overdue") {
+      const seen = await lastSeenAcross(v, r.person_id);
+      done = !!seen && (r.last_seen === null || seen > r.last_seen);
+    }
     // A fact that is gone, or that the viewer may no longer see, has ended for them.
     else if (r.kind === "situation") done = !fact || fact.status !== "current" || (fact.check_after ?? "") > r.day;
     else done = !(await missedSessions(v, addDays(r.session_day!, 1))).some((m) => m.seriesId === r.series_id && m.date === r.session_day);

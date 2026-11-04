@@ -4,6 +4,7 @@ import { editItem, markOutdated, mergePeople, skipSession } from "../conversatio
 import { NotFoundError } from "../core/errors";
 import type { Viewer } from "../core/types";
 import { unchecked } from "../db/testing";
+import { linkPeople } from "../people/links";
 import { getPerson } from "../people/people";
 import { lastSeen, setCheckInInterval, suggestInterval } from "../people/intervals";
 import { movePeople } from "../people/moves";
@@ -31,10 +32,41 @@ test("follow-up hides the overdue person until a conversation is filed", async (
     { id, kind: "overdue", personId: s.anna, name: "Anna", factId: null, seriesId: null, sessionDay: null, day: "2026-10-30", text: null, url: `/p/${s.anna}` },
   ]);
   expect(await openFollowUps(s.a, s.tom)).toEqual([]);
-  // A conversation from before the tick leaves it open; one on the ticked day closes it.
-  await call(s.a, "2026-10-25");
+  // It was made from last seen 20 Oct (the dinner): a conversation from before that leaves it open, one after it closes it.
+  await call(s.a, "2026-10-19");
   expect(await openFollowUps(s.a)).toHaveLength(1);
   await call(s.a, "2026-10-30");
+  expect(await openFollowUps(s.a)).toEqual([]);
+});
+
+test("a call the day before the tick, filed after it, closes the overdue follow-up", async () => {
+  // "I called her yesterday": ticked on the 30th, the call of the 29th filed afterwards.
+  await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-30", lastSeen: "2026-10-20" });
+  await call(s.a, "2026-10-29");
+  expect(await openFollowUps(s.a)).toEqual([]);
+});
+
+test("a tick pulled after midnight still closes with the conversation of the day before", async () => {
+  // The task was made on the 30th from last seen 20 Oct; the call on the 30th was filed, the tick only pulled on the 31st.
+  await call(s.a, "2026-10-30");
+  await addFollowUp(s.a, { kind: "overdue", personId: s.anna, day: "2026-10-31", lastSeen: "2026-10-20" });
+  expect(await openFollowUps(s.a)).toEqual([]);
+});
+
+test("never seen before: any conversation closes the overdue follow-up", async () => {
+  await addFollowUp(s.a, { kind: "overdue", personId: s.tom, day: "2026-10-30", lastSeen: null });
+  expect(await openFollowUps(s.a)).toHaveLength(1);
+  await call(s.a, "2026-10-01", { people: [{ id: s.tom, present: true }] });
+  expect(await openFollowUps(s.a)).toEqual([]);
+});
+
+test("a conversation with a linked person's other part closes the overdue follow-up", async () => {
+  const w = await seedWorkBook(s);
+  await linkPeople(w.a, [s.lena, w.lena2]);
+  // Lena was last seen at the work call of 21 Oct; the follow-up is in the shared book.
+  await addFollowUp(s.a, { kind: "overdue", personId: s.lena, day: "2026-10-30" });
+  expect(await openFollowUps(s.a)).toHaveLength(1);
+  await call(w.work, "2026-10-29", { people: [{ id: w.lena2, present: true }] });
   expect(await openFollowUps(s.a)).toEqual([]);
 });
 

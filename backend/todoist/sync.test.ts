@@ -11,7 +11,7 @@ import { pullNow, syncAll, syncUser } from "./sync";
 
 // An in-memory Todoist behind fetchFn, one account per token. The sync endpoint answers with the tasks changed since the token.
 type Task = { id: string; content: string; description: string; due: string; deadline?: string; checked: boolean; deleted: boolean; changed: number };
-type Account = { tasks: Map<string, Task>; refuse?: boolean; failCreate?: number };
+type Account = { tasks: Map<string, Task>; refuse?: boolean; failCreate?: number; badRequest?: string };
 let accounts: Map<string, Account>;
 let clock: number;
 let ids: number;
@@ -30,6 +30,7 @@ const fetchFn = (async (url: string, init: RequestInit) => {
       return new Response(null, { status: 500 });
     }
     const b = JSON.parse(init.body as string);
+    if (acc.badRequest && b.content.includes(acc.badRequest)) return new Response(null, { status: 400 });
     const id = `t${++ids}`;
     acc.tasks.set(id, {
       id,
@@ -45,7 +46,8 @@ const fetchFn = (async (url: string, init: RequestInit) => {
   }
   const close = path.match(/^\/tasks\/(.+)\/close$/);
   if (close) {
-    const t = acc.tasks.get(decodeURIComponent(close[1]))!;
+    const t = acc.tasks.get(decodeURIComponent(close[1]));
+    if (!t) return new Response(null, { status: 404 });
     Object.assign(t, { checked: true, changed: ++clock });
     return new Response(null, { status: 204 });
   }
@@ -163,6 +165,8 @@ describe("syncUser", () => {
     change("ta", t.id, { checked: true });
     await syncUser(s.a.userId, NOW + 300_000, fetchFn);
     expect(await openFollowUps(s.a)).toMatchObject([{ kind: "overdue", personId: s.anna, day: "2026-10-23" }]);
+    // made from the last seen in the task's key: the dinner of 20 Oct
+    expect(await (await firstBook()).from("follow_ups").select("last_seen").executeTakeFirstOrThrow()).toEqual({ last_seen: "2026-10-20" });
     await syncUser(s.a.userId, NOW + DAY, fetchFn);
     expect(tasks().filter((x) => x.content.includes("Anna"))).toHaveLength(1);
     expect(await openFollowUps(s.b)).toEqual([]);
@@ -266,6 +270,55 @@ describe("syncUser", () => {
     expect(tasks().filter((x) => x.content.includes("Buch leihen"))).toHaveLength(1);
   });
 
+  test("a 400 on one create leaves the other creates and the closing pass to run", async () => {
+    await annaOverdue(s.a.userId);
+    await syncUser(s.a.userId, NOW, fetchFn);
+    const anna = tasks().find((x) => x.content.includes("Anna"))!;
+    await recordConversation(s.a, {
+      date: "2026-10-23",
+      kind: "call",
+      summary: "Called Anna.",
+      transcript: "Called Anna.",
+      visibility: "shared",
+      people: [{ id: s.anna, present: true }],
+    });
+    await promise("pr1", "Kaputt", "2026-10-23", s.a.userId);
+    await promise("pr2", "Buch leihen", "2026-10-23", s.a.userId);
+    account("ta").badRequest = "Kaputt";
+    await syncUser(s.a.userId, NOW + 300_000, fetchFn);
+    expect(tasks().filter((x) => x.content.includes("Buch leihen"))).toHaveLength(1);
+    expect(tasks().filter((x) => x.content.includes("Kaputt"))).toEqual([]);
+    expect(account("ta").tasks.get(anna.id)?.checked).toBe(true);
+    expect((await rows(s.a.userId)).find((r) => r.kind === "overdue")?.state).toBe("closed");
+    expect((await rows(s.a.userId)).map((r) => r.item_id)).not.toContain("pr1");
+    // Once Todoist takes it, the next run makes it.
+    account("ta").badRequest = undefined;
+    await syncUser(s.a.userId, NOW + 600_000, fetchFn);
+    expect(tasks().filter((x) => x.content.includes("Kaputt"))).toHaveLength(1);
+  });
+
+  test("a task gone from Todoist (404 on close) is set gone, and the sync goes on", async () => {
+    await annaOverdue(s.a.userId);
+    await promise("pr1", "Buch leihen", "2026-10-23", s.a.userId);
+    await syncUser(s.a.userId, NOW, fetchFn);
+    const anna = tasks().find((x) => x.content.includes("Anna"))!;
+    const book = tasks().find((x) => x.content.includes("Buch leihen"))!;
+    account("ta").tasks.delete(anna.id); // gone without a trace in the sync
+    await recordConversation(s.a, {
+      date: "2026-10-23",
+      kind: "call",
+      summary: "Called Anna.",
+      transcript: "Called Anna.",
+      visibility: "shared",
+      people: [{ id: s.anna, present: true }],
+    });
+    await (await firstBook()).update("promises").set({ done: 1 }).where("id", "=", "pr1").execute();
+    await syncUser(s.a.userId, NOW + 300_000, fetchFn);
+    expect((await rows(s.a.userId)).find((r) => r.kind === "overdue")?.state).toBe("gone");
+    expect((await rows(s.a.userId)).find((r) => r.kind === "promise")?.state).toBe("closed");
+    expect(account("ta").tasks.get(book.id)?.checked).toBe(true);
+  });
+
   test("a task whose person was deleted is closed without reading them", async () => {
     await promise("pr1", "Buch leihen", "2026-10-23", s.a.userId);
     await syncUser(s.a.userId, NOW, fetchFn);
@@ -339,6 +392,25 @@ describe("syncUser", () => {
     await syncUser(s.a.userId, NOW + 300_000, fetchFn);
     expect(tasks().filter((x) => x.content.includes("Anna"))).toEqual([]);
     expect((await rows(s.a.userId)).find((r) => r.task_id === t.id)?.state).toBe("ticked");
+  });
+
+  test("delivery push with no open task doesn't work out what is due; with one it still closes it", async () => {
+    const across = await import("../reading/across");
+    const spy = vi.spyOn(across, "dueAcross");
+    await putSettings(s.a, { webhookUrl: null, delivery: "push" });
+    await syncUser(s.a.userId, NOW, fetchFn);
+    expect(spy).not.toHaveBeenCalled();
+    await putSettings(s.a, { webhookUrl: null, delivery: "todoist" });
+    await promise("pr1", "Buch leihen", "2026-10-23", s.a.userId);
+    await syncUser(s.a.userId, NOW, fetchFn);
+    const t = tasks().find((x) => x.content.includes("Buch leihen"))!;
+    await putSettings(s.a, { webhookUrl: null, delivery: "push" });
+    await (await firstBook()).update("promises").set({ done: 1 }).where("id", "=", "pr1").execute();
+    spy.mockClear();
+    await syncUser(s.a.userId, NOW + 300_000, fetchFn);
+    expect(spy).toHaveBeenCalled();
+    expect(account("ta").tasks.get(t.id)?.checked).toBe(true);
+    spy.mockRestore();
   });
 });
 

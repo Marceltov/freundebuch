@@ -105,13 +105,18 @@ describe("todoist client", () => {
       .catch((e) => e);
     expect(err).toBeInstanceOf(TodoistError);
     expect(err).not.toBeInstanceOf(TodoistAuthError);
+    expect(err.status).toBe(500);
   });
 
   test("a network error is a TodoistError", async () => {
     const fetchFn = (async () => {
       throw new Error("boom");
     }) as unknown as typeof fetch;
-    await expect(todoist("tok", fetchFn).closeTask("1")).rejects.toBeInstanceOf(TodoistError);
+    const err = await todoist("tok", fetchFn)
+      .closeTask("1")
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(TodoistError);
+    expect(err.status).toBeNull();
   });
 
   test("no log line or error message contains the token", async () => {

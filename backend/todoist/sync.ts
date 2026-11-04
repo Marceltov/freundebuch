@@ -19,7 +19,7 @@ import { dueAcross, type InBook } from "../reading/across";
 import type { DueItem } from "../reading/due";
 import { addFollowUp } from "../reading/followups";
 import { visible } from "../visibility";
-import { TodoistAuthError, todoist } from "./client";
+import { TodoistAuthError, TodoistError, todoist } from "./client";
 import { todoistStatus, type DueKind } from "./settings";
 
 const log = logger("todoist");
@@ -52,6 +52,12 @@ export function itemKey(item: InBook<DueItem>): string {
   }
 }
 
+/** The last seen an overdue task was made from, as its key holds it; null for never. */
+function seenOf(key: string): string | null {
+  const seen = key.split("|")[3];
+  return seen === "never" ? null : seen;
+}
+
 /** The lead-time kind of a date or promise; null for what is due now (overdue, situation, session). */
 export function kindOf(item: DueItem): DueKind | null {
   if (item.kind === "promise") return "promise";
@@ -68,7 +74,7 @@ export async function applyTick(all: Viewer, row: TaskRow, now = Date.now()): Pr
     const person = await (await scope(v)).from("persons").select("id").where("id", "=", row.person_id).executeTakeFirst();
     if (!person) return;
     const day = today(now);
-    if (row.kind === "overdue") await addFollowUp(v, { kind: "overdue", personId: row.person_id, day });
+    if (row.kind === "overdue") await addFollowUp(v, { kind: "overdue", personId: row.person_id, day, lastSeen: seenOf(row.key) });
     else if (row.kind === "situation") await addFollowUp(v, { kind: "situation", personId: row.person_id, factId: row.item_id!, day });
     else await addFollowUp(v, { kind: "session", personId: row.person_id, seriesId: row.item_id!, sessionDay: row.day, day });
   } catch (e) {
@@ -145,6 +151,12 @@ async function setState(userId: string, key: string, state: "ticked" | "closed" 
   await (await instance()).update("todoist_tasks").set({ state }).where("user_id", "=", userId).where("key", "=", key).execute();
 }
 
+/** A Todoist answer about one task that leaves the others to go on: a 4xx but a refused token or a rate limit. A network error,
+ * a 429 or a 5xx stops the user's sync, to be tried again on the next run. */
+function itemError(e: unknown): e is TodoistError {
+  return e instanceof TodoistError && e.status !== null && e.status >= 400 && e.status < 500 && e.status !== 429;
+}
+
 /** Whether a task is wanted on `from`: what is due now always, a date or promise from its lead time on (a promise past due too). */
 function wanted(item: InBook<DueItem>, from: string, kinds: Record<DueKind, { leadDays: number }>): boolean {
   if (item.kind === "session") return item.date! < from; // the morning after its day, as the push sends it
@@ -153,7 +165,8 @@ function wanted(item: InBook<DueItem>, from: string, kinds: Record<DueKind, { le
   return daysBetween(from, item.date!) <= kinds[kind].leadDays;
 }
 
-/** Syncs one user: ticks in, new tasks out, resolved tasks closed. Throws on the first failure; what was done stays done. */
+/** Syncs one user: ticks in, new tasks out, resolved tasks closed. A task Todoist refuses (a 4xx) is logged and left, so the others
+ * and the closing pass still run; anything else throws, and what was done stays done. */
 export async function syncUser(userId: string, now: number, fetchFn: typeof fetch = fetch): Promise<void> {
   const conn = await connection(userId);
   if (!conn?.project_id || conn.broken) return;
@@ -167,13 +180,16 @@ export async function syncUser(userId: string, now: number, fetchFn: typeof fetc
   const i = await instance();
   const client = todoist(conn.token, fetchFn);
   const known = new Map((await i.from("todoist_tasks").selectAll().where("user_id", "=", userId).execute()).map((r) => [r.key, r]));
+  const push = (await getSettings(all)).delivery === "push";
+  // Push only, with no task left open: nothing to make and nothing to close, so what is due isn't worked out every five minutes.
+  if (push && ![...known.values()].some((r) => r.state === "open")) return;
   // Everything still due within the longest lead time, and as far ahead as the furthest open task (a lead time lowered since);
   // a task whose item has left this list was resolved in freundebuch.
   const furthest = Math.max(0, ...[...known.values()].filter((r) => r.state === "open").map((r) => daysBetween(from, r.day)));
   const due = await dueAcross(all, from, Math.max(furthest, ...Object.values(status.kinds).map((k) => k.leadDays)));
   const present = new Set(due.map(itemKey));
 
-  if ((await getSettings(all)).delivery !== "push") {
+  if (!push) {
     const copy = notifyCopy(await userLanguage(all));
     const base = config.publicUrl();
     const click = (id: string) => (base ? `${base}/p/${id}` : undefined);
@@ -188,13 +204,20 @@ export async function syncUser(userId: string, now: number, fetchFn: typeof fetc
       const kind = kindOf(item);
       // What is due now is due on the day it came up; a date or promise on its own day, or with its day as the deadline.
       const deadline = !!kind && status.kinds[kind].placement === "deadline" && day > from;
-      const taskId = await client.createTask({
-        content: withBook(copy, all, item.book.name, m.title),
-        description: m.click ?? "",
-        projectId: conn.project_id,
-        dueDate: !kind || deadline ? from : day,
-        ...(deadline ? { deadlineDate: day } : {}),
-      });
+      let taskId: string;
+      try {
+        taskId = await client.createTask({
+          content: withBook(copy, all, item.book.name, m.title),
+          description: m.click ?? "",
+          projectId: conn.project_id,
+          dueDate: !kind || deadline ? from : day,
+          ...(deadline ? { deadlineDate: day } : {}),
+        });
+      } catch (e) {
+        if (!itemError(e)) throw e;
+        log.warn({ status: e.status, kind: item.kind }, "todoist refused a task; tried again on the next run");
+        continue;
+      }
       await i
         .insert("todoist_tasks", {
           user_id: userId,
@@ -217,7 +240,15 @@ export async function syncUser(userId: string, now: number, fetchFn: typeof fetc
   for (const row of known.values()) {
     if (row.state !== "open" || present.has(row.key)) continue;
     if (row.kind === "date" && (await dateStands(all, row))) continue;
-    await client.closeTask(row.task_id);
+    try {
+      await client.closeTask(row.task_id);
+    } catch (e) {
+      if (!itemError(e)) throw e;
+      // A task deleted in Todoist (404) is gone; another refusal is tried again on the next run.
+      if (e.status === 404) await setState(userId, row.key, "gone");
+      else log.warn({ status: e.status, kind: row.kind }, "todoist refused to close a task; tried again on the next run");
+      continue;
+    }
     await setState(userId, row.key, "closed");
   }
 }

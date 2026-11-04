@@ -10,9 +10,8 @@ import { partsOf, sameAs, type Part } from "../people/links";
 import { getGroup, listGroups, type GroupView } from "../people/groups";
 import { layOut, pickFaces, type OrbitFace } from "../people/orbit";
 import { compareDue, whatsDue, type DueItem } from "./due";
-import { openFollowUps } from "./followups";
+import { lastSeenAcross, openFollowUps } from "./followups";
 import { daysBetween, today } from "../people/dates";
-import { lastSeen } from "../people/intervals";
 import { listRambles, type RambleSummary } from "../conversations/rambles";
 import { search, type SearchHit } from "./search";
 import { journalEntries } from "../journal/journal";
@@ -116,15 +115,10 @@ export async function dueAcross(v: Viewer, from = today(), horizonDays = 14): Pr
     return seen === undefined || seen === d.book.id;
   });
   // Someone in several books is overdue only by when the user last saw them in any of them.
-  const i = await instance();
   const fresh = await Promise.all(
     once.map(async (d) => {
       if (d.kind !== "overdue" || !keys.has(d.personId) || !d.intervalDays) return d;
-      const parts = await partsOf(v, d.personId);
-      const seen = (await Promise.all(parts.map(async (p) => lastSeen((await viewerIn(i, v.userId, p.book.id))!, p.id))))
-        .filter((x): x is string => !!x)
-        .sort()
-        .at(-1);
+      const seen = await lastSeenAcross(v, d.personId);
       if (!seen || seen === d.lastSeen) return d;
       const ratio = daysBetween(seen, from) / d.intervalDays;
       return ratio > 1 ? { ...d, lastSeen: seen, ratio } : null;

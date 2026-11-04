@@ -35,7 +35,7 @@ A tick reaches freundebuch within about five minutes, and always before Claude a
 | Promise | The promise is marked done |
 | Overdue person, situation, missed session | A follow-up: Claude asks you how it went |
 
-A tick never files anything by itself. A follow-up is only a question waiting for you, private to you. It shows in the nudges list in the web app and in what Claude sees in `whats_due` and in a briefing. It ends when you tell Claude about it, or when you say it was just a contact ("correct contact"): then the last-seen date moves to the day you ticked and nothing else is filed.
+A tick never files anything by itself. A follow-up is only a question waiting for you, private to you. It shows in the nudges list in the web app and in what Claude sees in `whats_due`, in a briefing and after filing something about the person. It ends when you tell Claude about it, or when you say it was just a contact ("correct contact"): then the last-seen date moves to the day you ticked and nothing else is filed.
 
 A situation's follow-up closes only with a new check date you agree to, or when the situation is marked over; if nothing came up, Claude suggests a new check date.
 

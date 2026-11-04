@@ -13,9 +13,12 @@ export class TodoistAuthError extends Error {
   }
 }
 
-/** Anything else that went wrong: a non-2xx answer, a network error, a timeout. */
+/** Anything else that went wrong: a non-2xx answer (`status`), a network error or a timeout (no status). */
 export class TodoistError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly status: number | null = null,
+  ) {
     super(message);
     this.name = "TodoistError";
   }
@@ -48,7 +51,7 @@ export function todoist(token: string, fetchFn: typeof fetch = fetch) {
     }
     if (res.status < 200 || res.status >= 300) {
       log.warn({ status: res.status }, "todoist answered with an error");
-      throw new TodoistError(`Todoist answered ${res.status}`);
+      throw new TodoistError(`Todoist answered ${res.status}`, res.status);
     }
     if (res.status === 204) return null;
     try {

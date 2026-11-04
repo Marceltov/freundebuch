@@ -104,6 +104,18 @@ describe("todoist settings", () => {
     expect(row.sync_token).toBeNull();
   });
 
+  test("another token forgets the tasks made with the old one; the same token again keeps them", async () => {
+    const i = await instance();
+    await connectTodoist(s.a, "ta", fake());
+    await connectTodoist(s.b, "tb", fake());
+    await i.insert("todoist_tasks", taskRow(s.a.userId, "k1")).execute();
+    await i.insert("todoist_tasks", taskRow(s.b.userId, "k1")).execute();
+    await connectTodoist(s.a, "ta", fake());
+    expect(await i.from("todoist_tasks").select("user_id").where("user_id", "=", s.a.userId).execute()).toHaveLength(1);
+    await connectTodoist(s.a, "other-account", fake());
+    expect((await i.from("todoist_tasks").select("user_id").execute()).map((r) => r.user_id)).toEqual([s.b.userId]);
+  });
+
   test("a put without webhookUrl keeps the webhook; null clears it", async () => {
     await putSettings(s.a, { webhookUrl: "https://ntfy.example/a" });
     await putSettings(s.a, { delivery: "todoist" });

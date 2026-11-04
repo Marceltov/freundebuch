@@ -5,7 +5,7 @@
 // is built only from those results, which the domain read through visible(), so it can't name what the viewer may not see.
 import * as z from "zod";
 import { linkedBriefing, type LinkedBriefing } from "../reading/linked";
-import { acrossBooks, dueAcross, findAcross, peopleAcross } from "../reading/across";
+import { acrossBooks, dueAcross, findAcross, onceEach, peopleAcross } from "../reading/across";
 import { closeAsContact, openFollowUps, type FollowUp } from "../reading/followups";
 import { pullNow } from "../todoist/sync";
 import { linkPeople, markNotSame, nameMatches, partsOf, unlinkPerson, type Part } from "../people/links";
@@ -31,11 +31,12 @@ import {
 } from "../conversations/corrections";
 import { addGroupAlias, deleteGroup, listGroups, mergeGroups, removeFromGroup, removeGroupAlias, renameGroup } from "../people/groups";
 import { InvalidInputError } from "../core/errors";
-import { bookRef, inBook, inBookOf, listBooks, newBook, type BookRef } from "../people/books";
+import { bookRef, inBook, inBookOf, listBooks, newBook, viewerOf, type BookRef } from "../people/books";
 import { movePeople } from "../people/moves";
 import { INVITATION_DAYS, invite, listInvitations, revokeInvitation } from "../people/invitations";
 import { deleteBook, handOver, leaveBook, removeMember, renameBook, setRole } from "../people/manage";
 import { isId } from "../db";
+import { instance } from "../db/scope";
 import {
   BriefingJson,
   CalendarFeedJson,
@@ -275,6 +276,18 @@ function followUpLine(f: FollowUp): string {
   if (f.kind === "situation")
     return `The user asked ${f.name} about "${f.text}" on ${f.day}. Ask how it went: news is filed with record and supersedes the situation with a new checkAfter agreed with the user; if it ended, mark it outdated with correct; if nothing came up, suggest a new checkAfter, agree it, set it with correct edit and then correct contact (id ${f.id}).`;
   return `The user ticked "${f.name}" on ${f.sessionDay}. Ask whether it happened: file it with record (series ${f.seriesId}), or correct series_skip.`;
+}
+
+/**
+ * The viewer's follow-ups still open about these people, in every book they are in (a linked person's other parts too), and
+ * about these series of the viewer's book; read after a write, so what it just resolved is gone.
+ */
+async function followUpsAbout(v: Viewer, personIds: readonly string[], seriesIds: readonly string[] = []): Promise<FollowUp[]> {
+  const all = (await viewerOf(await instance(), v.userId))!;
+  const parts = onceEach((await Promise.all(personIds.map((id) => partsOf(all, id)))).flat(), (p) => p.id);
+  const about = (await Promise.all(parts.map(async (p) => openFollowUps((await inBookOf(all, [p.id]))!, p.id)))).flat();
+  const series = seriesIds.length ? (await openFollowUps(v)).filter((f) => f.kind === "session" && seriesIds.includes(f.seriesId!)) : [];
+  return onceEach([...about, ...series], (f) => f.id);
 }
 
 function briefingNext(b: LinkedBriefing, followUps: FollowUp[] = []): Next {
@@ -832,6 +845,11 @@ export const TOOLS: readonly Tool[] = [
         v,
         out.experiences.map((e) => e.id),
       );
+      const followUps = await followUpsAbout(
+        v,
+        out.people.map((p) => p.id),
+        out.experiences.flatMap((e) => (e.seriesId ? [e.seriesId] : [])),
+      );
       const placed = [...(r.conversations ?? []).map((c) => c.place), ...(r.experiences ?? []).map((e) => e.place)].flatMap((p) =>
         p && typeof p === "object" && "name" in p && (p.in !== undefined || p.address !== undefined || p.owners?.length)
           ? [`Read back where "${p.name}" sits, its address and whose home it is, with its link.`]
@@ -846,6 +864,7 @@ export const TOOLS: readonly Tool[] = [
         ...out.filed.facts.flatMap(situationDay),
         ...out.filed.relationships.flatMap(keptRelationship),
         ...out.filed.groups.flatMap(alreadyInGroup),
+        ...followUps.map(followUpLine),
       ]);
     },
   }),
@@ -1085,13 +1104,13 @@ export const TOOLS: readonly Tool[] = [
     each: { field: "experiences" },
     handler: async (v, q) => {
       const [experiences, kinds, series] = await Promise.all([listExperiences(v, q), experienceKinds(v), listSeries(v)]);
-      return ok(
-        ExperiencesJson,
-        { experiences, kinds, series },
+      const followUps = q.seriesId ? (await openFollowUps(v)).filter((f) => f.kind === "session" && f.seriesId === q.seriesId) : [];
+      return ok(ExperiencesJson, { experiences, kinds, series }, [
+        ...followUps.map(followUpLine),
         experiences.length
-          ? ["Answer from these experiences with their dates and links; for a series, say how it went over its sessions."]
-          : ["No experiences match: say so, and offer to look at another period or kind."],
-      );
+          ? "Answer from these experiences with their dates and links; for a series, say how it went over its sessions."
+          : "No experiences match: say so, and offer to look at another period or kind.",
+      ]);
     },
   }),
   tool({

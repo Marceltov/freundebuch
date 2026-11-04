@@ -259,6 +259,8 @@ export interface Schema {
     session_day: ColumnType<string | null, string | null | undefined, string | null>;
     /** The day it was ticked. */
     day: string;
+    /** Overdue: the person's last seen the task was made from (null: never seen); it closes once last seen moves past it. */
+    last_seen: ColumnType<string | null, string | null | undefined, string | null>;
     contact: Flag;
     closed_at: ColumnType<number | null, number | null | undefined, number | null>;
     visibility: string;
