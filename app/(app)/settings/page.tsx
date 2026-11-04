@@ -21,7 +21,15 @@ import { GroupSettings } from "@/components/GroupSettings";
 import { Books } from "@/components/Books";
 import { BookMark } from "@/components/BookMark";
 import { OwnCardsSettings } from "@/components/Cards";
-import { CalendarSettings, LanguageSettings, ReflectionSettings, ShareSettings, TodoistSettings, WebhookSettings } from "@/components/Settings";
+import {
+  CalendarSettings,
+  DeliverySettings,
+  LanguageSettings,
+  ReflectionSettings,
+  ShareSettings,
+  TodoistSettings,
+  WebhookSettings,
+} from "@/components/Settings";
 import { pageCopy, pageViewer } from "../viewer";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +43,8 @@ export default async function SettingsPage() {
   const v = await pageViewer();
   const copy = getCopy();
   const { webhookUrl, delivery } = await getSettings(v);
+  const todoist = await todoistStatus(v);
+  const todoistUsable = todoist.connected && !!todoist.projectId && !todoist.broken;
   const books = await listBooks(v);
   const invitations = await openInvitations(v, books);
   const groups = await acrossBooks(v, listGroups);
@@ -52,6 +62,9 @@ export default async function SettingsPage() {
         </h2>
         <Books books={books} invitations={invitations} me={v.userId} />
       </section>
+      <section id="delivery" className="rounded-2xl bg-surface p-5 shadow-card">
+        <DeliverySettings delivery={delivery} hasWebhook={!!webhookUrl} todoistUsable={todoistUsable} />
+      </section>
       <section className="rounded-2xl bg-surface p-5 shadow-card">
         <WebhookSettings webhookUrl={webhookUrl} />
       </section>
@@ -60,7 +73,7 @@ export default async function SettingsPage() {
           <ListChecks aria-hidden className="h-4 w-4" />
           {copy.todoistTitle}
         </h2>
-        <TodoistSettings status={await todoistStatus(v)} delivery={delivery} hasWebhook={!!webhookUrl} />
+        <TodoistSettings status={todoist} />
       </section>
       <section id="reflection" className="rounded-2xl bg-surface p-5 shadow-card">
         <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-semibold">

@@ -450,7 +450,7 @@ export const de = {
   deliveryPush: "Push",
   deliveryTodoist: "Todoist-Aufgaben",
   deliveryBoth: "Push und Todoist",
-  deliveryNeedsWebhook: "Push braucht eine Benachrichtigungsadresse (oben).",
+  deliveryNeedsWebhook: "Push braucht eine Benachrichtigungsadresse (unten).",
   deliveryFallback: "Todoist ist noch nicht eingerichtet: bis dahin kommen die Erinnerungen als Push.",
   followUpsTitle: "Erzähl Claude davon",
   followUpOverdue: "Kontakt mit {name} am {day}: Erzähl Claude, wie es war",
