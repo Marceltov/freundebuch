@@ -135,8 +135,12 @@ export function todoist(token: string, fetchFn: typeof fetch = fetch) {
     },
 
     /** A comment's file: its URL answers, with the token, with a redirect to a signed https address, fetched without the token.
-     * Neither URL is logged. Refuses more than `max` bytes. */
+     * Only for https addresses on todoist.com; neither URL is logged. Refuses more than `max` bytes. */
     async download(url: string, max: number): Promise<{ bytes: Uint8Array; type: string }> {
+      // The token only ever goes to Todoist itself: an attachment elsewhere (a Drive or Dropbox link) is left out.
+      const at = new URL(url);
+      if (at.protocol !== "https:" || !(at.hostname === "todoist.com" || at.hostname.endsWith(".todoist.com")))
+        throw new TodoistError("The file is not on Todoist");
       const get = async (u: string, auth: boolean) => {
         try {
           return await fetchFn(u, { headers: auth ? { Authorization: `Bearer ${token}` } : {}, redirect: "manual", signal: AbortSignal.timeout(30_000) });

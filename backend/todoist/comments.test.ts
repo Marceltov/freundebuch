@@ -27,7 +27,7 @@ const fetchFn = (async (url: string, init: RequestInit = {}) => {
   const auth = (init.headers as Record<string, string> | undefined)?.Authorization;
   const u = new URL(url);
   downloads.push({ url, auth: !!auth });
-  if (u.host === "files.todoist.example") {
+  if (u.host === "files.todoist.com") {
     const acc = accounts.get(auth!.replace("Bearer ", ""))!;
     if (acc.failDownload) return new Response(null, { status: 503 });
     return new Response(null, { status: 302, headers: { Location: `https://cdn.example${u.pathname}` } });
@@ -47,7 +47,7 @@ const fetchFn = (async (url: string, init: RequestInit = {}) => {
       .map(({ file, ...n }) => ({
         ...n,
         file_attachment: file
-          ? { file_url: `https://files.todoist.example/${n.id}`, file_type: file.type, file_name: "blob", file_size: file.bytes.byteLength }
+          ? { file_url: `https://files.todoist.com/${n.id}`, file_type: file.type, file_name: "blob", file_size: file.bytes.byteLength }
           : null,
       }));
     return Response.json({ sync_token: String(clock), items: [], notes, ...(since === "*" ? { user: { id: acc.uid } } : {}) });
@@ -187,4 +187,22 @@ test("the inbox tells Claude to propose what a Todoist comment means", async () 
   expect(out.next.join("\n")).toContain(
     'This is a comment the user left on the Todoist task "Frag Anna nach der Haussuche". Propose from what it says: a contact or news → file it with record (that settles the task); only a note → file that and leave the task open; nothing came of it → inbox done.',
   );
+});
+
+test("an attachment that lives outside Todoist is never fetched with the token; its text still comes in", async () => {
+  note("ta", { id: "n1", item_id: "t1", content: "Link angehängt", file: { type: "application/pdf", bytes: new Uint8Array([1]) } });
+  const real = fetchFn;
+  const outside = (async (url: string, init?: RequestInit) =>
+    real(url.replace("https://files.todoist.com/", "https://drive.example/"), init)) as unknown as typeof fetch;
+  // The sync answers with a file_url on another host.
+  const viaDrive = (async (url: string, init?: RequestInit) => {
+    const res = await outside(url, init);
+    if (!url.endsWith("/api/v1/sync")) return res;
+    const body = (await res.json()) as { notes: { file_attachment: { file_url: string } | null }[] };
+    for (const n of body.notes) if (n.file_attachment) n.file_attachment.file_url = n.file_attachment.file_url.replace("files.todoist.com", "drive.example");
+    return Response.json(body);
+  }) as unknown as typeof fetch;
+  await syncUser(s.a.userId, NOW, viaDrive);
+  expect(downloads.filter((d) => d.url.includes("drive.example") && d.auth)).toEqual([]);
+  expect((await listPending(s.a)).map((f) => f.type)).toEqual(["text/plain"]);
 });
