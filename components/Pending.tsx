@@ -4,7 +4,7 @@ import { AudioLines, FileText, MessageCirclePlus, RotateCw, Trash2 } from "lucid
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PendingFile } from "@/backend";
-import { useCopy } from "@/components/i18n";
+import { useCopy, useLanguage } from "@/components/i18n";
 import { tellAbout } from "@/components/TabBar";
 
 // The "Prüfen" list: each waiting file with what Claude suggests to file and who is in it. Filing happens with Claude: "In
@@ -133,6 +133,7 @@ const button = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-s
 /** The file at a glance: an image's preview, else an icon with its kind. */
 export function FilePreview({ item }: { item: Pick<PendingFile, "url" | "type"> }) {
   const copy = useCopy();
+  const lang = useLanguage();
   if (item.type.startsWith("image/"))
     return (
       <a href={item.url} target="_blank" rel="noreferrer" className="shrink-0">
@@ -148,7 +149,10 @@ export function FilePreview({ item }: { item: Pick<PendingFile, "url" | "type"> 
       className="flex h-32 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-surface-2 text-xs text-muted"
     >
       {item.type.startsWith("audio/") ? <AudioLines aria-hidden className="h-7 w-7 text-carbon" /> : <FileText aria-hidden className="h-7 w-7 text-carbon" />}
-      {item.type.startsWith("audio/") ? copy.fileAudio : item.type === "application/pdf" ? copy.filePdf : copy.fileText}
+      {/* "Sprachnachricht" is wider than the tile: broken by syllable, never past its edge. */}
+      <span lang={lang} className="w-full px-1 text-center break-words hyphens-auto">
+        {item.type.startsWith("audio/") ? copy.fileAudio : item.type === "application/pdf" ? copy.filePdf : copy.fileText}
+      </span>
     </a>
   );
 }
@@ -184,7 +188,17 @@ function PendingCard({ item, selected, onSelect, onDone }: { item: PendingFile; 
       />
       <FilePreview item={item} />
       <div className="min-w-0 flex-1 space-y-2">
-        {item.context?.source === "todoist" && <p className="text-xs text-muted">{copy.fromTodoist.replace("{task}", item.context.taskTitle)}</p>}
+        {item.context?.source === "todoist" && (
+          <p className="text-xs text-muted">
+            {item.context.taskId ? (
+              <a href={`https://app.todoist.com/app/task/${encodeURIComponent(item.context.taskId)}`} target="_blank" rel="noreferrer" className="underline">
+                {copy.fromTodoist.replace("{task}", item.context.taskTitle)}
+              </a>
+            ) : (
+              copy.fromTodoist.replace("{task}", item.context.taskTitle)
+            )}
+          </p>
+        )}
         {/* Kept only until it is filed, like every shared file; then only its transcript remains. */}
         {item.type.startsWith("audio/") && <audio controls preload="none" src={item.url} className="w-full" />}
         {item.status === "reading" && <p className="text-muted">{copy.pendingReading}</p>}

@@ -116,6 +116,8 @@ export type FileContext = {
   kind: "date" | "promise" | "overdue" | "situation" | "session";
   personId: string;
   itemId: string | null;
+  /** The Todoist task's id, for a link to it; missing on comments taken in before it was kept. */
+  taskId?: string;
 };
 
 /** The line the pre-read gets about a file's context. */

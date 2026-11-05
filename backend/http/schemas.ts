@@ -1009,6 +1009,7 @@ export const PendingFileJson = z
         kind: z.enum(["date", "promise", "overdue", "situation", "session"]),
         personId: z.string().describe("Who the task is about"),
         itemId: z.string().nullable().describe("The date, promise, situation or series the task is for"),
+        taskId: z.string().optional().describe("The Todoist task's id (app.todoist.com/app/task/<id>)"),
       })
       .nullable()
       .describe("Where it came from when not shared directly: a comment the user left on one of freundebuch's Todoist tasks; null otherwise"),

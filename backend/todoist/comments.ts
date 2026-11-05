@@ -42,7 +42,14 @@ export async function takeComments(all: Viewer, token: string, notes: TodoistNot
       await i.delete("todoist_notes").where("user_id", "=", all.userId).where("note_id", "=", note.id).execute();
       throw e;
     }
-    const context: FileContext = { source: "todoist", taskTitle: task.title ?? task.kind, kind: task.kind, personId: task.person_id, itemId: task.item_id };
+    const context: FileContext = {
+      source: "todoist",
+      taskTitle: task.title ?? task.kind,
+      kind: task.kind,
+      personId: task.person_id,
+      itemId: task.item_id,
+      taskId: task.task_id,
+    };
     const opts = { createdAt: Date.parse(note.postedAt) || Date.now(), context, dedup: false };
     // One comment is one batch (its text and its voice message together); comments on one task stay apart.
     const batch = `todoist-${note.id}`.slice(0, 64);

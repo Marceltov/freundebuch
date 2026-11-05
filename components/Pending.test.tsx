@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import type { PendingFile } from "@/backend";
-import { idOfHash, PendingList } from "./Pending";
+import { FilePreview, idOfHash, PendingList } from "./Pending";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {} }) }));
 
@@ -61,4 +61,16 @@ test("a comment from Todoist says which task it came from", () => {
   const html = renderToStaticMarkup(<PendingList items={[file({ type: "text/plain", context })]} />);
   expect(html).toContain("Kommentar zu „Frag Anna nach der Haussuche“ in Todoist");
   expect(renderToStaticMarkup(<PendingList items={[file({})]} />)).not.toContain("in Todoist");
+});
+
+test("a comment from Todoist links to its task there", () => {
+  const context = { source: "todoist" as const, taskTitle: "Frag Anna", kind: "situation" as const, personId: "p1", itemId: null, taskId: "6hw58W3VXR2jp8xx" };
+  const html = renderToStaticMarkup(<PendingList items={[file({ type: "text/plain", context })]} />);
+  expect(html).toMatch(/<a [^>]*href="https:\/\/app.todoist.com\/app\/task\/6hw58W3VXR2jp8xx"[^>]*>Kommentar zu „Frag Anna“ in Todoist<\/a>/);
+});
+
+test("the preview tile's label stays inside the tile", () => {
+  const html = renderToStaticMarkup(<FilePreview item={{ url: "/api/files/f1", type: "audio/webm" }} />);
+  expect(html).toMatch(/<span[^>]*class="[^"]*hyphens-auto[^"]*"[^>]*>Sprachnachricht<\/span>/);
+  expect(html).toMatch(/<span lang="de"/);
 });

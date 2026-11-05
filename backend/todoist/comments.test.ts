@@ -132,7 +132,14 @@ test("a text comment on a task comes into Prüfen with its task and its day", as
   await syncUser(s.a.userId, NOW, fetchFn);
   const [file] = await listPending(s.a);
   expect(file).toMatchObject({ type: "text/plain", sharedOn: "2026-11-03", batchId: "todoist-n1" });
-  expect(file.context).toEqual({ source: "todoist", taskTitle: "Frag Anna nach der Haussuche", kind: "situation", personId: s.anna, itemId: "f-t1" });
+  expect(file.context).toEqual({
+    source: "todoist",
+    taskTitle: "Frag Anna nach der Haussuche",
+    kind: "situation",
+    personId: s.anna,
+    itemId: "f-t1",
+    taskId: "t1",
+  });
 });
 
 test("a voice message comes as audio, with its text, in the task's batch; the download sends the token only to Todoist", async () => {
