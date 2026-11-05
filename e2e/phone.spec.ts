@@ -1121,7 +1121,7 @@ test.describe("voice", () => {
     // Other tests leave files of their own here: the voice note is the card with a player.
     const card = page.locator("article", { has: page.locator("audio") });
     await expect(card).toHaveCount(1);
-    await expect(card.getByText("Sprachnachricht", { exact: true })).toBeVisible();
+    await expect(card.getByText("Audio", { exact: true })).toBeVisible();
     await expect(card.getByText("Anna Reise war in Lissabon im Urlaub")).toBeVisible({ timeout: 15_000 });
     await expectNoSideScroll(page);
   });

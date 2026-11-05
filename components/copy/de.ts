@@ -390,7 +390,7 @@ export const de = {
   fileSuggests: "Vorschlag",
   filePdf: "PDF",
   fileText: "Text",
-  fileAudio: "Sprachnachricht",
+  fileAudio: "Audio",
   fileOf: "Datei von {source}",
   ownCardTitle: "Deine Karten",
   ownCardHint:

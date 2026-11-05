@@ -9,7 +9,7 @@ import { getConversation } from "../conversations/conversations";
 import { getRamble } from "../conversations/rambles";
 import { today } from "../people/dates";
 import { fileBlock } from "../conversations/file-model";
-import { chatFiles, type ChatFile } from "../conversations/files";
+import { chatFiles, describeFileContext, type ChatFile } from "../conversations/files";
 import { FreundebuchError } from "../core/errors";
 import { logger } from "../core/log";
 import { INSTRUCTIONS } from "../mcp/mcp";
@@ -122,12 +122,14 @@ async function situation(v: Viewer, context: ChatContext, day: string, files: Ch
     );
   else if (files.length === 1) {
     const [f] = files;
+    if (f.context) lines.push(await describeFileContext(v, f.context));
     lines.push(
       `The user opened the chat on a file they shared (fileId ${f.id}); it is in their first message, with what a first read suggested. Work it through with them: file what is worth keeping with record, passing fileIds ["${f.id}"]: its transcript joins the conversation's and the file goes. Ask about people and privacy as you would for a ramble. If nothing in it is worth filing, call inbox with action done and id ${f.id}.`,
       `It was shared on ${f.sharedOn}: date the ramble and what you file by when it happened, ${f.sharedOn} unless the file shows another day; not the day it is reviewed (${day}).`,
     );
   } else if (files.length) {
     const ids = files.map((f) => f.id);
+    for (const f of files) if (f.context) lines.push(`${f.id}: ${await describeFileContext(v, f.context)}`);
     const first = files.map((f) => f.sharedOn).sort()[0];
     lines.push(
       `The user opened the chat on ${files.length} files they shared and put them together as one thing (fileIds ${JSON.stringify(ids)}, in this order); they are in their first message, each with what a first read of it alone suggested. Read them together, as one (a chat over several screenshots is one conversation). File what is worth keeping with record, passing all of them in fileIds: their transcripts join the conversation's and the files go. Ask about people and privacy as you would for a ramble. If nothing in them is worth filing, call inbox with action done and ids ${JSON.stringify(ids)}.`,

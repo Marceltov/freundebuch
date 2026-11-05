@@ -6644,6 +6644,10 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "taskId": {
+                    "description": "The Todoist task's id (app.todoist.com/app/task/<id>)",
+                    "type": "string"
                   }
                 },
                 "required": [
@@ -6841,6 +6845,10 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "taskId": {
+                      "description": "The Todoist task's id (app.todoist.com/app/task/<id>)",
+                      "type": "string"
                     }
                   },
                   "required": [

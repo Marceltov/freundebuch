@@ -369,7 +369,7 @@ export const en: Copy = {
   fileSuggests: "Suggestion",
   filePdf: "PDF",
   fileText: "Text",
-  fileAudio: "Voice note",
+  fileAudio: "Audio",
   fileOf: "File from {source}",
   ownCardTitle: "Your cards",
   ownCardHint:

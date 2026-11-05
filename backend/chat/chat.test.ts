@@ -405,3 +405,12 @@ test("opened on a ramble, Claude gets what was filed from it and its transcript,
   expect(theirs).not.toContain(s.coffee);
   expect(theirs).not.toContain("ramble_transcript");
 });
+
+test("a chat opened on a Todoist comment tells Claude which task and person it belongs to", async () => {
+  const context = { source: "todoist" as const, taskTitle: "🎂 Uwe hat Geburtstag", kind: "date" as const, personId: s.anna, itemId: null };
+  const file = await shareFile(s.a, new TextEncoder().encode("Schöner Geburtstag im Park"), "text/plain", null, { context });
+  const { model, calls } = fake([text("Erzähl mehr")]);
+  await chat(s.a, [{ role: "user", content: "Hier" }], { fileId: file.id }, model);
+  const system = calls[0].system as Anthropic.Beta.BetaTextBlockParam[];
+  expect(system[1].text).toContain(`This came as a comment the user left on the Todoist task "🎂 Uwe hat Geburtstag" (date), about Anna (person id ${s.anna})`);
+});
