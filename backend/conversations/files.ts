@@ -120,8 +120,48 @@ export type FileContext = {
   taskId?: string;
 };
 
-/** The line the pre-read gets about a file's context. */
-const contextLine = (c: FileContext) => `This came as a comment on the Todoist task "${c.taskTitle}" (${c.kind}), about the person with id ${c.personId}.`;
+/** What a file's context means, for Claude (the pre-read, the chat, the inbox): the task, who it is about and what it is for,
+ * read from freundebuch itself, so it says enough even when the task's text is only its kind. Only what `v` may see. */
+export async function describeFileContext(v: Viewer, c: FileContext): Promise<string> {
+  const d = await scope(v);
+  const person = await d.from("persons").select("name").where("id", "=", c.personId).executeTakeFirst();
+  const who = person ? `${person.name} (person id ${c.personId})` : `the person with id ${c.personId}`;
+  let what = "";
+  if (c.itemId && c.kind === "situation") {
+    const f = await d
+      .from("facts")
+      .select("text")
+      .where("id", "=", c.itemId)
+      .$call((qb) => visible(qb, v, "facts"))
+      .executeTakeFirst();
+    if (f) what = `; the situation: "${f.text}" (fact id ${c.itemId})`;
+  } else if (c.itemId && c.kind === "promise") {
+    const p = await d
+      .from("promises")
+      .select("text")
+      .where("id", "=", c.itemId)
+      .$call((qb) => visible(qb, v, "promises"))
+      .executeTakeFirst();
+    if (p) what = `; the promise: "${p.text}" (promise id ${c.itemId})`;
+  } else if (c.itemId && c.kind === "date") {
+    const dt = await d
+      .from("dates")
+      .select(["kind", "label", "date"])
+      .where("id", "=", c.itemId)
+      .$call((qb) => visible(qb, v, "dates"))
+      .executeTakeFirst();
+    if (dt) what = `; the date: ${dt.label ?? dt.kind} on ${dt.date} (date id ${c.itemId})`;
+  } else if (c.itemId && c.kind === "session") {
+    const sr = await d
+      .from("series")
+      .select("name")
+      .where("id", "=", c.itemId)
+      .$call((qb) => visible(qb, v, "series"))
+      .executeTakeFirst();
+    if (sr) what = `; the series: "${sr.name}" (series id ${c.itemId})`;
+  }
+  return `This came as a comment the user left on the Todoist task "${c.taskTitle}" (${c.kind}), about ${who}${what}.`;
+}
 
 /** Stores a file `v` shared and returns its entry; the same bytes shared again return the first one (`duplicate`, which keeps its
  * batch, unless it comes with a new share: then it joins that). `type` is what it was sent as ("" when unknown); `batch` the id of the share it came in with (batchOf).
@@ -313,7 +353,7 @@ export async function readFile(v: Viewer, id: string, model: FileModel, whisper:
     input = { bytes: new TextEncoder().encode(`A voice note, transcribed:\n\n${heard}`), type: "text/plain" };
   }
   const people = await knownPeople(d);
-  const context = row.context ? contextLine(JSON.parse(row.context) as FileContext) : undefined;
+  const context = row.context ? await describeFileContext(v, JSON.parse(row.context) as FileContext) : undefined;
   const read = await model.read({ ...input, people, today: day, language: await userLanguage(v), context });
   if ("error" in read) {
     await set("failed", heard ? { ...read, transcript: heard } : read);

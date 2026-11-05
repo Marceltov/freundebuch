@@ -55,6 +55,8 @@ const fetchFn = (async (url: string, init: RequestInit = {}) => {
     return Response.json({ sync_token: String(clock), items: [], notes, ...(since === "*" && !acc.noUserInSync ? { user: { id: acc.uid } } : {}) });
   }
   if (u.pathname === "/api/v1/user") return Response.json({ id: acc.uid });
+  const task = u.pathname.match(/^\/api\/v1\/tasks\/(.+)$/);
+  if (task) return Response.json({ id: task[1], content: `🎂 Aufgabe ${task[1]}` });
   return new Response(null, { status: 404 });
 }) as unknown as typeof fetch;
 
@@ -201,7 +203,7 @@ test("the inbox tells Claude to propose what a Todoist comment means", async () 
   await syncUser(s.a.userId, NOW, fetchFn);
   const out = (await toolByName("inbox")!.run(s.a, { action: "list" })) as { next: string[] };
   expect(out.next.join("\n")).toContain(
-    'This is a comment the user left on the Todoist task "Frag Anna nach der Haussuche". Propose from what it says: a contact or news → file it with record (that settles the task); only a note → file that and leave the task open; nothing came of it → inbox done.',
+    `This came as a comment the user left on the Todoist task "Frag Anna nach der Haussuche" (situation), about Anna (person id ${s.anna}). Propose from what it says: a contact or news → file it with record (that settles the task); only a note → file that and leave the task open; nothing came of it → inbox done.`,
   );
 });
 
@@ -268,4 +270,13 @@ test("two comments on one task are each their own batch (a comment's text and it
   const files = await listPending(s.a);
   expect(new Set(files.map((f) => f.batchId))).toEqual(new Set(["todoist-n1", "todoist-n2"]));
   expect(files.filter((f) => f.batchId === "todoist-n2")).toHaveLength(2);
+});
+
+test("a task from before titles were kept gets its text from Todoist", async () => {
+  await task(s.a.userId, "t2", s.a.bookId, s.anna, null);
+  note("ta", { id: "n1", item_id: "t2", content: "Schön war's" });
+  await syncUser(s.a.userId, NOW, fetchFn);
+  expect((await listPending(s.a))[0].context?.taskTitle).toBe("🎂 Aufgabe t2");
+  const row = await (await instance()).from("todoist_tasks").select("title").where("task_id", "=", "t2").executeTakeFirst();
+  expect(row?.title).toBe("🎂 Aufgabe t2");
 });

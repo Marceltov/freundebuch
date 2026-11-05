@@ -93,6 +93,12 @@ export function todoist(token: string, fetchFn: typeof fetch = fetch) {
       return String(res.id);
     },
 
+    /** A task's text (content), or null when Todoist has none. */
+    async taskContent(id: string): Promise<string | null> {
+      const res = (await call(`/tasks/${encodeURIComponent(id)}`, { method: "GET" })) as { content?: string } | null;
+      return res?.content ?? null;
+    },
+
     async closeTask(id: string): Promise<void> {
       await call(`/tasks/${encodeURIComponent(id)}/close`, { method: "POST" });
     },

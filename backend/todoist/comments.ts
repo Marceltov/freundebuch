@@ -42,6 +42,14 @@ export async function takeComments(all: Viewer, token: string, notes: TodoistNot
       await i.delete("todoist_notes").where("user_id", "=", all.userId).where("note_id", "=", note.id).execute();
       throw e;
     }
+    // A task made before titles were kept: its text from Todoist, kept for next time; the kind when Todoist can't say.
+    if (!task.title) {
+      task.title = await todoist(token, fetchFn)
+        .taskContent(task.task_id)
+        .catch(() => null);
+      if (task.title)
+        await i.update("todoist_tasks").set({ title: task.title }).where("user_id", "=", all.userId).where("task_id", "=", task.task_id).execute();
+    }
     const context: FileContext = {
       source: "todoist",
       taskTitle: task.title ?? task.kind,

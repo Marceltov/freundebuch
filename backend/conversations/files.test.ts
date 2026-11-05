@@ -12,6 +12,7 @@ import type { FileInput, FileModel, Suggestion } from "./file-model";
 import { setTranscriberForTests, type Transcriber } from "./transcribe";
 import {
   type FileContext,
+  describeFileContext,
   chatFiles,
   NO_AUDIO,
   NOT_AUDIO,
@@ -522,6 +523,29 @@ test("the pre-read is told which task a comment belongs to", async () => {
   const model = answering(suggestion([{ name: "Anna", personId: s.anna }]));
   await readFile(s.a, shot.id, model);
   expect(model.seen[0].context).toBe(
-    `This came as a comment on the Todoist task "Frag Anna nach der Haussuche" (situation), about the person with id ${s.anna}.`,
+    `This came as a comment the user left on the Todoist task "Frag Anna nach der Haussuche" (situation), about Anna (person id ${s.anna}).`,
+  );
+});
+
+test("a comment's context names what the task is for: the situation's text", async () => {
+  await (
+    await firstBook()
+  )
+    .insert("facts", {
+      id: "f-haus",
+      person_id: s.anna,
+      text: "sucht ein Haus in Pasing",
+      category: "other",
+      kind: "situation",
+      check_after: "2026-11-01",
+      visibility: "shared",
+      recorded_by: s.a.userId,
+      conversation_id: null,
+      created_at: 1,
+    })
+    .execute();
+  const context = { ...fromTodoist, personId: s.anna, itemId: "f-haus" };
+  expect(await describeFileContext(s.a, context)).toBe(
+    `This came as a comment the user left on the Todoist task "Frag Anna nach der Haussuche" (situation), about Anna (person id ${s.anna}); the situation: "sucht ein Haus in Pasing" (fact id f-haus).`,
   );
 });
