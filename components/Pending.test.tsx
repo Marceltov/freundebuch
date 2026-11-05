@@ -71,6 +71,6 @@ test("a comment from Todoist links to its task there", () => {
 
 test("the preview tile's label stays inside the tile", () => {
   const html = renderToStaticMarkup(<FilePreview item={{ url: "/api/files/f1", type: "audio/webm" }} />);
-  expect(html).toMatch(/<span[^>]*class="[^"]*hyphens-auto[^"]*"[^>]*>Sprachnachricht<\/span>/);
+  expect(html).toMatch(/<span[^>]*class="[^"]*hyphens-auto[^"]*"[^>]*>Audio<\/span>/);
   expect(html).toMatch(/<span lang="de"/);
 });

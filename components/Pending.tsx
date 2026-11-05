@@ -149,7 +149,7 @@ export function FilePreview({ item }: { item: Pick<PendingFile, "url" | "type"> 
       className="flex h-32 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-surface-2 text-xs text-muted"
     >
       {item.type.startsWith("audio/") ? <AudioLines aria-hidden className="h-7 w-7 text-carbon" /> : <FileText aria-hidden className="h-7 w-7 text-carbon" />}
-      {/* "Sprachnachricht" is wider than the tile: broken by syllable, never past its edge. */}
+      {/* A long label is broken by syllable, never past the tile's edge. */}
       <span lang={lang} className="w-full px-1 text-center break-words hyphens-auto">
         {item.type.startsWith("audio/") ? copy.fileAudio : item.type === "application/pdf" ? copy.filePdf : copy.fileText}
       </span>
