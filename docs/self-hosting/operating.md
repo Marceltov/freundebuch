@@ -12,15 +12,28 @@ Everything lives in `DATA_DIR` (`/data` in the container):
 - `secret`: the signing secret, unless `FREUNDEBUCH_SECRET` is set.
 - `files/` and, from before 0.4, `screenshots/`: the [shared files](../using/sharing.md), unless `FREUNDEBUCH_STORAGE=s3`.
 
-Back up the whole directory. The database runs in WAL mode, so copy it while the container is stopped (or back up the volume with a tool that snapshots it):
+Back up the whole directory. The database runs in WAL mode, so copy it while the container is stopped (or back it up with a tool that snapshots it):
 
 ```bash
 docker compose stop freundebuch
-cp -a ./data ./data.backup   # or wherever the volume lives
+cp -a ./data ./data.backup
 docker compose start freundebuch
 ```
 
 With `FREUNDEBUCH_STORAGE=s3` the shared files are in the bucket instead: a backup is the directory plus the bucket. Switching between `files` and `s3` doesn't move existing files; copy `files/` and `screenshots/` into the bucket (or back) yourself, keeping the key names.
+
+### Moving from a named volume to `./data`
+
+Installs from before this change keep their data in the Docker volume `freundebuch-data`. Pointing `compose.yaml` at `./data` without copying it first **starts freundebuch on an empty database**. The volume is still there, but your data looks gone. Move it in this order:
+
+```bash
+docker compose down                        # keeps the volume; never add -v
+docker volume ls | grep freundebuch-data   # the full name, such as myfolder_freundebuch-data
+mkdir data
+docker run --rm -v myfolder_freundebuch-data:/from:ro -v "$PWD/data:/to" alpine cp -a /from/. /to/
+```
+
+In `compose.yaml`, replace `freundebuch-data:/data` with `./data:/data` and remove the top-level `volumes:` block. Then run `docker compose up -d` and check that your people are there. Only after that, remove the old volume with `docker volume rm myfolder_freundebuch-data`.
 
 ## Upgrading
 
