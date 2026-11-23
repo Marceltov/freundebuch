@@ -32,7 +32,4 @@ services:
       FREUNDEBUCH_S3_PATH_STYLE: ${FREUNDEBUCH_S3_PATH_STYLE:-}
       TZ: ${TZ:-Europe/Berlin}
     volumes:
-      - freundebuch-data:/data
-
-volumes:
-  freundebuch-data:
+      - ./data:/data

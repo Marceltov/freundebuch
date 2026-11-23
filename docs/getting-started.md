@@ -28,9 +28,7 @@ services:
       FREUNDEBUCH_OIDC_CLIENT_SECRET: ...
       FREUNDEBUCH_TRUST_PROXY: "1"
     volumes:
-      - freundebuch-data:/data
-volumes:
-  freundebuch-data:
+      - ./data:/data
 ```
 
 ```bash
@@ -38,7 +36,7 @@ docker compose up -d
 curl -fsS https://freundebuch.example.com/health   # 200 once it can reach its database
 ```
 
-Every variable is explained in [Configuration](self-hosting/configuration.md).
+Your data is in the `data` folder next to `compose.yaml`: back up that folder ([Operating](self-hosting/operating.md#data-and-backups)). Every variable is explained in [Configuration](self-hosting/configuration.md).
 
 ## 3. Sign in
 

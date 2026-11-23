@@ -5,7 +5,7 @@ Everything is an environment variable. [`.env.example`](https://github.com/Marce
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PUBLIC_URL` | derived from the request | The address clients reach freundebuch at (OAuth issuer, links in notifications). Set it behind a reverse proxy. |
-| `DATA_DIR` | `/data` | Where the database (`freundebuch.db`) and the generated secret live. Mount a volume here. |
+| `DATA_DIR` | `/data` | Where the database (`freundebuch.db`) and the generated secret live. Bind-mount a folder here, so a backup of the server's data includes it. |
 | `PORT` | `3000` | Port the server listens on. |
 | `TZ` | `Europe/Berlin` | Birthdays and "today" are computed in this IANA time zone. |
 | `FREUNDEBUCH_SECRET` | generated into `${DATA_DIR}/secret` | Signs OAuth tokens and sign-in cookies; at least 32 bytes (`openssl rand -hex 32`). Changing it signs out every browser and every connected Claude. |
